@@ -1,6 +1,6 @@
 {
   "name": "Cursor MCP Plugin",
-  "id": "cursor-mcp-plugin",
+  "id": "1485687494525374295",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
@@ -11,14 +11,15 @@
   "permissions": [],
   "networkAccess": {
     "allowedDomains": [
-      "https://google.com"
+      "ws://localhost:3055",
+      "https://www.google-analytics.com"
     ],
+    "reasoning": "Connects to a local Cursor MCP relay; sends anonymous usage events to Google Analytics.",
     "devAllowedDomains": [
       "http://localhost:3055",
-      "ws://localhost:3055"
+      "ws://localhost:3055",
+      "https://www.google-analytics.com"
     ]
   },
-  "documentAccess": "dynamic-page",
-  "enableProposedApi": true,
-  "enablePrivatePluginApi": true
+  "documentAccess": "dynamic-page"
 }

@@ -8,9 +8,13 @@ announced in-session._
 > **Fork-side work still open** (nothing here is blocked on upstream):
 > **(a)** acceptance test #3 (`13490:36146`) was validated *before* the `f430682`
 > style-coverage fix and should be re-run — it is also the only fixture that can prove
-> the `remote: false` half of the local-vs-kit split; **(b)** `get_local_components`
-> still takes **>120s** on a large file even in summary mode, because summary bounds
-> the *payload* but not the *traversal*.
+> the `remote: false` half of the local-vs-kit split; **(b)** ~~`get_local_components`
+> still takes >120s on a large file~~ → **cost controls SHIPPED and live-verified
+> 2026-07-27** (`pages` scoping + `timeBudgetMs` truncation, see
+> [PR-4 fixes shipped](#-pr-4-fixes-shipped--live-verified-2026-07-27)). The per-page
+> `loadAsync()` cost itself is unchanged — an *unscoped* scan of a heavy file can still
+> exceed 120s — but a caller can now bound it, and a bounded reply can no longer be
+> mistaken for a document total.
 
 **Why this exists.** The fork is excellent at *writing* to Figma and unreliable at
 *reading* from it. Every defect below was hit for real while auditing a portfolio of
@@ -388,7 +392,8 @@ requires before any page can be queried. Summary mode bounded the **payload**; i
 never bound the **traversal**, because the counts it reports require visiting
 everything.
 
-Two fixes worth making, both fork-only and both PR-4 material:
+Two fixes worth making, both fork-only and both PR-4 material — **both now shipped,
+see the verification immediately below:**
 
 - **A `pages` filter parameter** — let a caller scope to specific page IDs and skip
   loading the rest. Most audits want one page, and today they pay for all of them.
@@ -397,6 +402,45 @@ Two fixes worth making, both fork-only and both PR-4 material:
   explicit `pagesScanned` / `pagesSkipped` marker rather than dying whole. This is the
   plan's own design principle applied to the time axis: a truncated scan must not be
   reported in a shape that reads as a complete census.
+
+### ✅ PR-4 fixes shipped — live-verified 2026-07-27
+
+Both fixes landed on `get_local_components` (`pages` + `timeBudgetMs`, plus a `coverage`
+block on every reply: `scope` · `complete` · `pagesTotal` · `pagesRequested` ·
+`pagesScanned` · `pagesSkipped` · `pagesNotFound` · `limitations`).
+
+**Fixture: `iRVBeN1n4ORWJMgh5ERDLA` (`Mente Dermatológica`), 7 pages, DEV plugin.**
+Baseline unscoped scan returned **3,764 components — byte-identical to the pre-change
+record**, so the coverage refactor is regression-free. Per-page ground truth:
+`Design Desktop` 163 · `Design System` **3,597** · `Trash` 4 · four pages at 0.
+
+| # | Call | Result | Verdict |
+|---|---|---|---|
+| 0 | baseline, no params | `scope: document`, `complete: true`, 7/7 scanned, **3,764** | ✅ no regression |
+| 1 | `pages: ["1:16","1:15"]` | `scope: selected_pages`, **167** = 163+4 exactly, `pagesScanned: 2` / `pagesTotal: 7`, `complete: true`, limitation disclaims a document total | ✅ scoping is exact; the 3,597-component page never loaded |
+| 2 | `timeBudgetMs: 1` | `complete: false`, `pagesScanned: 1` (Cover ran anyway), **6 pages listed by id+name** with `reason: "time_budget_exhausted"` | ✅ truncation + first-page guarantee |
+| 3 | `pages: ["1:15","0:99999"]` | `pagesNotFound: ["0:99999"]`, `complete: false`, valid page still scanned (**4** = Trash baseline) | ✅ unknown ids surfaced, partial success not total failure |
+| 4 | `pages: []` | `scope: document`, **3,764**, `complete: true` | ✅ empty array = no filter, never "scan nothing" |
+
+**Test 2 is the one that matters.** It returned **`count: 0` on a 3,764-component
+document** — the exact shape of the false-census bug this whole plan exists to kill —
+and `complete: false` + six named skipped pages + an actionable `limitations` string
+make it unreadable as a real finding. `complete` is false the moment coverage is partial
+*for any reason*, so scoping, truncation and bad ids all fail loudly rather than
+quietly.
+
+> **Not proven here:** the *timing* payoff. This fixture completes inline; the >120s
+> case is KAT `dyRJx7ExmpALroOpjAjHi6`, where `Design System` holds 4,018 components
+> behind an 826- and a 764-child page. Scoping there is what converts a backgrounded
+> 2-minute call into a usable one — **re-run tests 1–2 against KAT opportunistically**
+> to record the wall-clock delta. Correctness is established; the speedup is inferred
+> from the fact that unlisted pages are never `loadAsync()`-ed.
+
+**Minor wording nits observed, not fixed** (cosmetic, no false claim): `pageCount`
+still reports the document's 7 alongside a scoped 2-entry `pages[]` — redundant with
+the clearer `pagesTotal`/`pagesScanned` pair; and the scoping limitation reads
+"Scoped to 1 of 7 pages by request" when 2 were requested and 1 existed (it counts
+scanned, not requested — the adjacent `pagesNotFound` line removes any ambiguity).
 
 ---
 

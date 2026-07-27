@@ -174,7 +174,7 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Document & Selection
 
-- `get_document_info` - Get current-page details plus a document-wide page index
+- `get_document_info` - Get current-page details plus a document-wide page index; the current page's children are always bounded by `limit`/`offset`, with `childTypes`/`childFamilies` rollups describing every child
 - `get_pages` - Enumerate every page; top-level child counts are opt-in
 - `set_current_page` - Switch the active page for subsequent page-scoped operations
 - `get_selection` - Get information about the current-page selection
@@ -236,7 +236,7 @@ The MCP server provides the following tools for interacting with Figma:
 ### Components & Styles
 
 - `get_styles` - Get document-wide local styles with progress heartbeats
-- `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list; scope with `pages` and bound with `timeBudgetMs` on large documents
+- `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list; scope with `pages` and bound with `timeBudgetMs` on large documents. Summary mode also clusters components into `authoringSessions` by node-id prefix, so a bulk-pasted vendor kit is distinguishable from hand-authored work
 - `get_variables` - Get document-wide variable collections, modes, and resolved values
 - `get_node_variables` - Resolve every design token in a node subtree — both variable bindings and style references
 - `create_component_instance` - Create an instance of a component

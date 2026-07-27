@@ -127,7 +127,7 @@ function updateSettings(settings) {
 async function handleCommand(command, params) {
   switch (command) {
     case "get_document_info":
-      return await getDocumentInfo();
+      return await getDocumentInfo(params);
     case "get_pages":
       return await getPages(params);
     case "set_current_page":
@@ -277,9 +277,26 @@ async function handleCommand(command, params) {
 
 // Command implementations
 
-async function getDocumentInfo() {
+async function getDocumentInfo(params) {
   await figma.currentPage.loadAsync();
   const page = figma.currentPage;
+
+  // This tool is the documented entry point ("first use get_document_info"), so it is
+  // the one most likely to be called with no arguments at all — which is exactly why
+  // the bounded shape has to be the DEFAULT. An unbounded `children` array on a page
+  // with 826 top-level frames is the last read in this layer that can still exhaust a
+  // context window before any real work starts.
+  const summary = !params || params.summary !== false;
+  const offset = Math.max(0, Number((params && params.offset) || 0));
+  const limit = Math.min(
+    500,
+    Math.max(1, Number((params && params.limit) || 100))
+  );
+  const familyLimit = Math.min(
+    500,
+    Math.max(1, Number((params && params.familyLimit) || 100))
+  );
+
   const pages = figma.root.children.map((documentPage) => {
     const isCurrentPage = documentPage.id === page.id;
     return {
@@ -290,8 +307,17 @@ async function getDocumentInfo() {
     };
   });
 
-  return {
+  const allChildren = page.children;
+  const childCount = allChildren.length;
+  const children = allChildren.slice(offset, offset + limit).map((node) => ({
+    id: node.id,
+    name: node.name,
+    type: node.type,
+  }));
+
+  const base = {
     scope: "current_page_with_document_page_index",
+    summary,
     document: {
       id: figma.root.id,
       name: figma.root.name,
@@ -300,19 +326,56 @@ async function getDocumentInfo() {
     name: page.name,
     id: page.id,
     type: page.type,
-    children: page.children.map((node) => ({
-      id: node.id,
-      name: node.name,
-      type: node.type,
-    })),
     currentPage: {
       id: page.id,
       name: page.name,
-      childCount: page.children.length,
+      childCount,
+    },
+    // Always present, always accurate against the real total — a caller can never
+    // read a truncated list as the whole page.
+    childrenTruncated: children.length < childCount,
+    pagination: {
+      offset,
+      limit,
+      returned: children.length,
+      hasMore: offset + children.length < childCount,
     },
     pageCount: pages.length,
     pages,
   };
+
+  if (!summary) {
+    return Object.assign(base, { children });
+  }
+
+  const typeCounts = new Map();
+  const familyCounts = new Map();
+  for (var i = 0; i < childCount; i++) {
+    var child = allChildren[i];
+    typeCounts.set(child.type, (typeCounts.get(child.type) || 0) + 1);
+    var family = getNameFamily(child.name);
+    familyCounts.set(family, (familyCounts.get(family) || 0) + 1);
+  }
+
+  const byCountDesc = (left, right) =>
+    right.count - left.count || left.name.localeCompare(right.name);
+  const childTypes = Array.from(typeCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort(byCountDesc);
+  const childFamilies = Array.from(familyCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort(byCountDesc);
+
+  return Object.assign(base, {
+    // Node types are a small closed set, so this rollup needs no cap and describes
+    // the whole page even when `children` below is only the first slice of it.
+    childTypes,
+    childFamilyCount: childFamilies.length,
+    childFamilies: childFamilies.slice(0, familyLimit),
+    childFamiliesTruncated: childFamilies.length > familyLimit,
+    familyLimit,
+    children,
+  });
 }
 
 async function getPages(params) {
@@ -1826,8 +1889,27 @@ function getComponentFamilyName(component) {
     return component.parent.name;
   }
 
-  const firstPathSegment = component.name.split("/")[0].trim();
-  return firstPathSegment || component.name;
+  return getNameFamily(component.name);
+}
+
+// "Icons/Arrow/Left" -> "Icons". Names without a path collapse to themselves, which
+// still groups usefully because designers repeat top-level frame names.
+function getNameFamily(name) {
+  const firstPathSegment = String(name).split("/")[0].trim();
+  return firstPathSegment || String(name);
+}
+
+// Figma node ids are "<session>:<local>", and the first segment is shared by every
+// node created in the same authoring session. A bulk-pasted vendor kit therefore
+// lands in one or two sessions while hand-authored work spreads across the ones the
+// designer actually worked in — the split the portfolio audit derived by hand.
+// This is an observed property of the id format, not a documented API, so the payload
+// exposes the clusters and never labels one of them "the kit": that call needs a
+// human who knows the file, and asserting it here would be exactly the kind of
+// confident-but-invented finding this read layer exists to stop producing.
+function getAuthoringSessionId(node) {
+  const firstSegment = String(node.id).split(":")[0].trim();
+  return firstSegment || "unknown";
 }
 
 async function getLocalComponents(params) {
@@ -1841,6 +1923,10 @@ async function getLocalComponents(params) {
   const familyLimit = Math.min(
     500,
     Math.max(1, Number((params && params.familyLimit) || 100))
+  );
+  const sessionLimit = Math.min(
+    100,
+    Math.max(1, Number((params && params.sessionLimit) || 20))
   );
   // 0 (the default) means no budget — existing callers keep the old behaviour.
   const timeBudgetMs = Math.max(
@@ -1893,6 +1979,7 @@ async function getLocalComponents(params) {
   var totalComponents = 0;
   var components = [];
   var familyCounts = new Map();
+  var sessionCounts = new Map();
   var pageCounts = [];
   var pagesSkipped = [];
   var budgetExhausted = false;
@@ -1939,6 +2026,18 @@ async function getLocalComponents(params) {
       var component = pageComponents[j];
       var family = getComponentFamilyName(component);
       familyCounts.set(family, (familyCounts.get(family) || 0) + 1);
+
+      var session = getAuthoringSessionId(component);
+      var sessionEntry = sessionCounts.get(session);
+      if (!sessionEntry) {
+        sessionEntry = { count: 0, families: new Map() };
+        sessionCounts.set(session, sessionEntry);
+      }
+      sessionEntry.count++;
+      sessionEntry.families.set(
+        family,
+        (sessionEntry.families.get(family) || 0) + 1
+      );
 
       if (
         !summary &&
@@ -1994,6 +2093,27 @@ async function getLocalComponents(params) {
     .map(([name, count]) => ({ name, count }))
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
 
+  // Sorted by volume so the dominant population reads first; `session` is kept in the
+  // payload because a low id ordinarily means an earlier session, which is the signal
+  // a human uses to tell a pasted library from the designer's own work.
+  const authoringSessions = Array.from(sessionCounts.entries())
+    .map(([session, entry]) => ({
+      session,
+      count: entry.count,
+      familyCount: entry.families.size,
+      topFamilies: Array.from(entry.families.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort(
+          (left, right) =>
+            right.count - left.count || left.name.localeCompare(right.name)
+        )
+        .slice(0, 3),
+    }))
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.session.localeCompare(right.session)
+    );
+
   const limitations = [];
   if (pagesNotFound.length > 0) {
     limitations.push(
@@ -2011,16 +2131,23 @@ async function getLocalComponents(params) {
         pagesScanned +
         " of " +
         targetPageCount +
-        " pages. Counts below cover only the scanned pages — they are NOT a document total. Raise timeBudgetMs or scope with the pages parameter."
+        " page(s). Counts below cover only the scanned pages — they are NOT a document total. Raise timeBudgetMs" +
+        (requestedPageIds ? "" : " or scope with the pages parameter") +
+        "."
     );
   }
-  if (requestedPageIds && !budgetExhausted) {
+  // Fires even when the budget also ran out: a reply that was BOTH scoped and
+  // truncated used to disclose only the truncation, leaving the caller unable to see
+  // that whole pages were never in scope to begin with.
+  if (requestedPageIds) {
     limitations.push(
       "Scoped to " +
+        requestedPageIds.length +
+        " requested page(s); " +
         pagesScanned +
-        " of " +
+        " scanned of " +
         totalPages +
-        " pages by request; counts are not a document total."
+        " in the document. Counts are not a document total."
     );
   }
 
@@ -2042,19 +2169,21 @@ async function getLocalComponents(params) {
     return Object.assign({}, coverage, {
       summary: true,
       count: totalComponents,
-      pageCount: totalPages,
       pages: pageCounts,
       familyCount: nameFamilies.length,
       nameFamilies: nameFamilies.slice(0, familyLimit),
       familiesTruncated: nameFamilies.length > familyLimit,
       familyLimit,
+      sessionCount: authoringSessions.length,
+      authoringSessions: authoringSessions.slice(0, sessionLimit),
+      sessionsTruncated: authoringSessions.length > sessionLimit,
+      sessionLimit,
     });
   }
 
   return Object.assign({}, coverage, {
     summary: false,
     count: totalComponents,
-    pageCount: totalPages,
     pages: pageCounts,
     pagination: {
       offset,

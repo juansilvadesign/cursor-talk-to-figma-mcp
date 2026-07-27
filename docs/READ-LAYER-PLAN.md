@@ -236,9 +236,10 @@ answers, established independently via the official Figma MCP.
 | `get_pages` on `dyRJx7ExmpALroOpjAjHi6` | **6 pages** (`Cover`, `Design Desktop`, `Design Mobile`, `Design System`, `Moodboard`, `Trash`) — not 1. *(The page is named `Design Desktop`; earlier notes shortened it to `Design`.)* |
 | `get_local_components` on `dyRJx7ExmpALroOpjAjHi6` | Completes without timeout; `summary: true` fits a normal context window. |
 | `get_styles` on `iRVBeN1n4ORWJMgh5ERDLA` | Completes and includes the `Gradient/Purple` local paint style — previously timed out 3/3. |
-| ⏳ **M5.2** `get_document_info` on `dyRJx7ExmpALroOpjAjHi6` (`Design Desktop` open) | Bounded by default: 100 of **826** children, `childrenTruncated: true`, and `childTypes` summing to 826. *Pending live run.* |
-| ⏳ **M5.1** `get_local_components` on `dyRJx7ExmpALroOpjAjHi6` | `authoringSessions` isolates the Untitled UI session(s) from the designer's — the **3,849-vs-245** split, read off the payload instead of derived by hand. *Pending live run.* |
-| ⏳ **PR-4 timing** `get_local_components(pages:["<Design Mobile>"])` vs unscoped on KAT | Scoped call returns inline where the unscoped one exceeded 120s — the wall-clock delta the plan flags as inferred, not observed. *Pending live run.* |
+| ✅ **M5.2** `get_document_info` on `dyRJx7ExmpALroOpjAjHi6` (`Design Desktop` open) | **PASSED 2026-07-27** — 100 of **826** children, `childrenTruncated: true`, `hasMore: true`, `childTypes` summing to exactly 826. |
+| ✅ **M5.1** `get_local_components(pages:["1:14"])` on `dyRJx7ExmpALroOpjAjHi6` | **PASSED 2026-07-27** — 4,018 components across **46 authoring sessions**; sessions `9` (1,345 `Button`) and `12` (1,080) are the Untitled UI kit, `7449`/`5532`/`5159`/`5353` are KAT's own. |
+| ✅ **M5.3** scoped reply shape | **PASSED 2026-07-27** — no `pageCount`; limitation reads *"Scoped to 3 requested page(s); 3 scanned of 6 in the document."* |
+| 🔴 **PR-4 timing** scoped vs unscoped on KAT | **RAN 2026-07-27 and FALSIFIED the diagnosis.** `loadAsync` on all 6 pages = **9.1s**, not the bottleneck. `Design Desktop` alone (826 children, 42 components) **times out**, while `Design System` (4,018 components) completes — the cost is the unprotected `findAllWithCriteria` scan. See the correction section above. |
 
 ### Live validation recorded 2026-07-27
 
@@ -385,6 +386,15 @@ still trips on this file.
 
 #### 🔧 Diagnosed 2026-07-27 — the cost is page loading, not component counting
 
+> ⏭️ **This diagnosis is SUPERSEDED — it is WRONG and must not be quoted.** Measured
+> 2026-07-27 in the M5 live pass: loading **all six** KAT pages takes **9.1s**, so
+> `loadAsync()` is not the cost, and the 4,018-component page completes while the
+> 42-component page times out. The real driver is the synchronous `findAllWithCriteria`
+> scan, which runs *outside* the heartbeat window. See
+> [the correction](#-the-pr-4-cost-diagnosis-was-wrong--corrected-by-measurement-2026-07-27).
+> Kept because the `pages`/`timeBudgetMs` controls it motivated are still correct and
+> still useful — just for a different reason than stated here.
+
 Comparing the two fixtures isolates it. Component counts are within 9% of each other,
 yet only one is slow:
 
@@ -460,9 +470,13 @@ Not speculative features. Each item below was **produced by a real workload** (t
 portfolio audit, the moodboard build, or the PR-4 verification) and is recorded here so
 it stops living only in session memory. **None of it blocks the #186 → PRs 2–5 cadence.**
 
-> **Status 2026-07-27: 5.1, 5.2 and 5.3 are BUILT and offline-verified; live Figma
-> verification is PENDING.** See [Milestone 5 — build record](#milestone-5--build-record--2026-07-27).
-> 5.4 and 5.5 are recorded facts, not tasks, and stay open by design.
+> **Status 2026-07-27: 5.1, 5.2 and 5.3 are BUILT and LIVE-VERIFIED on KAT.** See
+> [Milestone 5 — build record](#milestone-5--build-record--2026-07-27). 5.4 and 5.5 are
+> recorded facts, not tasks, and stay open by design.
+>
+> 🔴 **The same session falsified the PR-4 cost diagnosis** — `loadAsync` is cheap (9.1s
+> for all 6 pages); the real cost is a `findAllWithCriteria` scan running outside the
+> heartbeat window. A fix is identified but **not applied**, pending a decision.
 
 ### 5.1 Authoring-session clustering on `get_local_components` 🟠
 
@@ -558,11 +572,97 @@ worst. Both now fire, and the budget message drops its "or scope with the `pages
 parameter" advice when the caller has already scoped. Same failure shape as the rest of
 this plan: partial coverage that under-reports how partial it is.
 
-> ⏳ **Live verification PENDING — nothing above is claimed as proven against Figma.**
-> Per §5.4 it needs a DEV-plugin + MCP-server restart and a handed-over channel name.
-> Planned fixture: **KAT `dyRJx7ExmpALroOpjAjHi6`**, which is where 5.1 has real
-> signal (3,849 of 4,094 components were Untitled UI) and where the parked PR-4
-> wall-clock delta can be recorded in the same session.
+### ✅ Milestone 5 live-verified on KAT — 2026-07-27
+
+Connected `dyRJx7ExmpALroOpjAjHi6` (`Safra - Assessor & Head (otimizado)`, 6 pages) to
+the DEV plugin, channel `2f2jo7qs`. **5.1, 5.2 and 5.3 all confirmed against real Figma.**
+
+> ⚠️ **The MCP server was serving the PRE-M5 tool schema** (`get_document_info` still
+> advertised no parameters; `get_local_components` had no `sessionLimit`). The plugin was
+> the new build, so every **default** path was exercised for real — which is the path that
+> mattered. **Not exercised: `get_document_info`'s new `summary`/`limit`/`offset`/
+> `familyLimit` arguments and `get_local_components`' `sessionLimit`.** They need an MCP
+> reconnect to reach. `pages`/`summary`/`familyLimit` on `get_local_components` *were*
+> exercised — they already existed in the PR-4 schema.
+
+**5.2 ✅ — the headline result.** With `Design Desktop` open (via `set_current_page`,
+itself M1.5 doing the job it was built for), a **no-argument `get_document_info`**
+returned `currentPage.childCount: 826`, `childrenTruncated: true`,
+`pagination: {limit:100, returned:100, hasMore:true}` — and **`childTypes` summing to
+exactly 826** (FRAME 722 · INSTANCE 50 · TEXT 22 · SECTION 15 · COMPONENT_SET 10 ·
+RECTANGLE 6 · COMPONENT 1). The rollup describes the whole page while the list is
+bounded, which is the entire point. 74 child families, led by `HomeEquity` 62 ·
+`CréditoImobiliário` 60 · `Sticky Notes` 46. **This is the exact tool and the exact page
+whose page-scoped silence produced the original ~100x undercount.**
+
+**5.1 ✅ — the kit is now readable off the payload.** `get_local_components` scoped to
+`Design System` returned **4,018 components across 46 authoring sessions**, and the
+kit-vs-authored split falls out without any hand analysis:
+
+| Session | Count | Top families | Reads as |
+|---|---|---|---|
+| `9` | **1,345** | `Button` 1320, `_Button base` 25 | vendor kit |
+| `12` | **1,080** | `Input field` 336, `Badge` 312, `Badge group` 120 | vendor kit |
+| `3080` | 365 | 294 families, mostly singleton icons | vendor kit (icon set) |
+| `32` · `13` · `25` · `40` · `39` · `22` | 234 · 204 · 162 · 160 · 104 · 96 | `Input dropdown`, `Table cell`, `Avatar`, `Pagination`, `Featured icon` | vendor kit |
+| `7449` · `5532` · `5159` · `5337` · `5179` | 60 · 27 · 20 · 6 · 6 | `sideItem`, `Metric item`, `dashboard - filled` | **KAT's own work** |
+| `5353` | 9 | `AdicionarOpção`, `x-close` | **KAT's own work** |
+
+Low-numbered sessions carry Untitled UI; the 5xxx/7xxx sessions carry the Safra-specific
+components. Top 20 sessions account for 3,954 of 4,018, with `sessionsTruncated: true`
+at the default `sessionLimit: 20`. **The tool still labels nothing — the table above is a
+human reading the clusters, which is exactly the division of labour §5.1 specified.**
+
+**5.3 ✅** — `pageCount` is absent from every `get_local_components` reply while
+`pagesTotal: 6` carries the number; it remains present in `get_document_info` and
+`get_pages`, where `pages[]` is unscoped. The reworded limitation came back verbatim as
+*"Scoped to 3 requested page(s); 3 scanned of 6 in the document. Counts are not a
+document total."*
+
+### 🔴 The PR-4 cost diagnosis was WRONG — corrected by measurement, 2026-07-27
+
+The parked timing re-run did not confirm the expected payoff. It produced something more
+useful: **the recorded diagnosis is wrong, and the real defect is in the heartbeat
+window.**
+
+| Scope | Page shape | Result | Wall clock |
+|---|---|---|---|
+| `get_pages(includeChildCount: true)` | **all 6 pages loaded** | ✅ complete | **9.1s** |
+| `pages: ["1:14"]` `Design System` | 81 children / **4,018 components** | ✅ complete | ~66s |
+| `pages: ["1:16"]` `Design Desktop` | **826 children** / ~42 components | ❌ **timed out** | ~39s |
+| `pages: ["1:16","7448:35573"]` | 826 + 764 children | ❌ **timed out** | ~48s |
+| `pages: ["0:1","1:178","1:15"]` | light pages | ✅ complete, `count: 0` | ~15s |
+
+**`loadAsync()` is cheap.** All six pages — the 826- and 764-child ones included — load in
+**9.1 seconds**. The plan's claim that *"the unavoidable cost is `await page.loadAsync()`
+on every page"* is **refuted by direct measurement**. So is the follow-on claim that
+*"component count is not the driver — page weight is"*: the 4,018-component page
+completes, while the 42-component page times out.
+
+**The real cost is the per-page `findAllWithCriteria()` scan, and it runs OUTSIDE the
+heartbeat.** In `getLocalComponents` the heartbeat wraps only the cheap call:
+
+```js
+var stopHeartbeat = startProgressHeartbeat(...);
+try { await page.loadAsync(); }        // ← ~1s, protected
+finally { stopHeartbeat(); }            // ← heartbeat ENDS here
+var pageComponents = page.findAllWithCriteria({ types: ["COMPONENT"] });  // ← slow, synchronous, UNPROTECTED
+```
+
+`findAllWithCriteria` is synchronous, so while it walks a deep 826-child subtree it blocks
+the plugin thread — no `setInterval` can fire, no progress can leave, and the server's
+timeout is never reset. M2.1's heartbeats protect the wrong phase.
+
+**Consequence for PR-4:** `pages` scoping helps only when the excluded pages are the heavy
+ones. It **cannot rescue a single heavy page**, because that page alone already exceeds the
+timeout. The plan's inference — *"scoping there is what converts a backgrounded 2-minute
+call into a usable one"* — **does not hold for KAT's `Design Desktop`.**
+
+> **Fix not applied — it is PR-4 code, outside Milestone 5's scope.** The obvious change is
+> to keep the heartbeat running across the scan rather than stopping it after `loadAsync`
+> (and the initial `started` update appears not to reliably flush before a blocking scan,
+> leaving the request on the 30s initial timeout instead of the 60s inactivity one).
+> **Awaiting a decision before touching shipped behaviour.**
 
 ### 5.5 Out of scope — write-layer defects, recorded so they aren't re-discovered
 

@@ -2,8 +2,11 @@
 
 _Captured 2026-07-27. **Milestones 1–3 COMPLETE and live-validated on both fixtures.
 Milestone 4 wave 1 shipped — [PR #186](https://github.com/grab/cursor-talk-to-figma-mcp/pull/186)
-is open upstream; PRs 2–5 are gated on it merging.** Execution began after it was
-announced in-session._
+is open upstream; PRs 2–5 are gated on it merging.** The PR-4 cost controls
+(`pages` + `timeBudgetMs`) are **built and verified on the fork, deliberately not yet
+upstreamed** — they wait behind #186 with the rest of the wave. **Milestone 5 is the
+earned backlog** — real findings parked so they stop living in session memory; nothing
+in it is started. Execution began after it was announced in-session._
 
 > **Fork-side work still open** (nothing here is blocked on upstream):
 > **(a)** acceptance test #3 (`13490:36146`) was validated *before* the `f430682`
@@ -318,6 +321,10 @@ is fully tokenised.
 **The A/B against `get_variable_defs` on the identical node is the real result — neither
 tool is a superset of the other.** Official returns **15**, ours **12**, sharing only 8:
 
+> ⏭️ **This verdict is SUPERSEDED by the `f430682` fix recorded at the end of this
+> section — do not quote it as the standing conclusion.** It is kept because it is what
+> *found* the defect. Post-fix, the fork is a strict superset **on this node**.
+
 | Only `get_variable_defs` (7) | Only `get_node_variables` (4) |
 |---|---|
 | `Text sm/Medium` *(a text **style**, `Font(...)`)* | 🔴 **`Cores Principais/Primária` `#008f81`** |
@@ -441,6 +448,83 @@ still reports the document's 7 alongside a scoped 2-entry `pages[]` — redundan
 the clearer `pagesTotal`/`pagesScanned` pair; and the scoping limitation reads
 "Scoped to 1 of 7 pages by request" when 2 were requested and 1 existed (it counts
 scanned, not requested — the adjacent `pagesNotFound` line removes any ambiguity).
+
+---
+
+## Milestone 5 — Earned backlog ⚪
+
+Not speculative features. Each item below was **produced by a real workload** (the
+portfolio audit, the moodboard build, or the PR-4 verification) and is recorded here so
+it stops living only in session memory. Nothing here is started; **none of it blocks
+the #186 → PRs 2–5 cadence.**
+
+### 5.1 Authoring-session clustering on `get_local_components` 🟠
+
+The tool counts **every variant, including bulk-pasted vendor kits**. On KAT that meant
+**3,849 of 4,094 components were Untitled UI** — quoting the raw total describes the
+kit, not the designer's work.
+
+- The working split is the **id prefix**: `id.split(':')[0]` clusters cleanly into
+  low-id pasted-library sessions vs the high-id sessions the designer actually worked
+  in. This was derived by hand during the audit; the tool should do it.
+- Proposal: an `authoringSessions` breakdown in summary mode (session prefix → count →
+  representative name families), so kit-vs-authored is readable off the payload.
+- **`pages` scoping (PR-4) partially covers this** — on KAT the kit sits on one page, so
+  scoping to the others isolates authored work. That is a *file-layout accident*, not a
+  guarantee: id-prefix clustering works when the kit is mixed into the same page.
+- Same family as the shipped `remote: true` split for styles, which mechanically
+  separates kit-inherited from client-authored tokens. Worth stating as one idea:
+  **every count this tool reports should say whose work it is counting.**
+
+### 5.2 Bound payloads for `get_document_info` 🟠
+
+**The last document-wide read that can still blow the context budget.** M2.2 gave
+`get_local_components` `summary`/`limit`/`offset`; `get_document_info` never got the
+same treatment and still serialises the current page's children wholesale.
+
+- Real files spill it to a tool-results file. **`Read`'s offset/limit cannot chunk those
+  payloads** — they are single-line JSON blobs — so the workaround is `python3`/`jq` for
+  counts and name families. That workaround should not be necessary.
+- Apply the M2.2 pattern: `summary: true` default, counts + bounded name families,
+  `limit`/`offset` for the full list.
+
+### 5.3 Close the two PR-4 wording nits 🟡
+
+Cosmetic, no false claim, but they cost a reader a second look (found during the PR-4
+verification):
+
+- `pageCount` still reports the **document's** page total next to a *scoped* `pages[]`
+  array — redundant with the clearer `pagesTotal` / `pagesScanned` pair, and the only
+  field in the reply whose meaning changes with scope.
+- The scoping limitation reads *"Scoped to 1 of 7 pages by request"* when **2** were
+  requested and 1 existed — it counts scanned, not requested. The adjacent
+  `pagesNotFound` entry removes the ambiguity, so this is wording only.
+
+### 5.4 Runtime/distribution — do NOT switch back to npm ⚠️
+
+Load-bearing operational fact, not a task. Upstream merged **PR #185 source-only**: it
+never rebuilt `dist/` (`set_image_fill` appears 0× in `upstream/main:dist/server.js`)
+and `package.json` is still **0.3.5** = the published npm `latest`.
+
+- **`bunx cursor-talk-to-figma-mcp@latest` has none of this work** — not the #185 write
+  tools, and none of M1–M3 or PR-4.
+- Keep root `.mcp.json` pointed at **the fork's `dist/server.js`**, keep running the
+  fork's **DEV plugin** ("Talk to Figma (fork)") and the fork's `bun socket` relay on
+  3055, until Grab cuts a version bump.
+- Consequence for testing: **every verification run needs the human to restart the DEV
+  plugin *and* the MCP server, then hand over the socket channel name.** An agent cannot
+  ask for the channel mid-run.
+
+### 5.5 Out of scope — write-layer defects, recorded so they aren't re-discovered
+
+Neither is a read-layer bug and neither is ours; both cost real debugging time:
+
+- **Mixed-font text nodes fail `set_multiple_text_contents`** —
+  `loadFontAsync: Cannot unwrap symbol`. Pre-existing `set_text_content` behaviour,
+  not introduced by the fork's tools.
+- **`scaleMode: "CROP"` normalises to `STRETCH` + identity transform** on
+  `set_image_fill`. `FILL`/`FIT` are exact. This is Figma-side; the handler passes the
+  value through faithfully. Moodboard slots use `FILL`.
 
 ---
 

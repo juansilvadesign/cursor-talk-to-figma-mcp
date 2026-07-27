@@ -275,12 +275,30 @@ tool is a superset of the other.** Official returns **15**, ours **12**, sharing
   The kit's `Gray/*` + `White` are the remote Untitled UI population; KAT's local
   `Suporte/Gray/*` carry the same values in lowercase hex.
 
-> 🔴 **DEFECT TO FIX BEFORE PR 2 SHIPS.** The payload asserts `"complete": true,
-> "limitations": []` while covering **variables only, never styles**. That is exactly
-> the failure shape this whole overhaul exists to eliminate — *absence made
-> indistinguishable from "not supported"*. Either report style-based tokens too, or
-> declare the exclusion in `limitations`. **Do not send PR 2 upstream asserting
-> completeness it does not have.**
+> 🔴 **DEFECT FOUND — and ✅ FIXED the same day (`f430682`).** The payload asserted
+> `"complete": true, "limitations": []` while covering **variables only, never
+> styles** — exactly the failure shape this overhaul exists to eliminate: *absence
+> made indistinguishable from "not supported"*. `get_node_variables` now walks both
+> token systems: style references (`fillStyleId` / `strokeStyleId` / `textStyleId` /
+> `effectStyleId` / `gridStyleId`) resolve into a separate `styles` array,
+> `figma.mixed` reports as `resolutionStatus: "mixed"` instead of being dropped,
+> `supported`/`complete` account for both, and an unavailable `getStyleByIdAsync` is
+> declared in `limitations`.
+
+**✅ Re-verified live on the same node after the fix — the fork is now a strict
+superset of `get_variable_defs`.**
+`styleCount: 40` across 7 distinct styles, `unresolvedStyles: 0`, `complete: true`.
+**All 15 tokens the official tool reported are now covered**, including the two that
+drove the discrepancy — `Text sm/Medium` (TEXT) and `Shadow/xs` (EFFECT) — plus the
+whole `Gray/300|500|700|900` + `White` ramp. Totals: **12 variables + 7 styles = 19
+distinct tokens, against the official 15.** The 4 exclusives remain ours
+(`Cores Principais/Primária` `#008f81`, `Terciária/100`, `Suporte/Gray/400|500`).
+
+> 🎯 **Unplanned payoff: `remote: true` mechanically separates the two populations.**
+> Every style on this node is `remote: true` — they come from the subscribed Untitled
+> UI library — while every variable is local. That is the kit-vs-KAT split the
+> portfolio audit had been inferring by eye from name prefixes and hex casing, now
+> readable straight off the payload. Worth reusing on the other portfolio files.
 
 **3. `get_local_components` → ✅ bounded payload; ⚠️ slow.**
 **4,094 components** — matches the audit record exactly. `summary: true` returned

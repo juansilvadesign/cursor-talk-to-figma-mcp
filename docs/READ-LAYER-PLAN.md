@@ -236,6 +236,9 @@ answers, established independently via the official Figma MCP.
 | `get_pages` on `dyRJx7ExmpALroOpjAjHi6` | **6 pages** (`Cover`, `Design Desktop`, `Design Mobile`, `Design System`, `Moodboard`, `Trash`) — not 1. *(The page is named `Design Desktop`; earlier notes shortened it to `Design`.)* |
 | `get_local_components` on `dyRJx7ExmpALroOpjAjHi6` | Completes without timeout; `summary: true` fits a normal context window. |
 | `get_styles` on `iRVBeN1n4ORWJMgh5ERDLA` | Completes and includes the `Gradient/Purple` local paint style — previously timed out 3/3. |
+| ⏳ **M5.2** `get_document_info` on `dyRJx7ExmpALroOpjAjHi6` (`Design Desktop` open) | Bounded by default: 100 of **826** children, `childrenTruncated: true`, and `childTypes` summing to 826. *Pending live run.* |
+| ⏳ **M5.1** `get_local_components` on `dyRJx7ExmpALroOpjAjHi6` | `authoringSessions` isolates the Untitled UI session(s) from the designer's — the **3,849-vs-245** split, read off the payload instead of derived by hand. *Pending live run.* |
+| ⏳ **PR-4 timing** `get_local_components(pages:["<Design Mobile>"])` vs unscoped on KAT | Scoped call returns inline where the unscoped one exceeded 120s — the wall-clock delta the plan flags as inferred, not observed. *Pending live run.* |
 
 ### Live validation recorded 2026-07-27
 
@@ -455,8 +458,11 @@ scanned, not requested — the adjacent `pagesNotFound` line removes any ambigui
 
 Not speculative features. Each item below was **produced by a real workload** (the
 portfolio audit, the moodboard build, or the PR-4 verification) and is recorded here so
-it stops living only in session memory. Nothing here is started; **none of it blocks
-the #186 → PRs 2–5 cadence.**
+it stops living only in session memory. **None of it blocks the #186 → PRs 2–5 cadence.**
+
+> **Status 2026-07-27: 5.1, 5.2 and 5.3 are BUILT and offline-verified; live Figma
+> verification is PENDING.** See [Milestone 5 — build record](#milestone-5--build-record--2026-07-27).
+> 5.4 and 5.5 are recorded facts, not tasks, and stay open by design.
 
 ### 5.1 Authoring-session clustering on `get_local_components` 🟠
 
@@ -514,6 +520,49 @@ and `package.json` is still **0.3.5** = the published npm `latest`.
 - Consequence for testing: **every verification run needs the human to restart the DEV
   plugin *and* the MCP server, then hand over the socket channel name.** An agent cannot
   ask for the channel mid-run.
+
+### Milestone 5 — build record — 2026-07-27
+
+**5.1, 5.2 and 5.3 built in one pass.** `bun run build` succeeds and `node --check`
+parses `code.js` clean — worth stating because `code.js` is never bundled, so tsup
+would not have caught a syntax error in the plugin runtime artifact.
+
+**Verified offline against the real `code.js`,** loaded into a `vm` sandbox with a
+stubbed `figma` and a KAT-shaped fixture (826 page children; 300 components on one
+low-id session plus 4 across two high-id ones). **16/16 assertions pass.** This proves
+payload *shape* and *arithmetic*; it cannot prove behaviour against real Figma APIs,
+which is what the pending live pass is for.
+
+| Item | Change | Offline result |
+|---|---|---|
+| **5.2** | `get_document_info` children now bounded by `limit`/`offset`; `summary:true` default adds `childTypes` + `childFamilies` | Default call returned **100 of 826** children with `childrenTruncated: true`, `currentPage.childCount: 826`, `pagination.hasMore: true`. `childTypes` summed to **826** — the rollup describes the whole page, not the slice. **7,289 bytes vs 48,389** for the old unbounded `children` array alone (~85% smaller). |
+| **5.1** | `authoringSessions` in summary mode: session prefix → count → `topFamilies` | Correctly isolated the 300-component session `12` from authored sessions `7448` (3) and `9001` (1); session counts sum to `count`. |
+| **5.3** | `pageCount` dropped from `get_local_components`; scoping limitation reworded | `pageCount` absent from both modes. Limitation now reads *"Scoped to **2 requested** page(s); 1 scanned of 3 in the document"* — it counts requested, not scanned. |
+
+**Two judgement calls worth flagging, both reversible in one line:**
+
+- **`scope` deliberately did NOT change** to `current_page_bounded`, against the sketch
+  approved in-session. `scope` describes *coverage*, which is unchanged — the payload
+  still covers the current page plus the document page index. Bounding is orthogonal
+  and already declared by `summary` / `childrenTruncated` / `pagination`. Changing the
+  string would have broken any caller switching on it while communicating nothing new.
+- **`pageCount` was kept in `get_document_info` and `get_pages`.** The 5.3 nit was
+  specific to `get_local_components`, where `pages[]` is *scoped* and `pageCount` looked
+  like it disagreed with it. In the other two, `pages[]` is always the full document
+  index, so there is no ambiguity to fix.
+
+**One extra fix, found in the block 5.3 sent me into.** A reply that was **both scoped
+and time-truncated** disclosed only the truncation — `if (requestedPageIds &&
+!budgetExhausted)` suppressed the scoping limitation exactly when coverage was at its
+worst. Both now fire, and the budget message drops its "or scope with the `pages`
+parameter" advice when the caller has already scoped. Same failure shape as the rest of
+this plan: partial coverage that under-reports how partial it is.
+
+> ⏳ **Live verification PENDING — nothing above is claimed as proven against Figma.**
+> Per §5.4 it needs a DEV-plugin + MCP-server restart and a handed-over channel name.
+> Planned fixture: **KAT `dyRJx7ExmpALroOpjAjHi6`**, which is where 5.1 has real
+> signal (3,849 of 4,094 components were Untitled UI) and where the parked PR-4
+> wall-clock delta can be recorded in the same session.
 
 ### 5.5 Out of scope — write-layer defects, recorded so they aren't re-discovered
 

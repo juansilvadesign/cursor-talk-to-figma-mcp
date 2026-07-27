@@ -32,11 +32,23 @@ var serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
 var WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
 server.tool(
   "get_document_info",
-  "[Current-page scoped, with a document-wide page index] Get top-level details for the current Figma page plus an honest index of every page in the document. Non-current page child counts are explicitly marked as not requested.",
-  {},
-  async () => {
+  "[Current-page scoped, with a document-wide page index] Get top-level details for the current Figma page plus an honest index of every page in the document. Non-current page child counts are explicitly marked as not requested. The current page's `children` array is ALWAYS bounded by limit/offset \u2014 `currentPage.childCount`, `childrenTruncated` and `pagination.hasMore` report the real total, so a truncated list can never be read as the whole page. Summary mode is the default and adds `childTypes` plus bounded `childFamilies` rollups covering every child, not just the returned slice.",
+  {
+    summary: z.boolean().optional().default(true).describe(
+      "Include childTypes and childFamilies rollups describing every child on the page (default: true). Set false for just the paginated children slice."
+    ),
+    limit: z.number().int().min(1).max(500).optional().default(100).describe("Maximum current-page children returned (default: 100)"),
+    offset: z.number().int().min(0).optional().default(0).describe("Offset into the current page's children"),
+    familyLimit: z.number().int().min(1).max(500).optional().default(100).describe("Maximum child name families returned in summary mode")
+  },
+  async ({ summary, limit, offset, familyLimit }) => {
     try {
-      const result = await sendCommandToFigma("get_document_info");
+      const result = await sendCommandToFigma("get_document_info", {
+        summary,
+        limit,
+        offset,
+        familyLimit
+      });
       return {
         content: [
           {
@@ -841,7 +853,7 @@ server.tool(
 );
 server.tool(
   "get_local_components",
-  "[Document-wide by default, or scoped to chosen pages] Get local components. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list. COST WARNING: every page must be fully loaded before it can be scanned, so runtime tracks page weight, not component count \u2014 on a large document this can exceed two minutes. Pass `pages` to scan only what you need, and/or `timeBudgetMs` to bound it. The reply always declares its own coverage via `complete`, `pagesScanned` and `pagesSkipped`, so a scoped or truncated scan is never mistakable for a document total.",
+  "[Document-wide by default, or scoped to chosen pages] Get local components. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list. COST WARNING: every page must be fully loaded before it can be scanned, so runtime tracks page weight, not component count \u2014 on a large document this can exceed two minutes. Pass `pages` to scan only what you need, and/or `timeBudgetMs` to bound it. The reply always declares its own coverage via `complete`, `pagesScanned` and `pagesSkipped`, so a scoped or truncated scan is never mistakable for a document total. INTERPRETING THE COUNT: summary mode also returns `authoringSessions`, clustering components by the leading segment of their node id, which every node created in one authoring session shares. A bulk-pasted vendor kit therefore collapses into one or two sessions (usually low-numbered, since they were pasted early) while hand-authored work spreads across others \u2014 so a raw `count` often describes a purchased library rather than the designer's work. Treat the clusters as evidence for that judgement, not as a verdict: the tool deliberately does not label any session 'a kit'.",
   {
     summary: z.boolean().optional().default(true).describe("Return compact counts and name families (default: true)"),
     pages: z.array(z.string()).optional().describe(
@@ -852,15 +864,25 @@ server.tool(
     ),
     limit: z.number().int().min(1).max(500).optional().default(100).describe("Maximum components returned when summary=false"),
     offset: z.number().int().min(0).optional().default(0).describe("Component offset when summary=false"),
-    familyLimit: z.number().int().min(1).max(500).optional().default(100).describe("Maximum name families returned in summary mode")
+    familyLimit: z.number().int().min(1).max(500).optional().default(100).describe("Maximum name families returned in summary mode"),
+    sessionLimit: z.number().int().min(1).max(100).optional().default(20).describe("Maximum authoring sessions returned in summary mode")
   },
-  async ({ summary, limit, offset, familyLimit, pages, timeBudgetMs }) => {
+  async ({
+    summary,
+    limit,
+    offset,
+    familyLimit,
+    sessionLimit,
+    pages,
+    timeBudgetMs
+  }) => {
     try {
       const result = await sendCommandToFigma("get_local_components", {
         summary,
         limit,
         offset,
         familyLimit,
+        sessionLimit,
         pages,
         timeBudgetMs
       });

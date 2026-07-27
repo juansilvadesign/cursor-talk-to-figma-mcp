@@ -1842,17 +1842,51 @@ async function getLocalComponents(params) {
     500,
     Math.max(1, Number((params && params.familyLimit) || 100))
   );
-  const pages = figma.root.children;
-  const totalPages = pages.length;
+  // 0 (the default) means no budget — existing callers keep the old behaviour.
+  const timeBudgetMs = Math.max(
+    0,
+    Number((params && params.timeBudgetMs) || 0)
+  );
+  const documentPages = figma.root.children;
+  const totalPages = documentPages.length;
+
+  // The dominant cost of this tool is page.loadAsync(), which dynamic-page access
+  // forces before a page can be queried at all — not the component scan itself.
+  // Scoping to specific pages is therefore the only real way to make it cheaper.
+  // An empty array is treated as "no filter", not as "scan nothing" — the latter
+  // would return count:0 with complete:true, which reads as a real finding.
+  const requestedPageIdsRaw =
+    params && Array.isArray(params.pages) ? params.pages.filter(Boolean) : [];
+  const requestedPageIds =
+    requestedPageIdsRaw.length > 0 ? requestedPageIdsRaw : null;
+  const pagesNotFound = [];
+  var targetPages = documentPages;
+
+  if (requestedPageIds) {
+    const byId = new Map(documentPages.map((page) => [page.id, page]));
+    targetPages = [];
+    for (const requestedId of requestedPageIds) {
+      const match = byId.get(requestedId);
+      if (match) {
+        targetPages.push(match);
+      } else {
+        // Never drop an unknown id silently — a caller must be able to tell
+        // "that page holds no components" from "that page does not exist".
+        pagesNotFound.push(requestedId);
+      }
+    }
+  }
+
+  const targetPageCount = targetPages.length;
 
   await sendProgressUpdate(
     commandId,
     "get_local_components",
     "started",
     0,
-    totalPages,
+    targetPageCount,
     0,
-    "Starting component scan across " + totalPages + " pages...",
+    "Starting component scan across " + targetPageCount + " of " + totalPages + " pages...",
     null
   );
 
@@ -1860,14 +1894,36 @@ async function getLocalComponents(params) {
   var components = [];
   var familyCounts = new Map();
   var pageCounts = [];
+  var pagesSkipped = [];
+  var budgetExhausted = false;
+  const startedAt = Date.now();
 
-  for (var i = 0; i < totalPages; i++) {
-    var page = pages[i];
+  for (var i = 0; i < targetPageCount; i++) {
+    var page = targetPages[i];
+
+    // Check before loading, because loading is the expensive step. The first page
+    // always runs, so a tight budget still returns something rather than nothing.
+    if (
+      timeBudgetMs > 0 &&
+      i > 0 &&
+      Date.now() - startedAt >= timeBudgetMs
+    ) {
+      budgetExhausted = true;
+      for (var k = i; k < targetPageCount; k++) {
+        pagesSkipped.push({
+          id: targetPages[k].id,
+          name: targetPages[k].name,
+          reason: "time_budget_exhausted",
+        });
+      }
+      break;
+    }
+
     var stopHeartbeat = startProgressHeartbeat(
       commandId,
       "get_local_components",
-      Math.round((i / totalPages) * 100),
-      totalPages,
+      Math.round((i / targetPageCount) * 100),
+      targetPageCount,
       i,
       "Still loading page " + page.name
     );
@@ -1908,27 +1964,29 @@ async function getLocalComponents(params) {
       componentCount: pageComponents.length,
     });
 
-    var progress = Math.round(((i + 1) / totalPages) * 100);
+    var progress = Math.round(((i + 1) / targetPageCount) * 100);
     await sendProgressUpdate(
       commandId,
       "get_local_components",
       "in_progress",
       progress,
-      totalPages,
+      targetPageCount,
       i + 1,
       "Scanned " + page.name + ": " + pageComponents.length + " components (total so far: " + totalComponents + ")",
       null
     );
   }
 
+  const pagesScanned = pageCounts.length;
+
   await sendProgressUpdate(
     commandId,
     "get_local_components",
     "completed",
     100,
-    totalPages,
-    totalPages,
-    "Found " + totalComponents + " components across " + totalPages + " pages",
+    targetPageCount,
+    pagesScanned,
+    "Found " + totalComponents + " components across " + pagesScanned + " pages",
     null
   );
 
@@ -1936,9 +1994,52 @@ async function getLocalComponents(params) {
     .map(([name, count]) => ({ name, count }))
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
 
+  const limitations = [];
+  if (pagesNotFound.length > 0) {
+    limitations.push(
+      pagesNotFound.length +
+        " requested page id(s) do not exist in this document and were not scanned: " +
+        pagesNotFound.join(", ") +
+        ". Use get_pages for valid ids."
+    );
+  }
+  if (budgetExhausted) {
+    limitations.push(
+      "Time budget of " +
+        timeBudgetMs +
+        "ms was exhausted after " +
+        pagesScanned +
+        " of " +
+        targetPageCount +
+        " pages. Counts below cover only the scanned pages — they are NOT a document total. Raise timeBudgetMs or scope with the pages parameter."
+    );
+  }
+  if (requestedPageIds && !budgetExhausted) {
+    limitations.push(
+      "Scoped to " +
+        pagesScanned +
+        " of " +
+        totalPages +
+        " pages by request; counts are not a document total."
+    );
+  }
+
+  // `complete` means "these counts describe every page asked for". It is false the
+  // moment coverage is partial for any reason, so a scoped or truncated scan can
+  // never be mistaken for a document-wide census.
+  const coverage = {
+    scope: requestedPageIds ? "selected_pages" : "document",
+    complete: !budgetExhausted && pagesNotFound.length === 0,
+    pagesTotal: totalPages,
+    pagesRequested: requestedPageIds ? requestedPageIds.length : totalPages,
+    pagesScanned,
+    pagesSkipped,
+    pagesNotFound,
+    limitations,
+  };
+
   if (summary) {
-    return {
-      scope: "document",
+    return Object.assign({}, coverage, {
       summary: true,
       count: totalComponents,
       pageCount: totalPages,
@@ -1947,11 +2048,10 @@ async function getLocalComponents(params) {
       nameFamilies: nameFamilies.slice(0, familyLimit),
       familiesTruncated: nameFamilies.length > familyLimit,
       familyLimit,
-    };
+    });
   }
 
-  return {
-    scope: "document",
+  return Object.assign({}, coverage, {
     summary: false,
     count: totalComponents,
     pageCount: totalPages,
@@ -1963,7 +2063,7 @@ async function getLocalComponents(params) {
       hasMore: offset + components.length < totalComponents,
     },
     components,
-  };
+  });
 }
 
 const VARIABLE_TYPES = ["COLOR", "FLOAT", "STRING", "BOOLEAN"];

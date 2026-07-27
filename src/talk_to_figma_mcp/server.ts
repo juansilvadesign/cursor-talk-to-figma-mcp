@@ -1039,13 +1039,28 @@ server.tool(
 // Get Local Components Tool
 server.tool(
   "get_local_components",
-  "[Document-wide] Get local components across every page. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list.",
+  "[Document-wide by default, or scoped to chosen pages] Get local components. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list. COST WARNING: every page must be fully loaded before it can be scanned, so runtime tracks page weight, not component count — on a large document this can exceed two minutes. Pass `pages` to scan only what you need, and/or `timeBudgetMs` to bound it. The reply always declares its own coverage via `complete`, `pagesScanned` and `pagesSkipped`, so a scoped or truncated scan is never mistakable for a document total.",
   {
     summary: z
       .boolean()
       .optional()
       .default(true)
       .describe("Return compact counts and name families (default: true)"),
+    pages: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "Page IDs (from get_pages) to scan. Omit to scan every page. This is the main cost control: unlisted pages are never loaded. Unknown IDs are reported in pagesNotFound, never ignored."
+      ),
+    timeBudgetMs: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .default(0)
+      .describe(
+        "Stop starting new pages once this many ms have elapsed and return partial results with complete=false (0 = no budget, the default). The first page always runs."
+      ),
     limit: z
       .number()
       .int()
@@ -1070,13 +1085,15 @@ server.tool(
       .default(100)
       .describe("Maximum name families returned in summary mode"),
   },
-  async ({ summary, limit, offset, familyLimit }: any) => {
+  async ({ summary, limit, offset, familyLimit, pages, timeBudgetMs }: any) => {
     try {
       const result = await sendCommandToFigma("get_local_components", {
         summary,
         limit,
         offset,
         familyLimit,
+        pages,
+        timeBudgetMs,
       });
       return {
         content: [
@@ -2909,6 +2926,8 @@ type CommandParams = {
     limit?: number;
     offset?: number;
     familyLimit?: number;
+    pages?: string[];
+    timeBudgetMs?: number;
   };
   get_variables: {
     types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;

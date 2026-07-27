@@ -468,6 +468,102 @@ function rgbaToHex(color) {
 
 const variableCache = new Map();
 const variableCollectionCache = new Map();
+const styleCache = new Map();
+
+// Style-backed tokens are NOT variables: a fill/text/effect style is a separate
+// Figma concept with its own id space. A node can reference both, so reporting
+// only variables would make a styled-but-unbound node look untokenised.
+const STYLE_ID_PROPERTIES = [
+  "fillStyleId",
+  "strokeStyleId",
+  "textStyleId",
+  "effectStyleId",
+  "gridStyleId",
+];
+
+function hasStylesApi() {
+  return Boolean(figma.getStyleByIdAsync);
+}
+
+async function getStyleByIdCached(styleId) {
+  if (!hasStylesApi()) {
+    return null;
+  }
+
+  if (!styleCache.has(styleId)) {
+    styleCache.set(
+      styleId,
+      figma.getStyleByIdAsync(styleId).catch(() => null)
+    );
+  }
+
+  return await styleCache.get(styleId);
+}
+
+function collectStyleRefsForNode(node) {
+  const records = [];
+
+  for (const property of STYLE_ID_PROPERTIES) {
+    if (!(property in node)) {
+      continue;
+    }
+
+    const styleId = node[property];
+    if (!styleId) {
+      continue;
+    }
+
+    // A text node with more than one text style reports figma.mixed here.
+    // Report it rather than dropping it: "mixed" is a real answer, absence is not.
+    if (styleId === figma.mixed) {
+      records.push({ property, styleId: null, mixed: true });
+      continue;
+    }
+
+    if (typeof styleId === "string") {
+      records.push({ property, styleId, mixed: false });
+    }
+  }
+
+  return records;
+}
+
+async function resolveNodeStyle(node, record) {
+  const base = {
+    nodeId: node.id,
+    nodeName: node.name,
+    nodeType: node.type,
+    nodePath: getNodePath(node),
+    property: record.property,
+    styleId: record.styleId,
+  };
+
+  if (record.mixed) {
+    return Object.assign(base, {
+      styleName: null,
+      styleType: null,
+      remote: null,
+      resolutionStatus: "mixed",
+    });
+  }
+
+  const style = await getStyleByIdCached(record.styleId);
+  if (!style) {
+    return Object.assign(base, {
+      styleName: null,
+      styleType: null,
+      remote: null,
+      resolutionStatus: "style_not_found",
+    });
+  }
+
+  return Object.assign(base, {
+    styleName: style.name,
+    styleType: style.type,
+    remote: Boolean(style.remote),
+    resolutionStatus: "resolved",
+  });
+}
 
 function hasVariablesApi() {
   return Boolean(
@@ -2377,7 +2473,9 @@ async function getNodeVariables(params) {
   }
 
   const canResolveVariables = hasVariablesApi();
+  const canResolveStyles = hasStylesApi();
   const bindings = [];
+  const styles = [];
   let nodesScanned = 0;
 
   await sendProgressUpdate(
@@ -2387,7 +2485,7 @@ async function getNodeVariables(params) {
     0,
     0,
     0,
-    `Scanning variable bindings under ${rootNode.name}`
+    `Scanning variable bindings and style references under ${rootNode.name}`
   );
 
   async function visit(node) {
@@ -2398,6 +2496,12 @@ async function getNodeVariables(params) {
     );
     bindings.push(...resolvedBindings);
 
+    const nodeStyleRefs = collectStyleRefsForNode(node);
+    const resolvedStyles = await Promise.all(
+      nodeStyleRefs.map((record) => resolveNodeStyle(node, record))
+    );
+    styles.push(...resolvedStyles);
+
     if (nodesScanned % 100 === 0) {
       await sendProgressUpdate(
         commandId,
@@ -2406,7 +2510,7 @@ async function getNodeVariables(params) {
         0,
         0,
         nodesScanned,
-        `Scanned ${nodesScanned} nodes; found ${bindings.length} bindings`
+        `Scanned ${nodesScanned} nodes; found ${bindings.length} bindings and ${styles.length} style references`
       );
     }
 
@@ -2425,7 +2529,7 @@ async function getNodeVariables(params) {
       0,
       0,
       nodesScanned,
-      `Still scanning: ${nodesScanned} nodes and ${bindings.length} bindings so far`
+      `Still scanning: ${nodesScanned} nodes, ${bindings.length} bindings and ${styles.length} style references so far`
     ).catch((error) => {
       console.error("Failed to send get_node_variables heartbeat:", error);
     });
@@ -2439,6 +2543,10 @@ async function getNodeVariables(params) {
   const unresolvedBindings = bindings.filter(
     (binding) => binding.resolutionStatus !== "resolved"
   ).length;
+  const unresolvedStyles = styles.filter(
+    (style) => style.resolutionStatus !== "resolved"
+  ).length;
+
   const limitations = [];
   if (!canResolveVariables) {
     limitations.push(
@@ -2449,6 +2557,15 @@ async function getNodeVariables(params) {
       `${unresolvedBindings} bindings could not be fully resolved; inspect each binding's resolutionStatus and error.`
     );
   }
+  if (!canResolveStyles) {
+    limitations.push(
+      "getStyleByIdAsync not available in this Figma version. Style-backed tokens (fill/stroke/text/effect/grid styles) could not be reported, so an absent style reference here does not mean the node has none."
+    );
+  } else if (unresolvedStyles > 0) {
+    limitations.push(
+      `${unresolvedStyles} style references could not be fully resolved; inspect each entry's resolutionStatus ("mixed" means the node carries more than one style on that property).`
+    );
+  }
 
   await sendProgressUpdate(
     commandId,
@@ -2457,13 +2574,22 @@ async function getNodeVariables(params) {
     100,
     nodesScanned,
     nodesScanned,
-    `Found ${bindings.length} bindings across ${nodesScanned} nodes`
+    `Found ${bindings.length} bindings and ${styles.length} style references across ${nodesScanned} nodes`
   );
 
   return {
     scope: "node_subtree",
-    supported: canResolveVariables,
-    complete: canResolveVariables && unresolvedBindings === 0,
+    // `supported` and `complete` now cover BOTH token systems. Reporting
+    // complete:true while silently omitting styles made a styled node
+    // indistinguishable from an untokenised one.
+    supported: canResolveVariables && canResolveStyles,
+    variablesSupported: canResolveVariables,
+    stylesSupported: canResolveStyles,
+    complete:
+      canResolveVariables &&
+      canResolveStyles &&
+      unresolvedBindings === 0 &&
+      unresolvedStyles === 0,
     limitations,
     rootNode: {
       id: rootNode.id,
@@ -2474,6 +2600,9 @@ async function getNodeVariables(params) {
     bindingCount: bindings.length,
     unresolvedBindings,
     bindings,
+    styleCount: styles.length,
+    unresolvedStyles,
+    styles,
   };
 }
 

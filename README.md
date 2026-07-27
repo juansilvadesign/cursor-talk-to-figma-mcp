@@ -238,7 +238,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `get_styles` - Get document-wide local styles with progress heartbeats
 - `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list
 - `get_variables` - Get document-wide variable collections, modes, and resolved values
-- `get_node_variables` - Resolve every variable binding in a node subtree
+- `get_node_variables` - Resolve every design token in a node subtree — both variable bindings and style references
 - `create_component_instance` - Create an instance of a component
 - `get_instance_overrides` - Extract override properties from a selected component instance
 - `set_instance_overrides` - Apply extracted overrides to target instances

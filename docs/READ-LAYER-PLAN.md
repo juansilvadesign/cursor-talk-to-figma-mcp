@@ -246,8 +246,31 @@ answers, established independently via the official Figma MCP.
 - `get_annotations` on PAGE `1:14`: typed empty result with
   `annotationCount: 0`, not an error.
 
-> ⚠️ **This block predates the `f430682` style-coverage fix.** Only the
-> `get_node_variables` rows are affected; `13490:36146` still needs a re-run.
+> ⚠️ **This block predates the `f430682` style-coverage fix** — ✅ **`13490:36146`
+> re-run below; no regression.**
+
+### ✅ Acceptance test #3 re-run post-fix — 2026-07-27
+
+`get_node_variables` on `iRVBeN1n4ORWJMgh5ERDLA` node `13490:36146`:
+**45 bindings across 88 nodes, zero unresolved, `complete: true`** — byte-for-byte the
+same binding set as the pre-fix run. **The style walk added no regression.**
+
+**Unexpected finding: `styleCount: 0`.** The `flashcard` COMPONENT_SET is **driven
+purely by variables** — `Main/Primary/600 - P` `#982cff`, `Main/Primary/700`,
+`Support/Neutral/50|200|400|500`, `Default/White|Black2|Stroke`, `Main/Terciary/400` —
+and uses **no styles at all**. That is the exact inverse of KAT's
+`HomeEquity/NovoProcesso`, which mixes local variables with 40 remote kit styles.
+**Two fixtures, two opposite token architectures, both now read correctly.**
+
+> ⚠️ **`remote: false` is still UNPROVEN — do not lean on the negative case yet.**
+> The claim above ("`remote: true` mechanically separates kit from client work") rests
+> only on KAT, where all 40 styles were remote. Two Mente Dermatológica subtrees were
+> checked (`13490:36146` and the `Cover` frame `1:2`) and **both returned zero styles**,
+> so neither exercises the local branch. `Gradient/Purple` is known to be a *local*
+> paint style in this file, but nothing has been found that consumes it. The mechanism
+> is a faithful passthrough of Figma's own `style.remote` boolean, so this is low-risk
+> — but it is an inference, not an observation. **Prove it opportunistically on any
+> file with a local style in use.**
 
 ### ✅ M1.1 verified live 2026-07-27 — first recorded proof
 
@@ -345,6 +368,35 @@ else 0 — so the bulk-pasted kit is quantifiably parked on one page.
 own 60s inactivity timeout did **not** fire — M2.1's heartbeats did their job — but
 "completes without timeout" is true only of the plugin side; a 2-minute client ceiling
 still trips on this file.
+
+#### 🔧 Diagnosed 2026-07-27 — the cost is page loading, not component counting
+
+Comparing the two fixtures isolates it. Component counts are within 9% of each other,
+yet only one is slow:
+
+| Fixture | Components | Heaviest pages | Result |
+|---|---|---|---|
+| `iRVBeN1n4ORWJMgh5ERDLA` | 3,764 | — | completes inline |
+| `dyRJx7ExmpALroOpjAjHi6` | 4,094 | 826 + 764 + 81 children | **>120s** |
+
+So **component count is not the driver — page weight is.** The query itself is already
+optimal: `getLocalComponents` uses **`page.findAllWithCriteria({ types: ["COMPONENT"] })`**,
+Figma's indexed lookup, not a manual recursive walk. *(An earlier guess that a naive
+traversal was to blame was wrong — the code was checked.)* The unavoidable cost is
+**`await page.loadAsync()` on every page**, which `documentAccess: "dynamic-page"`
+requires before any page can be queried. Summary mode bounded the **payload**; it can
+never bound the **traversal**, because the counts it reports require visiting
+everything.
+
+Two fixes worth making, both fork-only and both PR-4 material:
+
+- **A `pages` filter parameter** — let a caller scope to specific page IDs and skip
+  loading the rest. Most audits want one page, and today they pay for all of them.
+  Highest value, smallest diff, no behaviour change when omitted.
+- **Partial results instead of all-or-nothing** — return what was scanned with an
+  explicit `pagesScanned` / `pagesSkipped` marker rather than dying whole. This is the
+  plan's own design principle applied to the time axis: a truncated scan must not be
+  reported in a shape that reads as a complete census.
 
 ---
 

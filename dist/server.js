@@ -907,7 +907,7 @@ server.tool(
 );
 server.tool(
   "get_node_variables",
-  "[Node-subtree scoped] Resolve every variable binding in a node and its descendants to property, variable name, and active value. Document-root ID 0:0 is unsupported; use get_pages first.",
+  "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
     nodeId: z.string().describe("Root node ID whose subtree should be scanned")
   },

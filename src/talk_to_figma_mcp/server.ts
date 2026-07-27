@@ -89,7 +89,7 @@ const WS_URL = serverUrl === 'localhost' ? `ws://${serverUrl}` : `wss://${server
 // Document Info Tool
 server.tool(
   "get_document_info",
-  "Get detailed information about the current Figma document",
+  "[Current-page scoped, with a document-wide page index] Get top-level details for the current Figma page plus an honest index of every page in the document. Non-current page child counts are explicitly marked as not requested.",
   {},
   async () => {
     try {
@@ -116,10 +116,80 @@ server.tool(
   }
 );
 
+// Pages Tool
+server.tool(
+  "get_pages",
+  "[Document-wide] Enumerate every page in the Figma document. Top-level child counts are opt-in because dynamic-page access must load each page.",
+  {
+    includeChildCount: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "Load every page and include its top-level child count (default: false)"
+      ),
+  },
+  async ({ includeChildCount }: any) => {
+    try {
+      const result = await sendCommandToFigma("get_pages", {
+        includeChildCount,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting pages: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Current Page Tool
+server.tool(
+  "set_current_page",
+  "Switch the active Figma page so subsequent page-scoped reads and writes operate there",
+  {
+    pageId: z.string().describe("The PAGE node ID returned by get_pages"),
+  },
+  async ({ pageId }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_current_page", { pageId });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting current page: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Selection Tool
 server.tool(
   "get_selection",
-  "Get information about the current selection in Figma",
+  "[Current-page scoped] Get information about the current selection in Figma",
   {},
   async () => {
     try {
@@ -149,7 +219,7 @@ server.tool(
 // Read My Design Tool
 server.tool(
   "read_my_design",
-  "Get detailed information about the current selection in Figma, including all node details",
+  "[Current-page selection scoped] Get detailed information about the current selection in Figma, including each selected node subtree",
   {},
   async () => {
     try {
@@ -179,7 +249,7 @@ server.tool(
 // Node Info Tool
 server.tool(
   "get_node_info",
-  "Get detailed information about a specific node in Figma",
+  "[Node-subtree scoped] Get detailed information about a specific Figma node. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
     nodeId: z.string().describe("The ID of the node to get information about"),
   },
@@ -210,19 +280,23 @@ server.tool(
 
 function rgbaToHex(color: any): string {
   // skip if color is already hex
-  if (color.startsWith('#')) {
+  if (typeof color === "string") {
     return color;
   }
 
   const r = Math.round(color.r * 255);
   const g = Math.round(color.g * 255);
   const b = Math.round(color.b * 255);
-  const a = Math.round(color.a * 255);
+  const a = color.a === undefined ? 255 : Math.round(color.a * 255);
 
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}${a === 255 ? '' : a.toString(16).padStart(2, '0')}`;
 }
 
 function filterFigmaNode(node: any) {
+  if (!node || typeof node !== "object") {
+    return node;
+  }
+
   // Skip VECTOR type nodes
   if (node.type === "VECTOR") {
     return null;
@@ -234,12 +308,15 @@ function filterFigmaNode(node: any) {
     type: node.type,
   };
 
+  if (node.boundVariables) {
+    filtered.boundVariables = node.boundVariables;
+  }
+
   if (node.fills && node.fills.length > 0) {
     filtered.fills = node.fills.map((fill: any) => {
       const processedFill = { ...fill };
 
-      // Remove boundVariables and imageRef
-      delete processedFill.boundVariables;
+      // imageRef can be very large/noisy; variable binding metadata is retained.
       delete processedFill.imageRef;
 
       // Process gradientStops if present
@@ -250,8 +327,6 @@ function filterFigmaNode(node: any) {
           if (processedStop.color) {
             processedStop.color = rgbaToHex(processedStop.color);
           }
-          // Remove boundVariables
-          delete processedStop.boundVariables;
           return processedStop;
         });
       }
@@ -268,8 +343,6 @@ function filterFigmaNode(node: any) {
   if (node.strokes && node.strokes.length > 0) {
     filtered.strokes = node.strokes.map((stroke: any) => {
       const processedStroke = { ...stroke };
-      // Remove boundVariables
-      delete processedStroke.boundVariables;
       // Convert color to hex if present
       if (processedStroke.color) {
         processedStroke.color = rgbaToHex(processedStroke.color);
@@ -314,7 +387,7 @@ function filterFigmaNode(node: any) {
 // Nodes Info Tool
 server.tool(
   "get_nodes_info",
-  "Get detailed information about multiple nodes in Figma",
+  "[Node-subtree scoped] Get detailed information about multiple Figma nodes",
   {
     nodeIds: z.array(z.string()).describe("Array of node IDs to get information about")
   },
@@ -855,7 +928,7 @@ server.tool(
 // Export Node as Image Tool
 server.tool(
   "export_node_as_image",
-  "Export a node as an image from Figma",
+  "[Node scoped] Export a node as an image from Figma",
   {
     nodeId: z.string().describe("The ID of the node to export"),
     format: z
@@ -936,7 +1009,7 @@ server.tool(
 // Get Styles Tool
 server.tool(
   "get_styles",
-  "Get all styles from the current Figma document",
+  "[Document-wide] Get all local paint, text, effect, and grid styles from the Figma document",
   {},
   async () => {
     try {
@@ -966,11 +1039,45 @@ server.tool(
 // Get Local Components Tool
 server.tool(
   "get_local_components",
-  "Get all local components from the Figma document",
-  {},
-  async () => {
+  "[Document-wide] Get local components across every page. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list.",
+  {
+    summary: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Return compact counts and name families (default: true)"),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(500)
+      .optional()
+      .default(100)
+      .describe("Maximum components returned when summary=false"),
+    offset: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .default(0)
+      .describe("Component offset when summary=false"),
+    familyLimit: z
+      .number()
+      .int()
+      .min(1)
+      .max(500)
+      .optional()
+      .default(100)
+      .describe("Maximum name families returned in summary mode"),
+  },
+  async ({ summary, limit, offset, familyLimit }: any) => {
     try {
-      const result = await sendCommandToFigma("get_local_components");
+      const result = await sendCommandToFigma("get_local_components", {
+        summary,
+        limit,
+        offset,
+        familyLimit,
+      });
       return {
         content: [
           {
@@ -993,12 +1100,83 @@ server.tool(
   }
 );
 
+// Get Variables Tool
+server.tool(
+  "get_variables",
+  "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
+  {
+    types: z
+      .array(z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]))
+      .min(1)
+      .optional()
+      .describe("Optional variable types to include; defaults to all four types"),
+  },
+  async ({ types }: any) => {
+    try {
+      const result = await sendCommandToFigma("get_variables", { types });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting variables: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Get Node Variables Tool
+server.tool(
+  "get_node_variables",
+  "[Node-subtree scoped] Resolve every variable binding in a node and its descendants to property, variable name, and active value. Document-root ID 0:0 is unsupported; use get_pages first.",
+  {
+    nodeId: z.string().describe("Root node ID whose subtree should be scanned"),
+  },
+  async ({ nodeId }: any) => {
+    try {
+      const result = await sendCommandToFigma("get_node_variables", {
+        nodeId,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting node variables: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Annotations Tool
 server.tool(
   "get_annotations",
-  "Get all annotations in the current document or specific node",
+  "[Current-page scoped when nodeId is omitted; otherwise node-subtree scoped] Get annotations. Nodes that cannot own annotations still return a typed result and their descendants are scanned.",
   {
-    nodeId: z.string().describe("node ID to get annotations for specific node"),
+    nodeId: z
+      .string()
+      .optional()
+      .describe("Optional root node ID; omit to scan the current page"),
     includeCategories: z.boolean().optional().default(true).describe("Whether to include category information")
   },
   async ({ nodeId, includeCategories }: any) => {
@@ -1241,7 +1419,7 @@ server.tool(
 // Copy Instance Overrides Tool
 server.tool(
   "get_instance_overrides",
-  "Get all override properties from a selected component instance. These overrides can be applied to other instances, which will swap them to match the source component.",
+  "[Current-page selection scoped when instanceNodeId is omitted; otherwise node scoped] Get override properties from a component instance. These overrides can be applied to other instances, which will swap them to match the source component.",
   {
     nodeId: z.string().optional().describe("Optional ID of the component instance to get overrides from. If not provided, currently selected instance will be used."),
   },
@@ -1485,7 +1663,7 @@ server.prompt(
 // Text Node Scanning Tool
 server.tool(
   "scan_text_nodes",
-  "Scan all text nodes in the selected Figma node",
+  "[Node-subtree scoped] Scan all text nodes below a specific Figma node",
   {
     nodeId: z.string().describe("ID of the node to scan"),
   },
@@ -1562,7 +1740,7 @@ server.tool(
 // Node Type Scanning Tool
 server.tool(
   "scan_nodes_by_types",
-  "Scan for child nodes with specific types in the selected Figma node",
+  "[Node-subtree scoped] Scan for descendants with specific types. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
     nodeId: z.string().describe("ID of the node to scan"),
     types: z.array(z.string()).describe("Array of node types to find in the child nodes (e.g. ['COMPONENT', 'FRAME'])")
@@ -2343,9 +2521,12 @@ server.tool(
 // A tool to get Figma Prototyping Reactions from multiple nodes
 server.tool(
   "get_reactions",
-  "Get Figma Prototyping Reactions from multiple nodes. CRITICAL: The output MUST be processed using the 'reaction_to_connector_strategy' prompt IMMEDIATELY to generate parameters for connector lines via the 'create_connections' tool.",
+  "[Requested-node-subtrees scoped, read-only] Get Figma prototyping reactions, including CHANGE_TO interactive-component variant transitions. The payload states API coverage limits; an empty result is not proof that the file has no motion. If connector visualization is desired, the optional reaction_to_connector_strategy prompt can transform this read result.",
   {
-    nodeIds: z.array(z.string()).describe("Array of node IDs to get reactions from"),
+    nodeIds: z
+      .array(z.string())
+      .min(1)
+      .describe("Array of root node IDs whose subtrees should be searched"),
   },
   async ({ nodeIds }: any) => {
     try {
@@ -2355,16 +2536,8 @@ server.tool(
           {
             type: "text",
             text: JSON.stringify(result)
-          },
-          {
-            type: "text",
-            text: "IMPORTANT: You MUST now use the reaction data above and follow the `reaction_to_connector_strategy` prompt to prepare the parameters for the `create_connections` tool call. This is a required next step."
           }
-        ],
-        followUp: {
-          type: "prompt",
-          prompt: "reaction_to_connector_strategy",
-        },
+        ]
       };
     } catch (error) {
       return {
@@ -2615,6 +2788,8 @@ This detailed process ensures you correctly interpret the reaction data, prepare
 // Define command types and parameters
 type FigmaCommand =
   | "get_document_info"
+  | "get_pages"
+  | "set_current_page"
   | "get_selection"
   | "get_node_info"
   | "get_nodes_info"
@@ -2630,6 +2805,8 @@ type FigmaCommand =
   | "delete_multiple_nodes"
   | "get_styles"
   | "get_local_components"
+  | "get_variables"
+  | "get_node_variables"
   | "create_component_instance"
   | "get_instance_overrides"
   | "set_instance_overrides"
@@ -2661,6 +2838,8 @@ type FigmaCommand =
 
 type CommandParams = {
   get_document_info: Record<string, never>;
+  get_pages: { includeChildCount?: boolean };
+  set_current_page: { pageId: string };
   get_selection: Record<string, never>;
   get_node_info: { nodeId: string };
   get_nodes_info: { nodeIds: string[] };
@@ -2725,7 +2904,16 @@ type CommandParams = {
     nodeIds: string[];
   };
   get_styles: Record<string, never>;
-  get_local_components: Record<string, never>;
+  get_local_components: {
+    summary?: boolean;
+    limit?: number;
+    offset?: number;
+    familyLimit?: number;
+  };
+  get_variables: {
+    types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;
+  };
+  get_node_variables: { nodeId: string };
   get_team_components: Record<string, never>;
   create_component_instance: {
     componentKey: string;
@@ -3355,6 +3543,3 @@ main().catch(error => {
   logger.error(`Error starting FigmaMCP server: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
-
-
-

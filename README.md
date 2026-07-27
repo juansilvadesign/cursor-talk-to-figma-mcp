@@ -174,8 +174,10 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Document & Selection
 
-- `get_document_info` - Get information about the current Figma document
-- `get_selection` - Get information about the current selection
+- `get_document_info` - Get current-page details plus a document-wide page index
+- `get_pages` - Enumerate every page; top-level child counts are opt-in
+- `set_current_page` - Switch the active page for subsequent page-scoped operations
+- `get_selection` - Get information about the current-page selection
 - `read_my_design` - Get detailed node information about the current selection without parameters
 - `get_node_info` - Get detailed information about a specific node
 - `get_nodes_info` - Get detailed information about multiple nodes by providing an array of node IDs
@@ -189,7 +191,7 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Prototyping & Connections
 
-- `get_reactions` - Get all prototype reactions from nodes with visual highlight animation
+- `get_reactions` - Read prototype reactions in node subtrees, including interactive-component `CHANGE_TO` transitions
 - `set_default_connector` - Set a copied FigJam connector as the default connector style for creating connections (must be set before creating connections)
 - `create_connections` - Create FigJam connector lines between nodes, based on prototype flows or custom mapping
 
@@ -233,8 +235,10 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Components & Styles
 
-- `get_styles` - Get information about local styles
-- `get_local_components` - Get information about local components
+- `get_styles` - Get document-wide local styles with progress heartbeats
+- `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list
+- `get_variables` - Get document-wide variable collections, modes, and resolved values
+- `get_node_variables` - Resolve every variable binding in a node subtree
 - `create_component_instance` - Create an instance of a component
 - `get_instance_overrides` - Extract override properties from a selected component instance
 - `set_instance_overrides` - Apply extracted overrides to target instances
@@ -275,7 +279,7 @@ The MCP server includes several helper prompts to guide you through complex desi
 When working with the Figma MCP:
 
 1. Always join a channel before sending commands
-2. Get document overview using `get_document_info` first
+2. Get the document page index using `get_pages`, then use `get_document_info` for the current page
 3. Check current selection with `get_selection` before modifications
 4. Use appropriate creation tools based on needs:
    - `create_frame` for containers
@@ -286,6 +290,7 @@ When working with the Figma MCP:
 7. Handle errors appropriately as all commands can throw exceptions
 8. For large designs:
    - Use chunking parameters in `scan_text_nodes`
+   - Keep `get_local_components` in its default summary mode unless individual component IDs are needed
    - Monitor progress through WebSocket updates
    - Implement appropriate error handling
 9. For text operations:

@@ -514,6 +514,14 @@
         }
       }
 
+      function clearCommandTracking() {
+        for (const meta of state.commandTracking.values()) {
+          clearInterval(meta.heartbeatTimer);
+        }
+        state.commandTracking.clear();
+        state.activeRequestId = null;
+      }
+
       // Connect to WebSocket server
       async function connectToServer(port) {
         try {
@@ -585,12 +593,14 @@
           };
 
           state.socket.onclose = () => {
+            clearCommandTracking();
             state.connected = false;
             state.socket = null;
             updateConnectionStatus(false, "Disconnected from server");
           };
 
           state.socket.onerror = (error) => {
+            clearCommandTracking();
             console.error("WebSocket error:", error);
             updateConnectionStatus(false, "Connection error");
             state.connected = false;
@@ -608,6 +618,7 @@
       // Disconnect from websocket server
       function disconnectFromServer() {
         if (state.socket) {
+          clearCommandTracking();
           state.socket.close();
           state.socket = null;
           state.connected = false;
@@ -637,9 +648,23 @@
         if (data.command) {
           try {
             state.activeRequestId = data.id;
+            const heartbeatTimer = setInterval(() => {
+              sendProgressUpdateToServer({
+                type: "command_progress",
+                commandId: data.id,
+                commandType: data.command,
+                status: "in_progress",
+                progress: 0,
+                totalItems: 0,
+                processedItems: 0,
+                message: `${data.command} is still running`,
+                timestamp: Date.now(),
+              });
+            }, 15000);
             state.commandTracking.set(data.id, {
               command: data.command,
               startedAt: Date.now(),
+              heartbeatTimer,
             });
 
             // Send the command to the plugin code
@@ -660,6 +685,11 @@
               data.id,
               error.message || "Error executing command"
             );
+            trackCommandResult(
+              data.id,
+              false,
+              error.message || "Error executing command"
+            );
           }
         }
       }
@@ -667,7 +697,11 @@
       function trackCommandResult(id, success, errorMessage) {
         const meta = state.commandTracking.get(id);
         if (!meta) return;
+        clearInterval(meta.heartbeatTimer);
         state.commandTracking.delete(id);
+        if (state.activeRequestId === id) {
+          state.activeRequestId = null;
+        }
         const params = {
           command_name: String(meta.command || "unknown"),
           success: success ? 1 : 0,
@@ -843,7 +877,23 @@
 
         console.log("Sending progress update to server:", progressData);
 
-        const requestId = state.activeRequestId || progressData.commandId;
+        let requestId = progressData.commandId;
+        if (!state.commandTracking.has(requestId)) {
+          const matchingRequests = Array.from(
+            state.commandTracking.entries()
+          ).filter(([, meta]) => meta.command === progressData.commandType);
+
+          if (matchingRequests.length === 1) {
+            requestId = matchingRequests[0][0];
+          } else {
+            console.warn(
+              "Skipping progress update with no unambiguous tracked request:",
+              progressData
+            );
+            return;
+          }
+        }
+
         state.socket.send(
           JSON.stringify({
             id: requestId,

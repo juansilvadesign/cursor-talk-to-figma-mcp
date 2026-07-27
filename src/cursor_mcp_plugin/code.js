@@ -128,6 +128,10 @@ async function handleCommand(command, params) {
   switch (command) {
     case "get_document_info":
       return await getDocumentInfo();
+    case "get_pages":
+      return await getPages(params);
+    case "set_current_page":
+      return await setCurrentPage(params);
     case "get_selection":
       return await getSelection();
     case "get_node_info":
@@ -161,9 +165,13 @@ async function handleCommand(command, params) {
     case "delete_multiple_nodes":
       return await deleteMultipleNodes(params);
     case "get_styles":
-      return await getStyles();
+      return await getStyles(params);
     case "get_local_components":
       return await getLocalComponents(params);
+    case "get_variables":
+      return await getVariables(params);
+    case "get_node_variables":
+      return await getNodeVariables(params);
     // case "get_team_components":
     //   return await getTeamComponents();
     case "create_component_instance":
@@ -245,7 +253,7 @@ async function handleCommand(command, params) {
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
       }
-      return await getReactions(params.nodeIds);  
+      return await getReactions(params);
     case "set_default_connector":
       return await setDefaultConnector(params);
     case "create_connections":
@@ -272,7 +280,23 @@ async function handleCommand(command, params) {
 async function getDocumentInfo() {
   await figma.currentPage.loadAsync();
   const page = figma.currentPage;
+  const pages = figma.root.children.map((documentPage) => {
+    const isCurrentPage = documentPage.id === page.id;
+    return {
+      id: documentPage.id,
+      name: documentPage.name,
+      childCount: isCurrentPage ? documentPage.children.length : null,
+      childCountStatus: isCurrentPage ? "available" : "not_requested",
+    };
+  });
+
   return {
+    scope: "current_page_with_document_page_index",
+    document: {
+      id: figma.root.id,
+      name: figma.root.name,
+      type: figma.root.type,
+    },
     name: page.name,
     id: page.id,
     type: page.type,
@@ -286,18 +310,121 @@ async function getDocumentInfo() {
       name: page.name,
       childCount: page.children.length,
     },
-    pages: [
-      {
-        id: page.id,
-        name: page.name,
-        childCount: page.children.length,
-      },
-    ],
+    pageCount: pages.length,
+    pages,
+  };
+}
+
+async function getPages(params) {
+  const includeChildCount = Boolean(params && params.includeChildCount);
+  const commandId = (params && params.commandId) || generateCommandId();
+  const documentPages = figma.root.children;
+  const pages = [];
+
+  if (includeChildCount) {
+    await sendProgressUpdate(
+      commandId,
+      "get_pages",
+      "started",
+      0,
+      documentPages.length,
+      0,
+      "Loading pages to count top-level children"
+    );
+  }
+
+  for (let index = 0; index < documentPages.length; index++) {
+    const page = documentPages[index];
+    const pageInfo = {
+      id: page.id,
+      name: page.name,
+    };
+
+    if (includeChildCount) {
+      const stopHeartbeat = startProgressHeartbeat(
+        commandId,
+        "get_pages",
+        Math.round((index / documentPages.length) * 100),
+        documentPages.length,
+        index,
+        `Still loading page ${page.name}`
+      );
+      try {
+        await page.loadAsync();
+      } finally {
+        stopHeartbeat();
+      }
+      pageInfo.childCount = page.children.length;
+      await sendProgressUpdate(
+        commandId,
+        "get_pages",
+        "in_progress",
+        Math.round(((index + 1) / documentPages.length) * 100),
+        documentPages.length,
+        index + 1,
+        `Loaded page ${index + 1}/${documentPages.length}: ${page.name}`
+      );
+    }
+
+    pages.push(pageInfo);
+  }
+
+  if (includeChildCount) {
+    await sendProgressUpdate(
+      commandId,
+      "get_pages",
+      "completed",
+      100,
+      documentPages.length,
+      documentPages.length,
+      `Loaded ${documentPages.length} pages`
+    );
+  }
+
+  return {
+    scope: "document",
+    document: {
+      id: figma.root.id,
+      name: figma.root.name,
+    },
+    currentPageId: figma.currentPage.id,
+    pageCount: pages.length,
+    childCountIncluded: includeChildCount,
+    pages,
+  };
+}
+
+async function setCurrentPage(params) {
+  const { pageId } = params || {};
+  if (!pageId) {
+    throw new Error("Missing pageId parameter");
+  }
+
+  const page = await figma.getNodeByIdAsync(pageId);
+  if (!page) {
+    throw new Error(`Page not found with ID: ${pageId}`);
+  }
+  if (page.type !== "PAGE") {
+    throw new Error(`Node ${pageId} is ${page.type}, not a PAGE`);
+  }
+
+  await figma.setCurrentPageAsync(page);
+  await page.loadAsync();
+
+  return {
+    success: true,
+    currentPage: {
+      id: page.id,
+      name: page.name,
+      childCount: page.children.length,
+    },
   };
 }
 
 async function getSelection() {
   return {
+    scope: "current_page",
+    pageId: figma.currentPage.id,
     selectionCount: figma.currentPage.selection.length,
     selection: figma.currentPage.selection.map((node) => ({
       id: node.id,
@@ -309,6 +436,10 @@ async function getSelection() {
 }
 
 function rgbaToHex(color) {
+  if (typeof color === "string") {
+    return color;
+  }
+
   var r = Math.round(color.r * 255);
   var g = Math.round(color.g * 255);
   var b = Math.round(color.b * 255);
@@ -335,7 +466,119 @@ function rgbaToHex(color) {
   );
 }
 
-function filterFigmaNode(node) {
+const variableCache = new Map();
+const variableCollectionCache = new Map();
+
+function hasVariablesApi() {
+  return Boolean(
+    figma.variables &&
+    figma.variables.getLocalVariablesAsync &&
+    figma.variables.getLocalVariableCollectionsAsync &&
+    figma.variables.getVariableByIdAsync
+  );
+}
+
+async function getVariableByIdCached(variableId) {
+  if (!hasVariablesApi()) {
+    return null;
+  }
+
+  if (!variableCache.has(variableId)) {
+    variableCache.set(
+      variableId,
+      figma.variables.getVariableByIdAsync(variableId).catch(() => null)
+    );
+  }
+
+  return await variableCache.get(variableId);
+}
+
+async function getVariableCollectionByIdCached(collectionId) {
+  if (
+    !figma.variables ||
+    !figma.variables.getVariableCollectionByIdAsync
+  ) {
+    return null;
+  }
+
+  if (!variableCollectionCache.has(collectionId)) {
+    variableCollectionCache.set(
+      collectionId,
+      figma.variables
+        .getVariableCollectionByIdAsync(collectionId)
+        .catch(() => null)
+    );
+  }
+
+  return await variableCollectionCache.get(collectionId);
+}
+
+function serializeVariableValue(value) {
+  if (
+    value &&
+    typeof value === "object" &&
+    typeof value.r === "number" &&
+    typeof value.g === "number" &&
+    typeof value.b === "number"
+  ) {
+    return rgbaToHex(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(serializeVariableValue);
+  }
+
+  if (value && typeof value === "object") {
+    const serialized = {};
+    for (const [key, nestedValue] of Object.entries(value)) {
+      serialized[key] = serializeVariableValue(nestedValue);
+    }
+    return serialized;
+  }
+
+  return value;
+}
+
+async function resolveVariableAliasMetadata(alias) {
+  if (Array.isArray(alias)) {
+    return await Promise.all(alias.map(resolveVariableAliasMetadata));
+  }
+
+  if (!alias || typeof alias !== "object") {
+    return alias;
+  }
+
+  if (typeof alias.id === "string") {
+    const variable = await getVariableByIdCached(alias.id);
+    return variable
+      ? { id: alias.id, name: variable.name }
+      : { id: alias.id };
+  }
+
+  const resolved = {};
+  await Promise.all(
+    Object.entries(alias).map(async ([key, value]) => {
+      resolved[key] = await resolveVariableAliasMetadata(value);
+    })
+  );
+  return resolved;
+}
+
+async function resolveBoundVariables(boundVariables) {
+  if (!boundVariables || typeof boundVariables !== "object") {
+    return boundVariables;
+  }
+
+  const resolved = {};
+  await Promise.all(
+    Object.entries(boundVariables).map(async ([property, alias]) => {
+      resolved[property] = await resolveVariableAliasMetadata(alias);
+    })
+  );
+  return resolved;
+}
+
+async function filterFigmaNode(node) {
   if (node.type === "VECTOR") {
     return null;
   }
@@ -346,22 +589,35 @@ function filterFigmaNode(node) {
     type: node.type,
   };
 
+  if (node.boundVariables) {
+    filtered.boundVariables = await resolveBoundVariables(node.boundVariables);
+  }
+
   if (node.fills && node.fills.length > 0) {
-    filtered.fills = node.fills.map((fill) => {
+    filtered.fills = await Promise.all(node.fills.map(async (fill) => {
       var processedFill = Object.assign({}, fill);
-      delete processedFill.boundVariables;
       delete processedFill.imageRef;
 
+      if (processedFill.boundVariables) {
+        processedFill.boundVariables = await resolveBoundVariables(
+          processedFill.boundVariables
+        );
+      }
+
       if (processedFill.gradientStops) {
-        processedFill.gradientStops = processedFill.gradientStops.map(
-          (stop) => {
+        processedFill.gradientStops = await Promise.all(
+          processedFill.gradientStops.map(async (stop) => {
             var processedStop = Object.assign({}, stop);
             if (processedStop.color) {
               processedStop.color = rgbaToHex(processedStop.color);
             }
-            delete processedStop.boundVariables;
+            if (processedStop.boundVariables) {
+              processedStop.boundVariables = await resolveBoundVariables(
+                processedStop.boundVariables
+              );
+            }
             return processedStop;
-          }
+          })
         );
       }
 
@@ -370,18 +626,22 @@ function filterFigmaNode(node) {
       }
 
       return processedFill;
-    });
+    }));
   }
 
   if (node.strokes && node.strokes.length > 0) {
-    filtered.strokes = node.strokes.map((stroke) => {
+    filtered.strokes = await Promise.all(node.strokes.map(async (stroke) => {
       var processedStroke = Object.assign({}, stroke);
-      delete processedStroke.boundVariables;
+      if (processedStroke.boundVariables) {
+        processedStroke.boundVariables = await resolveBoundVariables(
+          processedStroke.boundVariables
+        );
+      }
       if (processedStroke.color) {
         processedStroke.color = rgbaToHex(processedStroke.color);
       }
       return processedStroke;
-    });
+    }));
   }
 
   if (node.cornerRadius !== undefined) {
@@ -409,11 +669,11 @@ function filterFigmaNode(node) {
   }
 
   if (node.children) {
-    filtered.children = node.children
-      .map((child) => {
+    filtered.children = (await Promise.all(
+      node.children.map((child) => {
         return filterFigmaNode(child);
       })
-      .filter((child) => {
+    )).filter((child) => {
         return child !== null;
       });
   }
@@ -422,17 +682,27 @@ function filterFigmaNode(node) {
 }
 
 async function getNodeInfo(nodeId) {
+  if (nodeId === figma.root.id || nodeId === "0:0") {
+    throw new Error(
+      "Document-root reads are not supported by get_node_info. Use get_pages to enumerate pages, then query a page or child node."
+    );
+  }
+
   const node = await figma.getNodeByIdAsync(nodeId);
 
   if (!node) {
     throw new Error(`Node not found with ID: ${nodeId}`);
   }
 
+  if (node.type === "PAGE") {
+    await node.loadAsync();
+  }
+
   const response = await node.exportAsync({
     format: "JSON_REST_V1",
   });
 
-  return filterFigmaNode(response.document);
+  return await filterFigmaNode(response.document);
 }
 
 async function getNodesInfo(nodeIds) {
@@ -448,12 +718,20 @@ async function getNodesInfo(nodeIds) {
     // Export all valid nodes in parallel
     const responses = await Promise.all(
       validNodes.map(async (node) => {
+        if (node.type === "DOCUMENT") {
+          throw new Error(
+            "Document-root reads are not supported by get_nodes_info. Use get_pages to enumerate pages."
+          );
+        }
+        if (node.type === "PAGE") {
+          await node.loadAsync();
+        }
         const response = await node.exportAsync({
           format: "JSON_REST_V1",
         });
         return {
           nodeId: node.id,
-          document: filterFigmaNode(response.document),
+          document: await filterFigmaNode(response.document),
         };
       })
     );
@@ -464,10 +742,10 @@ async function getNodesInfo(nodeIds) {
   }
 }
 
-async function getReactions(nodeIds) {
+async function getReactions(params) {
   try {
-    const commandId = generateCommandId();
-    sendProgressUpdate(
+    const { nodeIds, commandId = generateCommandId() } = params;
+    await sendProgressUpdate(
       commandId,
       "get_reactions",
       "started",
@@ -487,30 +765,22 @@ async function getReactions(nodeIds) {
       processedNodes.add(node.id);
       
       // Check if the current node has reactions
-      let filteredReactions = [];
-      if (node.reactions && node.reactions.length > 0) {
-        // Filter out reactions with navigation === 'CHANGE_TO'
-        filteredReactions = node.reactions.filter(r => {
-          // Some reactions may have action or actions array
-          if (r.action && r.action.navigation === 'CHANGE_TO') return false;
-          if (Array.isArray(r.actions)) {
-            // If any action in actions array is CHANGE_TO, exclude
-            return !r.actions.some(a => a.navigation === 'CHANGE_TO');
-          }
-          return true;
-        });
-      }
-      const hasFilteredReactions = filteredReactions.length > 0;
+      const reactions =
+        node.reactions && node.reactions.length > 0
+          ? Array.from(node.reactions)
+          : [];
+      const hasReactions = reactions.length > 0;
       
-      // If the node has filtered reactions, add it to results
-      if (hasFilteredReactions) {
+      // CHANGE_TO reactions are intentionally retained: they power interactive
+      // component transitions between variants.
+      if (hasReactions) {
         results.push({
           id: node.id,
           name: node.name,
           type: node.type,
           depth: depth,
           hasReactions: true,
-          reactions: filteredReactions,
+          reactions,
           path: getNodePath(node)
         });
       }
@@ -542,6 +812,7 @@ async function getReactions(nodeIds) {
     let allResults = [];
     let processedCount = 0;
     const totalCount = nodeIds.length;
+    const errors = [];
     
     // Iterate through each node and its children to search for reactions
     for (let i = 0; i < nodeIds.length; i++) {
@@ -551,16 +822,21 @@ async function getReactions(nodeIds) {
         
         if (!node) {
           processedCount++;
-          sendProgressUpdate(
+          errors.push({ nodeId, error: "Node not found" });
+          await sendProgressUpdate(
             commandId,
             "get_reactions",
             "in_progress",
-            processedCount / totalCount,
+            Math.round((processedCount / totalCount) * 100),
             totalCount,
             processedCount,
             `Node not found: ${nodeId}`
           );
           continue;
+        }
+
+        if (node.type === "PAGE") {
+          await node.loadAsync();
         }
         
         // Search for reactions in the node and its children
@@ -572,22 +848,26 @@ async function getReactions(nodeIds) {
         
         // Update progress
         processedCount++;
-        sendProgressUpdate(
+        await sendProgressUpdate(
           commandId,
           "get_reactions",
           "in_progress",
-          processedCount / totalCount,
+          Math.round((processedCount / totalCount) * 100),
           totalCount,
           processedCount,
           `Processed node ${processedCount}/${totalCount}, found ${nodeResults.length} nodes with reactions`
         );
       } catch (error) {
         processedCount++;
-        sendProgressUpdate(
+        errors.push({
+          nodeId: nodeIds[i],
+          error: error.message || String(error),
+        });
+        await sendProgressUpdate(
           commandId,
           "get_reactions",
           "in_progress",
-          processedCount / totalCount,
+          Math.round((processedCount / totalCount) * 100),
           totalCount,
           processedCount,
           `Error processing node: ${error.message}`
@@ -596,20 +876,28 @@ async function getReactions(nodeIds) {
     }
 
     // Completion update
-    sendProgressUpdate(
+    await sendProgressUpdate(
       commandId,
       "get_reactions",
       "completed",
-      1,
+      100,
       totalCount,
       totalCount,
       `Completed deep search: found ${allResults.length} nodes with reactions.`
     );
 
     return {
+      scope: "requested_node_subtrees",
+      complete: errors.length === 0,
+      coverage: {
+        includesChangeToVariantTransitions: true,
+        limitation:
+          "Only reactions exposed by the Figma Plugin API on the requested nodes and descendants are included. An empty result does not prove that the file has no prototype or motion behavior.",
+      },
       nodesCount: nodeIds.length,
       nodesWithReactions: allResults.length,
-      nodes: allResults
+      nodes: allResults,
+      errors,
     };
   } catch (error) {
     throw new Error(`Failed to get reactions: ${error.message}`);
@@ -634,7 +922,7 @@ async function readMyDesign() {
         });
         return {
           nodeId: node.id,
-          document: filterFigmaNode(response.document),
+          document: await filterFigmaNode(response.document),
         };
       })
     );
@@ -1304,15 +1592,94 @@ async function deleteNode(params) {
   return nodeInfo;
 }
 
-async function getStyles() {
-  const styles = {
-    colors: await figma.getLocalPaintStylesAsync(),
-    texts: await figma.getLocalTextStylesAsync(),
-    effects: await figma.getLocalEffectStylesAsync(),
-    grids: await figma.getLocalGridStylesAsync(),
-  };
+function startProgressHeartbeat(
+  commandId,
+  commandType,
+  progress,
+  totalItems,
+  processedItems,
+  message
+) {
+  const timer = setInterval(() => {
+    sendProgressUpdate(
+      commandId,
+      commandType,
+      "in_progress",
+      progress,
+      totalItems,
+      processedItems,
+      message
+    ).catch((error) => {
+      console.error(`Failed to send ${commandType} heartbeat:`, error);
+    });
+  }, 15000);
 
-  return {
+  return () => clearInterval(timer);
+}
+
+async function getStyles(params) {
+  const commandId = (params && params.commandId) || generateCommandId();
+  const styleLoaders = [
+    ["colors", () => figma.getLocalPaintStylesAsync()],
+    ["texts", () => figma.getLocalTextStylesAsync()],
+    ["effects", () => figma.getLocalEffectStylesAsync()],
+    ["grids", () => figma.getLocalGridStylesAsync()],
+  ];
+  const styles = {};
+
+  await sendProgressUpdate(
+    commandId,
+    "get_styles",
+    "started",
+    0,
+    styleLoaders.length,
+    0,
+    "Loading document-wide local styles"
+  );
+
+  try {
+    for (let index = 0; index < styleLoaders.length; index++) {
+      const [styleType, loadStyles] = styleLoaders[index];
+      const stopHeartbeat = startProgressHeartbeat(
+        commandId,
+        "get_styles",
+        Math.round((index / styleLoaders.length) * 100),
+        styleLoaders.length,
+        index,
+        `Still loading ${styleType} styles`
+      );
+
+      try {
+        styles[styleType] = await loadStyles();
+      } finally {
+        stopHeartbeat();
+      }
+
+      await sendProgressUpdate(
+        commandId,
+        "get_styles",
+        "in_progress",
+        Math.round(((index + 1) / styleLoaders.length) * 100),
+        styleLoaders.length,
+        index + 1,
+        `Loaded ${styles[styleType].length} ${styleType} styles`
+      );
+    }
+  } catch (error) {
+    await sendProgressUpdate(
+      commandId,
+      "get_styles",
+      "error",
+      0,
+      styleLoaders.length,
+      0,
+      `Failed to load styles: ${error.message || String(error)}`
+    );
+    throw error;
+  }
+
+  const result = {
+    scope: "document",
     colors: styles.colors.map((style) => ({
       id: style.id,
       name: style.name,
@@ -1337,10 +1704,48 @@ async function getStyles() {
       key: style.key,
     })),
   };
+
+  result.counts = {
+    colors: result.colors.length,
+    texts: result.texts.length,
+    effects: result.effects.length,
+    grids: result.grids.length,
+  };
+
+  await sendProgressUpdate(
+    commandId,
+    "get_styles",
+    "completed",
+    100,
+    styleLoaders.length,
+    styleLoaders.length,
+    `Loaded ${Object.values(result.counts).reduce((sum, count) => sum + count, 0)} local styles`
+  );
+
+  return result;
+}
+
+function getComponentFamilyName(component) {
+  if (component.parent && component.parent.type === "COMPONENT_SET") {
+    return component.parent.name;
+  }
+
+  const firstPathSegment = component.name.split("/")[0].trim();
+  return firstPathSegment || component.name;
 }
 
 async function getLocalComponents(params) {
   const commandId = (params && params.commandId) || generateCommandId();
+  const summary = !params || params.summary !== false;
+  const offset = Math.max(0, Number((params && params.offset) || 0));
+  const limit = Math.min(
+    500,
+    Math.max(1, Number((params && params.limit) || 100))
+  );
+  const familyLimit = Math.min(
+    500,
+    Math.max(1, Number((params && params.familyLimit) || 100))
+  );
   const pages = figma.root.children;
   const totalPages = pages.length;
 
@@ -1355,22 +1760,57 @@ async function getLocalComponents(params) {
     null
   );
 
-  var allComponents = [];
+  var totalComponents = 0;
+  var components = [];
+  var familyCounts = new Map();
+  var pageCounts = [];
 
   for (var i = 0; i < totalPages; i++) {
     var page = pages[i];
-    await page.loadAsync();
+    var stopHeartbeat = startProgressHeartbeat(
+      commandId,
+      "get_local_components",
+      Math.round((i / totalPages) * 100),
+      totalPages,
+      i,
+      "Still loading page " + page.name
+    );
+    try {
+      await page.loadAsync();
+    } finally {
+      stopHeartbeat();
+    }
 
     var pageComponents = page.findAllWithCriteria({ types: ["COMPONENT"] });
 
     for (var j = 0; j < pageComponents.length; j++) {
       var component = pageComponents[j];
-      allComponents.push({
-        id: component.id,
-        name: component.name,
-        key: "key" in component ? component.key : null,
-      });
+      var family = getComponentFamilyName(component);
+      familyCounts.set(family, (familyCounts.get(family) || 0) + 1);
+
+      if (
+        !summary &&
+        totalComponents >= offset &&
+        components.length < limit
+      ) {
+        components.push({
+          id: component.id,
+          name: component.name,
+          family,
+          key: "key" in component ? component.key : null,
+          pageId: page.id,
+          pageName: page.name,
+        });
+      }
+
+      totalComponents++;
     }
+
+    pageCounts.push({
+      id: page.id,
+      name: page.name,
+      componentCount: pageComponents.length,
+    });
 
     var progress = Math.round(((i + 1) / totalPages) * 100);
     await sendProgressUpdate(
@@ -1380,7 +1820,7 @@ async function getLocalComponents(params) {
       progress,
       totalPages,
       i + 1,
-      "Scanned " + page.name + ": " + pageComponents.length + " components (total so far: " + allComponents.length + ")",
+      "Scanned " + page.name + ": " + pageComponents.length + " components (total so far: " + totalComponents + ")",
       null
     );
   }
@@ -1392,13 +1832,648 @@ async function getLocalComponents(params) {
     100,
     totalPages,
     totalPages,
-    "Found " + allComponents.length + " components across " + totalPages + " pages",
+    "Found " + totalComponents + " components across " + totalPages + " pages",
     null
   );
 
+  const nameFamilies = Array.from(familyCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
+
+  if (summary) {
+    return {
+      scope: "document",
+      summary: true,
+      count: totalComponents,
+      pageCount: totalPages,
+      pages: pageCounts,
+      familyCount: nameFamilies.length,
+      nameFamilies: nameFamilies.slice(0, familyLimit),
+      familiesTruncated: nameFamilies.length > familyLimit,
+      familyLimit,
+    };
+  }
+
   return {
-    count: allComponents.length,
-    components: allComponents,
+    scope: "document",
+    summary: false,
+    count: totalComponents,
+    pageCount: totalPages,
+    pages: pageCounts,
+    pagination: {
+      offset,
+      limit,
+      returned: components.length,
+      hasMore: offset + components.length < totalComponents,
+    },
+    components,
+  };
+}
+
+const VARIABLE_TYPES = ["COLOR", "FLOAT", "STRING", "BOOLEAN"];
+
+async function resolveVariableValueForMode(
+  variable,
+  modeId,
+  modeName,
+  visited = new Set()
+) {
+  const visitKey = `${variable.id}:${modeId}`;
+  if (visited.has(visitKey)) {
+    return {
+      status: "cycle",
+      value: null,
+    };
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(visitKey);
+
+  let selectedModeId = modeId;
+  let rawValue = variable.valuesByMode[selectedModeId];
+  const collection = await getVariableCollectionByIdCached(
+    variable.variableCollectionId
+  );
+
+  if (rawValue === undefined && collection) {
+    const namedMode = collection.modes.find((mode) => mode.name === modeName);
+    selectedModeId = namedMode
+      ? namedMode.modeId
+      : collection.defaultModeId;
+    rawValue = variable.valuesByMode[selectedModeId];
+  }
+
+  if (
+    rawValue &&
+    typeof rawValue === "object" &&
+    rawValue.type === "VARIABLE_ALIAS" &&
+    typeof rawValue.id === "string"
+  ) {
+    const targetVariable = await getVariableByIdCached(rawValue.id);
+    if (!targetVariable) {
+      return {
+        status: "unresolved_alias",
+        value: serializeVariableValue(rawValue),
+      };
+    }
+
+    return await resolveVariableValueForMode(
+      targetVariable,
+      selectedModeId,
+      modeName,
+      nextVisited
+    );
+  }
+
+  if (rawValue === undefined) {
+    return {
+      status: "missing_mode_value",
+      value: null,
+    };
+  }
+
+  return {
+    status: "resolved",
+    value: serializeVariableValue(rawValue),
+  };
+}
+
+async function getVariables(params) {
+  if (!hasVariablesApi()) {
+    return {
+      scope: "document",
+      supported: false,
+      complete: false,
+      limitation:
+        "Variables API not available in this Figma version. No negative conclusion about variables can be drawn from this result.",
+      collections: [],
+    };
+  }
+
+  const requestedTypes =
+    params && Array.isArray(params.types) && params.types.length > 0
+      ? params.types.filter((type) => VARIABLE_TYPES.includes(type))
+      : VARIABLE_TYPES;
+  const commandId = (params && params.commandId) || generateCommandId();
+  const typeResults = [];
+  const errors = [];
+
+  await sendProgressUpdate(
+    commandId,
+    "get_variables",
+    "started",
+    0,
+    requestedTypes.length + 1,
+    0,
+    `Loading ${requestedTypes.length} variable types and collections`
+  );
+
+  for (let index = 0; index < requestedTypes.length; index++) {
+    const type = requestedTypes[index];
+    const stopHeartbeat = startProgressHeartbeat(
+      commandId,
+      "get_variables",
+      Math.round((index / (requestedTypes.length + 1)) * 100),
+      requestedTypes.length + 1,
+      index,
+      `Still loading ${type} variables`
+    );
+    try {
+      const variables = await figma.variables.getLocalVariablesAsync(type);
+      typeResults.push({ type, variables });
+      for (const variable of variables) {
+        variableCache.set(variable.id, Promise.resolve(variable));
+      }
+    } catch (error) {
+      errors.push({
+        type,
+        error: error.message || String(error),
+      });
+      typeResults.push({ type, variables: [] });
+    } finally {
+      stopHeartbeat();
+    }
+
+    await sendProgressUpdate(
+      commandId,
+      "get_variables",
+      "in_progress",
+      Math.round(((index + 1) / (requestedTypes.length + 1)) * 100),
+      requestedTypes.length + 1,
+      index + 1,
+      `Loaded ${typeResults[typeResults.length - 1].variables.length} ${type} variables`
+    );
+  }
+
+  let collections;
+  const stopCollectionHeartbeat = startProgressHeartbeat(
+    commandId,
+    "get_variables",
+    Math.round(
+      (requestedTypes.length / (requestedTypes.length + 1)) * 100
+    ),
+    requestedTypes.length + 1,
+    requestedTypes.length,
+    "Still loading variable collections"
+  );
+  try {
+    collections =
+      await figma.variables.getLocalVariableCollectionsAsync();
+    for (const collection of collections) {
+      variableCollectionCache.set(
+        collection.id,
+        Promise.resolve(collection)
+      );
+    }
+  } catch (error) {
+    return {
+      scope: "document",
+      supported: true,
+      complete: false,
+      limitation: `Variable collections could not be read: ${error.message || String(error)}`,
+      collections: [],
+      errors,
+    };
+  } finally {
+    stopCollectionHeartbeat();
+  }
+
+  const variables = typeResults.flatMap((result) => result.variables);
+  const variablesByCollection = new Map();
+  for (const variable of variables) {
+    const collectionVariables =
+      variablesByCollection.get(variable.variableCollectionId) || [];
+    collectionVariables.push(variable);
+    variablesByCollection.set(
+      variable.variableCollectionId,
+      collectionVariables
+    );
+  }
+
+  const stopResolutionHeartbeat = startProgressHeartbeat(
+    commandId,
+    "get_variables",
+    95,
+    requestedTypes.length + 1,
+    requestedTypes.length,
+    "Still resolving variable aliases by mode"
+  );
+  let collectionPayloads;
+  try {
+    collectionPayloads = await Promise.all(
+      collections.map(async (collection) => {
+      const collectionVariables =
+        variablesByCollection.get(collection.id) || [];
+      const modes = await Promise.all(
+        collection.modes.map(async (mode) => {
+          const modeVariables = await Promise.all(
+            collectionVariables.map(async (variable) => {
+              const rawValue = variable.valuesByMode[mode.modeId];
+              const resolved = await resolveVariableValueForMode(
+                variable,
+                mode.modeId,
+                mode.name
+              );
+
+              return {
+                id: variable.id,
+                name: variable.name,
+                key: variable.key,
+                description: variable.description,
+                resolvedType: variable.resolvedType,
+                scopes: variable.scopes,
+                value:
+                  rawValue === undefined
+                    ? null
+                    : serializeVariableValue(rawValue),
+                resolvedValue: resolved.value,
+                resolutionStatus: resolved.status,
+              };
+            })
+          );
+
+          return {
+            id: mode.modeId,
+            name: mode.name,
+            variables: modeVariables,
+          };
+        })
+      );
+
+      return {
+        id: collection.id,
+        name: collection.name,
+        key: collection.key,
+        defaultModeId: collection.defaultModeId,
+        variableCount: collectionVariables.length,
+        modes,
+      };
+      })
+    );
+  } finally {
+    stopResolutionHeartbeat();
+  }
+
+  const resolutionIssueCount = collectionPayloads.reduce(
+    (collectionIssueCount, collection) =>
+      collectionIssueCount +
+      collection.modes.reduce(
+        (modeIssueCount, mode) =>
+          modeIssueCount +
+          mode.variables.filter(
+            (variable) => variable.resolutionStatus !== "resolved"
+          ).length,
+        0
+      ),
+    0
+  );
+
+  await sendProgressUpdate(
+    commandId,
+    "get_variables",
+    "completed",
+    100,
+    requestedTypes.length + 1,
+    requestedTypes.length + 1,
+    `Loaded ${variables.length} variables in ${collections.length} collections`
+  );
+
+  const limitations = [];
+  if (errors.length > 0) {
+    limitations.push(
+      `${errors.length} requested variable types could not be read; inspect errors.`
+    );
+  }
+  if (resolutionIssueCount > 0) {
+    limitations.push(
+      `${resolutionIssueCount} mode values could not be fully resolved; inspect resolutionStatus.`
+    );
+  }
+
+  return {
+    scope: "document",
+    supported: true,
+    complete: errors.length === 0 && resolutionIssueCount === 0,
+    requestedTypes,
+    collectionCount: collectionPayloads.length,
+    variableCount: variables.length,
+    resolutionIssueCount,
+    limitations,
+    collections: collectionPayloads,
+    errors,
+  };
+}
+
+function appendVariableAliases(value, property, records) {
+  if (Array.isArray(value)) {
+    value.forEach((nestedValue, index) => {
+      appendVariableAliases(
+        nestedValue,
+        `${property}[${index}]`,
+        records
+      );
+    });
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (typeof value.id === "string") {
+    records.push({
+      property,
+      variableId: value.id,
+    });
+    return;
+  }
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    appendVariableAliases(
+      nestedValue,
+      property ? `${property}.${key}` : key,
+      records
+    );
+  }
+}
+
+function collectNestedBindings(items, property, records) {
+  if (!Array.isArray(items)) {
+    return;
+  }
+
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object") {
+      return;
+    }
+
+    if (item.boundVariables) {
+      appendVariableAliases(
+        item.boundVariables,
+        `${property}[${index}]`,
+        records
+      );
+    }
+
+    if (Array.isArray(item.gradientStops)) {
+      item.gradientStops.forEach((stop, stopIndex) => {
+        if (stop && stop.boundVariables) {
+          appendVariableAliases(
+            stop.boundVariables,
+            `${property}[${index}].gradientStops[${stopIndex}]`,
+            records
+          );
+        }
+      });
+    }
+  });
+}
+
+function collectBindingsForNode(node) {
+  const records = [];
+  const aggregateProperties = new Set([
+    "fills",
+    "strokes",
+    "effects",
+    "layoutGrids",
+  ]);
+
+  if ("boundVariables" in node && node.boundVariables) {
+    for (const [property, value] of Object.entries(node.boundVariables)) {
+      if (!aggregateProperties.has(property)) {
+        appendVariableAliases(value, property, records);
+      }
+    }
+  }
+
+  collectNestedBindings("fills" in node ? node.fills : null, "fills", records);
+  collectNestedBindings(
+    "strokes" in node ? node.strokes : null,
+    "strokes",
+    records
+  );
+  collectNestedBindings(
+    "effects" in node ? node.effects : null,
+    "effects",
+    records
+  );
+  collectNestedBindings(
+    "layoutGrids" in node ? node.layoutGrids : null,
+    "layoutGrids",
+    records
+  );
+
+  if ("boundVariables" in node && node.boundVariables) {
+    for (const property of aggregateProperties) {
+      const aggregateValue = node.boundVariables[property];
+      if (!aggregateValue) {
+        continue;
+      }
+
+      const aggregateRecords = [];
+      appendVariableAliases(aggregateValue, property, aggregateRecords);
+      for (const aggregateRecord of aggregateRecords) {
+        const aggregatePrefix = aggregateRecord.property.replace(
+          /(\[[0-9]+\]).*$/,
+          "$1"
+        );
+        const representedByNestedBinding = records.some(
+          (record) =>
+            record.variableId === aggregateRecord.variableId &&
+            record.property.startsWith(aggregatePrefix)
+        );
+        if (!representedByNestedBinding) {
+          records.push(aggregateRecord);
+        }
+      }
+    }
+  }
+
+  const uniqueRecords = new Map();
+  for (const record of records) {
+    uniqueRecords.set(
+      `${record.property}:${record.variableId}`,
+      record
+    );
+  }
+  return Array.from(uniqueRecords.values());
+}
+
+function getNodePath(node) {
+  const path = [];
+  let current = node;
+  while (current && current.type !== "DOCUMENT") {
+    path.unshift(current.name);
+    current = current.parent;
+  }
+  return path.join(" > ");
+}
+
+async function resolveNodeBinding(node, record) {
+  const variable = await getVariableByIdCached(record.variableId);
+  if (!variable) {
+    return {
+      nodeId: node.id,
+      nodeName: node.name,
+      nodeType: node.type,
+      nodePath: getNodePath(node),
+      property: record.property,
+      variableId: record.variableId,
+      variableName: null,
+      value: null,
+      resolvedType: null,
+      resolutionStatus: "variable_not_found",
+    };
+  }
+
+  try {
+    const resolved = variable.resolveForConsumer(node);
+    return {
+      nodeId: node.id,
+      nodeName: node.name,
+      nodeType: node.type,
+      nodePath: getNodePath(node),
+      property: record.property,
+      variableId: variable.id,
+      variableName: variable.name,
+      value: serializeVariableValue(resolved.value),
+      resolvedType: resolved.resolvedType,
+      resolutionStatus: "resolved",
+    };
+  } catch (error) {
+    return {
+      nodeId: node.id,
+      nodeName: node.name,
+      nodeType: node.type,
+      nodePath: getNodePath(node),
+      property: record.property,
+      variableId: variable.id,
+      variableName: variable.name,
+      value: null,
+      resolvedType: variable.resolvedType,
+      resolutionStatus: "resolution_failed",
+      error: error.message || String(error),
+    };
+  }
+}
+
+async function getNodeVariables(params) {
+  const { nodeId, commandId = generateCommandId() } = params || {};
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+  if (nodeId === figma.root.id || nodeId === "0:0") {
+    throw new Error(
+      "Document-root traversal is not supported by get_node_variables. Use get_pages, then query a page or child node."
+    );
+  }
+
+  const rootNode = await figma.getNodeByIdAsync(nodeId);
+  if (!rootNode) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+  if (rootNode.type === "PAGE") {
+    await rootNode.loadAsync();
+  }
+
+  const canResolveVariables = hasVariablesApi();
+  const bindings = [];
+  let nodesScanned = 0;
+
+  await sendProgressUpdate(
+    commandId,
+    "get_node_variables",
+    "started",
+    0,
+    0,
+    0,
+    `Scanning variable bindings under ${rootNode.name}`
+  );
+
+  async function visit(node) {
+    nodesScanned++;
+    const nodeBindings = collectBindingsForNode(node);
+    const resolvedBindings = await Promise.all(
+      nodeBindings.map((record) => resolveNodeBinding(node, record))
+    );
+    bindings.push(...resolvedBindings);
+
+    if (nodesScanned % 100 === 0) {
+      await sendProgressUpdate(
+        commandId,
+        "get_node_variables",
+        "in_progress",
+        0,
+        0,
+        nodesScanned,
+        `Scanned ${nodesScanned} nodes; found ${bindings.length} bindings`
+      );
+    }
+
+    if ("children" in node) {
+      for (const child of node.children) {
+        await visit(child);
+      }
+    }
+  }
+
+  const traversalHeartbeat = setInterval(() => {
+    sendProgressUpdate(
+      commandId,
+      "get_node_variables",
+      "in_progress",
+      0,
+      0,
+      nodesScanned,
+      `Still scanning: ${nodesScanned} nodes and ${bindings.length} bindings so far`
+    ).catch((error) => {
+      console.error("Failed to send get_node_variables heartbeat:", error);
+    });
+  }, 15000);
+  try {
+    await visit(rootNode);
+  } finally {
+    clearInterval(traversalHeartbeat);
+  }
+
+  const unresolvedBindings = bindings.filter(
+    (binding) => binding.resolutionStatus !== "resolved"
+  ).length;
+  const limitations = [];
+  if (!canResolveVariables) {
+    limitations.push(
+      "Variables API not available in this Figma version. Raw variable IDs are included, but names and values could not be resolved."
+    );
+  } else if (unresolvedBindings > 0) {
+    limitations.push(
+      `${unresolvedBindings} bindings could not be fully resolved; inspect each binding's resolutionStatus and error.`
+    );
+  }
+
+  await sendProgressUpdate(
+    commandId,
+    "get_node_variables",
+    "completed",
+    100,
+    nodesScanned,
+    nodesScanned,
+    `Found ${bindings.length} bindings across ${nodesScanned} nodes`
+  );
+
+  return {
+    scope: "node_subtree",
+    supported: canResolveVariables,
+    complete: canResolveVariables && unresolvedBindings === 0,
+    limitations,
+    rootNode: {
+      id: rootNode.id,
+      name: rootNode.name,
+      type: rootNode.type,
+    },
+    nodesScanned,
+    bindingCount: bindings.length,
+    unresolvedBindings,
+    bindings,
   };
 }
 
@@ -2590,8 +3665,8 @@ async function getAnnotations(params) {
         throw new Error(`Node not found: ${nodeId}`);
       }
 
-      if (!("annotations" in node)) {
-        throw new Error(`Node type ${node.type} does not support annotations`);
+      if (node.type === "PAGE") {
+        await node.loadAsync();
       }
 
       // Collect annotations from this node and all its descendants
@@ -2611,8 +3686,11 @@ async function getAnnotations(params) {
       await collect(node);
 
       const result = {
+        scope: "node_subtree",
         nodeId: node.id,
         name: node.name,
+        type: node.type,
+        annotationCount: mergedAnnotations.length,
         annotations: mergedAnnotations,
       };
 
@@ -2647,6 +3725,12 @@ async function getAnnotations(params) {
       await processNode(figma.currentPage);
 
       const result = {
+        scope: "current_page",
+        pageId: figma.currentPage.id,
+        annotationCount: annotations.reduce(
+          (count, node) => count + node.annotations.length,
+          0
+        ),
         annotatedNodes: annotations,
       };
 
@@ -2771,6 +3855,12 @@ async function scanNodesByTypes(params) {
   console.log(`Starting to scan nodes by types from node ID: ${params.nodeId}`);
   const { nodeId, types = [] } = params || {};
 
+  if (nodeId === figma.root.id || nodeId === "0:0") {
+    throw new Error(
+      "Document-root traversal is not supported by scan_nodes_by_types. Use get_pages, optionally set_current_page, then scan a page or child node."
+    );
+  }
+
   if (!types || types.length === 0) {
     throw new Error("No types specified to search for");
   }
@@ -2779,6 +3869,10 @@ async function scanNodesByTypes(params) {
 
   if (!node) {
     throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  if (node.type === "PAGE") {
+    await node.loadAsync();
   }
 
   // Simple implementation without chunking
@@ -2815,6 +3909,7 @@ async function scanNodesByTypes(params) {
   );
 
   return {
+    scope: "node_subtree",
     success: true,
     message: `Found ${matchingNodes.length} matching nodes.`,
     count: matchingNodes.length,

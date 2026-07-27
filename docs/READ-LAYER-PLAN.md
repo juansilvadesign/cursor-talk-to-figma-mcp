@@ -1,7 +1,16 @@
 # Read-Layer Overhaul — Plan
 
-_Captured 2026-07-27. **Milestones 1–3 implemented locally and live-validated;
-upstream split pending.** Execution began after it was announced in-session._
+_Captured 2026-07-27. **Milestones 1–3 COMPLETE and live-validated on both fixtures.
+Milestone 4 wave 1 shipped — [PR #186](https://github.com/grab/cursor-talk-to-figma-mcp/pull/186)
+is open upstream; PRs 2–5 are gated on it merging.** Execution began after it was
+announced in-session._
+
+> **Fork-side work still open** (nothing here is blocked on upstream):
+> **(a)** acceptance test #3 (`13490:36146`) was validated *before* the `f430682`
+> style-coverage fix and should be re-run — it is also the only fixture that can prove
+> the `remote: false` half of the local-vs-kit split; **(b)** `get_local_components`
+> still takes **>120s** on a large file even in summary mode, because summary bounds
+> the *payload* but not the *traversal*.
 
 **Why this exists.** The fork is excellent at *writing* to Figma and unreliable at
 *reading* from it. Every defect below was hit for real while auditing a portfolio of
@@ -192,8 +201,14 @@ PRs in this order:
       PR 4 reuses it. `ui.html` deliberately untouched — its heartbeat-tracking changes
       are M2.1, and upstream's existing `activeRequestId` attribution already covers a
       single in-flight command.
-- [ ] Push `feat/page-navigation` and open PR 1 upstream; nudge **#184** (still open,
-      zero reviews since 2026-07-16, still conflict-free).
+- [x] **PR 1 SHIPPED 2026-07-27** — pushed `feat/page-navigation`, opened upstream as
+      **[#186](https://github.com/grab/cursor-talk-to-figma-mcp/pull/186)**. **#184
+      nudged** the same day (re-verified `MERGEABLE` both locally via
+      `git merge-tree --write-tree` and through the API before saying so publicly;
+      offered a rebase or a further split).
+- [ ] **PRs 2–5 — gated on #186 merging**, per the two-wave cadence. Each is cut fresh
+      from `upstream/main`: features only, **no `dist/`, and never `docs/READ-LAYER-PLAN.md`**.
+      Note PR 2 now also carries the `f430682` style-coverage fix.
 - [ ] Rebuild `dist/` after each merge — npm remains stale, so the fork's `dist/` plus
       the DEV plugin is the live path.
 - [x] Sync `upstream/main` **before** starting, per this repo's usual submodule rule.
@@ -230,6 +245,26 @@ answers, established independently via the official Figma MCP.
   completed for all seven.
 - `get_annotations` on PAGE `1:14`: typed empty result with
   `annotationCount: 0`, not an error.
+
+> ⚠️ **This block predates the `f430682` style-coverage fix.** Only the
+> `get_node_variables` rows are affected; `13490:36146` still needs a re-run.
+
+### ✅ M1.1 verified live 2026-07-27 — first recorded proof
+
+**1.1 (preserve `boundVariables`) had never actually been verified** — every earlier
+check used `get_node_variables`, which reads bindings directly and would pass even if
+`filterFigmaNode()` were still deleting the field. `get_node_info` on KAT `7448:39444`
+now returns **exactly the payload shape §1.1 specified**, hex and binding together with
+the id resolved to a name:
+
+```json
+"boundVariables": { "fills": [{ "id": "VariableID:1:163", "name": "Cores Principais/Preto Primária" }] },
+"fills": [{ "type": "SOLID", "color": "#141414",
+            "boundVariables": { "color": { "id": "VariableID:1:163", "name": "Cores Principais/Preto Primária" }}}]
+```
+
+This is the exact tool, on the exact file, whose silence produced the false "no design
+tokens" verdict. **It is also what PR 3 ships — so this is that PR's evidence.**
 ### KAT fixture checks — run 2026-07-27, all three ✅
 
 Connected `dyRJx7ExmpALroOpjAjHi6` (`Safra - Assessor & Head (otimizado)`) to the DEV

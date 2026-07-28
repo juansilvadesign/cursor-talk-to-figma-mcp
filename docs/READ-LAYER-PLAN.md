@@ -239,7 +239,9 @@ answers, established independently via the official Figma MCP.
 | ✅ **M5.2** `get_document_info` on `dyRJx7ExmpALroOpjAjHi6` (`Design Desktop` open) | **PASSED 2026-07-27** — 100 of **826** children, `childrenTruncated: true`, `hasMore: true`, `childTypes` summing to exactly 826. |
 | ✅ **M5.1** `get_local_components(pages:["1:14"])` on `dyRJx7ExmpALroOpjAjHi6` | **PASSED 2026-07-27** — 4,018 components across **46 authoring sessions**; sessions `9` (1,345 `Button`) and `12` (1,080) are the Untitled UI kit, `7449`/`5532`/`5159`/`5353` are KAT's own. |
 | ✅ **M5.3** scoped reply shape | **PASSED 2026-07-27** — no `pageCount`; limitation reads *"Scoped to 3 requested page(s); 3 scanned of 6 in the document."* |
-| 🔴 **PR-4 timing** scoped vs unscoped on KAT | **RAN 2026-07-27 and FALSIFIED the diagnosis.** `loadAsync` on all 6 pages = **9.1s**, not the bottleneck. `Design Desktop` alone (826 children, 42 components) **times out**, while `Design System` (4,018 components) completes — the cost is the unprotected `findAllWithCriteria` scan. See the correction section above. |
+| 🔴 **PR-4 timing** scoped vs unscoped on KAT | **RAN TWICE, OVERTURNED TWICE — do not quote either set of numbers.** Run 1 falsified the `loadAsync` diagnosis; run 2 (with a control row) found **nothing times out at all** — full document = **~4.8s** of Figma work, `Design Desktop` = ~0.5s, not the ~39s timeout recorded in run 1. Shipped `HEAVY_READ_TIMEOUT_MS` as insurance; the heartbeat fix was dropped as unsound. See both correction sections below. |
+| ✅ **M5.2** `get_document_info` bounding params on `dyRJx7ExmpALroOpjAjHi6` | **PASSED 2026-07-27 (late)** — first live exercise of `summary`/`limit`/`offset`/`familyLimit` against the M5 schema. With `limit:2`, `childTypes` still summed to **722+50+22+15+10+6+1 = 826 = `childCount`** (the rollup describes every child, not the slice); `summary:false` dropped the rollups; offsets 0/2 returned disjoint contiguous slices; tail `offset:824,limit:5` → `returned:2`, `hasMore:false`; `familyLimit:3` capped with `childFamilyCount:74` preserved. |
+| ✅ **M5.1** `sessionLimit` on `get_local_components` | **PASSED 2026-07-27 (late)** — `sessionLimit:3` on `1:14` returned 3 of `sessionCount:46` with `sessionsTruncated:true`, sorted by volume (1,345 / 1,080 / 365). `familyLimit:3` likewise capped 364 families. |
 
 ### Live validation recorded 2026-07-27
 
@@ -474,9 +476,11 @@ it stops living only in session memory. **None of it blocks the #186 → PRs 2�
 > [Milestone 5 — build record](#milestone-5--build-record--2026-07-27). 5.4 and 5.5 are
 > recorded facts, not tasks, and stay open by design.
 >
-> 🔴 **The same session falsified the PR-4 cost diagnosis** — `loadAsync` is cheap (9.1s
-> for all 6 pages); the real cost is a `findAllWithCriteria` scan running outside the
-> heartbeat window. A fix is identified but **not applied**, pending a decision.
+> 🔴 **The PR-4 cost diagnosis has now been overturned TWICE** — first by a run that
+> refuted the `loadAsync` explanation, then by a controlled re-run that found **no timeout
+> at all** (full document = ~4.8s of Figma work). The heartbeat fix was **dropped as
+> unsound** — it contradicted its own diagnosis — and `HEAVY_READ_TIMEOUT_MS` (120s)
+> shipped instead. **Neither set of timing numbers should be quoted.**
 
 ### 5.1 Authoring-session clustering on `get_local_components` 🟠
 
@@ -663,6 +667,65 @@ call into a usable one"* — **does not hold for KAT's `Design Desktop`.**
 > (and the initial `started` update appears not to reliably flush before a blocking scan,
 > leaving the request on the 30s initial timeout instead of the 60s inactivity one).
 > **Awaiting a decision before touching shipped behaviour.**
+
+### 🔴🔴 …and the correction above was ALSO wrong — re-measured 2026-07-27 (late)
+
+**The proposed heartbeat fix was never sound, and the timeouts it targeted do not
+reproduce.** This is the *second* overturn of this cost diagnosis, which is itself the
+finding worth keeping: every confident claim in this section has been an artifact of the
+measurement conditions rather than a fact about the tool.
+
+**1. The proposed fix contradicts its own diagnosis.** The section above correctly
+establishes that `findAllWithCriteria` is synchronous and that *"no `setInterval` can
+fire"* while it blocks — then proposes *"keep the heartbeat running across the scan"* as
+the fix. Both cannot be true. A `setInterval` callback cannot preempt synchronous JS on a
+single-threaded sandbox, so moving `stopHeartbeat()` past the scan emits nothing during
+the block; the timer would fire only once the scan releases the thread, which is exactly
+where the awaited `sendProgressUpdate` already fires. **Net effect: zero, plus a possible
+duplicate progress message.**
+
+**2. The `started` update does flush.** `sendProgressUpdate` already does
+`figma.ui.postMessage` followed by `await new Promise(r => setTimeout(r, 0))`
+(`code.js:11–54`), and `getLocalComponents` awaits it before the page loop
+(`code.js:1968`). The speculation that it "appears not to reliably flush" is unfounded.
+The practical consequence runs the *other* way: because that update lands within
+milliseconds, the request is downgraded to the 60s inactivity budget almost immediately —
+so the binding constraint was never the 30s initial timeout.
+
+**3. Re-measured on the same fixture — nothing times out.** Same file
+(`Safra - Assessor & Head (otimizado)`, the KAT record), channel `1w37nvwg`. Wall clock
+includes agent round-trip; the `Cover` row is the control that isolates it:
+
+| Scope | Page shape | Result | Wall | **Figma-side** |
+|---|---|---|---|---|
+| `pages: ["0:1"]` `Cover` *(control)* | 1 child / 0 components | ✅ complete | 9.8s | **~0s** |
+| `pages: ["1:16"]` `Design Desktop` | **826 children** / 42 components | ✅ **complete** | 10.3s | **~0.5s** |
+| `pages: ["7448:35573"]` `Design Mobile` | 764 children / 34 components, cold | ✅ complete | 10.3s | **~0.5s** |
+| `pages: ["1:14"]` `Design System` | 81 children / **4,018 components** | ✅ complete | 11.7s | **~1.9s** |
+| *(no `pages`)* **full document** | all 6 pages / **4,094 components** | ✅ `complete: true` | 14.6s | **~4.8s** |
+
+`Design Desktop` — the page recorded above as timing out at ~39s — **completes in ~0.5s of
+Figma work.** `Design System` measured ~1.9s, not ~66s. The full-document scan that the
+tool description warns *"can exceed two minutes"* costs **~4.8s**. Per-page counts
+cross-check exactly: 42 + 34 + 4,018 = **4,094**, matching the original audit figure.
+
+**What changed between the two sessions is unknown.** Cold page fetch on a freshly opened
+file is the likeliest explanation for the earlier figures, but it was not controlled for.
+**Treat ~39s/~66s as unreproducible rather than as refuted** — and treat any future timing
+claim here as provisional until it carries a control row.
+
+> **Shipped instead: `HEAVY_READ_TIMEOUT_MS` (120s).** Cheap insurance for the cold-load
+> case that could not be reproduced, without touching the scan. The four document-wide /
+> page-wide reads — `get_document_info`, `get_pages`, `get_styles`,
+> `get_local_components` — now declare it, and the inactivity reset became
+> `Math.max(60000, request.timeoutMs)` so a declared budget **survives** the reset instead
+> of being discarded by the `started` update milliseconds later. `get_document_info` is the
+> one that most needed it: it emits **no** progress updates at all, so its initial budget
+> was always its entire budget.
+>
+> **Explicitly NOT done:** the heartbeat rearrangement (unsound, see 1) and the chunked
+> scan (the only change that would genuinely protect a blocking phase — deferred as
+> unjustified against a measured ~4.8s).
 
 ### 5.5 Out of scope — write-layer defects, recorded so they aren't re-discovered
 

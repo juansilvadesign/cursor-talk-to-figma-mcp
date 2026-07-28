@@ -41,6 +41,7 @@ var logger = {
   log: (message) => process.stderr.write(`[LOG] ${message}
 `)
 };
+var HEAVY_READ_TIMEOUT_MS = 12e4;
 var ws = null;
 var pendingRequests = /* @__PURE__ */ new Map();
 var currentChannel = null;
@@ -70,7 +71,7 @@ server.tool(
         limit,
         offset,
         familyLimit
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -103,7 +104,7 @@ server.tool(
     try {
       const result = await sendCommandToFigma("get_pages", {
         includeChildCount
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -852,7 +853,7 @@ server.tool(
   {},
   async () => {
     try {
-      const result = await sendCommandToFigma("get_styles");
+      const result = await sendCommandToFigma("get_styles", {}, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -907,7 +908,7 @@ server.tool(
         sessionLimit,
         pages,
         timeBudgetMs
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -2406,13 +2407,14 @@ function connectToFigma(port = 3055) {
           const request = pendingRequests.get(requestId);
           request.lastActivity = Date.now();
           clearTimeout(request.timeout);
+          const inactivityMs = Math.max(6e4, request.timeoutMs);
           request.timeout = setTimeout(() => {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
               request.reject(new Error("Request to Figma timed out"));
             }
-          }, 6e4);
+          }, inactivityMs);
           logger.info(`Progress update for ${progressData.commandType}: ${progressData.progress}% - ${progressData.message}`);
           if (progressData.status === "completed" && progressData.progress === 100) {
             logger.info(`Operation ${progressData.commandType} completed, waiting for final result`);
@@ -2508,6 +2510,7 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
       resolve,
       reject,
       timeout,
+      timeoutMs,
       lastActivity: Date.now()
     });
     logger.info(`Sending command to Figma: ${command}`);

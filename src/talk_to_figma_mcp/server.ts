@@ -62,12 +62,22 @@ const logger = {
   log: (message: string) => process.stderr.write(`[LOG] ${message}\n`)
 };
 
+// Budget for the document-wide / page-wide reads whose cost scales with file size
+// rather than with the arguments. The default 30s is sized for a single-node write,
+// not for a scan that has to load and walk every page, and `get_document_info` emits
+// no progress updates at all — so for that one the initial budget IS the whole budget.
+// Matches the "can exceed two minutes" warning already published in the tool
+// descriptions. Measured reality on a 4,094-component file is ~5s, so this is
+// headroom for cold page loads, not an expected duration.
+const HEAVY_READ_TIMEOUT_MS = 120000;
+
 // WebSocket connection and request tracking
 let ws: WebSocket | null = null;
 const pendingRequests = new Map<string, {
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
   timeout: ReturnType<typeof setTimeout>;
+  timeoutMs: number; // The budget this request was armed with, reused on each reset
   lastActivity: number; // Add timestamp for last activity
 }>();
 
@@ -129,7 +139,7 @@ server.tool(
         limit,
         offset,
         familyLimit,
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -169,7 +179,7 @@ server.tool(
     try {
       const result = await sendCommandToFigma("get_pages", {
         includeChildCount,
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -1049,7 +1059,7 @@ server.tool(
   {},
   async () => {
     try {
-      const result = await sendCommandToFigma("get_styles");
+      const result = await sendCommandToFigma("get_styles", {}, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -1147,7 +1157,7 @@ server.tool(
         sessionLimit,
         pages,
         timeBudgetMs,
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {
@@ -3170,14 +3180,20 @@ function connectToFigma(port: number = 3055) {
           // Reset the timeout to prevent timeouts during long-running operations
           clearTimeout(request.timeout);
 
-          // Create a new timeout
+          // A heavy read sends its "started" update within milliseconds, so without
+          // this max() the larger budget would be discarded almost immediately and
+          // the command would silently fall back to 60s. The binding constraint on a
+          // scan is the gap BETWEEN updates — a page's loadAsync + synchronous
+          // findAllWithCriteria run with no chance to emit — so the declared budget
+          // has to survive the reset, not just arm the first window.
+          const inactivityMs = Math.max(60000, request.timeoutMs);
           request.timeout = setTimeout(() => {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
               request.reject(new Error('Request to Figma timed out'));
             }
-          }, 60000); // 60 second timeout for inactivity
+          }, inactivityMs);
 
           // Log progress
           logger.info(`Progress update for ${progressData.commandType}: ${progressData.progress}% - ${progressData.message}`);
@@ -3317,6 +3333,7 @@ function sendCommandToFigma(
       resolve,
       reject,
       timeout,
+      timeoutMs,
       lastActivity: Date.now()
     });
 

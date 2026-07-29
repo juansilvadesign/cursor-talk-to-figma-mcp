@@ -1,139 +1,135 @@
-# Talk to Figma Fork — Code → Figma Roadmap
+# Talk to Figma Fork — Independent Tool Roadmap
 
-> The active, acceptance-gated build lives in [`TASKS.md`](TASKS.md). The completed
-> read-layer overhaul and its upstream split remain in
-> [`docs/READ-LAYER-PLAN.md`](docs/READ-LAYER-PLAN.md).
+> `talk-to-figma-fork` is an **independent MCP integration for Figma**. It is not
+> the [`figma-to-code`](../figma-to-code/) product and it is not a Code → Figma
+> compiler.
 >
-> This file records the product direction, the tool spine required for a credible
-> Code → Figma workflow, and the valuable post-MVP work that must not inflate the
-> next release. Scope is re-ranked after every release retrospective; later items are
-> options, not a fixed-scope promise.
+> The active implementation state lives in [`TASKS.md`](TASKS.md). The completed
+> read-layer overhaul and its upstream PR sequence remain in
+> [`docs/READ-LAYER-PLAN.md`](docs/READ-LAYER-PLAN.md). Deferred capabilities in
+> this file are re-ranked after each release; they are options, not a fixed-scope
+> promise.
 
-## Direction
+## Product boundary
 
-Turn the fork from a collection of useful read/write commands into the dependable
-**Figma authoring backend** for an evidence-backed Code → Figma pipeline:
+The fork owns the reusable connection and Figma capability layer:
 
 ```text
-authorized code / built page
-        │
-        ▼
-ai-website-cloner-template
-rendered evidence · OpenDesign package · topology · component specs · assets
-        │
-        ▼
-normalized code-to-figma.scene.json
-stable client IDs · source citations · explicit responsive frames
-        │
-        ▼
+MCP clients
+  ├─ AI agents / editors
+  ├─ figma-to-code                 read-only consumer
+  └─ future authoring pipelines    write-tool consumers
+             │
+             ▼
 talk-to-figma-fork
-validate · dry-run · create/upsert · resume · return write receipt
-        │
-        ▼
-editable Figma page
-variables · styles · components · auto layout · real text/assets
-        │
-        ▼
-read back + export + compare with the browser reference
+MCP schemas ↔ server ↔ relay ↔ Figma plugin
+             │
+             ▼
+           Figma
 ```
 
-The neighboring projects establish the two reusable seams:
+| Project | Owns | Does not own |
+| --- | --- | --- |
+| **`talk-to-figma-fork`** | MCP tool schemas, server, relay, plugin handlers, Figma reads/writes, capability reporting, reliability, tests, and distribution | Capture manifests, token mapping, OpenDesign packages, framework parsing, generated applications, or consumer-specific orchestration |
+| [`figma-to-code`](../figma-to-code/) | Read-only capture plan, immutable evidence bundle, Figma normalization, OpenDesign emission, and optional Astro output | MCP transport/plugin implementation or generic Figma tools |
+| [`ai-website-cloner-template`](../ai-website-cloner-template/) | Browser reconnaissance, website-derived OpenDesign packages, and page generation | Figma transport or plugin operations |
+| **Any future Code → Figma project** | Code/browser extraction, scene/component mapping, ownership policy, retries, and product acceptance | Reimplementation of the MCP server, relay, or generic plugin commands |
 
-- [`ai-website-cloner-template`](../ai-website-cloner-template/) owns browser
-  reconnaissance and already emits a validated OpenDesign package, page topology,
-  component specs, real content, assets, and viewport references.
-- [`figma-to-code`](../figma-to-code/) established the evidence discipline:
-  immutable raw inputs, a normalized intermediate, deterministic replay, explicit
-  completeness, and fresh visual acceptance.
-- **This fork owns the normalized scene contract and safe Figma application.** It
-  should not grow a Next.js/Astro/React parser inside the plugin.
+### Dependency rule
 
-## Stance: fork first, upstream-compatible
+Dependency flows **from consumers to the fork**, never back from the fork into a
+consumer:
 
-Code → Figma work lands and is proven on this fork first. Small generic improvements
-can be offered upstream as narrow source-only PRs, but the local release never waits
-for an upstream merge or npm publication.
+- Consumers invoke the fork through versioned MCP tools and normalize returned
+  payloads inside their own repositories.
+- The fork never imports sibling source, OpenDesign contracts, capture schemas,
+  Astro/React code, or brand fixtures.
+- A consumer-discovered gap becomes the smallest **generic** Figma capability in
+  this repository, with its own tests and documentation. The consumer then updates
+  its pinned fork commit/version.
+- Consumer acceptance can prove usefulness, but it cannot become the fork's only
+  regression harness.
 
-At the inspected `956a6af` baseline, the published
-`cursor-talk-to-figma-mcp@latest` does not contain the fork's full read layer. Local
-development therefore continues to use the fork's built `dist/server.js`, DEV plugin,
-and relay until a separately verified release supersedes them.
+## Current baseline
 
-## MVP capability spine
+Inspected at `956a6af` on 2026-07-28:
 
-These are the capabilities required to call the result a Code → Figma pipeline rather
-than an agent manually drawing rectangles. Their detailed work and acceptance gates
-live in [`TASKS.md`](TASKS.md).
+- 48 registered MCP tools across document reads, annotations, prototyping, shapes,
+  text, layout, images, components, exports, and connection management.
+- The read-layer integrity work is built and live-validated: honest page scope,
+  bounded document/component reads, variables/styles/bindings, declared
+  completeness, and heavy-read timeout handling.
+- Useful authoring primitives already exist, including frames, rectangles, text,
+  sections, auto layout, image fills, parenting, component instances, and batch text/
+  annotation operations.
+- The independent-product foundation is still weak: no durable test suite or linter,
+  no server↔plugin command parity guard, no runtime capability fingerprint, and no
+  verified package release containing the complete fork read layer.
 
-| # | Capability | Existing baseline | Required result | Release |
-| --- | --- | --- | --- | --- |
-| F1 | **Normalized scene contract** | No Code → Figma input contract | Versioned scene, asset, evidence, target, and write-receipt schemas with stable `clientId` references | R0 |
-| F2 | **Safe target lifecycle** | Page switching and sections exist; page creation and ownership do not | Create a dedicated page/root, tag owned nodes, refuse unrelated mutations, and support a no-write dry run | R1 |
-| F3 | **Batched, idempotent application** | Narrow per-node commands | `apply_scene` validates first, chunks work, reports progress, maps client IDs to Figma IDs, and safely resumes after a lost reply | R1 |
-| F4 | **Typography and font preflight** | `create_text` hardcodes Inter and exposes a small property set | Available-font probe, explicit substitution report, full text styling, and mixed-font-safe content changes | R1 |
-| F5 | **Responsive auto layout** | Frame layout, padding, alignment, sizing, gap, resize, and parenting exist | Child grow/align/absolute behavior, constraints, clipping, min/max sizing, wrap, and desktop/mobile frame relationships | R1 |
-| F6 | **Visual and asset fidelity** | Solid fill/stroke, radius, image fill, rectangles, frames, text | SVG/vector import, gradients, effects, opacity/blend, reliable image crop/fit, and asset-hash evidence | R1 |
-| F7 | **Design-system authoring** | Variables/styles are read-only | Idempotent local variables, modes, aliases, bindings, and paint/text/effect styles sourced from the OpenDesign package | R2 |
-| F8 | **Components and variants** | Existing component instances and overrides can be used | Create components/sets, define properties and variants, instantiate them, and preserve a source-to-node map | R2 |
-| F9 | **Round-trip verification** | Strong reads plus base64-oriented export | Read authored properties back, export without flooding model context, compare 1440px/390px evidence, and report declared gaps | R1–R3 |
-| F10 | **Regression and distribution** | Build only; no durable tests or linter | Offline plugin harness, schema/dispatcher parity tests, live smoke fixture, pinned install, documented local runtime, and versioned release | R0–R3 |
+## Capability spine
+
+| # | Independent capability | Why it belongs here | Active release |
+| --- | --- | --- | --- |
+| C1 | **Contract and dispatcher regression harness** | Every MCP client needs server schemas and plugin handlers to agree | R0 |
+| C2 | **Runtime identity and capability handshake** | Consumers must detect stale/mismatched server, relay, plugin, and tool sets before a real operation | R0 |
+| C3 | **Stable, bounded read contract** | Audits, importers, and agents need honest scope, completeness, and deterministic payload shapes | R1 |
+| C4 | **Compact binary/export handling** | Any client may need images without base64 flooding logs or model context | R1 |
+| C5 | **Safe generic write batching** | Authoring clients need fewer round trips, typed partial results, and explicit destructive boundaries | R2 |
+| C6 | **Complete typography/layout/visual primitives** | General Figma automation should not hardcode Inter or flatten unsupported properties silently | R2 |
+| C7 | **Variables, styles, and components authoring** | Design-system clients need generic Figma APIs, independent of OpenDesign or any one compiler | R3 |
+| C8 | **Versioned distribution and compatibility policy** | A useful fork must be installable and its server/plugin combinations reproducible | R0–R3 |
 
 ## Benefit-delivering release path
 
 | Release | Value shipped | Riskiest assumption retired |
 | --- | --- | --- |
-| **R0 — Safe proof loop** | A small source-backed scene is validated, authored on an isolated Figma page, read back, and exported with durable evidence | The current transport and primitives can support a repeatable write harness without corrupting an existing file |
-| **R1 — Static page MVP** | One authorized page produces editable desktop/mobile Figma frames with real text, assets, layout, and visual evidence | A normalized scene plus a small set of additive write tools can reproduce a real built page without hundreds of fragile MCP calls |
-| **R2 — Design-system-native MVP** | The same page uses local variables/styles and real component instances instead of detached raw shapes | OpenDesign semantics can map honestly onto Figma variables, styles, components, and plan limitations |
-| **R3 — Generalized release** | A second unrelated source passes deterministic replay, idempotency, visual QA, docs, and release checks | The executor is a reusable tool rather than a one-page collection of special cases |
+| **R0 — Independently verifiable tool** | A clean checkout can build, test server/plugin parity, report its runtime identity, and pass a small live read/write smoke | The fork can be maintained safely without relying on ad-hoc sessions or a consumer repository |
+| **R1 — Consumer-stable read release** | Any MCP client can pin the fork and capture bounded, typed Figma evidence plus compact exports | The current read layer is stable enough to serve consumers such as `figma-to-code` through a documented interface |
+| **R2 — Safe authoring release** | Agents and authoring pipelines gain reliable typography, layout, visual, page, metadata, and generic batch operations | The narrow tool collection can support real authoring without a consumer-specific scene compiler inside the fork |
+| **R3 — Design-system authoring release** | Generic tools create/bind variables and styles and create components/variants/instances | Figma design-system primitives can be exposed cleanly without coupling to OpenDesign or one client |
 
-Only R0 is execution-ready before implementation begins. Later checklists define
-capability boundaries, not a locked implementation sequence. After each release,
-record the retrospective, re-cut scope, and detail the next release.
+Only R0 is execution-ready. R1–R3 define capability boundaries and must be re-cut
+after the preceding retrospective.
 
 ## Post-MVP / v2+ options
 
 | # | Item | Extends | Why deferred / notes |
 | --- | --- | --- | --- |
-| RM1 | **Multi-page sites and complete product flows** | R1 page compiler | MVP proves one coherent page with a desktop/mobile pair. Routing, shared chrome, repeated page templates, and cross-flow QA multiply scope. |
-| RM2 | **Framework-specific source adapters** for Astro, React, Next.js, Vue, and Storybook | Scene compiler | Rendered evidence plus the OpenDesign seam is framework-neutral. AST adapters are useful only when they add semantics the built page cannot expose. |
-| RM3 | **Watch mode / live code sync** | `apply_scene` idempotency | Rebuild and patch Figma as code changes. Needs stable ownership, semantic diffs, debouncing, conflict policy, and trustworthy resume first. |
-| RM4 | **Patch an existing human-authored Figma page** | Safe target lifecycle | MVP writes only inside its own page/root. Merging into irreplaceable work needs three-way matching, conflict previews, and an explicit approval boundary. |
-| RM5 | **Remote/team-library variables and components** | R2 design-system authoring | Local resources prove the mapping. Publishing or consuming team libraries adds permissions, licensing, plan gates, and cross-file identity. |
-| RM6 | **Full multi-axis modes** | R2 variable modes | Light/dark is tractable. Theme × breakpoint × density × brand requires an explicit projection policy and may need multiple collections or files. |
-| RM7 | **Prototype interactions and interactive-component transitions** | R2 components | The fork can read reactions, but setting navigations, overlays, variant transitions, and scroll behavior is a separate acceptance surface. |
-| RM8 | **Motion reconstruction** | RM7 | CSS/GSAP/Lottie/WebGL behavior is not a static node property. Prefer static correctness and documented fallback before approximating runtime motion. |
-| RM9 | **Advanced vector, mask, boolean, and illustration reconstruction** | R1 visual fidelity | SVG import covers the useful MVP path. Editable path topology, boolean stacks, masks, and complex illustrations need dedicated fixtures. |
-| RM10 | **Automated visual-diff scoring** | R3 QA | Durable side-by-side evidence comes first. Thresholds need font/render normalization, masking, and a policy for acceptable responsive differences. |
-| RM11 | **Batch/operator mode** | R3 release | Processing many codebases needs queueing, resource caps, isolated namespaces, cancellation, and aggregate reporting. |
-| RM12 | **Hosted relay and multi-user sessions** | Local relay | The local channel model is enough for MVP. Remote use needs authentication, authorization, encryption, expiry, audit logs, and tenant isolation. |
-| RM13 | **Design/code drift monitoring** | RM3 watch mode | Periodically rebuild the scene, diff code/OpenDesign/Figma state, and route conflicts for review. This depends on stable semantic IDs. |
-| RM14 | **Accessibility and design-lint report** | Verification | Contrast, target size, text scaling, focus order, and component-state coverage deserve an explicit report; visual fidelity alone is not quality. |
-| RM15 | **Code Connect publishing** | R2 components | Mapping generated components back to production implementations is valuable after names, variants, and source identity survive two unrelated fixtures. |
-| RM16 | **Bidirectional round-trip experiments** | `figma-to-code` + this project | Code → Figma → Code without semantic drift is a research track, not an MVP promise. Compare normalized artifacts before attempting live two-way sync. |
-| RM17 | **Shared scene/emitter package** | All three sibling projects | Extract a shared package only after duplication causes measured maintenance cost; premature sharing would couple three still-moving tools. |
+| RM1 | **Remote/team-library inventory and import** | R1/R3 | Local variables/styles/components are sufficient for the first stable contract. Remote resources add permissions, licensing, plan limits, and cross-file identity. |
+| RM2 | **Prototype interaction authoring** | R2 | Reactions can be read today. Creating navigations, overlays, scroll targets, and variant transitions needs separate safety and acceptance fixtures. |
+| RM3 | **Advanced vectors, masks, and booleans** | R2 visuals | SVG import covers many clients. Editable path topology and boolean stacks deserve narrow, independently tested tools. |
+| RM4 | **Generic idempotency keys for create operations** | R2 batching | Valuable for reconnecting clients, but semantics must be tool-level and consumer-neutral rather than tied to a scene format. |
+| RM5 | **Hosted relay and multi-user sessions** | Connection layer | Local channels are enough now. Remote use needs authentication, authorization, encryption, expiry, tenant isolation, and audit logs. |
+| RM6 | **Alternate transports** | MCP/relay | WebSocket is the proven path. HTTP/SSE or direct plugin bridges should be added only for a measured client need. |
+| RM7 | **Capability negotiation across plugin versions** | R0 handshake | Start with strict server/plugin compatibility. Graceful negotiation matters only after multiple supported versions exist. |
+| RM8 | **Streaming/chunked binary resources** | R1 exports | File-path/hash output solves local clients first. Streaming matters for remote clients and larger artifacts. |
+| RM9 | **Code Connect primitives** | R3 components | Publishing mappings is independently useful but introduces code ownership and library permissions beyond basic component creation. |
+| RM10 | **Accessibility/design lint tools** | Read layer | Contrast, touch target, naming, focus, and state-coverage reports are useful generic reads, but separate from transport correctness. |
+| RM11 | **Batch/operator administration** | Distribution | Multiple concurrent documents need queues, cancellation, resource caps, and observability. Prove one-session reliability first. |
+| RM12 | **Upstream convergence** | All releases | Continue offering small generic source-only PRs. Never make local capability or consumer progress depend on upstream merge timing. |
 
 ## Out of scope
 
-- **Figma → Code extraction.** That is
-  [`figma-to-code`](../figma-to-code/); this project may reuse its evidence and
-  replay conventions but does not duplicate its importer.
-- **Browser/brand extraction.** That remains
+- **Figma → Code orchestration.** Capture bundles, token resolution, OpenDesign
+  emission, and Astro generation belong to
+  [`figma-to-code`](../figma-to-code/).
+- **Code → Figma orchestration.** Framework parsing, scene schemas, responsive page
+  mapping, source evidence, and product-level retry/ownership rules belong to a
+  separate consumer project if one is created.
+- **Website extraction.** Browser inspection and website cloning belong to
   [`ai-website-cloner-template`](../ai-website-cloner-template/).
-- **Backend behavior.** Databases, APIs, authentication, billing, and business logic
-  cannot be represented faithfully as Figma nodes.
-- **Unbounded mutation of an existing file.** MVP creates or updates only nodes it
-  owns under an explicit namespace.
-- **Unauthorized replication.** Only owned code, authorized client work, migrations,
-  and legitimate learning fixtures may enter the pipeline.
-- **Perfect runtime equivalence.** Figma is an editable design artifact, not a browser;
-  unsupported behavior is recorded rather than hidden behind a plausible screenshot.
+- **A hard dependency on OpenDesign.** The fork may expose generic variable/style/
+  component tools; it does not know OpenDesign slot names or package layouts.
+- **Backend/application generation.** Figma operations do not implement APIs,
+  authentication, databases, billing, or application logic.
 
-## Parking lot
+## Update cadence
 
-- FigJam journey-map output from route and interaction evidence.
-- A human-readable scene/receipt viewer.
-- DTCG/Tokens Studio import alongside OpenDesign.
-- Component documentation pages generated next to the authored Figma page.
-- A Figma page containing browser reference screenshots beside generated frames.
-- Optional annotations linking generated nodes to source files, selectors, and commits.
+After each release:
+
+1. Run the fork's own offline and live acceptance.
+2. Record contract changes and compatibility impact.
+3. Let consumers update their pin and run their separate acceptance.
+4. Re-rank this roadmap from measured generic gaps.
+
+Consumer findings inform the roadmap; they do not redefine the fork as that consumer.

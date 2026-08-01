@@ -128,8 +128,16 @@ Hard rules:
 
 ## Consumer compatibility snapshot
 
-[`figma-to-code`](../figma-to-code/) currently pins `956a6af` as its local read
-runtime. That pin is a **consumer choice**, not a fork dependency.
+[`figma-to-code`](../figma-to-code/) currently pins `3546719` as its local read
+runtime (advanced from `956a6af` on 2026-07-31; docs-only delta, every executable
+hash unchanged). That pin is a **consumer choice**, not a fork dependency.
+
+That consumer ran the full sequence live for the first time on 2026-07-31 and
+**found no defect in this fork** — the six payload-shape corrections it made were
+all in its own validators, which had been written from this repo's prose docs
+rather than from observed replies. Two additive read enhancements did come out of
+it; both are logged under R1 below, and neither is required for the consumer's
+MVP.
 
 Its MVP read sequence exercises:
 
@@ -245,6 +253,24 @@ Detail after the R0 retrospective. Current boundary:
 - [ ] Preserve bounded defaults for document/component reads and compact summaries.
 - [ ] Add a compact export path: write to an explicit local path or return a resource
       reference plus MIME, dimensions, bytes, and hash instead of routine base64 text.
+      **Consumer evidence (2026-07-31):** `figma-to-code`'s first live capture could
+      not record an `export_node_as_image` artifact at all, because its MCP client
+      materializes images — the decoded bytes arrive, the raw base64 reply never
+      does. A path/resource-reference return makes the export capturable by any
+      client that renders images, and removes base64 bloat from the transcript.
+- [ ] **Return the resolved value beside the resolved name for style references in
+      `get_node_variables`.** It already resolves `styleName`, `styleType`,
+      `remote`, and `resolutionStatus`; adding the paint/text/effect value makes
+      the reply self-sufficient. Additive, read-only, no new tool.
+      **Consumer evidence (2026-07-31):** on a file whose styles are all
+      `remote: true`, values can only be recovered by joining `get_node_variables`
+      to `get_node_info`. That join is lossy because `get_node_info` returns just
+      31 % / 40 % of the nodes `get_node_variables` scans (503 of 1638; 452 of
+      1142), so only 20–26 % of style references land on a readable node. On the
+      SYD fixture this leaves `atencao` — the file's second-most-used paint style,
+      248 refs — permanently unresolvable, along with `Gray/400` and the
+      `Shadows/shadow-xs` effect. Verified independently on both the desktop and
+      mobile frames.
 - [ ] Define a compatibility policy for additive result fields so consumers can
       ignore unknown fields safely.
 - [ ] Close the remaining fork-side read verification noted in

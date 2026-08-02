@@ -128,16 +128,17 @@ Hard rules:
 
 ## Consumer compatibility snapshot
 
-[`figma-to-code`](../figma-to-code/) currently pins `3546719` as its local read
-runtime (advanced from `956a6af` on 2026-07-31; docs-only delta, every executable
-hash unchanged). That pin is a **consumer choice**, not a fork dependency.
+[`figma-to-code`](../figma-to-code/) currently pins `5e0c869` as its local read
+runtime (advanced `956a6af` → `3546719` → `5e0c869`; both deltas docs-only, every
+executable hash and the capability fingerprint unchanged). That pin is a
+**consumer choice**, not a fork dependency.
 
-That consumer ran the full sequence live for the first time on 2026-07-31 and
-**found no defect in this fork** — the six payload-shape corrections it made were
-all in its own validators, which had been written from this repo's prose docs
-rather than from observed replies. Two additive read enhancements did come out of
-it; both are logged under R1 below, and neither is required for the consumer's
-MVP.
+That consumer completed its full capture sequence on 2026-08-02 and **found no
+defect in this fork.** All seven payload-shape corrections it made were in its own
+validators, which had been written from this repo's prose docs rather than from
+observed replies. Two additive read enhancements came out of the work; both are
+logged under R1 below, and **neither is required for the consumer's MVP — both
+were since shown to be non-blocking.**
 
 Its MVP read sequence exercises:
 
@@ -253,11 +254,16 @@ Detail after the R0 retrospective. Current boundary:
 - [ ] Preserve bounded defaults for document/component reads and compact summaries.
 - [ ] Add a compact export path: write to an explicit local path or return a resource
       reference plus MIME, dimensions, bytes, and hash instead of routine base64 text.
-      **Consumer evidence (2026-07-31):** `figma-to-code`'s first live capture could
-      not record an `export_node_as_image` artifact at all, because its MCP client
-      materializes images — the decoded bytes arrive, the raw base64 reply never
-      does. A path/resource-reference return makes the export capturable by any
-      client that renders images, and removes base64 bloat from the transcript.
+      **Consumer evidence (2026-07-31, resolved 2026-08-02):** `figma-to-code`'s
+      first live capture could not record an `export_node_as_image` artifact at
+      all, because its MCP client materializes images — the decoded bytes arrive,
+      the raw base64 reply never does. It has since worked around this with its own
+      stdio MCP client that writes replies verbatim, so **this is no longer
+      blocking any consumer.** It remains worth doing for transcript size: the two
+      SYD frames returned 4.29 MB and 1.73 MB of base64 in a single reply each.
+      Note for the implementer: the reply is an MCP image content block
+      (`{type:"image",data,mimeType}`) carrying no node id, so a consumer can only
+      attribute an export by remembering its own request.
 - [ ] **Return the resolved value beside the resolved name for style references in
       `get_node_variables`.** It already resolves `styleName`, `styleType`,
       `remote`, and `resolutionStatus`; adding the paint/text/effect value makes
@@ -271,6 +277,14 @@ Detail after the R0 retrospective. Current boundary:
       248 refs — permanently unresolvable, along with `Gray/400` and the
       `Shadows/shadow-xs` effect. Verified independently on both the desktop and
       mobile frames.
+      **Update 2026-08-02 — narrower than first reported.** That file turned out to
+      be a *copy* whose styles were all remote. On the source file, `get_styles`
+      returns the paint value inline and 93 % of style references are local, so
+      `atencao` resolves at full confidence and the join is not needed. The request
+      still stands, but its real scope is **files that reference an external
+      library** — copies, and any file using a third-party UI kit (the same SYD
+      source file still has 61 remote refs to `Gray/*`, `Brand/600`,
+      `Shadows/shadow-xs`, `Text sm/*`). Lower priority than first logged.
 - [ ] Define a compatibility policy for additive result fields so consumers can
       ignore unknown fields safely.
 - [ ] Close the remaining fork-side read verification noted in

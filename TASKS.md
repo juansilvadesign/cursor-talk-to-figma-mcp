@@ -342,10 +342,24 @@ fixture with typed batch outcomes and no hidden dependency on a consumer reposit
 
 ## Release R3 — design-system authoring release
 
-Keep coarse until R2 is accepted.
+Keep coarse until R2 is accepted — **with one deliberate exception, recorded 2026-08-07.**
+
+⭐ **The variable half of R3 has been cut early and planned in detail:**
+[`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md). It is pulled forward because a
+real consumer hit the gap — the `umjuansantos` design-system reconciliation produced a
+machine-verified ~10-edit correction list against a live file, and **no current tool can
+write a single one of them back**; `get_variables` reads the whole tree and nothing
+returns. That is the dependency rule's stated trigger for fork work.
+
+⚠️ **The queue-jump is bounded, not waived.** The plan's Phase 0 ships the one R0 guard
+`TASKS.md` requires before any new tool (server-schema ↔ plugin-dispatch parity + a
+contract snapshot). The rest of R0 — runtime fingerprint, full fixture harness, release
+mechanics — is **still owed** and is not discharged by that phase. Styles, components and
+variants stay coarse below.
 
 - [ ] Create/update local variable collections, modes, variables, aliases, and
       bindings with explicit Figma-plan capability responses.
+      ⭐ **Planned in full → [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md).**
 - [ ] Create/update/apply local paint, text, effect, and grid styles.
 - [ ] Create components, combine variants, define component properties, create
       instances, and set instance properties.

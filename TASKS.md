@@ -50,9 +50,10 @@ Hard rules:
 - **Functional local fork — available.** The relay/server/plugin run locally, expose
   49 registered MCP tools, and have a live-validated read layer plus useful authoring
   primitives.
-- **Independently maintainable R0 candidate — live gate pending.** The clean offline
-  install/build/test/parity/identity gate now passes. The exact R0 DEV plugin pair still
-  needs its disposable connected read/write smoke before the release is accepted.
+- **Independently maintainable tool — R0 ACCEPTED 2026-08-08.** The clean offline
+  install/build/test/parity/identity gate passes and the connected read/write smoke
+  passed twice with a matching server↔plugin fingerprint. Recorded in
+  [`docs/R0-BUILD.md`](docs/R0-BUILD.md).
 - **Consumer integration — owned elsewhere.** `figma-to-code` succeeding through a
   pinned fork build proves the API is useful, but it does not make the two projects
   one codebase or one release.
@@ -163,22 +164,16 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — record the passed live gate, then close R0
+## ▶ Next session — R0 is CLOSED; R1 is the active release
 
-Steps 1–3 are **DONE (2026-08-08)**: relay up, DEV plugin connected, `live-smoke.mjs`
-passed twice with a matching server↔plugin `capabilityFingerprint`. See §0.4 for the
-payload. Remaining:
+**R0 was accepted 2026-08-08** and every step of the previous handoff is discharged: the
+live gate passed twice, the runtime payload and cleaned read/write smoke are recorded in
+[`docs/R0-BUILD.md`](docs/R0-BUILD.md), and the working tree is committed and pushed
+(`fbbc6a7`) with the parent submodule pointer already bumped to match.
 
-1. Record the compatible runtime payload and cleaned read/write smoke in
-   [`docs/R0-BUILD.md`](docs/R0-BUILD.md), then close R0.
-2. Commit — the submodule is dirty across ~20 files (`src/`, `dist/`, `docs/`,
-   `scripts/`, `contracts/`, `runtime/`, `.mcp.json`, this file) and still carries the
-   uncommitted `HEAVY_READ_TIMEOUT_MS` change from the M5 session. Split
-   `feat:`/`build:`/`docs:` per repo convention; `git add -u <path>` for the gitignored-
-   but-tracked `dist/` and `docs/` — ⛔ it exits non-zero even on success, so never
-   chain it with `&&`. Then bump the parent pointer as a separate `chore: 🔄` commit
-   with an explicit pathspec.
-3. Stop at independent verification; do not add importer/compiler work.
+Active work is **R1 — consumer-stable read release**, detailed below. Its two carried-over
+open items are documentation/policy work plus one additive read field and one compact
+export path; neither is blocking a consumer today.
 
 ⛔ **Restarting `bun run socket` does NOT restart the MCP connection.** The relay and the
 MCP stdio server are separate processes; the server holds `dist/server.js` from load
@@ -190,12 +185,15 @@ R0-compatible and competes for the same relay.
 `figma-to-code` may continue its own R0 against the pinned `956a6af` runtime in
 parallel. Neither project's R0 requires source changes in the other.
 
-`figma-to-code` may continue its own R0 against the pinned `956a6af` runtime in
-parallel. Neither project's R0 requires source changes in the other.
-
 ---
 
-## Release R0 — independently verifiable tool
+## ✅ Release R0 — independently verifiable tool — ACCEPTED 2026-08-08
+
+Full build/acceptance record: [`docs/R0-BUILD.md`](docs/R0-BUILD.md). Riskiest assumption
+retired: **the fork can be changed safely without relying on session memory or a sibling
+project.** Shipped runtime — server `r0-server-937e815db78f` ↔ plugin
+`r0-plugin-1eec70ac13d1`, fingerprint `sha256:3dfa8bd8…483de4`, 49 tools / 6 prompts /
+48 plugin commands, package `0.3.5`, source `fbbc6a7`.
 
 ### 0.1 Freeze the public tool contract
 
@@ -267,9 +265,27 @@ children on page `0:1`. The smoke is reversible by construction and both runs cl
 but "disposable file" as written in the gate was not independently confirmed. Re-run on a
 throwaway file if R0 acceptance is meant to depend on that literally.
 
-**R0 acceptance:** a clean checkout proves contract parity and offline behavior, a
-connected client can verify the exact runtime it reached, and a disposable live smoke
-passes without any consumer repository.
+**R0 acceptance — MET 2026-08-08.** A clean checkout proves contract parity and offline
+behavior, a connected client can verify the exact runtime it reached, and the live smoke
+passes without any consumer repository. The single qualification is the fixture caveat
+above: the result stands, the *fixture* was not proven throwaway.
+
+**R0 retrospective — inputs to R1:**
+
+- **Runtime identity (open question, now closed):** content-derived build IDs plus a
+  capability fingerprint, not an injected commit hash. It survived a rebuild and caught
+  a stale client; keep it.
+- **Compatibility granularity (open question, now closed):** per-command capability IDs
+  (`figma.command.<name>@1`) *and* one server schema version. The per-command IDs are
+  what make an additive R1 field expressible without a global version bump.
+- **Package authority (open question, now closed):** `bun.lock`. `package-lock.json`
+  stays as legacy traceability and is not an install path.
+- **The failure mode R1 must design around:** a green build proves the *artifact*, never
+  the *connection*. R1's release note must tell a consumer how to verify the runtime it
+  actually reached, not the version it thinks it pinned.
+- **The consumer-evidence lesson:** all seven payload-shape corrections `figma-to-code`
+  made were in validators written from this repo's **prose**. R1's read documentation has
+  to be generated from or checked against observed replies, or it will reproduce that.
 
 ---
 
@@ -431,12 +447,14 @@ design-system format—remains consumer work.
 
 ## Open questions to close at the relevant checkpoint
 
-- [ ] **R0 — runtime identity:** generated build manifest, injected commit hash, or
-      both?
-- [ ] **R0 — compatibility granularity:** one schema version for the whole tool set or
-      explicit capability IDs per feature family?
-- [ ] **R0 — package authority:** Bun lockfile, npm lockfile, or deliberately tested
-      dual-package-manager support?
+- [x] **R0 — runtime identity:** *content-derived build manifest.* Server ID covers
+      `server.ts` + the canonical public contract; plugin ID covers `code.js` (minus its
+      generated identity block), `ui.html`, `manifest.json`. No injected commit hash.
+- [x] **R0 — compatibility granularity:** *both.* One `schemaVersion` for the tool set
+      plus per-command capability IDs (`figma.command.<name>@1`), rolled into one
+      `capabilityFingerprint` that server and plugin derive independently.
+- [x] **R0 — package authority:** *Bun.* `bun.lock` is the measured authority;
+      `package-lock.json` is preserved as legacy traceability only.
 - [ ] **R1 — additive payload policy:** formal JSON schemas, TypeScript fixtures, or
       both?
 - [ ] **R2 — generic batch boundary:** should create operations be supported in the

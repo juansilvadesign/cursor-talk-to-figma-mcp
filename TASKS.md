@@ -178,17 +178,18 @@ smoke exit 0 on the pinned pair, export receipt verified against disk byte for b
 652 remote-library style references resolving values `get_styles` cannot see. R1 owes
 nothing further; the payload is in that release note.
 
-**Start here — two R1-derived defects found by the live gate, both real, neither
-blocking R1:**
+**✅ Both R1-derived live-gate defects are FIXED IN SOURCE — offline gate green,
+live gate NOT yet run.** See "R2.0 — the two live-gate defects" below for what shipped and
+what is still owed. The remaining evidence is a connected run: a genuinely
+multi-megabyte `filePath` export under the new 120 s budget, and a page-wide
+`get_node_variables` that now returns a declared-truncated reply and leaves the plugin
+answering.
 
-1. **`export_node_as_image` has no heavy timeout class.** Every other cost-scaling read
-   (`get_document_info`, `get_pages`, `get_styles`, `get_local_components`) declares
-   `HEAVY_READ_TIMEOUT_MS`; export still runs on the 30 s default, which is exactly the
-   budget the multi-megabyte exports `filePath` was built for will exceed.
-2. **`get_node_variables` is unbounded.** A page-wide scan (11,733 nodes → 3.66 MB) left
-   the plugin unable to answer *any* subsequent command until reloaded. Every other
-   large read is paged or chunked; this one is not. Give it the same limit/offset
-   treatment, or chunk it with progress.
+⛔ **The pinned pair changed.** `serverSchemaVersion` 1.1.0 → **1.2.0**, so the capability
+fingerprint moved `sha256:40a64c28…` → `sha256:fb3318c6…`; builds are now
+`r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17`. An R1 plugin will be **rejected** by
+the R2 server's preflight, which is the point — reload the DEV plugin in Figma **and**
+restart the MCP client before the live gate.
 
 ⛔ **Do not log those timeouts as an export bug.** The diagnosis is in the release note:
 `get_runtime_info` reported `plugin: null` / `incompatible` / *"Plugin runtime probe
@@ -467,9 +468,50 @@ implementation.
 
 ## Release R2 — safe authoring release
 
-Keep coarse until R1 is accepted.
+### R2.0 — the two live-gate defects — 🛠️ FIXED IN SOURCE 2026-08-08, live gate owed
+
+Taken first because they are R1-derived cost/safety defects, not new capability. Contract
+version `1.2.0`, release label `R2`.
+
+- [x] **`export_node_as_image` declares `HEAVY_READ_TIMEOUT_MS` (120 s).** Its cost scales
+      with pixel area and with base64-transferring bytes through the relay — neither
+      visible in the arguments — and the plugin emits no progress for an export, so as
+      with `get_document_info` the initial budget *is* the whole budget.
+- [x] **`get_node_variables` is bounded.** `maxNodes` (**default 5000**, ceiling 50000),
+      `timeBudgetMs`, `limit` (default 1000) and `offset`; iterative pre-order DFS so the
+      window is stable and a deep subtree cannot blow the stack; new `coverage` +
+      `pagination` blocks; `bindingCount`/`styleCount` keep their whole-scan meaning; and
+      `complete` is false whenever anything truncated. It also moved to the heavy budget.
+      Contract amendment: [`docs/R1-READ-CONTRACT.md`](docs/R1-READ-CONTRACT.md).
+- [x] **The cap is a default, not an opt-in.** The failure it prevents — a wedged plugin
+      that answers nothing until reloaded — is silent, and a truncated-but-declared reply
+      is strictly better than that.
+- [x] **`timeoutClass` is now compared as a ladder, not for equality.** Raising a budget
+      cannot break a consumer already prepared to wait less; lowering one can, and is
+      rejected with `timeoutClass was lowered`.
+- [x] **The R1 contract is frozen as a baseline**
+      (`contracts/baselines/r1-public-contract.json`), so these changes are checked
+      against the accepted release and not only against R0. Both baselines pass at zero
+      errors.
+- [x] Regression tests: 41 pass (34 → 41). Six new cases cover the heavy-budget
+      declaration, the timeout ladder in both directions, the node cap, the default cap,
+      the time budget, count-vs-window separation, and offset paging reassembling the
+      full record set in order.
+- [ ] **Live gate — the only thing R2.0 still owes.** On the pinned R2 pair: a genuinely
+      multi-megabyte `filePath` export completing inside the new budget (the R1
+      opportunistic item, now affordable), and a page-wide `get_node_variables` that
+      returns `coverage.nodeCapReached: true` **and** leaves the plugin able to answer a
+      following command. ⛔ Verify plugin health with `get_runtime_info`, not by assuming.
+      **Checked 2026-08-08 on channel `qdzselca`: the connected pair was still
+      `r1-server-25902c2adcd3` ↔ `r1-plugin-2b9a727f3499` / `sha256:40a64c28…`**, i.e. the
+      R2 code was on disk and in `dist/` but in neither running process — exactly the
+      restart trap below. The gate needs a Figma DEV plugin reload **and** an MCP client
+      restart first, then `get_runtime_info` must report `r2-server-9c6fe62b7cb2` ↔
+      `r2-plugin-0e6528efaf17` / `sha256:fb3318c6…` before any measurement counts.
 
 ### Generic safety and orchestration primitives
+
+Keep coarse until R2.0's live gate closes.
 
 - [ ] Add `create_page` with explicit naming and duplicate behavior.
 - [ ] Add bounded `get_plugin_data` / `set_plugin_data` tools so consumers may own

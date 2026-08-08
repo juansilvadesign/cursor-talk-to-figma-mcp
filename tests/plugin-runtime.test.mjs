@@ -1,15 +1,25 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { loadPluginHarness } from "./helpers/plugin-harness.mjs";
 
 test("runtime identity is available without touching the document", async () => {
+  // Derived from runtime/release.json rather than hardcoded, so cutting a release does
+  // not require editing assertions — which is how a stale expectation gets "fixed" to
+  // match whatever the code now does.
+  const release = JSON.parse(
+    await readFile(new URL("../runtime/release.json", import.meta.url), "utf8"),
+  );
   const harness = await loadPluginHarness();
   const runtime = await harness.command("get_runtime_info");
-  assert.equal(runtime.release, "R0");
-  assert.match(runtime.buildId, /^r0-plugin-[a-f0-9]{12}$/);
-  assert.equal(runtime.serverSchemaVersion, "1.0.0");
-  assert.equal(runtime.relayProtocolVersion, "1");
+  assert.equal(runtime.release, release.release);
+  assert.match(
+    runtime.buildId,
+    new RegExp(`^${release.release.toLowerCase()}-plugin-[a-f0-9]{12}$`),
+  );
+  assert.equal(runtime.serverSchemaVersion, release.serverSchemaVersion);
+  assert.equal(runtime.relayProtocolVersion, release.relayProtocolVersion);
   assert.ok(runtime.supportedCommands.includes("get_runtime_info"));
   assert.equal(runtime.capabilityIds.length, runtime.supportedCommands.length + 1);
 });
@@ -82,6 +92,62 @@ test("page, style, variable, component, and binding fixtures retain honest cover
   assert.equal(tokens.unresolvedStyles, 0);
   assert.ok(tokens.bindings.some((binding) => binding.variableName === "Color/Primary"));
   assert.ok(tokens.styles.some((style) => style.styleName === "Shadow/Small"));
+});
+
+test("style references carry their resolved value, including for remote library styles", async () => {
+  const harness = await loadPluginHarness();
+  const tokens = await harness.command("get_node_variables", { nodeId: "10:1" });
+
+  const paint = tokens.styles.find((style) => style.styleName === "Brand/Primary");
+  assert.equal(paint.styleType, "PAINT");
+  assert.equal(paint.valueStatus, "resolved");
+  assert.deepEqual(paint.value.paints, [
+    { type: "SOLID", color: { r: 0.1, g: 0.2, b: 0.3 } },
+  ]);
+
+  const effect = tokens.styles.find((style) => style.styleName === "Shadow/Small");
+  assert.equal(effect.valueStatus, "resolved");
+  assert.equal(effect.value.effects.length, 1);
+  assert.equal(effect.value.effects[0].type, "DROP_SHADOW");
+
+  // The load-bearing case. `atencao` lives in an external library, so every
+  // getLocal*StylesAsync loader omits it: get_styles cannot supply its value, and the
+  // get_node_info join that used to be the only fallback reaches a fraction of the
+  // nodes this scan visits. The value has to arrive on the reference itself.
+  const styles = await harness.command("get_styles");
+  const localPaintNames = styles.colors.map((style) => style.name);
+  assert.ok(
+    !localPaintNames.includes("atencao"),
+    "the remote style must not be reachable through get_styles",
+  );
+
+  const remote = tokens.styles.find((style) => style.styleName === "atencao");
+  assert.ok(remote, "the remote style reference must still resolve by ID");
+  assert.equal(remote.remote, true);
+  assert.equal(remote.resolutionStatus, "resolved");
+  assert.equal(remote.valueStatus, "resolved");
+  assert.deepEqual(remote.value.paints, [
+    { type: "SOLID", color: { r: 0.94, g: 0.62, b: 0.13 } },
+  ]);
+});
+
+test("a style whose value cannot be read says so instead of reporting no value", async () => {
+  const harness = await loadPluginHarness();
+  const tokens = await harness.command("get_node_variables", { nodeId: "10:1" });
+
+  // Every resolved reference must state a value status, so an absent `value` is never
+  // ambiguous between "this style has none" and "this build could not read it".
+  for (const style of tokens.styles) {
+    if (style.resolutionStatus === "resolved") {
+      assert.ok(
+        ["resolved", "unsupported_style_type", "read_failed"].includes(style.valueStatus),
+        `${style.styleName} reported valueStatus ${style.valueStatus}`,
+      );
+    } else {
+      assert.equal(style.valueStatus, "not_applicable");
+      assert.equal(style.value, null);
+    }
+  }
 });
 
 test("time budgets and missing page IDs cannot masquerade as complete component counts", async () => {

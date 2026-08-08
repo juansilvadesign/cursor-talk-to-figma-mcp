@@ -203,7 +203,14 @@ function createFixtureRuntime(fixture, options) {
     return variable;
   });
   const styles = fixture.styles;
-  const allStyles = Object.values(styles).flat();
+  // Remote (library) styles resolve by ID but are deliberately absent from every
+  // getLocal*StylesAsync loader — that is exactly how Figma behaves on a file that
+  // references an external library, and it is why get_node_variables has to carry the
+  // value itself rather than leaving consumers to join against get_styles.
+  const allStyles = Object.entries(styles)
+    .filter(([bucket]) => bucket !== "remote")
+    .flatMap(([, entries]) => entries)
+    .concat(styles.remote || []);
 
   const figma = {
     editorType: "figma",
@@ -257,7 +264,12 @@ function createFixtureRuntime(fixture, options) {
       return clone(styles.grids);
     },
     getStyleByIdAsync: async (id) => clone(allStyles.find((style) => style.id === id)) || null,
-    getAnnotationCategoriesAsync: async () => [],
+    // code.js reads this off figma.annotations, which is where the real API lives.
+    // The stub previously hung it on the figma root, so get_annotations could not be
+    // exercised offline at all.
+    annotations: {
+      getAnnotationCategoriesAsync: async () => [],
+    },
   };
 
   Object.defineProperty(figma, "currentPage", {

@@ -36,18 +36,31 @@
               "width": 200,
               "height": 32,
               "characters": "Fixture title",
-              "fontName": { "family": "Inter", "style": "Regular" },
+              "fontName": {
+                "family": "Inter",
+                "style": "Regular"
+              },
               "fontSize": 24,
               "fillStyleId": "style-paint-1",
               "boundVariables": {
-                "fontSize": { "type": "VARIABLE_ALIAS", "id": "var-space" }
+                "fontSize": {
+                  "type": "VARIABLE_ALIAS",
+                  "id": "var-space"
+                }
               },
               "fills": [
                 {
                   "type": "SOLID",
-                  "color": { "r": 0.1, "g": 0.2, "b": 0.3 },
+                  "color": {
+                    "r": 0.1,
+                    "g": 0.2,
+                    "b": 0.3
+                  },
                   "boundVariables": {
-                    "color": { "type": "VARIABLE_ALIAS", "id": "var-primary" }
+                    "color": {
+                      "type": "VARIABLE_ALIAS",
+                      "id": "var-primary"
+                    }
                   }
                 }
               ]
@@ -66,7 +79,8 @@
                   "imageHash": "fixture-image",
                   "scaleMode": "FILL"
                 }
-              ]
+              ],
+              "fillStyleId": "style-paint-remote"
             }
           ]
         },
@@ -105,7 +119,16 @@
           "y": 0,
           "width": 100,
           "height": 100,
-          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }]
+          "fills": [
+            {
+              "type": "SOLID",
+              "color": {
+                "r": 1,
+                "g": 1,
+                "b": 1
+              }
+            }
+          ]
         },
         {
           "id": "10:5",
@@ -116,9 +139,21 @@
           "width": 160,
           "height": 20,
           "characters": "Footer text",
-          "fontName": { "family": "Inter", "style": "Regular" },
+          "fontName": {
+            "family": "Inter",
+            "style": "Regular"
+          },
           "fontSize": 14,
-          "fills": [{ "type": "SOLID", "color": { "r": 0, "g": 0, "b": 0 } }]
+          "fills": [
+            {
+              "type": "SOLID",
+              "color": {
+                "r": 0,
+                "g": 0,
+                "b": 0
+              }
+            }
+          ]
         }
       ]
     },
@@ -159,8 +194,14 @@
         "key": "foundation-key",
         "defaultModeId": "mode-light",
         "modes": [
-          { "modeId": "mode-light", "name": "Light" },
-          { "modeId": "mode-dark", "name": "Dark" }
+          {
+            "modeId": "mode-light",
+            "name": "Light"
+          },
+          {
+            "modeId": "mode-dark",
+            "name": "Dark"
+          }
         ]
       }
     ],
@@ -171,11 +212,23 @@
         "key": "var-primary-key",
         "description": "Primary brand color",
         "resolvedType": "COLOR",
-        "scopes": ["ALL_FILLS"],
+        "scopes": [
+          "ALL_FILLS"
+        ],
         "variableCollectionId": "collection-1",
         "valuesByMode": {
-          "mode-light": { "r": 0.1, "g": 0.2, "b": 0.3, "a": 1 },
-          "mode-dark": { "r": 0.8, "g": 0.9, "b": 1, "a": 1 }
+          "mode-light": {
+            "r": 0.1,
+            "g": 0.2,
+            "b": 0.3,
+            "a": 1
+          },
+          "mode-dark": {
+            "r": 0.8,
+            "g": 0.9,
+            "b": 1,
+            "a": 1
+          }
         }
       },
       {
@@ -184,7 +237,9 @@
         "key": "var-space-key",
         "description": "Spacing scale",
         "resolvedType": "FLOAT",
-        "scopes": ["GAP"],
+        "scopes": [
+          "GAP"
+        ],
         "variableCollectionId": "collection-1",
         "valuesByMode": {
           "mode-light": 24,
@@ -197,11 +252,19 @@
         "key": "var-alias-key",
         "description": "Alias coverage fixture",
         "resolvedType": "COLOR",
-        "scopes": ["ALL_FILLS"],
+        "scopes": [
+          "ALL_FILLS"
+        ],
         "variableCollectionId": "collection-1",
         "valuesByMode": {
-          "mode-light": { "type": "VARIABLE_ALIAS", "id": "var-primary" },
-          "mode-dark": { "type": "VARIABLE_ALIAS", "id": "var-primary" }
+          "mode-light": {
+            "type": "VARIABLE_ALIAS",
+            "id": "var-primary"
+          },
+          "mode-dark": {
+            "type": "VARIABLE_ALIAS",
+            "id": "var-primary"
+          }
         }
       }
     ]
@@ -214,7 +277,16 @@
         "key": "style-paint-key",
         "type": "PAINT",
         "remote": false,
-        "paints": [{ "type": "SOLID", "color": { "r": 0.1, "g": 0.2, "b": 0.3 } }]
+        "paints": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.1,
+              "g": 0.2,
+              "b": 0.3
+            }
+          }
+        ]
       }
     ],
     "texts": [
@@ -225,7 +297,10 @@
         "type": "TEXT",
         "remote": false,
         "fontSize": 24,
-        "fontName": { "family": "Inter", "style": "Medium" }
+        "fontName": {
+          "family": "Inter",
+          "style": "Medium"
+        }
       }
     ],
     "effects": [
@@ -234,7 +309,26 @@
         "name": "Shadow/Small",
         "key": "style-effect-key",
         "type": "EFFECT",
-        "remote": false
+        "remote": false,
+        "effects": [
+          {
+            "type": "DROP_SHADOW",
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0.12
+            },
+            "offset": {
+              "x": 0,
+              "y": 1
+            },
+            "radius": 2,
+            "spread": 0,
+            "visible": true,
+            "blendMode": "NORMAL"
+          }
+        ]
       }
     ],
     "grids": [
@@ -243,7 +337,36 @@
         "name": "Grid/Desktop",
         "key": "style-grid-key",
         "type": "GRID",
-        "remote": false
+        "remote": false,
+        "layoutGrids": [
+          {
+            "pattern": "COLUMNS",
+            "sectionSize": 72,
+            "gutterSize": 24,
+            "alignment": "STRETCH",
+            "count": 12,
+            "visible": true
+          }
+        ]
+      }
+    ],
+    "remote": [
+      {
+        "id": "style-paint-remote",
+        "name": "atencao",
+        "key": "style-paint-remote-key",
+        "type": "PAINT",
+        "remote": true,
+        "paints": [
+          {
+            "type": "SOLID",
+            "color": {
+              "r": 0.94,
+              "g": 0.62,
+              "b": 0.13
+            }
+          }
+        ]
       }
     ]
   }

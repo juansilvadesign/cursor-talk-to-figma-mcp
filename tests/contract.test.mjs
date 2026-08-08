@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,52 @@ test("parity guard is observed failing when a dispatcher command disappears", as
     ),
   };
   assert.match(parityErrors(broken).join("\n"), /get_document_info.*dispatcher/);
+});
+
+test("the current contract stays backwards compatible with every frozen release baseline", async () => {
+  const built = await buildContract();
+  const baselineDir = path.join(root, "contracts/baselines");
+  const baselineFiles = (await readdir(baselineDir))
+    .filter((name) => name.endsWith("-public-contract.json"))
+    .sort();
+
+  assert.ok(
+    baselineFiles.length > 0,
+    "at least one frozen release baseline must exist",
+  );
+
+  for (const file of baselineFiles) {
+    const baseline = JSON.parse(
+      await readFile(path.join(baselineDir, file), "utf8"),
+    );
+    assert.deepEqual(
+      compatibilityErrors(baseline, built.contract),
+      [],
+      `current contract broke compatibility with ${file}`,
+    );
+  }
+});
+
+test("result stability may be strengthened across releases but never weakened", async () => {
+  const snapshot = JSON.parse(
+    await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),
+  );
+
+  const strengthened = structuredClone(snapshot);
+  const promoted = strengthened.tools.find(
+    (tool) => tool.name === "get_node_variables",
+  );
+  assert.equal(promoted.resultStability, "additive-preview");
+  promoted.resultStability = "stable";
+  assert.deepEqual(compatibilityErrors(snapshot, strengthened), []);
+
+  const weakened = structuredClone(snapshot);
+  weakened.tools.find((tool) => tool.name === "get_node_variables").resultStability =
+    "legacy";
+  assert.match(
+    compatibilityErrors(snapshot, weakened).join("\n"),
+    /get_node_variables\.resultStability was weakened/,
+  );
 });
 
 test("snapshot guard rejects removals and incompatible parameters but accepts additive optional fields", async () => {

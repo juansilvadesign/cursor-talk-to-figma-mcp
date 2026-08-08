@@ -50,7 +50,7 @@ Runs inside Figma. `code.js` is the plugin main thread handling 30+ commands via
 3. In Figma: Plugins → Development → Link existing plugin → select `src/cursor_mcp_plugin/manifest.json`
 4. Run plugin in Figma, join a channel, then use tools from Cursor or Claude Code
 
-The MCP config uses this checkout's built server; npm `latest` is not R0-compatible:
+The MCP config uses this checkout's built server; npm `latest` is not R1-compatible:
 
 ```json
 {

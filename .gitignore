@@ -5,3 +5,6 @@ dist/
 docs/*
 !docs/R0-BUILD.md
 !docs/RUNTIME-COMPATIBILITY.md
+!docs/R1-RELEASE.md
+!docs/R1-READ-CONTRACT.md
+!docs/COMPATIBILITY-POLICY.md

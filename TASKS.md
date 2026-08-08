@@ -54,6 +54,10 @@ Hard rules:
   install/build/test/parity/identity gate passes and the connected read/write smoke
   passed twice with a matching server↔plugin fingerprint. Recorded in
   [`docs/R0-BUILD.md`](docs/R0-BUILD.md).
+- **Consumer-stable read release — R1 CUT 2026-08-08, live gate pending.** The read
+  contract is documented, versioned (`1.1.0`), and verified backwards compatible with
+  the frozen R0 baseline. Its live rows are unattempted, not failed. See
+  [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md).
 - **Consumer integration — owned elsewhere.** `figma-to-code` succeeding through a
   pinned fork build proves the API is useful, but it does not make the two projects
   one codebase or one release.
@@ -164,16 +168,37 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R0 is CLOSED; R1 is the active release
+## ▶ Next session — R1 is cut; run its live gate, then close it
 
-**R0 was accepted 2026-08-08** and every step of the previous handoff is discharged: the
-live gate passed twice, the runtime payload and cleaned read/write smoke are recorded in
-[`docs/R0-BUILD.md`](docs/R0-BUILD.md), and the working tree is committed and pushed
-(`fbbc6a7`) with the parent submodule pointer already bumped to match.
+**R0 accepted 2026-08-08** ([`docs/R0-BUILD.md`](docs/R0-BUILD.md)).
+**R1 cut 2026-08-08** ([`docs/R1-RELEASE.md`](docs/R1-RELEASE.md)) — every R1 checkbox is
+closed except the live gate. Offline evidence is complete: 34 tests, cross-release
+compatibility with the frozen R0 baseline at zero errors, contract/parity/README/`dist/`
+green, `bun run verify` reporting `R1 offline gate passed`.
 
-Active work is **R1 — consumer-stable read release**, detailed below. Its two carried-over
-open items are documentation/policy work plus one additive read field and one compact
-export path; neither is blocking a consumer today.
+**The one thing R1 owes: the connected pair has not been exercised since the version
+bump.** Do this first.
+
+1. `bun run socket` (relay on 3055), reload the fork DEV plugin in Figma, copy the channel.
+2. `node scripts/live-smoke.mjs --channel=<channel> --output=/tmp/talk-to-figma-r1-live-smoke.json`
+   Require `compatibility.status: "compatible"` and **both halves reporting `r1-*`** —
+   server `r1-server-25902c2adcd3`, plugin `r1-plugin-2b9a727f3499`, fingerprint
+   `sha256:40a64c28…43ce1b`. A stale R0 plugin is rejected by build-ID mismatch; that
+   rejection is the preflight working, not a failure.
+3. Two checks the smoke does not cover — see `docs/R1-RELEASE.md` § Pending live
+   verification: `export_node_as_image` with `filePath` on a real node (file lands,
+   `sha256` matches disk, `width`/`height` match Figma's export), and
+   `get_node_variables` on a subtree consuming a **remote** library style (`value`
+   populated where `get_styles` cannot see it).
+4. Record the payload in `docs/R1-RELEASE.md` § Verification state, flip the two pending
+   rows, and close R1.
+
+⚠️ **The session that cut R1 could not run the live gate** — Figma access was deferred by
+choice, not blocked. Nothing about the offline result is provisional; the live rows are
+simply unattempted, and are marked `Pending` rather than `Pass` for that reason.
+
+Then: R2 (safe authoring release) is next in sequence, **except** the variable half of R3
+already has a detailed plan and a real consumer waiting — see the R3 section.
 
 ⛔ **Restarting `bun run socket` does NOT restart the MCP connection.** The relay and the
 MCP stdio server are separate processes; the server holds `dist/server.js` from load
@@ -289,18 +314,37 @@ above: the result stands, the *fixture* was not proven throwaway.
 
 ---
 
-## Release R1 — consumer-stable read release
+## Release R1 — consumer-stable read release — CUT 2026-08-08, live gate pending
 
-Detail after the R0 retrospective. Current boundary:
+Release record: [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md) · read contract:
+[`docs/R1-READ-CONTRACT.md`](docs/R1-READ-CONTRACT.md) · policy:
+[`docs/COMPATIBILITY-POLICY.md`](docs/COMPATIBILITY-POLICY.md).
 
-- [ ] Turn the read-layer acceptance cases from
+Shipped runtime — server `r1-server-25902c2adcd3` ↔ plugin `r1-plugin-2b9a727f3499`,
+fingerprint `sha256:40a64c28…43ce1b`, contract `1.1.0`, schema `1.1.0`, package `0.3.5`
+unchanged. Offline gate green (34 tests). **Both R1 changes are additive; no consumer
+migration is required.**
+
+- [x] Turn the read-layer acceptance cases from
       [`docs/READ-LAYER-PLAN.md`](docs/READ-LAYER-PLAN.md) into maintained fixtures
-      and contract tests.
-- [ ] Document each read tool's scope, cost controls, completeness fields, and
-      additive-evolution policy.
-- [ ] Preserve bounded defaults for document/component reads and compact summaries.
-- [ ] Add a compact export path: write to an explicit local path or return a resource
+      and contract tests. → `tests/read-acceptance.test.mjs`. The live cases named real
+      files whose absolute numbers cannot run offline; what each one *proved* is a
+      structural invariant, and that is what is now asserted (rollups describe the whole
+      population not the slice, offsets are disjoint, caps admit truncation, a scoped
+      read withholds document totals, `get_node_info` keeps `boundVariables` beside the
+      hex). Each test names its origin case.
+- [x] Document each read tool's scope, cost controls, completeness fields, and
+      additive-evolution policy. → `docs/R1-READ-CONTRACT.md`, with every field list
+      **captured from an observed reply**, not written from prose — that is what caused
+      the consumer's seven validator corrections.
+- [x] Preserve bounded defaults for document/component reads and compact summaries.
+      Locked by the acceptance suite rather than by convention.
+- [x] Add a compact export path: write to an explicit local path or return a resource
       reference plus MIME, dimensions, bytes, and hash instead of routine base64 text.
+      → optional `filePath` plus an always-on receipt (`nodeId`, `format`, `scale`,
+      `mimeType`, `bytes`, `sha256`, `width`, `height`, `dimensionSource`, `delivery`).
+      Dimensions are parsed from the exported bytes; **PDF reports `null` rather than a
+      fabricated size**. Promoted `legacy` → `additive-preview`.
       **Consumer evidence (2026-07-31, resolved 2026-08-02):** `figma-to-code`'s
       first live capture could not record an `export_node_as_image` artifact at
       all, because its MCP client materializes images — the decoded bytes arrive,
@@ -311,10 +355,11 @@ Detail after the R0 retrospective. Current boundary:
       Note for the implementer: the reply is an MCP image content block
       (`{type:"image",data,mimeType}`) carrying no node id, so a consumer can only
       attribute an export by remembering its own request.
-- [ ] **Return the resolved value beside the resolved name for style references in
-      `get_node_variables`.** It already resolves `styleName`, `styleType`,
-      `remote`, and `resolutionStatus`; adding the paint/text/effect value makes
-      the reply self-sufficient. Additive, read-only, no new tool.
+- [x] **Return the resolved value beside the resolved name for style references in
+      `get_node_variables`.** → each `styles[]` entry now carries `value` (per style
+      type) and `valueStatus` (`resolved` / `unsupported_style_type` / `read_failed` /
+      `not_applicable`), so an absent value is never ambiguous between "no value" and
+      "could not read it". Additive, read-only, no new tool.
       **Consumer evidence (2026-07-31):** on a file whose styles are all
       `remote: true`, values can only be recovered by joining `get_node_variables`
       to `get_node_info`. That join is lossy because `get_node_info` returns just
@@ -332,19 +377,65 @@ Detail after the R0 retrospective. Current boundary:
       library** — copies, and any file using a third-party UI kit (the same SYD
       source file still has 61 remote refs to `Gray/*`, `Brand/600`,
       `Shadows/shadow-xs`, `Text sm/*`). Lower priority than first logged.
-- [ ] Define a compatibility policy for additive result fields so consumers can
-      ignore unknown fields safely.
-- [ ] Close the remaining fork-side read verification noted in
+- [x] Define a compatibility policy for additive result fields so consumers can
+      ignore unknown fields safely. → [`docs/COMPATIBILITY-POLICY.md`](docs/COMPATIBILITY-POLICY.md),
+      enforced rather than asserted: `contracts/baselines/` freezes each release and
+      `bun run verify` replays every baseline against the current contract. Result
+      stability became an ordered ladder — strengthening allowed, weakening a named
+      error, both branches tested.
+- [x] Close the remaining fork-side read verification noted in
       `READ-LAYER-PLAN.md` when a suitable local-style fixture is available.
-- [ ] Finish/rebase the narrow upstream read PRs independently of the local release;
+      → the R1 fixture consumes one **local** style (`Brand/Primary`, `remote: false`)
+      and one **remote** library style (`atencao`, `remote: true`) in the same scan, so
+      both branches of the `style.remote` passthrough are now observed.
+      ⚠️ **Scope of the claim:** this proves the code path offline. The plan asked for
+      opportunistic confirmation on a live file with a local style in use; that is still
+      worth taking when one appears.
+- [x] Finish/rebase the narrow upstream read PRs independently of the local release;
       rebuild local `dist/` after upstream changes.
-- [ ] Version and document a fork build that includes the complete read contract.
-- [ ] Publish a consumer upgrade note containing the new commit/version,
+      → **Verified 2026-08-08: nothing to rebase, nothing to rebuild.** `upstream/main`
+      has not advanced since `ddd90f3` (the squash of our merged #185) — divergence is
+      **0 behind / 44 ahead**, so no upstream change can have invalidated local `dist/`.
+      Both narrow PRs are still `OPEN` and `MERGEABLE` with zero reviews, untouched since
+      2026-07-27:
+      **#184** (`fix:` scan/reactions leaving nodes permanently recolored + honor export
+      format) and **#186** (`feat:` `get_pages` / `set_current_page` + `get_document_info`
+      single-page index fix). Both already carry a maintainer ping from 2026-07-27.
+      Upstream timing never gates this release; R1 ships independently.
+- [x] Version and document a fork build that includes the complete read contract.
+      → `R1` / contract `1.1.0` / schema `1.1.0`, recorded in
+      [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md). `packageVersion` deliberately stays at
+      upstream's `0.3.5`; the pin is the commit SHA.
+- [x] Publish a consumer upgrade note containing the new commit/version,
       runtime fingerprint, changed fields, and migration guidance.
+      → `docs/R1-RELEASE.md` § Consumer upgrade note. Migration required: none.
+
+⚠️ **The finding this release turned up.** Applying the entire R1 read change and
+regenerating produced a **byte-identical `capabilityFingerprint`** — it covers
+`serverSchemaVersion` plus per-command capability IDs, and R1 added no commands. A
+consumer pinning only the fingerprint would have had no signal that the contract grew.
+R1 therefore bumps `serverSchemaVersion`, which *is* a fingerprint input. **A release
+that grows the contract must bump `serverSchemaVersion`, or it ships silently.**
 
 **R1 acceptance:** a generic MCP client can pin one documented server/plugin pair,
 perform the complete bounded read sequence, persist compact exports, and interpret
 scope/completeness without inspecting fork source.
+
+**Offline: met.** 34 tests, cross-release compatibility with the frozen R0 baseline at
+zero errors, contract/parity/README/`dist/` all green.
+
+**⏳ Live: pending — the one thing R1 still owes.** The connected pair has not been
+exercised since the version bump. Three checks, all in `docs/R1-RELEASE.md`
+§ Pending live verification:
+
+1. `scripts/live-smoke.mjs` against the R1 plugin — require
+   `compatibility.status: "compatible"` and both halves reporting `r1-*` build IDs plus
+   fingerprint `sha256:40a64c28…43ce1b`.
+2. `export_node_as_image` with `filePath` on a real node — the file lands, `sha256`
+   matches the bytes on disk, `width`/`height` match Figma's own export.
+3. `get_node_variables` on a subtree consuming a **remote** library style — `value`
+   populated where `get_styles` cannot see the style. The fixture proves the code path;
+   only a live file proves the Figma behavior it assumes.
 
 `figma-to-code` then updates its own pin and runs its own capture/emission acceptance.
 That consumer pass is evidence for the interface, not part of this repository's
@@ -455,8 +546,13 @@ design-system format—remains consumer work.
       `capabilityFingerprint` that server and plugin derive independently.
 - [x] **R0 — package authority:** *Bun.* `bun.lock` is the measured authority;
       `package-lock.json` is preserved as legacy traceability only.
-- [ ] **R1 — additive payload policy:** formal JSON schemas, TypeScript fixtures, or
-      both?
+- [x] **R1 — additive payload policy:** *neither, and both.* The generated
+      `contracts/public-contract.json` carries JSON Schema for every **input**; result
+      shapes are pinned by committed **fixtures** exercised against the real `code.js`
+      runtime, because a hand-written result schema drifts from observed replies — which
+      is exactly the failure that produced the consumer's seven validator corrections.
+      Cross-release safety comes from replaying frozen baselines, not from a schema
+      dialect. See [`docs/COMPATIBILITY-POLICY.md`](docs/COMPATIBILITY-POLICY.md).
 - [ ] **R2 — generic batch boundary:** should create operations be supported in the
       first batch version, or only mutations of existing IDs?
 - [ ] **R3 — resource identity:** plugin data, Figma keys/IDs, explicit caller key, or

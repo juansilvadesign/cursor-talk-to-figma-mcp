@@ -33,7 +33,7 @@ bun socket
 
 4. In Figma, link the DEV plugin at `src/cursor_mcp_plugin/manifest.json` and
    connect it to the relay. The community plugin and npm `latest` package are not an
-   R0-compatible pair because they do not carry this fork's complete command set or
+   R1-compatible pair because they do not carry this fork's complete command set or
    runtime fingerprint.
 
 5. Call `join_channel` with the channel shown by the DEV plugin. Joining runs a strict
@@ -289,10 +289,10 @@ The MCP server includes several helper prompts to guide you through complex desi
 
 ## Development
 
-The root `bun.lock` is authoritative for R0. A measured clean
+The root `bun.lock` is authoritative. A measured clean
 `bun install --frozen-lockfile` succeeds. `package-lock.json` is retained as legacy
 traceability, but its root metadata is still `0.3.1` while the package is `0.3.5`; a
-clean npm attempt did not produce a valid install, so npm is not a supported R0 install
+clean npm attempt did not produce a valid install, so npm is not a supported install
 path. The nested package/lock under `src/talk_to_figma_mcp/` is legacy source metadata,
 not the release root.
 

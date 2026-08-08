@@ -295,8 +295,9 @@
         <div id="mcp-config" class="section hidden">
           <h2>MCP Configuration</h2>
           <p>
-            Copy this configuration to your <code>mcp.json</code> file in
-            Cursor:
+            Run <code>bun run setup</code> from this local fork to write the
+            exact absolute server path. The template below must not point to
+            npm <code>latest</code>:
           </p>
           <textarea
             id="mcp-json"
@@ -491,7 +492,7 @@
 
         // Add instructions for localhost when disconnected
         if (!isConnected) {
-          statusMessage += `<br><br>Run this in your terminal, then connect<br><code>bunx cursor-talk-to-figma-socket</code>`;
+          statusMessage += `<br><br>From this local fork, run<br><code>bun run socket</code><br>then connect again.`;
         }
 
         connectionStatus.innerHTML = statusMessage;
@@ -974,8 +975,8 @@
         const mcpConfig = {
           mcpServers: {
             TalkToFigma: {
-              command: "bunx",
-              args: ["cursor-talk-to-figma-mcp@latest"],
+              command: "node",
+              args: ["/absolute/path/to/talk-to-figma-fork/dist/server.js"],
             },
           },
         };

@@ -6,6 +6,8 @@ import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFile } from "fs/promises";
+import { RUNTIME_METADATA } from "./runtime-metadata.js";
+import { comparePluginRuntimeMetadata } from "./runtime-compatibility.mjs";
 
 // Define TypeScript interfaces for Figma responses
 interface FigmaResponse {
@@ -84,10 +86,24 @@ const pendingRequests = new Map<string, {
 // Track which channel each client is in
 let currentChannel: string | null = null;
 
+type RuntimeCompatibility = {
+  status: "compatible" | "incompatible" | "not_checked";
+  checkedAt: string | null;
+  issues: string[];
+  plugin: Record<string, any> | null;
+};
+
+let runtimeCompatibility: RuntimeCompatibility = {
+  status: "not_checked",
+  checkedAt: null,
+  issues: ["Join a channel to run the server/plugin compatibility preflight."],
+  plugin: null,
+};
+
 // Create MCP server
 const server = new McpServer({
   name: "TalkToFigmaMCP",
-  version: "1.0.0",
+  version: RUNTIME_METADATA.packageVersion,
 });
 
 // Add command line argument parsing
@@ -95,6 +111,95 @@ const args = process.argv.slice(2);
 const serverArg = args.find(arg => arg.startsWith('--server='));
 const serverUrl = serverArg ? serverArg.split('=')[1] : 'localhost';
 const WS_URL = serverUrl === 'localhost' ? `ws://${serverUrl}` : `wss://${serverUrl}`;
+
+function serverRuntimeInfo() {
+  return {
+    name: "TalkToFigmaMCP",
+    packageVersion: RUNTIME_METADATA.packageVersion,
+    release: RUNTIME_METADATA.release,
+    buildId: RUNTIME_METADATA.serverBuildId,
+    schemaVersion: RUNTIME_METADATA.serverSchemaVersion,
+    capabilityFingerprint: RUNTIME_METADATA.capabilityFingerprint,
+    supportedTools: [...RUNTIME_METADATA.supportedTools],
+    supportedPrompts: [...RUNTIME_METADATA.supportedPrompts],
+    expectedPlugin: {
+      buildId: RUNTIME_METADATA.pluginBuildId,
+      apiVersion: RUNTIME_METADATA.pluginApiVersion,
+      supportedCommands: [...RUNTIME_METADATA.supportedCommands],
+      capabilityIds: [...RUNTIME_METADATA.capabilityIds],
+    },
+  };
+}
+
+function runtimeDiagnosticSuffix(): string {
+  const pluginBuild = runtimeCompatibility.plugin?.buildId || "unknown";
+  return ` [runtime: server=${RUNTIME_METADATA.serverBuildId}, schema=${RUNTIME_METADATA.serverSchemaVersion}, plugin=${pluginBuild}, compatibility=${runtimeCompatibility.status}]`;
+}
+
+function comparePluginRuntime(plugin: Record<string, any>): RuntimeCompatibility {
+  return comparePluginRuntimeMetadata(RUNTIME_METADATA, plugin) as RuntimeCompatibility;
+}
+
+async function refreshRuntimeCompatibility(): Promise<RuntimeCompatibility> {
+  try {
+    const plugin = (await sendCommandToFigma(
+      "get_runtime_info",
+      {},
+      5000
+    )) as Record<string, any>;
+    runtimeCompatibility = comparePluginRuntime(plugin);
+    return runtimeCompatibility;
+  } catch (error) {
+    runtimeCompatibility = {
+      status: "incompatible",
+      checkedAt: new Date().toISOString(),
+      issues: [
+        `Plugin runtime probe failed: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+      plugin: null,
+    };
+    throw error;
+  }
+}
+
+function combinedRuntimeInfo() {
+  return {
+    server: serverRuntimeInfo(),
+    plugin: runtimeCompatibility.plugin,
+    relay: {
+      protocolVersion: RUNTIME_METADATA.relayProtocolVersion,
+      transport: "websocket-channel",
+    },
+    compatibility: {
+      status: runtimeCompatibility.status,
+      checkedAt: runtimeCompatibility.checkedAt,
+      issues: [...runtimeCompatibility.issues],
+    },
+  };
+}
+
+server.tool(
+  "get_runtime_info",
+  "Report the exact local fork server, plugin, schema, relay protocol, and capability fingerprint. After joining a channel, this also refreshes the compatibility preflight without reading or modifying the Figma document.",
+  {},
+  async () => {
+    if (currentChannel) {
+      try {
+        await refreshRuntimeCompatibility();
+      } catch {
+        // The combined payload below carries the explicit incompatibility details.
+      }
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(combinedRuntimeInfo()),
+        },
+      ],
+    };
+  }
+);
 
 // Document Info Tool
 server.tool(
@@ -2867,6 +2972,7 @@ This detailed process ensures you correctly interpret the reaction data, prepare
 
 // Define command types and parameters
 type FigmaCommand =
+  | "get_runtime_info"
   | "get_document_info"
   | "get_pages"
   | "set_current_page"
@@ -2917,6 +3023,7 @@ type FigmaCommand =
   | "set_parent";
 
 type CommandParams = {
+  get_runtime_info: Record<string, never>;
   get_document_info: {
     summary?: boolean;
     limit?: number;
@@ -2928,6 +3035,7 @@ type CommandParams = {
   get_selection: Record<string, never>;
   get_node_info: { nodeId: string };
   get_nodes_info: { nodeIds: string[] };
+  read_my_design: Record<string, never>;
   create_rectangle: {
     x: number;
     y: number;
@@ -3002,11 +3110,12 @@ type CommandParams = {
     types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;
   };
   get_node_variables: { nodeId: string };
-  get_team_components: Record<string, never>;
   create_component_instance: {
-    componentKey: string;
+    componentId?: string;
+    componentKey?: string;
     x: number;
     y: number;
+    parentId?: string;
   };
   get_instance_overrides: {
     instanceNodeId: string | null;
@@ -3019,9 +3128,6 @@ type CommandParams = {
     nodeId: string;
     format?: "PNG" | "JPG" | "SVG" | "PDF";
     scale?: number;
-  };
-  execute_code: {
-    code: string;
   };
   join: {
     channel: string;
@@ -3064,6 +3170,33 @@ type CommandParams = {
   scan_nodes_by_types: {
     nodeId: string;
     types: Array<string>;
+  };
+  set_layout_mode: {
+    nodeId: string;
+    layoutMode: "NONE" | "HORIZONTAL" | "VERTICAL";
+    layoutWrap?: "NO_WRAP" | "WRAP";
+  };
+  set_padding: {
+    nodeId: string;
+    paddingTop?: number;
+    paddingRight?: number;
+    paddingBottom?: number;
+    paddingLeft?: number;
+  };
+  set_axis_align: {
+    nodeId: string;
+    primaryAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "SPACE_BETWEEN";
+    counterAxisAlignItems?: "MIN" | "MAX" | "CENTER" | "BASELINE";
+  };
+  set_layout_sizing: {
+    nodeId: string;
+    layoutSizingHorizontal?: "FIXED" | "HUG" | "FILL";
+    layoutSizingVertical?: "FIXED" | "HUG" | "FILL";
+  };
+  set_item_spacing: {
+    nodeId: string;
+    itemSpacing?: number;
+    counterAxisSpacing?: number;
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {
@@ -3138,9 +3271,12 @@ function processFigmaNodeResponse(result: unknown): any {
 
 // Update the connectToFigma function
 function connectToFigma(port: number = 3055) {
-  // If already connected, do nothing
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    logger.info('Already connected to Figma');
+  // Do not create parallel sockets while the initial connection is still opening.
+  if (
+    ws &&
+    (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+  ) {
+    logger.info('Figma socket is already connected or connecting');
     return;
   }
 
@@ -3152,6 +3288,12 @@ function connectToFigma(port: number = 3055) {
     logger.info('Connected to Figma socket server');
     // Reset channel on new connection
     currentChannel = null;
+    runtimeCompatibility = {
+      status: "not_checked",
+      checkedAt: null,
+      issues: ["Join a channel to run the server/plugin compatibility preflight."],
+      plugin: null,
+    };
   });
 
   ws.on("message", (data: any) => {
@@ -3191,7 +3333,7 @@ function connectToFigma(port: number = 3055) {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
-              request.reject(new Error('Request to Figma timed out'));
+              request.reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
             }
           }, inactivityMs);
 
@@ -3217,21 +3359,19 @@ function connectToFigma(port: number = 3055) {
       logger.log('myResponse' + JSON.stringify(myResponse));
 
       // Handle response to a request
-      if (
-        myResponse.id &&
-        pendingRequests.has(myResponse.id) &&
-        myResponse.result
-      ) {
+      if (myResponse?.id && pendingRequests.has(myResponse.id)) {
         const request = pendingRequests.get(myResponse.id)!;
         clearTimeout(request.timeout);
 
         if (myResponse.error) {
           logger.error(`Error from Figma: ${myResponse.error}`);
-          request.reject(new Error(myResponse.error));
+          request.reject(new Error(`${myResponse.error}${runtimeDiagnosticSuffix()}`));
+        } else if (Object.prototype.hasOwnProperty.call(myResponse, "result")) {
+          request.resolve(myResponse.result);
         } else {
-          if (myResponse.result) {
-            request.resolve(myResponse.result);
-          }
+          request.reject(
+            new Error(`Malformed response from Figma${runtimeDiagnosticSuffix()}`)
+          );
         }
 
         pendingRequests.delete(myResponse.id);
@@ -3251,11 +3391,18 @@ function connectToFigma(port: number = 3055) {
   ws.on('close', () => {
     logger.info('Disconnected from Figma socket server');
     ws = null;
+    currentChannel = null;
+    runtimeCompatibility = {
+      status: "not_checked",
+      checkedAt: null,
+      issues: ["The relay connection closed; join a channel again."],
+      plugin: null,
+    };
 
     // Reject all pending requests
     for (const [id, request] of pendingRequests.entries()) {
       clearTimeout(request.timeout);
-      request.reject(new Error("Connection closed"));
+      request.reject(new Error(`Connection closed${runtimeDiagnosticSuffix()}`));
       pendingRequests.delete(id);
     }
 
@@ -3275,6 +3422,12 @@ async function joinChannel(channelName: string): Promise<void> {
     await sendCommandToFigma("join", { channel: channelName });
     currentChannel = channelName;
     logger.info(`Joined channel: ${channelName}`);
+    const compatibility = await refreshRuntimeCompatibility();
+    if (compatibility.status !== "compatible") {
+      throw new Error(
+        `Server/plugin compatibility preflight failed: ${compatibility.issues.join(" ")}${runtimeDiagnosticSuffix()}`
+      );
+    }
   } catch (error) {
     logger.error(`Failed to join channel: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
@@ -3291,14 +3444,24 @@ function sendCommandToFigma(
     // If not connected, try to connect first
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       connectToFigma();
-      reject(new Error("Not connected to Figma. Attempting to connect..."));
+      reject(new Error(`Not connected to Figma. Attempting to connect...${runtimeDiagnosticSuffix()}`));
       return;
     }
 
     // Check if we need a channel for this command
     const requiresChannel = command !== "join";
     if (requiresChannel && !currentChannel) {
-      reject(new Error("Must join a channel before sending commands"));
+      reject(new Error(`Must join a channel before sending commands${runtimeDiagnosticSuffix()}`));
+      return;
+    }
+
+    const bypassesPreflight = command === "join" || command === "get_runtime_info";
+    if (!bypassesPreflight && runtimeCompatibility.status !== "compatible") {
+      reject(
+        new Error(
+          `Runtime compatibility preflight has not passed. Call join_channel, then get_runtime_info before document operations. ${runtimeCompatibility.issues.join(" ")}${runtimeDiagnosticSuffix()}`
+        )
+      );
       return;
     }
 
@@ -3324,7 +3487,7 @@ function sendCommandToFigma(
       if (pendingRequests.has(id)) {
         pendingRequests.delete(id);
         logger.error(`Request ${id} to Figma timed out after ${timeoutMs / 1000} seconds`);
-        reject(new Error('Request to Figma timed out'));
+        reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
       }
     }, timeoutMs);
 

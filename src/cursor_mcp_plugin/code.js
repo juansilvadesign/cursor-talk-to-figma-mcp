@@ -1,6 +1,119 @@
 // This is the main code file for the Cursor MCP Figma plugin
 // It handles Figma API commands
 
+// talk-to-figma-runtime-metadata:start
+const PLUGIN_RUNTIME_METADATA = Object.freeze({
+  "name": "Talk to Figma (fork) plugin",
+  "release": "R0",
+  "buildId": "r0-plugin-1eec70ac13d1",
+  "apiVersion": "1.0.0",
+  "serverSchemaVersion": "1.0.0",
+  "relayProtocolVersion": "1",
+  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "supportedCommands": [
+    "get_runtime_info",
+    "get_document_info",
+    "get_pages",
+    "set_current_page",
+    "get_selection",
+    "get_node_info",
+    "get_nodes_info",
+    "read_my_design",
+    "create_rectangle",
+    "create_frame",
+    "create_text",
+    "set_fill_color",
+    "set_stroke_color",
+    "move_node",
+    "resize_node",
+    "delete_node",
+    "delete_multiple_nodes",
+    "get_styles",
+    "get_local_components",
+    "get_variables",
+    "get_node_variables",
+    "create_component_instance",
+    "export_node_as_image",
+    "set_corner_radius",
+    "set_text_content",
+    "clone_node",
+    "scan_text_nodes",
+    "set_multiple_text_contents",
+    "get_annotations",
+    "set_annotation",
+    "scan_nodes_by_types",
+    "set_multiple_annotations",
+    "get_instance_overrides",
+    "set_instance_overrides",
+    "set_layout_mode",
+    "set_padding",
+    "set_axis_align",
+    "set_layout_sizing",
+    "set_item_spacing",
+    "get_reactions",
+    "set_default_connector",
+    "create_connections",
+    "set_focus",
+    "set_selections",
+    "set_image_fill",
+    "rename_node",
+    "create_section",
+    "set_parent"
+  ],
+  "capabilityIds": [
+    "figma.command.clone_node@1",
+    "figma.command.create_component_instance@1",
+    "figma.command.create_connections@1",
+    "figma.command.create_frame@1",
+    "figma.command.create_rectangle@1",
+    "figma.command.create_section@1",
+    "figma.command.create_text@1",
+    "figma.command.delete_multiple_nodes@1",
+    "figma.command.delete_node@1",
+    "figma.command.export_node_as_image@1",
+    "figma.command.get_annotations@1",
+    "figma.command.get_document_info@1",
+    "figma.command.get_instance_overrides@1",
+    "figma.command.get_local_components@1",
+    "figma.command.get_node_info@1",
+    "figma.command.get_node_variables@1",
+    "figma.command.get_nodes_info@1",
+    "figma.command.get_pages@1",
+    "figma.command.get_reactions@1",
+    "figma.command.get_runtime_info@1",
+    "figma.command.get_selection@1",
+    "figma.command.get_styles@1",
+    "figma.command.get_variables@1",
+    "figma.command.move_node@1",
+    "figma.command.read_my_design@1",
+    "figma.command.rename_node@1",
+    "figma.command.resize_node@1",
+    "figma.command.scan_nodes_by_types@1",
+    "figma.command.scan_text_nodes@1",
+    "figma.command.set_annotation@1",
+    "figma.command.set_axis_align@1",
+    "figma.command.set_corner_radius@1",
+    "figma.command.set_current_page@1",
+    "figma.command.set_default_connector@1",
+    "figma.command.set_fill_color@1",
+    "figma.command.set_focus@1",
+    "figma.command.set_image_fill@1",
+    "figma.command.set_instance_overrides@1",
+    "figma.command.set_item_spacing@1",
+    "figma.command.set_layout_mode@1",
+    "figma.command.set_layout_sizing@1",
+    "figma.command.set_multiple_annotations@1",
+    "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_padding@1",
+    "figma.command.set_parent@1",
+    "figma.command.set_selections@1",
+    "figma.command.set_stroke_color@1",
+    "figma.command.set_text_content@1",
+    "relay.channel@1"
+  ]
+});
+// talk-to-figma-runtime-metadata:end
+
 // Plugin state
 const state = {
   serverPort: 3055, // Default port
@@ -126,6 +239,8 @@ function updateSettings(settings) {
 // Handle commands from UI
 async function handleCommand(command, params) {
   switch (command) {
+    case "get_runtime_info":
+      return getRuntimeInfo();
     case "get_document_info":
       return await getDocumentInfo(params);
     case "get_pages":
@@ -276,6 +391,16 @@ async function handleCommand(command, params) {
 }
 
 // Command implementations
+
+function getRuntimeInfo() {
+  return {
+    ...PLUGIN_RUNTIME_METADATA,
+    supportedCommands: [...PLUGIN_RUNTIME_METADATA.supportedCommands],
+    capabilityIds: [...PLUGIN_RUNTIME_METADATA.capabilityIds],
+    editorType: typeof figma.editorType === "string" ? figma.editorType : null,
+    documentAccess: "dynamic-page",
+  };
+}
 
 async function getDocumentInfo(params) {
   await figma.currentPage.loadAsync();

@@ -2,4 +2,6 @@ node_modules/
 .cursor/
 .env
 dist/
-docs/
+docs/*
+!docs/R0-BUILD.md
+!docs/RUNTIME-COMPATIBILITY.md

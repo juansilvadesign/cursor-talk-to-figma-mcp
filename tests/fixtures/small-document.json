@@ -1,0 +1,250 @@
+{
+  "document": {
+    "id": "0:0",
+    "name": "R0 Offline Fixture"
+  },
+  "currentPageId": "1:1",
+  "pages": [
+    {
+      "id": "1:1",
+      "name": "Page One",
+      "loadMs": 5,
+      "children": [
+        {
+          "id": "10:1",
+          "name": "Dashboard",
+          "type": "FRAME",
+          "x": 0,
+          "y": 0,
+          "width": 800,
+          "height": 600,
+          "layoutMode": "VERTICAL",
+          "layoutWrap": "NO_WRAP",
+          "paddingTop": 24,
+          "paddingRight": 24,
+          "paddingBottom": 24,
+          "paddingLeft": 24,
+          "itemSpacing": 16,
+          "effectStyleId": "style-effect-1",
+          "children": [
+            {
+              "id": "10:2",
+              "name": "Title",
+              "type": "TEXT",
+              "x": 24,
+              "y": 24,
+              "width": 200,
+              "height": 32,
+              "characters": "Fixture title",
+              "fontName": { "family": "Inter", "style": "Regular" },
+              "fontSize": 24,
+              "fillStyleId": "style-paint-1",
+              "boundVariables": {
+                "fontSize": { "type": "VARIABLE_ALIAS", "id": "var-space" }
+              },
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": { "r": 0.1, "g": 0.2, "b": 0.3 },
+                  "boundVariables": {
+                    "color": { "type": "VARIABLE_ALIAS", "id": "var-primary" }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "10:3",
+              "name": "Hero Image",
+              "type": "RECTANGLE",
+              "x": 24,
+              "y": 72,
+              "width": 320,
+              "height": 180,
+              "fills": [
+                {
+                  "type": "IMAGE",
+                  "imageHash": "fixture-image",
+                  "scaleMode": "FILL"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "100:1",
+          "name": "Button/Primary",
+          "type": "COMPONENT",
+          "key": "button-primary-key",
+          "width": 120,
+          "height": 40,
+          "children": []
+        },
+        {
+          "id": "100:2",
+          "name": "Button/Secondary",
+          "type": "COMPONENT",
+          "key": "button-secondary-key",
+          "width": 120,
+          "height": 40,
+          "children": []
+        },
+        {
+          "id": "200:1",
+          "name": "Card/Base",
+          "type": "COMPONENT",
+          "key": "card-base-key",
+          "width": 240,
+          "height": 160,
+          "children": []
+        },
+        {
+          "id": "10:4",
+          "name": "Loose Rectangle",
+          "type": "RECTANGLE",
+          "x": 900,
+          "y": 0,
+          "width": 100,
+          "height": 100,
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }]
+        },
+        {
+          "id": "10:5",
+          "name": "Footer",
+          "type": "TEXT",
+          "x": 0,
+          "y": 700,
+          "width": 160,
+          "height": 20,
+          "characters": "Footer text",
+          "fontName": { "family": "Inter", "style": "Regular" },
+          "fontSize": 14,
+          "fills": [{ "type": "SOLID", "color": { "r": 0, "g": 0, "b": 0 } }]
+        }
+      ]
+    },
+    {
+      "id": "2:1",
+      "name": "Page Two",
+      "loadMs": 5,
+      "children": [
+        {
+          "id": "300:1",
+          "name": "Button/Tertiary",
+          "type": "COMPONENT",
+          "key": "button-tertiary-key",
+          "width": 120,
+          "height": 40,
+          "children": []
+        },
+        {
+          "id": "20:1",
+          "name": "Horizontal Stack",
+          "type": "FRAME",
+          "width": 400,
+          "height": 100,
+          "layoutMode": "HORIZONTAL",
+          "layoutWrap": "WRAP",
+          "itemSpacing": 8,
+          "counterAxisSpacing": 12,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "collections": [
+      {
+        "id": "collection-1",
+        "name": "Foundation",
+        "key": "foundation-key",
+        "defaultModeId": "mode-light",
+        "modes": [
+          { "modeId": "mode-light", "name": "Light" },
+          { "modeId": "mode-dark", "name": "Dark" }
+        ]
+      }
+    ],
+    "items": [
+      {
+        "id": "var-primary",
+        "name": "Color/Primary",
+        "key": "var-primary-key",
+        "description": "Primary brand color",
+        "resolvedType": "COLOR",
+        "scopes": ["ALL_FILLS"],
+        "variableCollectionId": "collection-1",
+        "valuesByMode": {
+          "mode-light": { "r": 0.1, "g": 0.2, "b": 0.3, "a": 1 },
+          "mode-dark": { "r": 0.8, "g": 0.9, "b": 1, "a": 1 }
+        }
+      },
+      {
+        "id": "var-space",
+        "name": "Space/24",
+        "key": "var-space-key",
+        "description": "Spacing scale",
+        "resolvedType": "FLOAT",
+        "scopes": ["GAP"],
+        "variableCollectionId": "collection-1",
+        "valuesByMode": {
+          "mode-light": 24,
+          "mode-dark": 24
+        }
+      },
+      {
+        "id": "var-alias",
+        "name": "Color/Action",
+        "key": "var-alias-key",
+        "description": "Alias coverage fixture",
+        "resolvedType": "COLOR",
+        "scopes": ["ALL_FILLS"],
+        "variableCollectionId": "collection-1",
+        "valuesByMode": {
+          "mode-light": { "type": "VARIABLE_ALIAS", "id": "var-primary" },
+          "mode-dark": { "type": "VARIABLE_ALIAS", "id": "var-primary" }
+        }
+      }
+    ]
+  },
+  "styles": {
+    "colors": [
+      {
+        "id": "style-paint-1",
+        "name": "Brand/Primary",
+        "key": "style-paint-key",
+        "type": "PAINT",
+        "remote": false,
+        "paints": [{ "type": "SOLID", "color": { "r": 0.1, "g": 0.2, "b": 0.3 } }]
+      }
+    ],
+    "texts": [
+      {
+        "id": "style-text-1",
+        "name": "Heading/Medium",
+        "key": "style-text-key",
+        "type": "TEXT",
+        "remote": false,
+        "fontSize": 24,
+        "fontName": { "family": "Inter", "style": "Medium" }
+      }
+    ],
+    "effects": [
+      {
+        "id": "style-effect-1",
+        "name": "Shadow/Small",
+        "key": "style-effect-key",
+        "type": "EFFECT",
+        "remote": false
+      }
+    ],
+    "grids": [
+      {
+        "id": "style-grid-1",
+        "name": "Grid/Desktop",
+        "key": "style-grid-key",
+        "type": "GRID",
+        "remote": false
+      }
+    ]
+  }
+}

@@ -29,6 +29,233 @@ var import_zod = require("zod");
 var import_ws = __toESM(require("ws"), 1);
 var import_uuid = require("uuid");
 var import_promises = require("fs/promises");
+
+// src/talk_to_figma_mcp/runtime-metadata.ts
+var RUNTIME_METADATA = {
+  "packageVersion": "0.3.5",
+  "release": "R0",
+  "serverBuildId": "r0-server-937e815db78f",
+  "pluginBuildId": "r0-plugin-1eec70ac13d1",
+  "serverSchemaVersion": "1.0.0",
+  "pluginApiVersion": "1.0.0",
+  "relayProtocolVersion": "1",
+  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "supportedCommands": [
+    "get_runtime_info",
+    "get_document_info",
+    "get_pages",
+    "set_current_page",
+    "get_selection",
+    "get_node_info",
+    "get_nodes_info",
+    "read_my_design",
+    "create_rectangle",
+    "create_frame",
+    "create_text",
+    "set_fill_color",
+    "set_stroke_color",
+    "move_node",
+    "resize_node",
+    "delete_node",
+    "delete_multiple_nodes",
+    "get_styles",
+    "get_local_components",
+    "get_variables",
+    "get_node_variables",
+    "create_component_instance",
+    "export_node_as_image",
+    "set_corner_radius",
+    "set_text_content",
+    "clone_node",
+    "scan_text_nodes",
+    "set_multiple_text_contents",
+    "get_annotations",
+    "set_annotation",
+    "scan_nodes_by_types",
+    "set_multiple_annotations",
+    "get_instance_overrides",
+    "set_instance_overrides",
+    "set_layout_mode",
+    "set_padding",
+    "set_axis_align",
+    "set_layout_sizing",
+    "set_item_spacing",
+    "get_reactions",
+    "set_default_connector",
+    "create_connections",
+    "set_focus",
+    "set_selections",
+    "set_image_fill",
+    "rename_node",
+    "create_section",
+    "set_parent"
+  ],
+  "capabilityIds": [
+    "figma.command.clone_node@1",
+    "figma.command.create_component_instance@1",
+    "figma.command.create_connections@1",
+    "figma.command.create_frame@1",
+    "figma.command.create_rectangle@1",
+    "figma.command.create_section@1",
+    "figma.command.create_text@1",
+    "figma.command.delete_multiple_nodes@1",
+    "figma.command.delete_node@1",
+    "figma.command.export_node_as_image@1",
+    "figma.command.get_annotations@1",
+    "figma.command.get_document_info@1",
+    "figma.command.get_instance_overrides@1",
+    "figma.command.get_local_components@1",
+    "figma.command.get_node_info@1",
+    "figma.command.get_node_variables@1",
+    "figma.command.get_nodes_info@1",
+    "figma.command.get_pages@1",
+    "figma.command.get_reactions@1",
+    "figma.command.get_runtime_info@1",
+    "figma.command.get_selection@1",
+    "figma.command.get_styles@1",
+    "figma.command.get_variables@1",
+    "figma.command.move_node@1",
+    "figma.command.read_my_design@1",
+    "figma.command.rename_node@1",
+    "figma.command.resize_node@1",
+    "figma.command.scan_nodes_by_types@1",
+    "figma.command.scan_text_nodes@1",
+    "figma.command.set_annotation@1",
+    "figma.command.set_axis_align@1",
+    "figma.command.set_corner_radius@1",
+    "figma.command.set_current_page@1",
+    "figma.command.set_default_connector@1",
+    "figma.command.set_fill_color@1",
+    "figma.command.set_focus@1",
+    "figma.command.set_image_fill@1",
+    "figma.command.set_instance_overrides@1",
+    "figma.command.set_item_spacing@1",
+    "figma.command.set_layout_mode@1",
+    "figma.command.set_layout_sizing@1",
+    "figma.command.set_multiple_annotations@1",
+    "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_padding@1",
+    "figma.command.set_parent@1",
+    "figma.command.set_selections@1",
+    "figma.command.set_stroke_color@1",
+    "figma.command.set_text_content@1",
+    "relay.channel@1"
+  ],
+  "supportedTools": [
+    "clone_node",
+    "create_component_instance",
+    "create_connections",
+    "create_frame",
+    "create_rectangle",
+    "create_section",
+    "create_text",
+    "delete_multiple_nodes",
+    "delete_node",
+    "export_node_as_image",
+    "get_annotations",
+    "get_document_info",
+    "get_instance_overrides",
+    "get_local_components",
+    "get_node_info",
+    "get_node_variables",
+    "get_nodes_info",
+    "get_pages",
+    "get_reactions",
+    "get_runtime_info",
+    "get_selection",
+    "get_styles",
+    "get_variables",
+    "join_channel",
+    "move_node",
+    "read_my_design",
+    "rename_node",
+    "resize_node",
+    "scan_nodes_by_types",
+    "scan_text_nodes",
+    "set_annotation",
+    "set_axis_align",
+    "set_corner_radius",
+    "set_current_page",
+    "set_default_connector",
+    "set_fill_color",
+    "set_focus",
+    "set_image_fill",
+    "set_instance_overrides",
+    "set_item_spacing",
+    "set_layout_mode",
+    "set_layout_sizing",
+    "set_multiple_annotations",
+    "set_multiple_text_contents",
+    "set_padding",
+    "set_parent",
+    "set_selections",
+    "set_stroke_color",
+    "set_text_content"
+  ],
+  "supportedPrompts": [
+    "annotation_conversion_strategy",
+    "design_strategy",
+    "reaction_to_connector_strategy",
+    "read_design_strategy",
+    "swap_overrides_instances",
+    "text_replacement_strategy"
+  ]
+};
+
+// src/talk_to_figma_mcp/runtime-compatibility.mjs
+function comparePluginRuntimeMetadata(expected, plugin, checkedAt = (/* @__PURE__ */ new Date()).toISOString()) {
+  const actual = plugin && typeof plugin === "object" ? plugin : {};
+  const issues = [];
+  if (actual.buildId !== expected.pluginBuildId) {
+    issues.push(
+      `Plugin build mismatch: expected ${expected.pluginBuildId}, received ${actual.buildId || "missing"}.`
+    );
+  }
+  if (actual.apiVersion !== expected.pluginApiVersion) {
+    issues.push(
+      `Plugin API mismatch: expected ${expected.pluginApiVersion}, received ${actual.apiVersion || "missing"}.`
+    );
+  }
+  if (actual.serverSchemaVersion !== expected.serverSchemaVersion) {
+    issues.push(
+      `Server schema mismatch: expected ${expected.serverSchemaVersion}, received ${actual.serverSchemaVersion || "missing"}.`
+    );
+  }
+  if (actual.relayProtocolVersion !== expected.relayProtocolVersion) {
+    issues.push(
+      `Relay protocol mismatch: expected ${expected.relayProtocolVersion}, received ${actual.relayProtocolVersion || "missing"}.`
+    );
+  }
+  if (actual.capabilityFingerprint !== expected.capabilityFingerprint) {
+    issues.push(
+      `Capability fingerprint mismatch: expected ${expected.capabilityFingerprint}, received ${actual.capabilityFingerprint || "missing"}.`
+    );
+  }
+  const expectedCommands = new Set(expected.supportedCommands);
+  const actualCommands = new Set(
+    Array.isArray(actual.supportedCommands) ? actual.supportedCommands : []
+  );
+  const missingCommands = [...expectedCommands].filter(
+    (command) => !actualCommands.has(command)
+  );
+  const unexpectedCommands = [...actualCommands].filter(
+    (command) => !expectedCommands.has(command)
+  );
+  if (missingCommands.length > 0) {
+    issues.push(`Plugin is missing commands: ${missingCommands.join(", ")}.`);
+  }
+  if (unexpectedCommands.length > 0) {
+    issues.push(`Plugin exposes unexpected commands: ${unexpectedCommands.join(", ")}.`);
+  }
+  return {
+    status: issues.length === 0 ? "compatible" : "incompatible",
+    checkedAt,
+    issues,
+    plugin: actual
+  };
+}
+
+// src/talk_to_figma_mcp/server.ts
 var logger = {
   info: (message) => process.stderr.write(`[INFO] ${message}
 `),
@@ -45,14 +272,102 @@ var HEAVY_READ_TIMEOUT_MS = 12e4;
 var ws = null;
 var pendingRequests = /* @__PURE__ */ new Map();
 var currentChannel = null;
+var runtimeCompatibility = {
+  status: "not_checked",
+  checkedAt: null,
+  issues: ["Join a channel to run the server/plugin compatibility preflight."],
+  plugin: null
+};
 var server = new import_mcp.McpServer({
   name: "TalkToFigmaMCP",
-  version: "1.0.0"
+  version: RUNTIME_METADATA.packageVersion
 });
 var args = process.argv.slice(2);
 var serverArg = args.find((arg) => arg.startsWith("--server="));
 var serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
 var WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
+function serverRuntimeInfo() {
+  return {
+    name: "TalkToFigmaMCP",
+    packageVersion: RUNTIME_METADATA.packageVersion,
+    release: RUNTIME_METADATA.release,
+    buildId: RUNTIME_METADATA.serverBuildId,
+    schemaVersion: RUNTIME_METADATA.serverSchemaVersion,
+    capabilityFingerprint: RUNTIME_METADATA.capabilityFingerprint,
+    supportedTools: [...RUNTIME_METADATA.supportedTools],
+    supportedPrompts: [...RUNTIME_METADATA.supportedPrompts],
+    expectedPlugin: {
+      buildId: RUNTIME_METADATA.pluginBuildId,
+      apiVersion: RUNTIME_METADATA.pluginApiVersion,
+      supportedCommands: [...RUNTIME_METADATA.supportedCommands],
+      capabilityIds: [...RUNTIME_METADATA.capabilityIds]
+    }
+  };
+}
+function runtimeDiagnosticSuffix() {
+  const pluginBuild = runtimeCompatibility.plugin?.buildId || "unknown";
+  return ` [runtime: server=${RUNTIME_METADATA.serverBuildId}, schema=${RUNTIME_METADATA.serverSchemaVersion}, plugin=${pluginBuild}, compatibility=${runtimeCompatibility.status}]`;
+}
+function comparePluginRuntime(plugin) {
+  return comparePluginRuntimeMetadata(RUNTIME_METADATA, plugin);
+}
+async function refreshRuntimeCompatibility() {
+  try {
+    const plugin = await sendCommandToFigma(
+      "get_runtime_info",
+      {},
+      5e3
+    );
+    runtimeCompatibility = comparePluginRuntime(plugin);
+    return runtimeCompatibility;
+  } catch (error) {
+    runtimeCompatibility = {
+      status: "incompatible",
+      checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      issues: [
+        `Plugin runtime probe failed: ${error instanceof Error ? error.message : String(error)}`
+      ],
+      plugin: null
+    };
+    throw error;
+  }
+}
+function combinedRuntimeInfo() {
+  return {
+    server: serverRuntimeInfo(),
+    plugin: runtimeCompatibility.plugin,
+    relay: {
+      protocolVersion: RUNTIME_METADATA.relayProtocolVersion,
+      transport: "websocket-channel"
+    },
+    compatibility: {
+      status: runtimeCompatibility.status,
+      checkedAt: runtimeCompatibility.checkedAt,
+      issues: [...runtimeCompatibility.issues]
+    }
+  };
+}
+server.tool(
+  "get_runtime_info",
+  "Report the exact local fork server, plugin, schema, relay protocol, and capability fingerprint. After joining a channel, this also refreshes the compatibility preflight without reading or modifying the Figma document.",
+  {},
+  async () => {
+    if (currentChannel) {
+      try {
+        await refreshRuntimeCompatibility();
+      } catch {
+      }
+    }
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(combinedRuntimeInfo())
+        }
+      ]
+    };
+  }
+);
 server.tool(
   "get_document_info",
   "[Current-page scoped, with a document-wide page index] Get top-level details for the current Figma page plus an honest index of every page in the document. Non-current page child counts are explicitly marked as not requested. The current page's `children` array is ALWAYS bounded by limit/offset \u2014 `currentPage.childCount`, `childrenTruncated` and `pagination.hasMore` report the real total, so a truncated list can never be read as the whole page. Summary mode is the default and adds `childTypes` plus bounded `childFamilies` rollups covering every child, not just the returned slice.",
@@ -2386,8 +2701,8 @@ This detailed process ensures you correctly interpret the reaction data, prepare
   }
 );
 function connectToFigma(port = 3055) {
-  if (ws && ws.readyState === import_ws.default.OPEN) {
-    logger.info("Already connected to Figma");
+  if (ws && (ws.readyState === import_ws.default.OPEN || ws.readyState === import_ws.default.CONNECTING)) {
+    logger.info("Figma socket is already connected or connecting");
     return;
   }
   const wsUrl = serverUrl === "localhost" ? `${WS_URL}:${port}` : WS_URL;
@@ -2396,6 +2711,12 @@ function connectToFigma(port = 3055) {
   ws.on("open", () => {
     logger.info("Connected to Figma socket server");
     currentChannel = null;
+    runtimeCompatibility = {
+      status: "not_checked",
+      checkedAt: null,
+      issues: ["Join a channel to run the server/plugin compatibility preflight."],
+      plugin: null
+    };
   });
   ws.on("message", (data) => {
     try {
@@ -2412,7 +2733,7 @@ function connectToFigma(port = 3055) {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
-              request.reject(new Error("Request to Figma timed out"));
+              request.reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
             }
           }, inactivityMs);
           logger.info(`Progress update for ${progressData.commandType}: ${progressData.progress}% - ${progressData.message}`);
@@ -2425,16 +2746,18 @@ function connectToFigma(port = 3055) {
       const myResponse = json.message;
       logger.debug(`Received message: ${JSON.stringify(myResponse)}`);
       logger.log("myResponse" + JSON.stringify(myResponse));
-      if (myResponse.id && pendingRequests.has(myResponse.id) && myResponse.result) {
+      if (myResponse?.id && pendingRequests.has(myResponse.id)) {
         const request = pendingRequests.get(myResponse.id);
         clearTimeout(request.timeout);
         if (myResponse.error) {
           logger.error(`Error from Figma: ${myResponse.error}`);
-          request.reject(new Error(myResponse.error));
+          request.reject(new Error(`${myResponse.error}${runtimeDiagnosticSuffix()}`));
+        } else if (Object.prototype.hasOwnProperty.call(myResponse, "result")) {
+          request.resolve(myResponse.result);
         } else {
-          if (myResponse.result) {
-            request.resolve(myResponse.result);
-          }
+          request.reject(
+            new Error(`Malformed response from Figma${runtimeDiagnosticSuffix()}`)
+          );
         }
         pendingRequests.delete(myResponse.id);
       } else {
@@ -2450,9 +2773,16 @@ function connectToFigma(port = 3055) {
   ws.on("close", () => {
     logger.info("Disconnected from Figma socket server");
     ws = null;
+    currentChannel = null;
+    runtimeCompatibility = {
+      status: "not_checked",
+      checkedAt: null,
+      issues: ["The relay connection closed; join a channel again."],
+      plugin: null
+    };
     for (const [id, request] of pendingRequests.entries()) {
       clearTimeout(request.timeout);
-      request.reject(new Error("Connection closed"));
+      request.reject(new Error(`Connection closed${runtimeDiagnosticSuffix()}`));
       pendingRequests.delete(id);
     }
     logger.info("Attempting to reconnect in 2 seconds...");
@@ -2467,6 +2797,12 @@ async function joinChannel(channelName) {
     await sendCommandToFigma("join", { channel: channelName });
     currentChannel = channelName;
     logger.info(`Joined channel: ${channelName}`);
+    const compatibility = await refreshRuntimeCompatibility();
+    if (compatibility.status !== "compatible") {
+      throw new Error(
+        `Server/plugin compatibility preflight failed: ${compatibility.issues.join(" ")}${runtimeDiagnosticSuffix()}`
+      );
+    }
   } catch (error) {
     logger.error(`Failed to join channel: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
@@ -2476,12 +2812,21 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
   return new Promise((resolve, reject) => {
     if (!ws || ws.readyState !== import_ws.default.OPEN) {
       connectToFigma();
-      reject(new Error("Not connected to Figma. Attempting to connect..."));
+      reject(new Error(`Not connected to Figma. Attempting to connect...${runtimeDiagnosticSuffix()}`));
       return;
     }
     const requiresChannel = command !== "join";
     if (requiresChannel && !currentChannel) {
-      reject(new Error("Must join a channel before sending commands"));
+      reject(new Error(`Must join a channel before sending commands${runtimeDiagnosticSuffix()}`));
+      return;
+    }
+    const bypassesPreflight = command === "join" || command === "get_runtime_info";
+    if (!bypassesPreflight && runtimeCompatibility.status !== "compatible") {
+      reject(
+        new Error(
+          `Runtime compatibility preflight has not passed. Call join_channel, then get_runtime_info before document operations. ${runtimeCompatibility.issues.join(" ")}${runtimeDiagnosticSuffix()}`
+        )
+      );
       return;
     }
     const id = (0, import_uuid.v4)();
@@ -2503,7 +2848,7 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
       if (pendingRequests.has(id)) {
         pendingRequests.delete(id);
         logger.error(`Request ${id} to Figma timed out after ${timeoutMs / 1e3} seconds`);
-        reject(new Error("Request to Figma timed out"));
+        reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
       }
     }, timeoutMs);
     pendingRequests.set(id, {

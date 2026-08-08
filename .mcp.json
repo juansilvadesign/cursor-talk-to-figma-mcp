@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "bunx",
+      "command": "/home/jaypy/.nvm/versions/node/v22.22.3/bin/node",
       "args": [
-        "cursor-talk-to-figma-mcp@latest"
+        "/home/jaypy/GitHub-Projects/Notes/ai-synthesizer/knowledge/projects/talk-to-figma-fork/dist/server.js"
       ]
     }
   }

@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R1",
-  "buildId": "r1-plugin-2b9a727f3499",
-  "apiVersion": "1.1.0",
-  "serverSchemaVersion": "1.1.0",
+  "release": "R2",
+  "buildId": "r2-plugin-0e6528efaf17",
+  "apiVersion": "1.2.0",
+  "serverSchemaVersion": "1.2.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
+  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -2856,8 +2856,41 @@ async function resolveNodeBinding(node, record) {
   }
 }
 
+// Ceiling on a single get_node_variables scan. A page-wide scan of 11,733 nodes
+// produced a 3.66 MB reply and left the plugin unable to answer ANY subsequent
+// command until it was reloaded — the traversal, not the payload, is what saturates
+// it. Every other large read in this plugin is paged or budgeted; this default makes
+// this one bounded too. It is deliberately a DEFAULT, not just an option: the failure
+// mode it prevents is silent, and a truncated-but-declared reply is strictly better
+// than a wedged plugin. Callers who know their subtree is small can raise it.
+const NODE_VARIABLES_MAX_NODES_DEFAULT = 5000;
+const NODE_VARIABLES_MAX_NODES_CEILING = 50000;
+// Records returned per array. The counts stay whole-window totals; only the arrays
+// are windowed, so a caller can always tell truncation from absence.
+const NODE_VARIABLES_LIMIT_DEFAULT = 1000;
+const NODE_VARIABLES_LIMIT_CEILING = 5000;
+
 async function getNodeVariables(params) {
   const { nodeId, commandId = generateCommandId() } = params || {};
+  const maxNodes = Math.min(
+    NODE_VARIABLES_MAX_NODES_CEILING,
+    Math.max(
+      1,
+      Number(
+        (params && params.maxNodes) || NODE_VARIABLES_MAX_NODES_DEFAULT
+      )
+    )
+  );
+  const limit = Math.min(
+    NODE_VARIABLES_LIMIT_CEILING,
+    Math.max(1, Number((params && params.limit) || NODE_VARIABLES_LIMIT_DEFAULT))
+  );
+  const offset = Math.max(0, Number((params && params.offset) || 0));
+  // 0 (the default) means no wall-clock budget, matching get_local_components.
+  const timeBudgetMs = Math.max(
+    0,
+    Number((params && params.timeBudgetMs) || 0)
+  );
   if (!nodeId) {
     throw new Error("Missing nodeId parameter");
   }
@@ -2871,15 +2904,29 @@ async function getNodeVariables(params) {
   if (!rootNode) {
     throw new Error(`Node not found with ID: ${nodeId}`);
   }
+  // The budget starts before the page load, not after: on a dynamic-page file that
+  // load is frequently the single most expensive step, and a budget that excluded it
+  // would under-report the time the caller actually waited.
+  const startedAt = Date.now();
   if (rootNode.type === "PAGE") {
     await rootNode.loadAsync();
   }
 
   const canResolveVariables = hasVariablesApi();
   const canResolveStyles = hasStylesApi();
+  // The arrays hold only the requested window; the counters describe everything the
+  // scan actually saw. Keeping them separate is what lets a caller tell "1000 of 4820
+  // returned" from "4820 found".
   const bindings = [];
   const styles = [];
   let nodesScanned = 0;
+  let bindingCount = 0;
+  let styleCount = 0;
+  let unresolvedBindings = 0;
+  let unresolvedStyles = 0;
+  let unreadableStyleValues = 0;
+  let nodeCapReached = false;
+  let budgetExhausted = false;
 
   await sendProgressUpdate(
     commandId,
@@ -2888,38 +2935,79 @@ async function getNodeVariables(params) {
     0,
     0,
     0,
-    `Scanning variable bindings and style references under ${rootNode.name}`
+    `Scanning variable bindings and style references under ${rootNode.name} (cap ${maxNodes} nodes)`
   );
 
-  async function visit(node) {
-    nodesScanned++;
-    const nodeBindings = collectBindingsForNode(node);
-    const resolvedBindings = await Promise.all(
-      nodeBindings.map((record) => resolveNodeBinding(node, record))
-    );
-    bindings.push(...resolvedBindings);
-
-    const nodeStyleRefs = collectStyleRefsForNode(node);
-    const resolvedStyles = await Promise.all(
-      nodeStyleRefs.map((record) => resolveNodeStyle(node, record))
-    );
-    styles.push(...resolvedStyles);
-
-    if (nodesScanned % 100 === 0) {
-      await sendProgressUpdate(
-        commandId,
-        "get_node_variables",
-        "in_progress",
-        0,
-        0,
-        nodesScanned,
-        `Scanned ${nodesScanned} nodes; found ${bindings.length} bindings and ${styles.length} style references`
-      );
+  function windowRecord(target, index, record) {
+    if (index >= offset && target.length < limit) {
+      target.push(record);
     }
+  }
 
-    if ("children" in node) {
-      for (const child of node.children) {
-        await visit(child);
+  // Iterative pre-order DFS. It matches the previous recursive order exactly — which is
+  // what makes offset/limit windows stable across calls — and it cannot blow the stack
+  // on a deep subtree.
+  async function scan(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+      if (nodesScanned >= maxNodes) {
+        nodeCapReached = true;
+        return;
+      }
+      if (
+        timeBudgetMs > 0 &&
+        nodesScanned > 0 &&
+        Date.now() - startedAt >= timeBudgetMs
+      ) {
+        budgetExhausted = true;
+        return;
+      }
+
+      const node = stack.pop();
+      nodesScanned++;
+
+      const nodeBindings = collectBindingsForNode(node);
+      const resolvedBindings = await Promise.all(
+        nodeBindings.map((record) => resolveNodeBinding(node, record))
+      );
+      for (const record of resolvedBindings) {
+        if (record.resolutionStatus !== "resolved") {
+          unresolvedBindings++;
+        }
+        windowRecord(bindings, bindingCount, record);
+        bindingCount++;
+      }
+
+      const nodeStyleRefs = collectStyleRefsForNode(node);
+      const resolvedStyles = await Promise.all(
+        nodeStyleRefs.map((record) => resolveNodeStyle(node, record))
+      );
+      for (const record of resolvedStyles) {
+        if (record.resolutionStatus !== "resolved") {
+          unresolvedStyles++;
+        } else if (record.valueStatus !== "resolved") {
+          unreadableStyleValues++;
+        }
+        windowRecord(styles, styleCount, record);
+        styleCount++;
+      }
+
+      if (nodesScanned % 100 === 0) {
+        await sendProgressUpdate(
+          commandId,
+          "get_node_variables",
+          "in_progress",
+          Math.round((nodesScanned / maxNodes) * 100),
+          maxNodes,
+          nodesScanned,
+          `Scanned ${nodesScanned} nodes; found ${bindingCount} bindings and ${styleCount} style references`
+        );
+      }
+
+      if ("children" in node && node.children) {
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          stack.push(node.children[i]);
+        }
       }
     }
   }
@@ -2930,25 +3018,21 @@ async function getNodeVariables(params) {
       "get_node_variables",
       "in_progress",
       0,
-      0,
+      maxNodes,
       nodesScanned,
-      `Still scanning: ${nodesScanned} nodes, ${bindings.length} bindings and ${styles.length} style references so far`
+      `Still scanning: ${nodesScanned} nodes, ${bindingCount} bindings and ${styleCount} style references so far`
     ).catch((error) => {
       console.error("Failed to send get_node_variables heartbeat:", error);
     });
   }, 15000);
   try {
-    await visit(rootNode);
+    await scan(rootNode);
   } finally {
     clearInterval(traversalHeartbeat);
   }
 
-  const unresolvedBindings = bindings.filter(
-    (binding) => binding.resolutionStatus !== "resolved"
-  ).length;
-  const unresolvedStyles = styles.filter(
-    (style) => style.resolutionStatus !== "resolved"
-  ).length;
+  const bindingsTruncated = bindings.length < Math.max(0, bindingCount - offset);
+  const stylesTruncated = styles.length < Math.max(0, styleCount - offset);
 
   const limitations = [];
   if (!canResolveVariables) {
@@ -2970,13 +3054,28 @@ async function getNodeVariables(params) {
     );
   }
 
-  const unreadableStyleValues = styles.filter(
-    (style) =>
-      style.resolutionStatus === "resolved" && style.valueStatus !== "resolved"
-  ).length;
   if (canResolveStyles && unreadableStyleValues > 0) {
     limitations.push(
       `${unreadableStyleValues} resolved style references carry no value; inspect each entry's valueStatus ("unsupported_style_type" means this build cannot read that style type, "read_failed" means the style resolved but its value could not be read).`
+    );
+  }
+
+  // Coverage limitations come last so they read as the headline caveat: the numbers
+  // above are a census of the SCANNED window, never of the subtree, once either of
+  // these fires.
+  if (nodeCapReached) {
+    limitations.push(
+      `Node cap of ${maxNodes} was reached; the subtree has more nodes that were NOT scanned. Every count below covers only the scanned nodes — they are NOT a subtree total. Raise maxNodes (ceiling ${NODE_VARIABLES_MAX_NODES_CEILING}) or scan smaller roots. A page-wide scan of ~12k nodes has been observed to leave the plugin unresponsive, which is why this cap defaults to ${NODE_VARIABLES_MAX_NODES_DEFAULT}.`
+    );
+  }
+  if (budgetExhausted) {
+    limitations.push(
+      `Time budget of ${timeBudgetMs}ms was exhausted after ${nodesScanned} node(s). Counts below cover only the scanned nodes — they are NOT a subtree total. Raise timeBudgetMs or scan a smaller root.`
+    );
+  }
+  if (bindingsTruncated || stylesTruncated) {
+    limitations.push(
+      `Returned records are windowed at offset ${offset}, limit ${limit}: ${bindings.length} of ${bindingCount} bindings and ${styles.length} of ${styleCount} style references. The counts are whole-window totals; page with offset or raise limit (ceiling ${NODE_VARIABLES_LIMIT_CEILING}).`
     );
   }
 
@@ -2987,7 +3086,7 @@ async function getNodeVariables(params) {
     100,
     nodesScanned,
     nodesScanned,
-    `Found ${bindings.length} bindings and ${styles.length} style references across ${nodesScanned} nodes`
+    `Found ${bindingCount} bindings and ${styleCount} style references across ${nodesScanned} nodes`
   );
 
   return {
@@ -2998,11 +3097,17 @@ async function getNodeVariables(params) {
     supported: canResolveVariables && canResolveStyles,
     variablesSupported: canResolveVariables,
     stylesSupported: canResolveStyles,
+    // `complete` means "this reply describes the whole subtree and every record in
+    // it". A capped, budget-cut or windowed reply can never read as a full census.
     complete:
       canResolveVariables &&
       canResolveStyles &&
       unresolvedBindings === 0 &&
-      unresolvedStyles === 0,
+      unresolvedStyles === 0 &&
+      !nodeCapReached &&
+      !budgetExhausted &&
+      !bindingsTruncated &&
+      !stylesTruncated,
     limitations,
     rootNode: {
       id: rootNode.id,
@@ -3010,10 +3115,36 @@ async function getNodeVariables(params) {
       type: rootNode.type,
     },
     nodesScanned,
-    bindingCount: bindings.length,
+    coverage: {
+      maxNodes,
+      nodeCapReached,
+      timeBudgetMs,
+      budgetExhausted,
+      // True when the traversal itself stopped early, for either reason — the one
+      // flag a consumer has to branch on before trusting a count.
+      traversalTruncated: nodeCapReached || budgetExhausted,
+    },
+    pagination: {
+      offset,
+      limit,
+      bindings: {
+        returned: bindings.length,
+        total: bindingCount,
+        truncated: bindingsTruncated,
+        hasMore: offset + bindings.length < bindingCount,
+      },
+      styles: {
+        returned: styles.length,
+        total: styleCount,
+        truncated: stylesTruncated,
+        hasMore: offset + styles.length < styleCount,
+      },
+    },
+    // Unchanged meaning: totals across everything scanned, not the array lengths.
+    bindingCount,
     unresolvedBindings,
     bindings,
-    styleCount: styles.length,
+    styleCount,
     unresolvedStyles,
     styles,
   };

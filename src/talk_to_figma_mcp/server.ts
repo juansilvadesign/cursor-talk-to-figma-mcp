@@ -1106,11 +1106,16 @@ server.tool(
 
       const requestedFormat = format || "PNG";
       const requestedScale = scale || 1;
+      // Heavy budget, not the 30s default: an export's cost scales with pixel area and
+      // with base64-transferring the bytes back through the relay, neither of which is
+      // visible in the arguments. The multi-megabyte exports `filePath` exists for are
+      // exactly the ones that exceed 30s, and the plugin emits no progress for an
+      // export — so as with get_document_info, the initial budget IS the whole budget.
       const result = await sendCommandToFigma("export_node_as_image", {
         nodeId,
         format: requestedFormat,
         scale: requestedScale,
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       const typedResult = result as {
         nodeId?: string;
         format?: string;
@@ -1366,12 +1371,50 @@ server.tool(
   "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
     nodeId: z.string().describe("Root node ID whose subtree should be scanned"),
+    maxNodes: z
+      .number()
+      .int()
+      .positive()
+      .max(50000)
+      .optional()
+      .describe(
+        "Maximum nodes to traverse; defaults to 5000. The scan is bounded by default because an unbounded page-wide scan (~12k nodes) has been observed to leave the plugin unable to answer any further command. When the cap is hit, coverage.nodeCapReached is true and complete is false — the counts then describe only the scanned nodes."
+      ),
+    timeBudgetMs: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Optional wall-clock budget for the traversal in milliseconds; 0 (the default) means no budget. Exhausting it sets coverage.budgetExhausted and complete:false."
+      ),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(5000)
+      .optional()
+      .describe(
+        "Maximum records returned per array (bindings and styles are windowed independently); defaults to 1000. bindingCount/styleCount remain whole-scan totals, so truncation is always visible."
+      ),
+    offset: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Record offset within each array, for paging a large subtree. Traversal order is stable, so paging is repeatable as long as maxNodes is unchanged."
+      ),
   },
-  async ({ nodeId }: any) => {
+  async ({ nodeId, maxNodes, timeBudgetMs, limit, offset }: any) => {
     try {
       const result = await sendCommandToFigma("get_node_variables", {
         nodeId,
-      });
+        maxNodes,
+        timeBudgetMs,
+        limit,
+        offset,
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {

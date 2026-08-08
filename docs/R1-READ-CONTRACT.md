@@ -101,8 +101,37 @@ Every heavy read is bounded by default. These are the knobs:
 | `get_document_info` | `summary` (rollups on/off), `limit`, `offset`, `familyLimit` |
 | `get_local_components` | `pages[]` (scope to specific pages), `summary`, `familyLimit`, `sessionLimit`, `timeBudgetMs` |
 | `get_pages` | `includeChildCount` (opt-in; measured cheap on a 6-page/826-child file) |
-| `get_node_variables` | bounded by the subtree you name — do not pass a page unless you mean it |
+| `get_node_variables` | `maxNodes` (**defaults to 5000**), `timeBudgetMs`, `limit`, `offset` — **added in R2**, see below |
 | `export_node_as_image` | `scale`, and **`filePath`** to keep bytes out of the transcript |
+
+### R2 amendment — `get_node_variables` is bounded by default
+
+Until R2 this row read *"bounded by the subtree you name"*, which was not a bound at all:
+naming a page meant traversing it. A page-wide scan of 11,733 nodes returned 3.66 MB and
+left the plugin unable to answer **any** subsequent command until it was reloaded. R2
+gives the scan the same treatment every other large read already had:
+
+- `maxNodes` caps the traversal and **defaults to 5000** (ceiling 50000). This is a
+  default rather than an opt-in because the failure it prevents is silent.
+- `timeBudgetMs` (default `0`, meaning no budget) caps wall-clock time, and the clock
+  starts **before** the page load, which on a dynamic-page file is often the most
+  expensive step.
+- `limit` (default 1000, ceiling 5000) and `offset` window the `bindings` and `styles`
+  arrays independently. Traversal order is stable, so paging is repeatable.
+- `bindingCount` / `styleCount` keep their old meaning — totals across everything
+  scanned, never the array lengths — so truncation is always visible, never inferred.
+- New `coverage` and `pagination` blocks report `maxNodes`, `nodeCapReached`,
+  `timeBudgetMs`, `budgetExhausted`, `traversalTruncated`, and per-array
+  `returned`/`total`/`truncated`/`hasMore`. `complete` is false whenever any of them
+  truncated, so a capped reply can never read as a full census of the subtree.
+
+Also in R2: **`export_node_as_image` moved from the 30 s default to
+`HEAVY_READ_TIMEOUT_MS` (120 s).** Its cost scales with pixel area and with
+base64-transferring the bytes back through the relay, neither visible in the arguments —
+and the multi-megabyte exports `filePath` exists for are exactly the ones that exceeded
+30 s. `get_node_variables` moved with it, since a 5000-node scan is not a 30 s job
+either. Raising a timeout class is treated as a **compatible** change by the contract
+gate (a consumer prepared to wait less cannot break); lowering one is rejected.
 
 Scoping changes the reply shape on purpose: a scoped `get_local_components` **omits
 `pageCount`** and says so in `limitations` — `"Scoped to N requested page(s); N scanned

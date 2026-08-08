@@ -1,10 +1,10 @@
 {
-  "release": "R1",
-  "publicContractVersion": "1.1.0",
-  "serverSchemaVersion": "1.1.0",
+  "release": "R2",
+  "publicContractVersion": "1.2.0",
+  "serverSchemaVersion": "1.2.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
+  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
   "capabilities": [
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -832,7 +832,7 @@
         ],
         "additionalProperties": false
       },
-      "timeoutClass": "standard",
+      "timeoutClass": "heavy_read",
       "progress": {
         "relayHeartbeatSeconds": 15,
         "pluginUpdates": "none"
@@ -1042,6 +1042,28 @@
           "nodeId": {
             "type": "string",
             "description": "Root node ID whose subtree should be scanned"
+          },
+          "maxNodes": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 50000,
+            "description": "Maximum nodes to traverse; defaults to 5000. The scan is bounded by default because an unbounded page-wide scan (~12k nodes) has been observed to leave the plugin unable to answer any further command. When the cap is hit, coverage.nodeCapReached is true and complete is false — the counts then describe only the scanned nodes."
+          },
+          "timeBudgetMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional wall-clock budget for the traversal in milliseconds; 0 (the default) means no budget. Exhausting it sets coverage.budgetExhausted and complete:false."
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 5000,
+            "description": "Maximum records returned per array (bindings and styles are windowed independently); defaults to 1000. bindingCount/styleCount remain whole-scan totals, so truncation is always visible."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Record offset within each array, for paging a large subtree. Traversal order is stable, so paging is repeatable as long as maxNodes is unchanged."
           }
         },
         "required": [
@@ -1049,7 +1071,7 @@
         ],
         "additionalProperties": false
       },
-      "timeoutClass": "standard",
+      "timeoutClass": "heavy_read",
       "progress": {
         "relayHeartbeatSeconds": 15,
         "pluginUpdates": "per_100_nodes_with_heartbeat"

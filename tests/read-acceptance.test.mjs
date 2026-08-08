@@ -224,3 +224,98 @@ test("reads declare their scope and completeness", async () => {
   }
   assert.equal(typeof document.pagination.hasMore, "boolean");
 });
+
+// R2 — the two defects R1's live gate found. The get_node_variables half is here: an
+// unbounded page-wide scan (11,733 nodes → 3.66 MB) left the plugin unable to answer
+// ANY subsequent command until it was reloaded, while every other large read in this
+// plugin was already paged or budgeted.
+
+test("R2 — get_node_variables bounds its traversal and declares the cap", async () => {
+  const harness = await loadPluginHarness();
+  const capped = await harness.command("get_node_variables", {
+    nodeId: "10:1",
+    maxNodes: 1,
+  });
+
+  assert.equal(capped.nodesScanned, 1, "the cap must stop the traversal, not just the payload");
+  assert.equal(capped.coverage.nodeCapReached, true);
+  assert.equal(capped.coverage.traversalTruncated, true);
+  assert.equal(
+    capped.complete,
+    false,
+    "a capped scan must never read as a full census of the subtree",
+  );
+  assert.match(capped.limitations.join("\n"), /Node cap of 1 was reached/);
+});
+
+test("R2 — the default cap is declared even when the subtree fits inside it", async () => {
+  // The fix is a DEFAULT, not an option: a caller who passes nothing must still be
+  // bounded, and must be able to read the bound it got.
+  const harness = await loadPluginHarness();
+  const tokens = await harness.command("get_node_variables", { nodeId: "10:1" });
+
+  assert.equal(tokens.coverage.maxNodes, 5000);
+  assert.equal(tokens.coverage.nodeCapReached, false);
+  assert.equal(tokens.complete, true, "a small subtree must still come back complete");
+});
+
+test("R2 — a time budget stops the traversal and is declared", async () => {
+  // Rooted at a PAGE so the fixture's own loadAsync cost advances the clock: the budget
+  // deliberately covers the page load, which on a dynamic-page file is often the single
+  // most expensive step of the whole call.
+  const harness = await loadPluginHarness();
+  const budgeted = await harness.command("get_node_variables", {
+    nodeId: "1:1",
+    timeBudgetMs: 1,
+  });
+
+  assert.equal(budgeted.coverage.budgetExhausted, true);
+  assert.equal(budgeted.complete, false);
+  assert.ok(
+    budgeted.nodesScanned >= 1,
+    "a tight budget must still return the first node rather than nothing",
+  );
+  assert.match(budgeted.limitations.join("\n"), /Time budget of 1ms was exhausted/);
+});
+
+test("R2 — counts stay whole-scan totals while the arrays are windowed", async () => {
+  // Same invariant M5.2 established for get_document_info: truncation must be visible
+  // in the reply, never inferred from a short array.
+  const harness = await loadPluginHarness();
+  const windowed = await harness.command("get_node_variables", {
+    nodeId: "10:1",
+    limit: 1,
+  });
+
+  assert.equal(windowed.bindingCount, 2, "the count describes everything scanned");
+  assert.equal(windowed.styleCount, 3);
+  assert.equal(windowed.bindings.length, 1, "the array is the requested window");
+  assert.equal(windowed.styles.length, 1);
+  assert.equal(windowed.pagination.bindings.hasMore, true);
+  assert.equal(windowed.pagination.styles.truncated, true);
+  assert.equal(windowed.complete, false);
+  assert.match(windowed.limitations.join("\n"), /windowed at offset 0, limit 1/);
+});
+
+test("R2 — paging a windowed scan reassembles the full record set in order", async () => {
+  const harness = await loadPluginHarness();
+  const whole = await harness.command("get_node_variables", { nodeId: "10:1" });
+
+  const pages = [];
+  for (let offset = 0; offset < whole.styleCount; offset++) {
+    pages.push(
+      await harness.command("get_node_variables", {
+        nodeId: "10:1",
+        limit: 1,
+        offset,
+      }),
+    );
+  }
+
+  assert.deepEqual(
+    pages.flatMap((page) => page.styles),
+    whole.styles,
+    "traversal order must be stable enough for offset paging to be repeatable",
+  );
+  assert.equal(pages.at(-1).pagination.styles.hasMore, false);
+});

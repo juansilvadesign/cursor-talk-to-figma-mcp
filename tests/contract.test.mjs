@@ -84,6 +84,53 @@ test("result stability may be strengthened across releases but never weakened", 
   );
 });
 
+test("every read whose cost scales with the file declares the heavy budget", async () => {
+  // R1's live gate found export_node_as_image running on the 30s default while every
+  // other cost-scaling read declared the heavy class — and 30s is precisely the budget
+  // the multi-megabyte exports filePath exists for will exceed. get_node_variables is
+  // here for the same reason: a bounded scan of up to 5000 nodes is still not a 30s job.
+  const built = await buildContract();
+  const byName = new Map(built.contract.tools.map((tool) => [tool.name, tool]));
+
+  for (const name of [
+    "get_document_info",
+    "get_pages",
+    "get_styles",
+    "get_local_components",
+    "export_node_as_image",
+    "get_node_variables",
+  ]) {
+    assert.equal(
+      byName.get(name).timeoutClass,
+      "heavy_read",
+      `${name} must declare the heavy read budget`,
+    );
+  }
+});
+
+test("a timeout budget may be raised across releases but never lowered", async () => {
+  const snapshot = JSON.parse(
+    await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),
+  );
+
+  // Raising is what R2 did to export_node_as_image. It cannot break a consumer that
+  // was already prepared to wait less, so the guard must allow it.
+  const raised = structuredClone(snapshot);
+  const raisedTool = raised.tools.find((tool) => tool.name === "get_node_info");
+  assert.equal(raisedTool.timeoutClass, "standard");
+  raisedTool.timeoutClass = "heavy_read";
+  assert.deepEqual(compatibilityErrors(snapshot, raised), []);
+
+  // Lowering is the real break: a call that used to finish starts timing out.
+  const lowered = structuredClone(snapshot);
+  lowered.tools.find((tool) => tool.name === "get_styles").timeoutClass =
+    "standard";
+  assert.match(
+    compatibilityErrors(snapshot, lowered).join("\n"),
+    /get_styles\.timeoutClass was lowered/,
+  );
+});
+
 test("snapshot guard rejects removals and incompatible parameters but accepts additive optional fields", async () => {
   const snapshot = JSON.parse(
     await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),

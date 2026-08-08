@@ -34,13 +34,13 @@ var import_path = __toESM(require("path"), 1);
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R1",
-  "serverBuildId": "r1-server-25902c2adcd3",
-  "pluginBuildId": "r1-plugin-2b9a727f3499",
-  "serverSchemaVersion": "1.1.0",
-  "pluginApiVersion": "1.1.0",
+  "release": "R2",
+  "serverBuildId": "r2-server-9c6fe62b7cb2",
+  "pluginBuildId": "r2-plugin-0e6528efaf17",
+  "serverSchemaVersion": "1.2.0",
+  "pluginApiVersion": "1.2.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
+  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -1259,7 +1259,7 @@ server.tool(
         nodeId,
         format: requestedFormat,
         scale: requestedScale
-      });
+      }, HEAVY_READ_TIMEOUT_MS);
       const typedResult = result;
       const mimeType = typedResult.mimeType || "image/png";
       const bytes = Buffer.from(typedResult.imageData, "base64");
@@ -1447,13 +1447,29 @@ server.tool(
   "get_node_variables",
   "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
-    nodeId: import_zod.z.string().describe("Root node ID whose subtree should be scanned")
+    nodeId: import_zod.z.string().describe("Root node ID whose subtree should be scanned"),
+    maxNodes: import_zod.z.number().int().positive().max(5e4).optional().describe(
+      "Maximum nodes to traverse; defaults to 5000. The scan is bounded by default because an unbounded page-wide scan (~12k nodes) has been observed to leave the plugin unable to answer any further command. When the cap is hit, coverage.nodeCapReached is true and complete is false \u2014 the counts then describe only the scanned nodes."
+    ),
+    timeBudgetMs: import_zod.z.number().int().nonnegative().optional().describe(
+      "Optional wall-clock budget for the traversal in milliseconds; 0 (the default) means no budget. Exhausting it sets coverage.budgetExhausted and complete:false."
+    ),
+    limit: import_zod.z.number().int().positive().max(5e3).optional().describe(
+      "Maximum records returned per array (bindings and styles are windowed independently); defaults to 1000. bindingCount/styleCount remain whole-scan totals, so truncation is always visible."
+    ),
+    offset: import_zod.z.number().int().nonnegative().optional().describe(
+      "Record offset within each array, for paging a large subtree. Traversal order is stable, so paging is repeatable as long as maxNodes is unchanged."
+    )
   },
-  async ({ nodeId }) => {
+  async ({ nodeId, maxNodes, timeBudgetMs, limit, offset }) => {
     try {
       const result = await sendCommandToFigma("get_node_variables", {
-        nodeId
-      });
+        nodeId,
+        maxNodes,
+        timeBudgetMs,
+        limit,
+        offset
+      }, HEAVY_READ_TIMEOUT_MS);
       return {
         content: [
           {

@@ -41,7 +41,22 @@ const HEAVY_READ_TOOLS = new Set([
   "get_pages",
   "get_styles",
   "get_local_components",
+  // Added in R2. Both scale their cost with the file rather than the arguments:
+  // an export with the pixel area of the node, a token scan with the subtree size.
+  "export_node_as_image",
+  "get_node_variables",
 ]);
+
+// Ordered by budget, weakest -> strongest. Raising a tool's budget cannot break a
+// consumer that was already prepared to wait less; lowering one can, because a call
+// that used to finish starts timing out. So this is compared as a ladder, like
+// resultStability — not as equality.
+const TIMEOUT_RANK = {
+  local: 0,
+  preflight: 1,
+  standard: 2,
+  heavy_read: 3,
+};
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_document_info",
@@ -567,7 +582,6 @@ export function compatibilityErrors(previous, current) {
         "kind",
         "direction",
         "scope",
-        "timeoutClass",
         "pluginCommand",
       ]) {
         if (previousEntry[field] !== currentEntry[field]) {
@@ -577,6 +591,22 @@ export function compatibilityErrors(previous, current) {
             )} to ${JSON.stringify(currentEntry[field])}`,
           );
         }
+      }
+
+      const previousTimeout = TIMEOUT_RANK[previousEntry.timeoutClass];
+      const currentTimeout = TIMEOUT_RANK[currentEntry.timeoutClass];
+      if (previousTimeout === undefined || currentTimeout === undefined) {
+        errors.push(
+          `${collectionName}.${previousEntry.name}.timeoutClass has an unknown value (${JSON.stringify(
+            previousEntry.timeoutClass,
+          )} -> ${JSON.stringify(currentEntry.timeoutClass)})`,
+        );
+      } else if (currentTimeout < previousTimeout) {
+        errors.push(
+          `${collectionName}.${previousEntry.name}.timeoutClass was lowered from ${JSON.stringify(
+            previousEntry.timeoutClass,
+          )} to ${JSON.stringify(currentEntry.timeoutClass)}`,
+        );
       }
 
       // Result stability is a ladder, not an equality check. Strengthening the promise

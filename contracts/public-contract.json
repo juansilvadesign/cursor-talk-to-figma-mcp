@@ -1,10 +1,10 @@
 {
-  "release": "R0",
-  "publicContractVersion": "1.0.0",
-  "serverSchemaVersion": "1.0.0",
+  "release": "R1",
+  "publicContractVersion": "1.1.0",
+  "serverSchemaVersion": "1.1.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
   "capabilities": [
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -797,7 +797,7 @@
     {
       "kind": "tool",
       "name": "export_node_as_image",
-      "description": "[Node scoped] Export a node as an image from Figma",
+      "description": "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
       "direction": "read",
       "scope": "node",
       "inputSchema": {
@@ -821,6 +821,10 @@
             "type": "number",
             "exclusiveMinimum": 0,
             "description": "Export scale"
+          },
+          "filePath": {
+            "type": "string",
+            "description": "Absolute path to write the exported bytes to. When set, the reply is the receipt only — no base64 image block — which keeps multi-megabyte exports out of the model context. Parent directories are created."
           }
         },
         "required": [
@@ -834,7 +838,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "export_node_as_image",
-      "resultStability": "legacy"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

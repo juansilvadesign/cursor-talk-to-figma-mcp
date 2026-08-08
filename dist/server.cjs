@@ -29,17 +29,18 @@ var import_zod = require("zod");
 var import_ws = __toESM(require("ws"), 1);
 var import_uuid = require("uuid");
 var import_promises = require("fs/promises");
+var import_path = __toESM(require("path"), 1);
 
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R0",
-  "serverBuildId": "r0-server-937e815db78f",
-  "pluginBuildId": "r0-plugin-1eec70ac13d1",
-  "serverSchemaVersion": "1.0.0",
-  "pluginApiVersion": "1.0.0",
+  "release": "R1",
+  "serverBuildId": "r1-server-25902c2adcd3",
+  "pluginBuildId": "r1-plugin-2b9a727f3499",
+  "serverSchemaVersion": "1.1.0",
+  "pluginApiVersion": "1.1.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -253,6 +254,149 @@ function comparePluginRuntimeMetadata(expected, plugin, checkedAt = (/* @__PURE_
     issues,
     plugin: actual
   };
+}
+
+// src/talk_to_figma_mcp/export-receipt.mjs
+var import_crypto = require("crypto");
+
+// src/talk_to_figma_mcp/image-dimensions.mjs
+var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+var JPEG_SOF_MARKERS = /* @__PURE__ */ new Set([
+  192,
+  193,
+  194,
+  195,
+  197,
+  198,
+  199,
+  201,
+  202,
+  203,
+  205,
+  206,
+  207
+]);
+function readPng(buffer) {
+  if (buffer.length < 24 || !buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    return null;
+  }
+  if (buffer.toString("ascii", 12, 16) !== "IHDR") {
+    return null;
+  }
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+    dimensionSource: "png-ihdr"
+  };
+}
+function readJpeg(buffer) {
+  if (buffer.length < 4 || buffer[0] !== 255 || buffer[1] !== 216) {
+    return null;
+  }
+  let offset = 2;
+  while (offset + 3 < buffer.length) {
+    if (buffer[offset] !== 255) {
+      offset++;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    if (marker === 255) {
+      offset++;
+      continue;
+    }
+    if (marker === 216 || marker >= 208 && marker <= 217) {
+      offset += 2;
+      continue;
+    }
+    const segmentLength = buffer.readUInt16BE(offset + 2);
+    if (segmentLength < 2) {
+      return null;
+    }
+    if (JPEG_SOF_MARKERS.has(marker)) {
+      if (offset + 9 > buffer.length) {
+        return null;
+      }
+      return {
+        height: buffer.readUInt16BE(offset + 5),
+        width: buffer.readUInt16BE(offset + 7),
+        dimensionSource: "jpeg-sof"
+      };
+    }
+    offset += 2 + segmentLength;
+  }
+  return null;
+}
+function parseLength(rawValue) {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+  const match = rawValue.trim().match(/^([0-9]*\.?[0-9]+)(px)?$/i);
+  if (!match) {
+    return null;
+  }
+  const value = Number.parseFloat(match[1]);
+  return Number.isFinite(value) ? value : null;
+}
+function readSvg(buffer) {
+  const head = buffer.toString("utf8", 0, Math.min(buffer.length, 4096));
+  const openingTag = head.match(/<svg\b[^>]*>/i);
+  if (!openingTag) {
+    return null;
+  }
+  const tag = openingTag[0];
+  const width = parseLength(tag.match(/\bwidth\s*=\s*"([^"]*)"/i)?.[1]);
+  const height = parseLength(tag.match(/\bheight\s*=\s*"([^"]*)"/i)?.[1]);
+  if (width !== null && height !== null) {
+    return { width, height, dimensionSource: "svg-attributes" };
+  }
+  const viewBox = tag.match(/\bviewBox\s*=\s*"([^"]*)"/i)?.[1];
+  if (viewBox) {
+    const parts = viewBox.trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts.every((part) => Number.isFinite(part))) {
+      return { width: parts[2], height: parts[3], dimensionSource: "svg-viewbox" };
+    }
+  }
+  return null;
+}
+function readImageDimensions(buffer, mimeType) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return null;
+  }
+  switch (mimeType) {
+    case "image/png":
+      return readPng(buffer);
+    case "image/jpeg":
+      return readJpeg(buffer);
+    case "image/svg+xml":
+      return readSvg(buffer);
+    // PDF has no single intrinsic pixel size; reporting one would be a fabrication.
+    default:
+      return null;
+  }
+}
+
+// src/talk_to_figma_mcp/export-receipt.mjs
+function buildExportReceipt(bytes, mimeType, request) {
+  const dimensions = readImageDimensions(bytes, mimeType);
+  const receipt = {
+    nodeId: request.nodeId,
+    format: request.format,
+    scale: request.scale,
+    mimeType,
+    bytes: bytes.length,
+    sha256: (0, import_crypto.createHash)("sha256").update(bytes).digest("hex"),
+    width: dimensions ? dimensions.width : null,
+    height: dimensions ? dimensions.height : null,
+    // Null width/height is a real answer for PDF and for unreadable headers. This field
+    // says how a reported size was obtained, so a consumer never has to guess whether a
+    // dimension was parsed or assumed.
+    dimensionSource: dimensions ? dimensions.dimensionSource : null,
+    delivery: request.filePath ? "file" : "inline"
+  };
+  if (request.filePath) {
+    receipt.path = request.filePath;
+  }
+  return receipt;
 }
 
 // src/talk_to_figma_mcp/server.ts
@@ -1093,27 +1237,53 @@ server.tool(
 );
 server.tool(
   "export_node_as_image",
-  "[Node scoped] Export a node as an image from Figma",
+  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
   {
     nodeId: import_zod.z.string().describe("The ID of the node to export"),
     format: import_zod.z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format"),
-    scale: import_zod.z.number().positive().optional().describe("Export scale")
+    scale: import_zod.z.number().positive().optional().describe("Export scale"),
+    filePath: import_zod.z.string().optional().describe(
+      "Absolute path to write the exported bytes to. When set, the reply is the receipt only \u2014 no base64 image block \u2014 which keeps multi-megabyte exports out of the model context. Parent directories are created."
+    )
   },
-  async ({ nodeId, format, scale }) => {
+  async ({ nodeId, format, scale, filePath }) => {
     try {
+      if (filePath !== void 0 && filePath !== "" && !import_path.default.isAbsolute(filePath)) {
+        throw new Error(
+          `filePath must be an absolute path; received "${filePath}"`
+        );
+      }
+      const requestedFormat = format || "PNG";
+      const requestedScale = scale || 1;
       const result = await sendCommandToFigma("export_node_as_image", {
         nodeId,
-        format: format || "PNG",
-        scale: scale || 1
+        format: requestedFormat,
+        scale: requestedScale
       });
       const typedResult = result;
+      const mimeType = typedResult.mimeType || "image/png";
+      const bytes = Buffer.from(typedResult.imageData, "base64");
+      const receipt = buildExportReceipt(bytes, mimeType, {
+        nodeId: typedResult.nodeId || nodeId,
+        format: typedResult.format || requestedFormat,
+        scale: typedResult.scale ?? requestedScale,
+        filePath
+      });
+      if (filePath) {
+        await (0, import_promises.mkdir)(import_path.default.dirname(filePath), { recursive: true });
+        await (0, import_promises.writeFile)(filePath, bytes);
+        return {
+          content: [{ type: "text", text: JSON.stringify(receipt, null, 2) }]
+        };
+      }
       return {
         content: [
           {
             type: "image",
             data: typedResult.imageData,
-            mimeType: typedResult.mimeType || "image/png"
-          }
+            mimeType
+          },
+          { type: "text", text: JSON.stringify(receipt, null, 2) }
         ]
       };
     } catch (error) {

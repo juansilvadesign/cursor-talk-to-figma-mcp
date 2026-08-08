@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R0",
-  "buildId": "r0-plugin-1eec70ac13d1",
-  "apiVersion": "1.0.0",
-  "serverSchemaVersion": "1.0.0",
+  "release": "R1",
+  "buildId": "r1-plugin-2b9a727f3499",
+  "apiVersion": "1.1.0",
+  "serverSchemaVersion": "1.1.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "capabilityFingerprint": "sha256:40a64c28af0a95c6a40082c18826b570df58a5ab7ec6f2c078c74e53bb43ce1b",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -716,6 +716,35 @@ function collectStyleRefsForNode(node) {
   return records;
 }
 
+// Read the style's own value so a reference is self-sufficient.
+// This matters most for remote styles: get_styles only lists LOCAL styles, so on a file
+// that references an external library the name resolves here but the value was
+// previously recoverable only by joining against get_node_info — a lossy join, because
+// get_node_info returns a fraction of the nodes this scan visits.
+function readStyleValue(style) {
+  switch (style.type) {
+    case "PAINT":
+      return { paints: style.paints ? Array.from(style.paints) : [] };
+    case "TEXT":
+      return {
+        fontName: style.fontName,
+        fontSize: style.fontSize,
+        lineHeight: style.lineHeight,
+        letterSpacing: style.letterSpacing,
+        paragraphSpacing: style.paragraphSpacing,
+        paragraphIndent: style.paragraphIndent,
+        textCase: style.textCase,
+        textDecoration: style.textDecoration,
+      };
+    case "EFFECT":
+      return { effects: style.effects ? Array.from(style.effects) : [] };
+    case "GRID":
+      return { layoutGrids: style.layoutGrids ? Array.from(style.layoutGrids) : [] };
+    default:
+      return null;
+  }
+}
+
 async function resolveNodeStyle(node, record) {
   const base = {
     nodeId: node.id,
@@ -731,6 +760,8 @@ async function resolveNodeStyle(node, record) {
       styleName: null,
       styleType: null,
       remote: null,
+      value: null,
+      valueStatus: "not_applicable",
       resolutionStatus: "mixed",
     });
   }
@@ -741,14 +772,32 @@ async function resolveNodeStyle(node, record) {
       styleName: null,
       styleType: null,
       remote: null,
+      value: null,
+      valueStatus: "not_applicable",
       resolutionStatus: "style_not_found",
     });
+  }
+
+  let value = null;
+  let valueStatus = "resolved";
+  try {
+    value = readStyleValue(style);
+    if (value === null) {
+      // A style type this build does not know how to read. Say so rather than
+      // implying the style has no value.
+      valueStatus = "unsupported_style_type";
+    }
+  } catch (error) {
+    value = null;
+    valueStatus = "read_failed";
   }
 
   return Object.assign(base, {
     styleName: style.name,
     styleType: style.type,
     remote: Boolean(style.remote),
+    value,
+    valueStatus,
     resolutionStatus: "resolved",
   });
 }
@@ -2918,6 +2967,16 @@ async function getNodeVariables(params) {
   } else if (unresolvedStyles > 0) {
     limitations.push(
       `${unresolvedStyles} style references could not be fully resolved; inspect each entry's resolutionStatus ("mixed" means the node carries more than one style on that property).`
+    );
+  }
+
+  const unreadableStyleValues = styles.filter(
+    (style) =>
+      style.resolutionStatus === "resolved" && style.valueStatus !== "resolved"
+  ).length;
+  if (canResolveStyles && unreadableStyleValues > 0) {
+    limitations.push(
+      `${unreadableStyleValues} resolved style references carry no value; inspect each entry's valueStatus ("unsupported_style_type" means this build cannot read that style type, "read_failed" means the style resolved but its value could not be read).`
     );
   }
 

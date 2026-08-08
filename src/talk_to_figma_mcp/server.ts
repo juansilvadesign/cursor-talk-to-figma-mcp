@@ -5,9 +5,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
-import { readFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import path from "path";
 import { RUNTIME_METADATA } from "./runtime-metadata.js";
 import { comparePluginRuntimeMetadata } from "./runtime-compatibility.mjs";
+import { buildExportReceipt } from "./export-receipt.mjs";
 
 // Define TypeScript interfaces for Figma responses
 interface FigmaResponse {
@@ -1079,7 +1081,7 @@ server.tool(
 // Export Node as Image Tool
 server.tool(
   "export_node_as_image",
-  "[Node scoped] Export a node as an image from Figma",
+  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
   {
     nodeId: z.string().describe("The ID of the node to export"),
     format: z
@@ -1087,23 +1089,61 @@ server.tool(
       .optional()
       .describe("Export format"),
     scale: z.number().positive().optional().describe("Export scale"),
+    filePath: z
+      .string()
+      .optional()
+      .describe(
+        "Absolute path to write the exported bytes to. When set, the reply is the receipt only — no base64 image block — which keeps multi-megabyte exports out of the model context. Parent directories are created."
+      ),
   },
-  async ({ nodeId, format, scale }: any) => {
+  async ({ nodeId, format, scale, filePath }: any) => {
     try {
+      if (filePath !== undefined && filePath !== "" && !path.isAbsolute(filePath)) {
+        throw new Error(
+          `filePath must be an absolute path; received "${filePath}"`
+        );
+      }
+
+      const requestedFormat = format || "PNG";
+      const requestedScale = scale || 1;
       const result = await sendCommandToFigma("export_node_as_image", {
         nodeId,
-        format: format || "PNG",
-        scale: scale || 1,
+        format: requestedFormat,
+        scale: requestedScale,
       });
-      const typedResult = result as { imageData: string; mimeType: string };
+      const typedResult = result as {
+        nodeId?: string;
+        format?: string;
+        scale?: number;
+        imageData: string;
+        mimeType: string;
+      };
+
+      const mimeType = typedResult.mimeType || "image/png";
+      const bytes = Buffer.from(typedResult.imageData, "base64");
+      const receipt = buildExportReceipt(bytes, mimeType, {
+        nodeId: typedResult.nodeId || nodeId,
+        format: typedResult.format || requestedFormat,
+        scale: typedResult.scale ?? requestedScale,
+        filePath,
+      });
+
+      if (filePath) {
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, bytes);
+        return {
+          content: [{ type: "text", text: JSON.stringify(receipt, null, 2) }],
+        };
+      }
 
       return {
         content: [
           {
             type: "image",
             data: typedResult.imageData,
-            mimeType: typedResult.mimeType || "image/png",
+            mimeType,
           },
+          { type: "text", text: JSON.stringify(receipt, null, 2) },
         ],
       };
     } catch (error) {

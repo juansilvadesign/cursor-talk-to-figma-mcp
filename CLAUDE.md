@@ -45,26 +45,23 @@ Runs inside Figma. `code.js` is the plugin main thread handling 30+ commands via
 
 ## Setup
 
-1. Run `bun setup` — installs dependencies and writes MCP config for both Cursor (`.cursor/mcp.json`) and Claude Code (`.mcp.json`)
+1. Run `bun run setup` — installs from the root `bun.lock`, builds, and writes MCP config for both Cursor (`.cursor/mcp.json`) and Claude Code (`.mcp.json`)
 2. `bun socket` in one terminal (WebSocket relay)
 3. In Figma: Plugins → Development → Link existing plugin → select `src/cursor_mcp_plugin/manifest.json`
 4. Run plugin in Figma, join a channel, then use tools from Cursor or Claude Code
 
-The MCP config written by `bun setup` uses the published package:
+The MCP config uses this checkout's built server; npm `latest` is not R0-compatible:
 
 ```json
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "bunx",
-      "args": ["cursor-talk-to-figma-mcp@latest"]
+      "command": "node",
+      "args": ["/absolute/path/to/talk-to-figma-fork/dist/server.js"]
     }
   }
 }
 ```
 
-You can also add it manually for Claude Code via the CLI:
-
-```bash
-claude mcp add TalkToFigma -- bunx cursor-talk-to-figma-mcp@latest
-```
+After joining a channel, call `get_runtime_info` and require a compatible fingerprint
+before document operations.

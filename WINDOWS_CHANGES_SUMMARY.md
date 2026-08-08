@@ -6,22 +6,20 @@ This document summarizes all the changes made to ensure the Cursor Talk to Figma
 
 ### 1. New Windows Setup Scripts
 
-#### `scripts/setup.bat` (NEW)
-- Windows batch file equivalent of `setup.sh`
-- Creates `.cursor` directory and `mcp.json` configuration
-- Uses Windows-compatible commands and syntax
+#### `scripts/setup.bat`
+- Delegates to the same cross-platform `setup.mjs` used on every platform
+- Builds and pins the local `dist/server.js` instead of selecting npm `latest`
 
-#### `scripts/setup.ps1` (NEW)
-- PowerShell script for Windows setup
-- More robust than batch file with better error handling
-- Uses PowerShell's JSON handling capabilities
+#### `scripts/setup.ps1`
+- Delegates to the same cross-platform `setup.mjs`
+- Produces identical Cursor and Claude MCP configuration on Windows
 
 ### 2. Modified Files
 
 #### `package.json`
 - Added new npm scripts:
-  - `"setup:win": "./scripts/setup.bat"` - Windows batch setup
-  - `"setup:ps": "powershell -ExecutionPolicy Bypass -File ./scripts/setup.ps1"` - PowerShell setup
+  - `"setup:win": "node scripts/setup.mjs"`
+  - `"setup:ps": "node scripts/setup.mjs"`
 
 #### `src/socket.ts`
 - **Line 40**: Enabled `hostname: "0.0.0.0"` for Windows compatibility
@@ -141,4 +139,4 @@ If users encounter issues:
 1. Check `WINDOWS_SETUP.md` for troubleshooting
 2. Verify Windows version and PowerShell version
 3. Try running as Administrator
-4. Check Windows Firewall settings 
+4. Check Windows Firewall settings

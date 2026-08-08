@@ -10,7 +10,7 @@ https://github.com/user-attachments/assets/129a14d2-ed73-470f-9a4c-2240b2a4885c
 - `src/cursor_mcp_plugin/` - Figma plugin for communicating with Cursor
 - `src/socket.ts` - WebSocket server that facilitates communication between the MCP server and Figma plugin
 
-## How to use
+## Local fork quick start
 
 1. Install Bun if you haven't already:
 
@@ -18,10 +18,11 @@ https://github.com/user-attachments/assets/129a14d2-ed73-470f-9a4c-2240b2a4885c
 curl -fsSL https://bun.sh/install | bash
 ```
 
-2. Run setup, this will also install MCP in your Cursor's active project
+2. Install from the checked-in Bun lockfile, build the server, and write Cursor/Claude
+   MCP configuration that points to this checkout's absolute `dist/server.js` path:
 
 ```bash
-bun setup
+bun run setup
 ```
 
 3. Start the Websocket server
@@ -30,7 +31,18 @@ bun setup
 bun socket
 ```
 
-4. **NEW** Install Figma plugin from [Figma community page](https://www.figma.com/community/plugin/1485687494525374295/cursor-talk-to-figma-mcp-plugin) or [install locally](#figma-plugin)
+4. In Figma, link the DEV plugin at `src/cursor_mcp_plugin/manifest.json` and
+   connect it to the relay. The community plugin and npm `latest` package are not an
+   R0-compatible pair because they do not carry this fork's complete command set or
+   runtime fingerprint.
+
+5. Call `join_channel` with the channel shown by the DEV plugin. Joining runs a strict
+   server/plugin compatibility preflight. Call `get_runtime_info` to record the exact
+   server build, plugin build, schema, relay protocol, and capabilities before document
+   work.
+
+See [runtime compatibility](docs/RUNTIME-COMPATIBILITY.md) for the supported matrix and
+failure behavior.
 
 ## Quick Video Tutorial
 
@@ -50,14 +62,15 @@ Propagate component instance overrides from a source instance to multiple target
 
 ### MCP Server: Integration with Cursor
 
-Add the server to your Cursor MCP configuration in `~/.cursor/mcp.json`:
+`bun run setup` is preferred because it generates the absolute path safely. The
+equivalent manual configuration is:
 
 ```json
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "bunx",
-      "args": ["cursor-talk-to-figma-mcp@latest"]
+      "command": "node",
+      "args": ["/absolute/path/to/talk-to-figma-fork/dist/server.js"]
     }
   }
 }
@@ -126,13 +139,20 @@ powershell -c "irm bun.sh/install.ps1|iex"
 bun install
 ```
 
-3. Create `.cursor` directory and `mcp.json` manually:
+3. Run the cross-platform local setup:
+
+```bash
+bun run setup
+```
+
+If creating `.cursor/mcp.json` manually, point it to the built local server:
+
 ```json
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "bunx",
-      "args": ["cursor-talk-to-figma-mcp@latest"]
+      "command": "node",
+      "args": ["C:/absolute/path/to/talk-to-figma-fork/dist/server.js"]
     }
   }
 }
@@ -148,21 +168,23 @@ bun socket
 ## Usage
 
 1. Start the WebSocket server
-2. Install the MCP server in Cursor
+2. Run `bun run setup` so the MCP client uses this fork's built server
 3. Open Figma and run the Cursor MCP Plugin
-4. Connect the plugin to the WebSocket server by joining a channel using `join_channel`
-5. Use Cursor to communicate with Figma using the MCP tools
+4. Connect the plugin, then join its channel using `join_channel`
+5. Confirm `get_runtime_info` reports `compatibility.status: "compatible"`
+6. Use the document tools
 
 ## Local Development Setup
 
-To develop, update your mcp config to direct to your local directory.
+To develop, point MCP at the built local artifact. Source changes do not reach a live
+client until `bun run build` completes and the MCP server restarts.
 
 ```json
 {
   "mcpServers": {
     "TalkToFigma": {
-      "command": "bun",
-      "args": ["/path-to-repo/src/talk_to_figma_mcp/server.ts"]
+      "command": "node",
+      "args": ["/absolute/path/to/talk-to-figma-fork/dist/server.js"]
     }
   }
 }
@@ -232,6 +254,8 @@ The MCP server provides the following tools for interacting with Figma:
 - `clone_node` - Create a copy of an existing node with optional position offset
 - `rename_node` - Rename a node
 - `set_parent` - Move a node into a new parent (section, frame or group), preserving its absolute position by default
+- `set_focus` - Select one node and bring it into view
+- `set_selections` - Select multiple nodes and bring them into view
 
 ### Components & Styles
 
@@ -250,6 +274,7 @@ The MCP server provides the following tools for interacting with Figma:
 ### Connection Management
 
 - `join_channel` - Join a specific channel to communicate with Figma
+- `get_runtime_info` - Report the exact fork server/plugin build, schema, relay protocol, capabilities, and compatibility status
 
 ### MCP Prompts
 
@@ -263,6 +288,43 @@ The MCP server includes several helper prompts to guide you through complex desi
 - `reaction_to_connector_strategy` - Strategy for converting Figma prototype reactions to connector lines using the output of 'get_reactions', and guiding the use 'create_connections' in sequence
 
 ## Development
+
+The root `bun.lock` is authoritative for R0. A measured clean
+`bun install --frozen-lockfile` succeeds. `package-lock.json` is retained as legacy
+traceability, but its root metadata is still `0.3.1` while the package is `0.3.5`; a
+clean npm attempt did not produce a valid install, so npm is not a supported R0 install
+path. The nested package/lock under `src/talk_to_figma_mcp/` is legacy source metadata,
+not the release root.
+
+One command runs every offline test, including the real-plugin VM fixtures, public
+contract compatibility/parity checks, README inventory check, and independent plugin
+syntax parse:
+
+```bash
+bun run test
+```
+
+Run the complete offline release gate (tests, build, and `dist/` identity/inventory
+parity) with:
+
+```bash
+bun run verify
+```
+
+The generated machine-readable inventory is
+[`contracts/public-contract.json`](contracts/public-contract.json). After reviewing an
+intentional public contract change, refresh the snapshot and both runtime fingerprints
+with `bun run contract:generate`.
+
+Live smoke is deliberately separate from offline tests. With the relay and exact DEV
+plugin running on a disposable file:
+
+```bash
+node scripts/live-smoke.mjs --channel=<channel-shown-in-plugin>
+```
+
+It performs one bounded read, creates an isolated frame/text pair, reads them back, and
+deletes only those recorded IDs in `finally` cleanup.
 
 ### Building the Figma Plugin
 

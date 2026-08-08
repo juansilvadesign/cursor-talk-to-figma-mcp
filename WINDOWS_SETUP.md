@@ -46,22 +46,12 @@ bun run setup:win
 
 #### Method C: Manual Setup
 ```bash
-# Install dependencies
-bun install
-
-# Create .cursor directory
-mkdir .cursor
-
-# Create mcp.json manually
-echo { > .cursor/mcp.json
-echo   "mcpServers": { >> .cursor/mcp.json
-echo     "TalkToFigma": { >> .cursor/mcp.json
-echo       "command": "bunx", >> .cursor/mcp.json
-echo       "args": ["cursor-talk-to-figma-mcp@latest"] >> .cursor/mcp.json
-echo     } >> .cursor/mcp.json
-echo   } >> .cursor/mcp.json
-echo } >> .cursor/mcp.json
+bun run setup
 ```
+
+The setup command installs from `bun.lock`, builds `dist/server.js`, and writes an
+absolute local path to `.cursor/mcp.json` and `.mcp.json`. Do not substitute npm
+`latest`; it does not contain this fork's R0 runtime identity and complete tool set.
 
 ### Step 4: Start the WebSocket Server
 
@@ -71,13 +61,10 @@ bun socket
 
 You should see: `WebSocket server running on port 3055`
 
-### Step 5: Start the Figma Socket Server
+### Step 5: Start the configured MCP client
 
-```bash
-bunx cursor-talk-to-figma-mcp
-```
-
-You should see: `Connected to Figma socket server`
+Restart Cursor or Claude Code after `bun run setup`. It launches this checkout's built
+`dist/server.js`; no second `bunx` server process is required.
 
 ### Step 6: Install the Figma Plugin
 
@@ -85,6 +72,8 @@ You should see: `Connected to Figma socket server`
 2. Go to Plugins > Development > New Plugin
 3. Choose "Link existing plugin"
 4. Select the `src/cursor_mcp_plugin/manifest.json` file from your project directory
+5. Join the displayed channel, then verify `get_runtime_info` reports a compatible
+   server/plugin pair before document operations
 
 ## Troubleshooting
 
@@ -194,4 +183,4 @@ If you encounter issues not covered in this guide:
 1. **Use PowerShell**: Generally faster than Command Prompt for this project
 2. **Run as Administrator**: Avoids many permission issues
 3. **Disable Windows Defender**: Temporarily disable real-time protection if you encounter false positives
-4. **Use WSL2**: For better performance with Node.js/Bun tools 
+4. **Use WSL2**: For better performance with Node.js/Bun tools

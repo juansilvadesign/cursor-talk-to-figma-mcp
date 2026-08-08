@@ -54,10 +54,11 @@ Hard rules:
   install/build/test/parity/identity gate passes and the connected read/write smoke
   passed twice with a matching server↔plugin fingerprint. Recorded in
   [`docs/R0-BUILD.md`](docs/R0-BUILD.md).
-- **Consumer-stable read release — R1 CUT 2026-08-08, live gate pending.** The read
-  contract is documented, versioned (`1.1.0`), and verified backwards compatible with
-  the frozen R0 baseline. Its live rows are unattempted, not failed. See
-  [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md).
+- **Consumer-stable read release — R1 ACCEPTED 2026-08-08.** The read contract is
+  documented, versioned (`1.1.0`), verified backwards compatible with the frozen R0
+  baseline, and now **live-verified**: smoke exit 0 on the pinned pair, the export
+  receipt matched disk byte for byte, and 652 remote-library style references resolved
+  values that `get_styles` cannot see. See [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md).
 - **Consumer integration — owned elsewhere.** `figma-to-code` succeeding through a
   pinned fork build proves the API is useful, but it does not make the two projects
   one codebase or one release.
@@ -168,37 +169,36 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R1 is cut; run its live gate, then close it
+## ▶ Next session — R1 is accepted; R2 is the open front
 
 **R0 accepted 2026-08-08** ([`docs/R0-BUILD.md`](docs/R0-BUILD.md)).
-**R1 cut 2026-08-08** ([`docs/R1-RELEASE.md`](docs/R1-RELEASE.md)) — every R1 checkbox is
-closed except the live gate. Offline evidence is complete: 34 tests, cross-release
-compatibility with the frozen R0 baseline at zero errors, contract/parity/README/`dist/`
-green, `bun run verify` reporting `R1 offline gate passed`.
+**R1 accepted 2026-08-08** ([`docs/R1-RELEASE.md`](docs/R1-RELEASE.md)) — offline gate
+green (34 tests, cross-release compatibility at zero errors) **and live gate passed**:
+smoke exit 0 on the pinned pair, export receipt verified against disk byte for byte, and
+652 remote-library style references resolving values `get_styles` cannot see. R1 owes
+nothing further; the payload is in that release note.
 
-**The one thing R1 owes: the connected pair has not been exercised since the version
-bump.** Do this first.
+**Start here — two R1-derived defects found by the live gate, both real, neither
+blocking R1:**
 
-1. `bun run socket` (relay on 3055), reload the fork DEV plugin in Figma, copy the channel.
-2. `node scripts/live-smoke.mjs --channel=<channel> --output=/tmp/talk-to-figma-r1-live-smoke.json`
-   Require `compatibility.status: "compatible"` and **both halves reporting `r1-*`** —
-   server `r1-server-25902c2adcd3`, plugin `r1-plugin-2b9a727f3499`, fingerprint
-   `sha256:40a64c28…43ce1b`. A stale R0 plugin is rejected by build-ID mismatch; that
-   rejection is the preflight working, not a failure.
-3. Two checks the smoke does not cover — see `docs/R1-RELEASE.md` § Pending live
-   verification: `export_node_as_image` with `filePath` on a real node (file lands,
-   `sha256` matches disk, `width`/`height` match Figma's export), and
-   `get_node_variables` on a subtree consuming a **remote** library style (`value`
-   populated where `get_styles` cannot see it).
-4. Record the payload in `docs/R1-RELEASE.md` § Verification state, flip the two pending
-   rows, and close R1.
+1. **`export_node_as_image` has no heavy timeout class.** Every other cost-scaling read
+   (`get_document_info`, `get_pages`, `get_styles`, `get_local_components`) declares
+   `HEAVY_READ_TIMEOUT_MS`; export still runs on the 30 s default, which is exactly the
+   budget the multi-megabyte exports `filePath` was built for will exceed.
+2. **`get_node_variables` is unbounded.** A page-wide scan (11,733 nodes → 3.66 MB) left
+   the plugin unable to answer *any* subsequent command until reloaded. Every other
+   large read is paged or chunked; this one is not. Give it the same limit/offset
+   treatment, or chunk it with progress.
 
-⚠️ **The session that cut R1 could not run the live gate** — Figma access was deferred by
-choice, not blocked. Nothing about the offline result is provisional; the live rows are
-simply unattempted, and are marked `Pending` rather than `Pass` for that reason.
+⛔ **Do not log those timeouts as an export bug.** The diagnosis is in the release note:
+`get_runtime_info` reported `plugin: null` / `incompatible` / *"Plugin runtime probe
+failed"* right after, so the plugin was saturated and answering nothing. Verify a
+suspected tool failure against `get_runtime_info` before attributing it to the tool.
 
 Then: R2 (safe authoring release) is next in sequence, **except** the variable half of R3
-already has a detailed plan and a real consumer waiting — see the R3 section.
+already has a detailed plan and a real consumer waiting — see the R3 section. The one
+piece of R1 evidence still worth taking opportunistically is a genuinely multi-megabyte
+`filePath` export, once (1) gives it a budget that can finish.
 
 ⛔ **Restarting `bun run socket` does NOT restart the MCP connection.** The relay and the
 MCP stdio server are separate processes; the server holds `dist/server.js` from load
@@ -314,7 +314,7 @@ above: the result stands, the *fixture* was not proven throwaway.
 
 ---
 
-## Release R1 — consumer-stable read release — CUT 2026-08-08, live gate pending
+## ✅ Release R1 — consumer-stable read release — ACCEPTED 2026-08-08
 
 Release record: [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md) · read contract:
 [`docs/R1-READ-CONTRACT.md`](docs/R1-READ-CONTRACT.md) · policy:
@@ -322,8 +322,9 @@ Release record: [`docs/R1-RELEASE.md`](docs/R1-RELEASE.md) · read contract:
 
 Shipped runtime — server `r1-server-25902c2adcd3` ↔ plugin `r1-plugin-2b9a727f3499`,
 fingerprint `sha256:40a64c28…43ce1b`, contract `1.1.0`, schema `1.1.0`, package `0.3.5`
-unchanged. Offline gate green (34 tests). **Both R1 changes are additive; no consumer
-migration is required.**
+unchanged. Offline gate green (34 tests); **live gate passed 2026-08-08** — payload in
+[`docs/R1-RELEASE.md`](docs/R1-RELEASE.md) § Live gate payload. **Both R1 changes are
+additive; no consumer migration is required.**
 
 - [x] Turn the read-layer acceptance cases from
       [`docs/READ-LAYER-PLAN.md`](docs/READ-LAYER-PLAN.md) into maintained fixtures
@@ -388,9 +389,14 @@ migration is required.**
       → the R1 fixture consumes one **local** style (`Brand/Primary`, `remote: false`)
       and one **remote** library style (`atencao`, `remote: true`) in the same scan, so
       both branches of the `style.remote` passthrough are now observed.
-      ⚠️ **Scope of the claim:** this proves the code path offline. The plan asked for
-      opportunistic confirmation on a live file with a local style in use; that is still
-      worth taking when one appears.
+      ✅ **Closed live 2026-08-08 — both branches now observed on real files.** The
+      opportunistic local-style confirmation the plan asked for arrived: a live scratch
+      file resolved paint style `gradient` (`remote: false`) with its full gradient
+      value at `valueStatus: "resolved"`. The remote branch was then proven at scale on
+      the SYD source file — 652 remote references across 48 distinct styles, **0 of
+      which appear in that document's local `get_styles` inventory by id or by name**,
+      all carrying resolved values across PAINT/TEXT/EFFECT. No longer an offline-only
+      claim.
 - [x] Finish/rebase the narrow upstream read PRs independently of the local release;
       rebuild local `dist/` after upstream changes.
       → **Verified 2026-08-08: nothing to rebase, nothing to rebuild.** `upstream/main`
@@ -424,18 +430,34 @@ scope/completeness without inspecting fork source.
 **Offline: met.** 34 tests, cross-release compatibility with the frozen R0 baseline at
 zero errors, contract/parity/README/`dist/` all green.
 
-**⏳ Live: pending — the one thing R1 still owes.** The connected pair has not been
-exercised since the version bump. Three checks, all in `docs/R1-RELEASE.md`
-§ Pending live verification:
+**✅ Live: met 2026-08-08.** All three checks passed against the pinned pair
+(`r1-server-25902c2adcd3` ↔ `r1-plugin-2b9a727f3499`, fingerprint
+`sha256:40a64c28…43ce1b`, `compatible` with zero issues on every join). Full payload in
+[`docs/R1-RELEASE.md`](docs/R1-RELEASE.md) § Live gate payload:
 
-1. `scripts/live-smoke.mjs` against the R1 plugin — require
-   `compatibility.status: "compatible"` and both halves reporting `r1-*` build IDs plus
-   fingerprint `sha256:40a64c28…43ce1b`.
-2. `export_node_as_image` with `filePath` on a real node — the file lands, `sha256`
-   matches the bytes on disk, `width`/`height` match Figma's own export.
-3. `get_node_variables` on a subtree consuming a **remote** library style — `value`
-   populated where `get_styles` cannot see the style. The fixture proves the code path;
-   only a live file proves the Figma behavior it assumes.
+1. `scripts/live-smoke.mjs` — **exit 0**, channel `56kw2mfw`; 49 tools / 6 prompts /
+   48 plugin commands observed live; bounded read honest about truncation; write created,
+   read back, and cleaned up. `dist/` hashes on disk matched the two pinned SHA-256s
+   first, so the artifact exercised is the artifact documented.
+2. `export_node_as_image` with `filePath` — receipt `sha256`/`bytes`/`width`/`height`
+   matched the file on disk under independent verification, and 100×100 = the 50×50 node
+   box × scale 2. The same export without `filePath` returned an identical receipt plus
+   the image block (`delivery: "inline"`), so R0 consumers are unaffected. SVG resolved
+   via `svg-attributes`; **PDF reproduced the documented `null` dimension trap exactly**.
+3. `get_node_variables` on the SYD source file, page `3-LP`, 11,733 nodes — **652 remote
+   references across 48 distinct styles, 0 of them visible to `get_styles` by id or name,
+   all 652 resolved with values** (PAINT 316 / TEXT 318 / EFFECT 18). Incompleteness was
+   declared honestly in the same reply: 13 of 4,943 unresolved, every one
+   `mixed` → `not_applicable`, zero read failures.
+
+⚠️ **One bonus check did not complete, and it is not an export defect.** Exporting a
+large SYD frame timed out on the 30 s default — but a plain `get_node_info` on the same
+node timed out right after, and `get_runtime_info` then returned `plugin: null` /
+`compatibility: "incompatible"` / *"Plugin runtime probe failed"*. The preceding
+page-wide 11,733-node scan had saturated the plugin. Two R2 follow-ups fall out of it:
+give `export_node_as_image` a declared heavy budget, and bound/page `get_node_variables`
+so one scan cannot wedge the plugin. A genuinely multi-megabyte `filePath` export
+remains unconfirmed end to end.
 
 `figma-to-code` then updates its own pin and runs its own capture/emission acceptance.
 That consumer pass is evidence for the interface, not part of this repository's

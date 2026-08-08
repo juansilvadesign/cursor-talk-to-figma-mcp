@@ -1,7 +1,8 @@
 # R1 — consumer-stable read release
 
-**Cut 2026-08-08.** Offline gate green; live verification pending (see the bottom of
-this note). Supersedes [`R0-BUILD.md`](R0-BUILD.md), which remains the R0 record.
+**Cut 2026-08-08. Live gate PASSED 2026-08-08 — R1 is accepted.** Offline and live
+evidence are both complete; the payload is at the bottom of this note. Supersedes
+[`R0-BUILD.md`](R0-BUILD.md), which remains the R0 record.
 
 ## Identity — what to pin
 
@@ -119,27 +120,91 @@ To adopt R1:
 | Read-layer acceptance invariants | Pass — `tests/read-acceptance.test.mjs` |
 | Export receipt + dimension parsing | Pass — `tests/export-receipt.test.mjs` |
 | Clean build, plugin parse, `dist/` parity | Pass |
-| **Live connected read/write smoke on the R1 pair** | **Pending** |
-| **Live confirmation of `styles[].value` on a real remote-library file** | **Pending** |
+| **Live connected read/write smoke on the R1 pair** | **Pass — 2026-08-08** |
+| **Live confirmation of `styles[].value` on a real remote-library file** | **Pass — 2026-08-08** |
 
-### Pending live verification
+### Live gate payload — 2026-08-08
 
-R1's offline evidence is complete; the connected pair has not been exercised since the
-version bump. Both R0 live-smoke commands apply unchanged, against the R1 plugin:
+Run against relay `3055` with the fork DEV plugin. Both halves reported the pinned pair,
+`compatibility.status: "compatible"`, zero issues, on every join.
 
-```bash
-bun run socket                      # relay on 3055
-# Figma → reload the fork DEV plugin → copy the channel
-node scripts/live-smoke.mjs --channel=<channel> --output=/tmp/talk-to-figma-r1-live-smoke.json
-```
+Prerequisite verified first: `dist/server.js` and `dist/server.cjs` on disk hashed to the
+two SHA-256 values pinned in **Identity** above, so the artifact exercised is the artifact
+documented.
 
-Require `compatibility.status: "compatible"` and confirm both halves report
-`r1-server-25902c2adcd3` / `r1-plugin-2b9a727f3499` and the fingerprint above.
+**1. `scripts/live-smoke.mjs` — exit 0.** Channel `56kw2mfw`, output
+`/tmp/talk-to-figma-r1-live-smoke.json`. Server `r1-server-25902c2adcd3`, plugin
+`r1-plugin-2b9a727f3499`, schema `1.1.0` both halves, fingerprint
+`sha256:40a64c28…43ce1b`, relay protocol `1`. Inventory observed live: **49 tools, 6
+prompts, 48 plugin commands + `relay.channel@1`**. Bounded read returned 5 of 6 children
+with `hasMore: true`; write created a frame + text, read both back, and cleaned up — the
+page was left at its original 6 children.
 
-Two R1-specific checks the smoke does not cover:
+**2. `export_node_as_image` with `filePath` — receipt matches disk byte for byte.**
+Node `1:2`, a 50×50 rectangle, PNG @2×:
 
-- `export_node_as_image` with `filePath` against a real node — confirm the file lands,
-  `sha256` matches the file on disk, and `width`/`height` match Figma's own export.
-- `get_node_variables` on a subtree that consumes a **remote** library style — confirm
-  `value` is populated where `get_styles` cannot see the style. The offline fixture
-  proves the code path; a live file proves the Figma behavior it assumes.
+| Field | Receipt | Independently verified on disk |
+| --- | --- | --- |
+| `bytes` | 375 | 375 (`stat`) |
+| `sha256` | `dffa7bb1…3aeb` | identical (`sha256sum`) |
+| `width`/`height` | 100 × 100 | 100 × 100 (own IHDR parse) — and 50 × 50 node box × scale 2 |
+| `dimensionSource` | `png-ihdr` | — |
+| `delivery` | `file` | file present at `path`, **no base64 in the transcript** |
+
+Additivity confirmed: the same export **without** `filePath` returned the image content
+block *plus* a receipt with an identical `sha256`, `bytes` and dimensions, differing only
+in `delivery: "inline"`. An R0 consumer sees no change.
+
+Format coverage, each cross-checked against disk: **SVG** → 149 bytes, 50 × 50,
+`dimensionSource: "svg-attributes"` (the file itself carries `width="50" height="50"
+viewBox="0 0 50 50"`). **PDF** → 5366 bytes, `width: null`, `height: null`,
+`dimensionSource: null` — the documented trap reproduces exactly, so
+`dimensionSource` really is the field to read before trusting a size.
+
+**3. `get_node_variables` — `value` populated on styles `get_styles` cannot see.**
+Fixture: `SYD (SaveYourDay) - Spaceapps`, the **source** file (channel `r4q70w51`), page
+`3-LP` (`1068:5433`), 11,733 nodes scanned.
+
+`get_styles` returned this document's entire local inventory: 11 paints
+(`primaria`, `secundaria`, `texto`, `card`, `apoio`, `bg`, `placeholder`, `erro`,
+`atencao`, `texto-lp`, `image/login`) + 1 effect (`perfil`). The scan found **4,943 style
+references — 4,278 local and 652 remote across 48 distinct remote styles**
+(`Gray/400` ×132, `.Text styles/Text/Regular/Normal` ×86, `Brand/600` ×14,
+`Shadows/shadow-xs` ×14, `Text sm/*`, `Base/White`, …).
+
+The load-bearing result: **of those 652 remote references, 0 match the local inventory by
+style id and 0 by name — and all 652 carry a populated `value` at
+`valueStatus: "resolved"`.** That is the remote-library gap closed on real Figma
+behaviour, not on a fixture. All three style types resolved: PAINT 316 (paint array with
+colour), TEXT 318 (`fontName`, `fontSize`, `lineHeight`, …), EFFECT 18 (drop-shadow
+`radius`/`offset`/`spread`).
+
+Honest-incompleteness also confirmed in the same reply: `complete: false` with 13
+unresolved of 4,943 — every one `resolutionStatus: "mixed"` (a node carrying more than
+one style on that property) and typed `valueStatus: "not_applicable"`, **zero read
+failures**, with the reason stated in `limitations`. An absent value is never ambiguous
+between "no value" and "could not read it", as specified. Variable bindings: 2,421
+resolved, 0 unresolved.
+
+⚠️ **Note on the earlier `atencao` finding.** This source file resolves `atencao`
+locally — the 248-reference unresolvable case belonged to the *copy*, per
+`TASKS.md`. The remote branch proven here is the UI-kit reference set
+(`Gray/*`, `Brand/600`, `Text sm/*`, `Shadows/shadow-xs`), which is the same defect class
+and the one that survives on the source file.
+
+### Observed live, not blocking — for R2
+
+- **`export_node_as_image` has no heavy timeout class.** On the SYD fixture, exporting a
+  large `LP` SECTION and then progressively smaller frames all failed on the 30 s default.
+  ⛔ **Do not read that as an export defect** — a plain `get_node_info` on the same node
+  timed out immediately afterwards, and `get_runtime_info` then reported `plugin: null` /
+  `compatibility: "incompatible"` / *"Plugin runtime probe failed"*. The plugin had been
+  saturated by the preceding 11,733-node scan; it was not answering anything. The
+  preflight **declaring** that state instead of proceeding blind is the runtime-honesty
+  contract working, and every timeout error carried the full runtime identity inline.
+  Two real follow-ups for R2: give `export_node_as_image` a declared heavy budget the way
+  the document-wide reads have one, and consider a bounded/paged `get_node_variables` so a
+  page-wide scan cannot wedge the plugin for subsequent calls.
+- A **multi-megabyte** export through `filePath` (the 4.29 MB / 1.73 MB frames that
+  motivated the parameter) is therefore still unconfirmed end to end. The mechanism is
+  proven; only the large-payload path is untested.

@@ -52,9 +52,20 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_variables",
   "get_node_variables",
   "get_reactions",
+  // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
+  // export, so a consumer no longer has to attribute it from its own request.
+  "export_node_as_image",
 ]);
 
-const LEGACY_RESULTS = new Set(["read_my_design", "export_node_as_image"]);
+const LEGACY_RESULTS = new Set(["read_my_design"]);
+
+// Ordered weakest -> strongest. A release may strengthen a tool's promise; weakening it
+// is a breaking change that requires a new contract version and a migration note.
+const STABILITY_RANK = {
+  legacy: 0,
+  "additive-preview": 1,
+  stable: 2,
+};
 
 const READ_TOOLS = new Set([
   "get_document_info",
@@ -558,7 +569,6 @@ export function compatibilityErrors(previous, current) {
         "scope",
         "timeoutClass",
         "pluginCommand",
-        "resultStability",
       ]) {
         if (previousEntry[field] !== currentEntry[field]) {
           errors.push(
@@ -567,6 +577,24 @@ export function compatibilityErrors(previous, current) {
             )} to ${JSON.stringify(currentEntry[field])}`,
           );
         }
+      }
+
+      // Result stability is a ladder, not an equality check. Strengthening the promise
+      // a consumer may rely on cannot break that consumer; weakening it can.
+      const previousRank = STABILITY_RANK[previousEntry.resultStability];
+      const currentRank = STABILITY_RANK[currentEntry.resultStability];
+      if (previousRank === undefined || currentRank === undefined) {
+        errors.push(
+          `${collectionName}.${previousEntry.name}.resultStability has an unknown value (${JSON.stringify(
+            previousEntry.resultStability,
+          )} -> ${JSON.stringify(currentEntry.resultStability)})`,
+        );
+      } else if (currentRank < previousRank) {
+        errors.push(
+          `${collectionName}.${previousEntry.name}.resultStability was weakened from ${JSON.stringify(
+            previousEntry.resultStability,
+          )} to ${JSON.stringify(currentEntry.resultStability)}`,
+        );
       }
       compareSchema(
         previousEntry.inputSchema,

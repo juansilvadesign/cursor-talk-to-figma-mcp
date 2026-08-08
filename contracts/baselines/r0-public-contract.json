@@ -1,0 +1,2382 @@
+{
+  "release": "R0",
+  "publicContractVersion": "1.0.0",
+  "serverSchemaVersion": "1.0.0",
+  "packageVersion": "0.3.5",
+  "relayProtocolVersion": "1",
+  "capabilityFingerprint": "sha256:3dfa8bd8b57b35e2997c01314bb83bf6b0120ddac81015fa4dab9b1281483de4",
+  "capabilities": [
+    "figma.command.clone_node@1",
+    "figma.command.create_component_instance@1",
+    "figma.command.create_connections@1",
+    "figma.command.create_frame@1",
+    "figma.command.create_rectangle@1",
+    "figma.command.create_section@1",
+    "figma.command.create_text@1",
+    "figma.command.delete_multiple_nodes@1",
+    "figma.command.delete_node@1",
+    "figma.command.export_node_as_image@1",
+    "figma.command.get_annotations@1",
+    "figma.command.get_document_info@1",
+    "figma.command.get_instance_overrides@1",
+    "figma.command.get_local_components@1",
+    "figma.command.get_node_info@1",
+    "figma.command.get_node_variables@1",
+    "figma.command.get_nodes_info@1",
+    "figma.command.get_pages@1",
+    "figma.command.get_reactions@1",
+    "figma.command.get_runtime_info@1",
+    "figma.command.get_selection@1",
+    "figma.command.get_styles@1",
+    "figma.command.get_variables@1",
+    "figma.command.move_node@1",
+    "figma.command.read_my_design@1",
+    "figma.command.rename_node@1",
+    "figma.command.resize_node@1",
+    "figma.command.scan_nodes_by_types@1",
+    "figma.command.scan_text_nodes@1",
+    "figma.command.set_annotation@1",
+    "figma.command.set_axis_align@1",
+    "figma.command.set_corner_radius@1",
+    "figma.command.set_current_page@1",
+    "figma.command.set_default_connector@1",
+    "figma.command.set_fill_color@1",
+    "figma.command.set_focus@1",
+    "figma.command.set_image_fill@1",
+    "figma.command.set_instance_overrides@1",
+    "figma.command.set_item_spacing@1",
+    "figma.command.set_layout_mode@1",
+    "figma.command.set_layout_sizing@1",
+    "figma.command.set_multiple_annotations@1",
+    "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_padding@1",
+    "figma.command.set_parent@1",
+    "figma.command.set_selections@1",
+    "figma.command.set_stroke_color@1",
+    "figma.command.set_text_content@1",
+    "relay.channel@1"
+  ],
+  "connectionPlumbing": {
+    "relayCommands": [
+      "join"
+    ],
+    "pluginUiMessages": [
+      "update-settings",
+      "notify",
+      "close-plugin",
+      "execute-command"
+    ]
+  },
+  "commands": {
+    "figmaCommand": [
+      "get_runtime_info",
+      "get_document_info",
+      "get_pages",
+      "set_current_page",
+      "get_selection",
+      "get_node_info",
+      "get_nodes_info",
+      "read_my_design",
+      "create_rectangle",
+      "create_frame",
+      "create_text",
+      "set_fill_color",
+      "set_stroke_color",
+      "move_node",
+      "resize_node",
+      "delete_node",
+      "delete_multiple_nodes",
+      "get_styles",
+      "get_local_components",
+      "get_variables",
+      "get_node_variables",
+      "create_component_instance",
+      "get_instance_overrides",
+      "set_instance_overrides",
+      "export_node_as_image",
+      "join",
+      "set_corner_radius",
+      "clone_node",
+      "set_text_content",
+      "scan_text_nodes",
+      "set_multiple_text_contents",
+      "get_annotations",
+      "set_annotation",
+      "set_multiple_annotations",
+      "scan_nodes_by_types",
+      "set_layout_mode",
+      "set_padding",
+      "set_axis_align",
+      "set_layout_sizing",
+      "set_item_spacing",
+      "get_reactions",
+      "set_default_connector",
+      "create_connections",
+      "set_focus",
+      "set_selections",
+      "set_image_fill",
+      "rename_node",
+      "create_section",
+      "set_parent"
+    ],
+    "commandParams": [
+      "get_runtime_info",
+      "get_document_info",
+      "get_pages",
+      "set_current_page",
+      "get_selection",
+      "get_node_info",
+      "get_nodes_info",
+      "read_my_design",
+      "create_rectangle",
+      "create_frame",
+      "create_text",
+      "set_fill_color",
+      "set_stroke_color",
+      "move_node",
+      "resize_node",
+      "delete_node",
+      "delete_multiple_nodes",
+      "get_styles",
+      "get_local_components",
+      "get_variables",
+      "get_node_variables",
+      "create_component_instance",
+      "get_instance_overrides",
+      "set_instance_overrides",
+      "export_node_as_image",
+      "join",
+      "set_corner_radius",
+      "clone_node",
+      "set_text_content",
+      "scan_text_nodes",
+      "set_multiple_text_contents",
+      "get_annotations",
+      "set_annotation",
+      "set_multiple_annotations",
+      "scan_nodes_by_types",
+      "set_layout_mode",
+      "set_padding",
+      "set_axis_align",
+      "set_layout_sizing",
+      "set_item_spacing",
+      "get_reactions",
+      "set_default_connector",
+      "create_connections",
+      "set_focus",
+      "set_selections",
+      "set_image_fill",
+      "rename_node",
+      "create_section",
+      "set_parent"
+    ],
+    "pluginDispatcher": [
+      "get_runtime_info",
+      "get_document_info",
+      "get_pages",
+      "set_current_page",
+      "get_selection",
+      "get_node_info",
+      "get_nodes_info",
+      "read_my_design",
+      "create_rectangle",
+      "create_frame",
+      "create_text",
+      "set_fill_color",
+      "set_stroke_color",
+      "move_node",
+      "resize_node",
+      "delete_node",
+      "delete_multiple_nodes",
+      "get_styles",
+      "get_local_components",
+      "get_variables",
+      "get_node_variables",
+      "create_component_instance",
+      "export_node_as_image",
+      "set_corner_radius",
+      "set_text_content",
+      "clone_node",
+      "scan_text_nodes",
+      "set_multiple_text_contents",
+      "get_annotations",
+      "set_annotation",
+      "scan_nodes_by_types",
+      "set_multiple_annotations",
+      "get_instance_overrides",
+      "set_instance_overrides",
+      "set_layout_mode",
+      "set_padding",
+      "set_axis_align",
+      "set_layout_sizing",
+      "set_item_spacing",
+      "get_reactions",
+      "set_default_connector",
+      "create_connections",
+      "set_focus",
+      "set_selections",
+      "set_image_fill",
+      "rename_node",
+      "create_section",
+      "set_parent"
+    ]
+  },
+  "tools": [
+    {
+      "kind": "tool",
+      "name": "clone_node",
+      "description": "Clone an existing node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to clone"
+          },
+          "x": {
+            "type": "number",
+            "description": "New X position for the clone"
+          },
+          "y": {
+            "type": "number",
+            "description": "New Y position for the clone"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "clone_node",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_component_instance",
+      "description": "Create an instance of a component in Figma. For LOCAL components (from get_local_components), use componentId with the id field. For published LIBRARY components, use componentKey with the publishedKey field.",
+      "direction": "write",
+      "scope": "current_page_or_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "componentId": {
+            "type": "string",
+            "description": "ID of a local component (use the id field from get_local_components result). Use this for unpublished/local components."
+          },
+          "componentKey": {
+            "type": "string",
+            "description": "Key of a published library component to instantiate (use the publishedKey field from get_local_components result). Only works for published components."
+          },
+          "x": {
+            "type": "number",
+            "description": "X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional parent node ID to place the instance into"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_component_instance",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_connections",
+      "description": "Create connections between nodes using the default connector style",
+      "direction": "write",
+      "scope": "current_page",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startNodeId": {
+                  "type": "string",
+                  "description": "ID of the starting node"
+                },
+                "endNodeId": {
+                  "type": "string",
+                  "description": "ID of the ending node"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Optional text to display on the connector"
+                }
+              },
+              "required": [
+                "startNodeId",
+                "endNodeId"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Array of node connections to create"
+          }
+        },
+        "required": [
+          "connections"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "create_connections",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_frame",
+      "description": "Create a new frame in Figma",
+      "direction": "write",
+      "scope": "current_page_or_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position"
+          },
+          "width": {
+            "type": "number",
+            "description": "Width of the frame"
+          },
+          "height": {
+            "type": "number",
+            "description": "Height of the frame"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name for the frame"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional parent node ID to append the frame to"
+          },
+          "fillColor": {
+            "type": "object",
+            "properties": {
+              "r": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Red component (0-1)"
+              },
+              "g": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Green component (0-1)"
+              },
+              "b": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Blue component (0-1)"
+              },
+              "a": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Alpha component (0-1)"
+              }
+            },
+            "required": [
+              "r",
+              "g",
+              "b"
+            ],
+            "additionalProperties": false,
+            "description": "Fill color in RGBA format"
+          },
+          "strokeColor": {
+            "type": "object",
+            "properties": {
+              "r": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Red component (0-1)"
+              },
+              "g": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Green component (0-1)"
+              },
+              "b": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Blue component (0-1)"
+              },
+              "a": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Alpha component (0-1)"
+              }
+            },
+            "required": [
+              "r",
+              "g",
+              "b"
+            ],
+            "additionalProperties": false,
+            "description": "Stroke color in RGBA format"
+          },
+          "strokeWeight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Stroke weight"
+          },
+          "layoutMode": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "HORIZONTAL",
+              "VERTICAL"
+            ],
+            "description": "Auto-layout mode for the frame"
+          },
+          "layoutWrap": {
+            "type": "string",
+            "enum": [
+              "NO_WRAP",
+              "WRAP"
+            ],
+            "description": "Whether the auto-layout frame wraps its children"
+          },
+          "paddingTop": {
+            "type": "number",
+            "description": "Top padding for auto-layout frame"
+          },
+          "paddingRight": {
+            "type": "number",
+            "description": "Right padding for auto-layout frame"
+          },
+          "paddingBottom": {
+            "type": "number",
+            "description": "Bottom padding for auto-layout frame"
+          },
+          "paddingLeft": {
+            "type": "number",
+            "description": "Left padding for auto-layout frame"
+          },
+          "primaryAxisAlignItems": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "MAX",
+              "CENTER",
+              "SPACE_BETWEEN"
+            ],
+            "description": "Primary axis alignment for auto-layout frame. Note: When set to SPACE_BETWEEN, itemSpacing will be ignored as children will be evenly spaced."
+          },
+          "counterAxisAlignItems": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "MAX",
+              "CENTER",
+              "BASELINE"
+            ],
+            "description": "Counter axis alignment for auto-layout frame"
+          },
+          "layoutSizingHorizontal": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "HUG",
+              "FILL"
+            ],
+            "description": "Horizontal sizing mode for auto-layout frame"
+          },
+          "layoutSizingVertical": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "HUG",
+              "FILL"
+            ],
+            "description": "Vertical sizing mode for auto-layout frame"
+          },
+          "itemSpacing": {
+            "type": "number",
+            "description": "Distance between children in auto-layout frame. Note: This value will be ignored if primaryAxisAlignItems is set to SPACE_BETWEEN."
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_frame",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_rectangle",
+      "description": "Create a new rectangle in Figma",
+      "direction": "write",
+      "scope": "current_page_or_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position"
+          },
+          "width": {
+            "type": "number",
+            "description": "Width of the rectangle"
+          },
+          "height": {
+            "type": "number",
+            "description": "Height of the rectangle"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name for the rectangle"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional parent node ID to append the rectangle to"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_rectangle",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_section",
+      "description": "Create a section in Figma to group related content on the canvas",
+      "direction": "write",
+      "scope": "current_page",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position"
+          },
+          "width": {
+            "type": "number",
+            "description": "Width of the section"
+          },
+          "height": {
+            "type": "number",
+            "description": "Height of the section"
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name for the section"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_section",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_text",
+      "description": "Create a new text element in Figma",
+      "direction": "write",
+      "scope": "current_page_or_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "description": "X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position"
+          },
+          "text": {
+            "type": "string",
+            "description": "Text content"
+          },
+          "fontSize": {
+            "type": "number",
+            "description": "Font size (default: 14)"
+          },
+          "fontWeight": {
+            "type": "number",
+            "description": "Font weight (e.g., 400 for Regular, 700 for Bold)"
+          },
+          "fontColor": {
+            "type": "object",
+            "properties": {
+              "r": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Red component (0-1)"
+              },
+              "g": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Green component (0-1)"
+              },
+              "b": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Blue component (0-1)"
+              },
+              "a": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Alpha component (0-1)"
+              }
+            },
+            "required": [
+              "r",
+              "g",
+              "b"
+            ],
+            "additionalProperties": false,
+            "description": "Font color in RGBA format"
+          },
+          "name": {
+            "type": "string",
+            "description": "Semantic layer name for the text node"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional parent node ID to append the text to"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_text",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "delete_multiple_nodes",
+      "description": "Delete multiple nodes from Figma at once",
+      "direction": "write",
+      "scope": "requested_nodes",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of node IDs to delete"
+          }
+        },
+        "required": [
+          "nodeIds"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "delete_multiple_nodes",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "delete_node",
+      "description": "Delete a node from Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to delete"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "delete_node",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "export_node_as_image",
+      "description": "[Node scoped] Export a node as an image from Figma",
+      "direction": "read",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to export"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "PNG",
+              "JPG",
+              "SVG",
+              "PDF"
+            ],
+            "description": "Export format"
+          },
+          "scale": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Export scale"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "export_node_as_image",
+      "resultStability": "legacy"
+    },
+    {
+      "kind": "tool",
+      "name": "get_annotations",
+      "description": "[Current-page scoped when nodeId is omitted; otherwise node-subtree scoped] Get annotations. Nodes that cannot own annotations still return a typed result and their descendants are scanned.",
+      "direction": "read",
+      "scope": "document_or_node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "Optional root node ID; omit to scan the current page"
+          },
+          "includeCategories": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to include category information"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "operation_specific"
+      },
+      "pluginCommand": "get_annotations",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_document_info",
+      "description": "[Current-page scoped, with a document-wide page index] Get top-level details for the current Figma page plus an honest index of every page in the document. Non-current page child counts are explicitly marked as not requested. The current page's `children` array is ALWAYS bounded by limit/offset — `currentPage.childCount`, `childrenTruncated` and `pagination.hasMore` report the real total, so a truncated list can never be read as the whole page. Summary mode is the default and adds `childTypes` plus bounded `childFamilies` rollups covering every child, not just the returned slice.",
+      "direction": "read",
+      "scope": "current_page_with_document_page_index",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include childTypes and childFamilies rollups describing every child on the page (default: true). Set false for just the paginated children slice."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100,
+            "description": "Maximum current-page children returned (default: 100)"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Offset into the current page's children"
+          },
+          "familyLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100,
+            "description": "Maximum child name families returned in summary mode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_document_info",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_instance_overrides",
+      "description": "[Current-page selection scoped when instanceNodeId is omitted; otherwise node scoped] Get override properties from a component instance. These overrides can be applied to other instances, which will swap them to match the source component.",
+      "direction": "read",
+      "scope": "node_or_current_page_selection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "Optional ID of the component instance to get overrides from. If not provided, currently selected instance will be used."
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_instance_overrides",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_local_components",
+      "description": "[Document-wide by default, or scoped to chosen pages] Get local components. Summary mode is the default and returns counts plus bounded name families; set summary=false for a paginated component list. COST WARNING: every page must be fully loaded before it can be scanned, so runtime tracks page weight, not component count — on a large document this can exceed two minutes. Pass `pages` to scan only what you need, and/or `timeBudgetMs` to bound it. The reply always declares its own coverage via `complete`, `pagesScanned` and `pagesSkipped`, so a scoped or truncated scan is never mistakable for a document total. INTERPRETING THE COUNT: summary mode also returns `authoringSessions`, clustering components by the leading segment of their node id, which every node created in one authoring session shares. A bulk-pasted vendor kit therefore collapses into one or two sessions (usually low-numbered, since they were pasted early) while hand-authored work spreads across others — so a raw `count` often describes a purchased library rather than the designer's work. Treat the clusters as evidence for that judgement, not as a verdict: the tool deliberately does not label any session 'a kit'.",
+      "direction": "read",
+      "scope": "document_or_selected_pages",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "boolean",
+            "default": true,
+            "description": "Return compact counts and name families (default: true)"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Page IDs (from get_pages) to scan. Omit to scan every page. This is the main cost control: unlisted pages are never loaded. Unknown IDs are reported in pagesNotFound, never ignored."
+          },
+          "timeBudgetMs": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Stop starting new pages once this many ms have elapsed and return partial results with complete=false (0 = no budget, the default). The first page always runs."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100,
+            "description": "Maximum components returned when summary=false"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Component offset when summary=false"
+          },
+          "familyLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100,
+            "description": "Maximum name families returned in summary mode"
+          },
+          "sessionLimit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20,
+            "description": "Maximum authoring sessions returned in summary mode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_page_with_heartbeat"
+      },
+      "pluginCommand": "get_local_components",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_node_info",
+      "description": "[Node-subtree scoped] Get detailed information about a specific Figma node. Document-root ID 0:0 is unsupported; use get_pages first.",
+      "direction": "read",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to get information about"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_node_info",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_node_variables",
+      "description": "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
+      "direction": "read",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "Root node ID whose subtree should be scanned"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_100_nodes_with_heartbeat"
+      },
+      "pluginCommand": "get_node_variables",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_nodes_info",
+      "description": "[Node-subtree scoped] Get detailed information about multiple Figma nodes",
+      "direction": "read",
+      "scope": "requested_node_subtrees",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of node IDs to get information about"
+          }
+        },
+        "required": [
+          "nodeIds"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_nodes_info",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_pages",
+      "description": "[Document-wide] Enumerate every page in the Figma document. Top-level child counts are opt-in because dynamic-page access must load each page.",
+      "direction": "read",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "includeChildCount": {
+            "type": "boolean",
+            "default": false,
+            "description": "Load every page and include its top-level child count (default: false)"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "conditional_per_page"
+      },
+      "pluginCommand": "get_pages",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_reactions",
+      "description": "[Requested-node-subtrees scoped, read-only] Get Figma prototyping reactions, including CHANGE_TO interactive-component variant transitions. The payload states API coverage limits; an empty result is not proof that the file has no motion. If connector visualization is desired, the optional reaction_to_connector_strategy prompt can transform this read result.",
+      "direction": "read",
+      "scope": "requested_node_subtrees",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Array of root node IDs whose subtrees should be searched"
+          }
+        },
+        "required": [
+          "nodeIds"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_requested_root"
+      },
+      "pluginCommand": "get_reactions",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_runtime_info",
+      "description": "Report the exact local fork server, plugin, schema, relay protocol, and capability fingerprint. After joining a channel, this also refreshes the compatibility preflight without reading or modifying the Figma document.",
+      "direction": "connection",
+      "scope": "connection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "preflight",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_runtime_info",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_selection",
+      "description": "[Current-page scoped] Get information about the current selection in Figma",
+      "direction": "read",
+      "scope": "current_page_selection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_selection",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_styles",
+      "description": "[Document-wide] Get all local paint, text, effect, and grid styles from the Figma document",
+      "direction": "read",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_resource_with_heartbeat"
+      },
+      "pluginCommand": "get_styles",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_variables",
+      "description": "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
+      "direction": "read",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "COLOR",
+                "FLOAT",
+                "STRING",
+                "BOOLEAN"
+              ]
+            },
+            "minItems": 1,
+            "description": "Optional variable types to include; defaults to all four types"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_type_with_heartbeat"
+      },
+      "pluginCommand": "get_variables",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "join_channel",
+      "description": "Join a specific channel to communicate with Figma",
+      "direction": "connection",
+      "scope": "connection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "The name of the channel to join",
+            "default": ""
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "join",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "move_node",
+      "description": "Move a node to a new position in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to move"
+          },
+          "x": {
+            "type": "number",
+            "description": "New X position"
+          },
+          "y": {
+            "type": "number",
+            "description": "New Y position"
+          }
+        },
+        "required": [
+          "nodeId",
+          "x",
+          "y"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "move_node",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "read_my_design",
+      "description": "[Current-page selection scoped] Get detailed information about the current selection in Figma, including each selected node subtree",
+      "direction": "read",
+      "scope": "current_page_selection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "read_my_design",
+      "resultStability": "legacy"
+    },
+    {
+      "kind": "tool",
+      "name": "rename_node",
+      "description": "Rename a node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to rename"
+          },
+          "name": {
+            "type": "string",
+            "description": "The new name for the node"
+          }
+        },
+        "required": [
+          "nodeId",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "rename_node",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "resize_node",
+      "description": "Resize a node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to resize"
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "New width"
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "New height"
+          }
+        },
+        "required": [
+          "nodeId",
+          "width",
+          "height"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "resize_node",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "scan_nodes_by_types",
+      "description": "[Node-subtree scoped] Scan for descendants with specific types. Document-root ID 0:0 is unsupported; use get_pages first.",
+      "direction": "read",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "ID of the node to scan"
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of node types to find in the child nodes (e.g. ['COMPONENT', 'FRAME'])"
+          }
+        },
+        "required": [
+          "nodeId",
+          "types"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "scan_nodes_by_types",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "scan_text_nodes",
+      "description": "[Node-subtree scoped] Scan all text nodes below a specific Figma node",
+      "direction": "read",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "ID of the node to scan"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "scan_text_nodes",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_annotation",
+      "description": "Create or update an annotation",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to annotate"
+          },
+          "annotationId": {
+            "type": "string",
+            "description": "The ID of the annotation to update (if updating existing annotation)"
+          },
+          "labelMarkdown": {
+            "type": "string",
+            "description": "The annotation text in markdown format"
+          },
+          "categoryId": {
+            "type": "string",
+            "description": "The ID of the annotation category"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Additional properties for the annotation"
+          }
+        },
+        "required": [
+          "nodeId",
+          "labelMarkdown"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_annotation",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_axis_align",
+      "description": "Set primary and counter axis alignment for an auto-layout frame in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame to modify"
+          },
+          "primaryAxisAlignItems": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "MAX",
+              "CENTER",
+              "SPACE_BETWEEN"
+            ],
+            "description": "Primary axis alignment (MIN/MAX = left/right in horizontal, top/bottom in vertical). Note: When set to SPACE_BETWEEN, itemSpacing will be ignored as children will be evenly spaced."
+          },
+          "counterAxisAlignItems": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "MAX",
+              "CENTER",
+              "BASELINE"
+            ],
+            "description": "Counter axis alignment (MIN/MAX = top/bottom in horizontal, left/right in vertical)"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_axis_align",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_corner_radius",
+      "description": "Set the corner radius of a node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to modify"
+          },
+          "radius": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Corner radius value"
+          },
+          "corners": {
+            "type": "array",
+            "items": {
+              "type": "boolean"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "Optional array of 4 booleans to specify which corners to round [topLeft, topRight, bottomRight, bottomLeft]"
+          }
+        },
+        "required": [
+          "nodeId",
+          "radius"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_corner_radius",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_current_page",
+      "description": "Switch the active Figma page so subsequent page-scoped reads and writes operate there",
+      "direction": "read",
+      "scope": "session_navigation",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "pageId": {
+            "type": "string",
+            "description": "The PAGE node ID returned by get_pages"
+          }
+        },
+        "required": [
+          "pageId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_current_page",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "set_default_connector",
+      "description": "Set a copied connector node as the default connector",
+      "direction": "write",
+      "scope": "plugin_session",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "connectorId": {
+            "type": "string",
+            "description": "The ID of the connector node to set as default"
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_default_connector",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_fill_color",
+      "description": "Set the fill color of a node in Figma can be TextNode or FrameNode",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to modify"
+          },
+          "r": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Red component (0-1)"
+          },
+          "g": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Green component (0-1)"
+          },
+          "b": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Blue component (0-1)"
+          },
+          "a": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Alpha component (0-1)"
+          }
+        },
+        "required": [
+          "nodeId",
+          "r",
+          "g",
+          "b"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_fill_color",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_focus",
+      "description": "Set focus on a specific node in Figma by selecting it and scrolling viewport to it",
+      "direction": "write",
+      "scope": "current_page_ui",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to focus on"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_focus",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_image_fill",
+      "description": "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills)",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to fill"
+          },
+          "imagePath": {
+            "type": "string",
+            "description": "Absolute path to a local image file, read by the MCP server (preferred: keeps image bytes out of the model context)"
+          },
+          "imageUrl": {
+            "type": "string",
+            "description": "Image URL, fetched by the MCP server (the Figma plugin cannot fetch arbitrary domains itself)"
+          },
+          "imageBase64": {
+            "type": "string",
+            "description": "Base64-encoded image data, with or without a data: URI prefix (only when the image exists nowhere else)"
+          },
+          "scaleMode": {
+            "type": "string",
+            "enum": [
+              "FILL",
+              "FIT",
+              "CROP",
+              "TILE"
+            ],
+            "description": "How the image fills the node (default: FILL)"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_image_fill",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_instance_overrides",
+      "description": "Apply previously copied overrides to selected component instances. Target instances will be swapped to the source component and all copied override properties will be applied.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sourceInstanceId": {
+            "type": "string",
+            "description": "ID of the source component instance"
+          },
+          "targetNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of target instance IDs. Currently selected instances will be used."
+          }
+        },
+        "required": [
+          "sourceInstanceId",
+          "targetNodeIds"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_instance_overrides",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_item_spacing",
+      "description": "Set distance between children in an auto-layout frame",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame to modify"
+          },
+          "itemSpacing": {
+            "type": "number",
+            "description": "Distance between children. Note: This value will be ignored if primaryAxisAlignItems is set to SPACE_BETWEEN."
+          },
+          "counterAxisSpacing": {
+            "type": "number",
+            "description": "Distance between wrapped rows/columns. Only works when layoutWrap is set to WRAP."
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_item_spacing",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_layout_mode",
+      "description": "Set the layout mode and wrap behavior of a frame in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame to modify"
+          },
+          "layoutMode": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "HORIZONTAL",
+              "VERTICAL"
+            ],
+            "description": "Layout mode for the frame"
+          },
+          "layoutWrap": {
+            "type": "string",
+            "enum": [
+              "NO_WRAP",
+              "WRAP"
+            ],
+            "description": "Whether the auto-layout frame wraps its children"
+          }
+        },
+        "required": [
+          "nodeId",
+          "layoutMode"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_layout_mode",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_layout_sizing",
+      "description": "Set horizontal and vertical sizing modes for an auto-layout frame in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame to modify"
+          },
+          "layoutSizingHorizontal": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "HUG",
+              "FILL"
+            ],
+            "description": "Horizontal sizing mode (HUG for frames/text only, FILL for auto-layout children only)"
+          },
+          "layoutSizingVertical": {
+            "type": "string",
+            "enum": [
+              "FIXED",
+              "HUG",
+              "FILL"
+            ],
+            "description": "Vertical sizing mode (HUG for frames/text only, FILL for auto-layout children only)"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_layout_sizing",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_multiple_annotations",
+      "description": "Set multiple annotations parallelly in a node",
+      "direction": "write",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node containing the elements to annotate"
+          },
+          "annotations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "description": "The ID of the node to annotate"
+                },
+                "labelMarkdown": {
+                  "type": "string",
+                  "description": "The annotation text in markdown format"
+                },
+                "categoryId": {
+                  "type": "string",
+                  "description": "The ID of the annotation category"
+                },
+                "annotationId": {
+                  "type": "string",
+                  "description": "The ID of the annotation to update (if updating existing annotation)"
+                },
+                "properties": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Additional properties for the annotation"
+                }
+              },
+              "required": [
+                "nodeId",
+                "labelMarkdown"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Array of annotations to apply"
+          }
+        },
+        "required": [
+          "nodeId",
+          "annotations"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "set_multiple_annotations",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_multiple_text_contents",
+      "description": "Set multiple text contents parallelly in a node",
+      "direction": "write",
+      "scope": "node_subtree",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node containing the text nodes to replace"
+          },
+          "text": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "nodeId": {
+                  "type": "string",
+                  "description": "The ID of the text node"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "The replacement text"
+                }
+              },
+              "required": [
+                "nodeId",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Array of text node IDs and their replacement texts"
+          }
+        },
+        "required": [
+          "nodeId",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "chunked"
+      },
+      "pluginCommand": "set_multiple_text_contents",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_padding",
+      "description": "Set padding values for an auto-layout frame in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame to modify"
+          },
+          "paddingTop": {
+            "type": "number",
+            "description": "Top padding value"
+          },
+          "paddingRight": {
+            "type": "number",
+            "description": "Right padding value"
+          },
+          "paddingBottom": {
+            "type": "number",
+            "description": "Bottom padding value"
+          },
+          "paddingLeft": {
+            "type": "number",
+            "description": "Left padding value"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_padding",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_parent",
+      "description": "Move a node into a new parent node (e.g. a section, frame or group). Preserves the node's absolute position unless x/y are provided",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to move"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "The ID of the new parent node (must support children, e.g. a section, frame or group)"
+          },
+          "x": {
+            "type": "number",
+            "description": "Optional X position relative to the new parent"
+          },
+          "y": {
+            "type": "number",
+            "description": "Optional Y position relative to the new parent"
+          },
+          "index": {
+            "type": "number",
+            "description": "Optional child index to insert at (default: appended as last child)"
+          }
+        },
+        "required": [
+          "nodeId",
+          "parentId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_parent",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_selections",
+      "description": "Set selection to multiple nodes in Figma and scroll viewport to show them",
+      "direction": "write",
+      "scope": "current_page_ui",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of node IDs to select"
+          }
+        },
+        "required": [
+          "nodeIds"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_selections",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_stroke_color",
+      "description": "Set the stroke color of a node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to modify"
+          },
+          "r": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Red component (0-1)"
+          },
+          "g": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Green component (0-1)"
+          },
+          "b": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Blue component (0-1)"
+          },
+          "a": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Alpha component (0-1)"
+          },
+          "weight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Stroke weight"
+          }
+        },
+        "required": [
+          "nodeId",
+          "r",
+          "g",
+          "b"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_stroke_color",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_text_content",
+      "description": "Set the text content of an existing text node in Figma",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the text node to modify"
+          },
+          "text": {
+            "type": "string",
+            "description": "New text content"
+          }
+        },
+        "required": [
+          "nodeId",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_text_content",
+      "resultStability": "stable"
+    }
+  ],
+  "prompts": [
+    {
+      "kind": "prompt",
+      "name": "annotation_conversion_strategy",
+      "description": "Strategy for converting manual annotations to Figma's native annotations",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    },
+    {
+      "kind": "prompt",
+      "name": "design_strategy",
+      "description": "Best practices for working with Figma designs",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    },
+    {
+      "kind": "prompt",
+      "name": "reaction_to_connector_strategy",
+      "description": "Strategy for converting Figma prototype reactions to connector lines using the output of 'get_reactions'",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    },
+    {
+      "kind": "prompt",
+      "name": "read_design_strategy",
+      "description": "Best practices for reading Figma designs",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    },
+    {
+      "kind": "prompt",
+      "name": "swap_overrides_instances",
+      "description": "Guide to swap instance overrides between instances",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    },
+    {
+      "kind": "prompt",
+      "name": "text_replacement_strategy",
+      "description": "Systematic approach for replacing text in Figma designs",
+      "direction": "read",
+      "scope": "server_static",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "local",
+      "progress": {
+        "relayHeartbeatSeconds": null,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": null,
+      "resultStability": "stable"
+    }
+  ]
+}

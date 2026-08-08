@@ -45,5 +45,5 @@ for (const identity of [
 }
 
 process.stdout.write(
-  `R0 offline gate passed: ${snapshot.tools.length} tools, ${snapshot.prompts.length} prompts, source/runtime parity verified.\n`,
+  `${snapshot.release} offline gate passed: ${snapshot.tools.length} tools, ${snapshot.prompts.length} prompts, source/runtime parity verified.\n`,
 );

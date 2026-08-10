@@ -35,18 +35,20 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-79eb6a3d10d2",
-  "pluginBuildId": "r2-plugin-3b393bab2224",
-  "serverSchemaVersion": "1.3.0",
-  "pluginApiVersion": "1.3.0",
+  "serverBuildId": "r2-server-f152fb666599",
+  "pluginBuildId": "r2-plugin-8dc3783f024f",
+  "serverSchemaVersion": "1.4.0",
+  "pluginApiVersion": "1.4.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
+  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
     "get_pages",
     "set_current_page",
     "create_page",
+    "get_plugin_data",
+    "set_plugin_data",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -112,6 +114,7 @@ var RUNTIME_METADATA = {
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
+    "figma.command.get_plugin_data@1",
     "figma.command.get_reactions@1",
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
@@ -139,6 +142,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
+    "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
@@ -164,6 +168,7 @@ var RUNTIME_METADATA = {
     "get_node_variables",
     "get_nodes_info",
     "get_pages",
+    "get_plugin_data",
     "get_reactions",
     "get_runtime_info",
     "get_selection",
@@ -192,6 +197,7 @@ var RUNTIME_METADATA = {
     "set_multiple_text_contents",
     "set_padding",
     "set_parent",
+    "set_plugin_data",
     "set_selections",
     "set_stroke_color",
     "set_text_content"
@@ -670,6 +676,92 @@ server.tool(
           {
             type: "text",
             text: `Error creating page: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "get_plugin_data",
+  "[Node scoped] Read the plugin metadata stored on a node. Omit `namespace` for this plugin's private store, or pass one to read Figma's shared store, which any plugin or the REST API can also read",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node to read metadata from"),
+    key: import_zod.z.string().optional().describe("Read a single key. Omit to read every key on the node, bounded by limit/offset"),
+    namespace: import_zod.z.string().optional().describe(
+      "Shared-plugin-data namespace. Omit to use this plugin's private store, which nothing else can read"
+    ),
+    limit: import_zod.z.number().int().optional().describe("Maximum number of keys to return (default 100). Ignored when `key` is given"),
+    offset: import_zod.z.number().int().optional().describe("0-based key offset for paging (default 0). Ignored when `key` is given"),
+    maxValueBytes: import_zod.z.number().int().optional().describe(
+      "Truncate any value longer than this many UTF-8 bytes (default 10000). The full length is still reported as `bytes` and the truncation is declared"
+    )
+  },
+  async ({ nodeId, key, namespace, limit, offset, maxValueBytes }) => {
+    try {
+      const result = await sendCommandToFigma("get_plugin_data", {
+        nodeId,
+        key,
+        namespace,
+        limit,
+        offset,
+        maxValueBytes
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting plugin data: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_plugin_data",
+  '[Node scoped] Write or remove one plugin metadata entry on a node. Pass `value: null` to remove the key. An empty string is refused, because Figma treats writing "" as a removal and it would delete silently. Omit `namespace` for this plugin\'s private store',
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node to write metadata to"),
+    key: import_zod.z.string().describe("The metadata key to write"),
+    value: import_zod.z.string().nullable().describe(
+      "The value to store as a string, or null to remove the key. Figma stores plugin data as strings; serialize structured data yourself"
+    ),
+    namespace: import_zod.z.string().optional().describe(
+      "Shared-plugin-data namespace. Omit to use this plugin's private store, which nothing else can read"
+    )
+  },
+  async ({ nodeId, key, value, namespace }) => {
+    try {
+      const result = await sendCommandToFigma("set_plugin_data", {
+        nodeId,
+        key,
+        value,
+        namespace
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting plugin data: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

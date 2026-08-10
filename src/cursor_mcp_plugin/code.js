@@ -5,17 +5,19 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-3b393bab2224",
-  "apiVersion": "1.3.0",
-  "serverSchemaVersion": "1.3.0",
+  "buildId": "r2-plugin-8dc3783f024f",
+  "apiVersion": "1.4.0",
+  "serverSchemaVersion": "1.4.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
+  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
     "get_pages",
     "set_current_page",
     "create_page",
+    "get_plugin_data",
+    "set_plugin_data",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -81,6 +83,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
+    "figma.command.get_plugin_data@1",
     "figma.command.get_reactions@1",
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
@@ -108,6 +111,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
+    "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
@@ -258,6 +262,10 @@ async function handleCommand(command, params) {
       return await setCurrentPage(params);
     case "create_page":
       return await createPage(params);
+    case "get_plugin_data":
+      return await getPluginData(params);
+    case "set_plugin_data":
+      return await setPluginData(params);
     case "get_selection":
       return await getSelection();
     case "get_node_info":
@@ -687,6 +695,225 @@ async function createPage(params) {
     onDuplicate: duplicatePolicy,
     duplicateNameExisted: duplicateNameIds.length > 0,
     existingPageIds: duplicateNameIds,
+  };
+}
+
+// Figma's own documented per-entry ceiling. Declared here so an oversize write is
+// refused with a message naming the limit, rather than surfacing as an opaque
+// platform throw after the caller has already committed.
+const PLUGIN_DATA_MAX_VALUE_BYTES = 100000;
+const PLUGIN_DATA_DEFAULT_KEY_LIMIT = 100;
+const PLUGIN_DATA_DEFAULT_MAX_VALUE_BYTES = 10000;
+
+function utf8ByteLength(value) {
+  // The plugin sandbox has no Buffer; count UTF-8 bytes directly so the reported
+  // size matches what Figma actually stores rather than a UTF-16 code-unit count.
+  let bytes = 0;
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      bytes += 4;
+      index++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+// Resolves the node plus the store the caller selected. Passing a namespace selects
+// Figma's shared store, which any plugin or the REST API can read; omitting it uses
+// the store private to this plugin's ID.
+async function resolvePluginDataTarget(params) {
+  const { nodeId, namespace } = params || {};
+
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    throw new Error("Missing nodeId parameter");
+  }
+  if (namespace !== undefined && namespace !== null) {
+    if (typeof namespace !== "string" || namespace.trim().length === 0) {
+      throw new Error("namespace must be a non-empty string when provided");
+    }
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+
+  const shared = namespace !== undefined && namespace !== null;
+  return {
+    node,
+    shared,
+    namespace: shared ? namespace : null,
+    store: shared ? "shared" : "private",
+    keys: () =>
+      shared ? node.getSharedPluginDataKeys(namespace) : node.getPluginDataKeys(),
+    read: (key) =>
+      shared ? node.getSharedPluginData(namespace, key) : node.getPluginData(key),
+    write: (key, value) =>
+      shared
+        ? node.setSharedPluginData(namespace, key, value)
+        : node.setPluginData(key, value),
+  };
+}
+
+async function getPluginData(params) {
+  const { key, limit, offset, maxValueBytes } = params || {};
+  const target = await resolvePluginDataTarget(params);
+
+  if (key !== undefined && key !== null) {
+    if (typeof key !== "string" || key.length === 0) {
+      throw new Error("key must be a non-empty string when provided");
+    }
+  }
+
+  const keyLimit =
+    limit === undefined || limit === null ? PLUGIN_DATA_DEFAULT_KEY_LIMIT : limit;
+  const keyOffset = offset === undefined || offset === null ? 0 : offset;
+  const valueCap =
+    maxValueBytes === undefined || maxValueBytes === null
+      ? PLUGIN_DATA_DEFAULT_MAX_VALUE_BYTES
+      : maxValueBytes;
+
+  if (!Number.isInteger(keyLimit) || keyLimit <= 0) {
+    throw new Error("limit must be a positive integer when provided");
+  }
+  if (!Number.isInteger(keyOffset) || keyOffset < 0) {
+    throw new Error("offset must be a non-negative integer when provided");
+  }
+  if (!Number.isInteger(valueCap) || valueCap <= 0) {
+    throw new Error("maxValueBytes must be a positive integer when provided");
+  }
+
+  // Whole-node total, kept independent of the returned window - the same
+  // count-vs-window separation get_node_variables uses.
+  const allKeys = target.keys();
+  const requestedKey = key === undefined || key === null ? null : key;
+  const selectedKeys = requestedKey === null ? allKeys : [requestedKey];
+  const windowedKeys =
+    requestedKey === null
+      ? selectedKeys.slice(keyOffset, keyOffset + keyLimit)
+      : selectedKeys;
+
+  const limitations = [];
+  let anyValueTruncated = false;
+
+  const entries = windowedKeys.map((entryKey) => {
+    // A key absent from the store reads back as "" in Figma, which is
+    // indistinguishable from a stored empty string. Membership is the only
+    // honest test, so report it rather than letting the caller guess.
+    const present = allKeys.indexOf(entryKey) !== -1;
+    const rawValue = present ? target.read(entryKey) : "";
+    const bytes = utf8ByteLength(rawValue);
+    const truncated = bytes > valueCap;
+    if (truncated) anyValueTruncated = true;
+    return {
+      key: entryKey,
+      present,
+      value: truncated ? rawValue.slice(0, valueCap) : rawValue,
+      bytes,
+      truncated,
+    };
+  });
+
+  const returned = entries.length;
+  const hasMore =
+    requestedKey === null ? keyOffset + returned < allKeys.length : false;
+
+  if (hasMore) {
+    limitations.push(
+      `Returned ${returned} of ${allKeys.length} keys; raise limit or page with offset`,
+    );
+  }
+  if (anyValueTruncated) {
+    limitations.push(
+      `At least one value exceeded maxValueBytes (${valueCap}) and was truncated`,
+    );
+  }
+
+  return {
+    nodeId: target.node.id,
+    nodeName: target.node.name,
+    nodeType: target.node.type,
+    store: target.store,
+    namespace: target.namespace,
+    requestedKey,
+    keyCount: allKeys.length,
+    entries,
+    pagination: {
+      limit: keyLimit,
+      offset: keyOffset,
+      returned,
+      hasMore,
+    },
+    maxValueBytes: valueCap,
+    complete: !hasMore && !anyValueTruncated,
+    limitations,
+  };
+}
+
+async function setPluginData(params) {
+  const { key, value } = params || {};
+  const target = await resolvePluginDataTarget(params);
+
+  if (typeof key !== "string" || key.length === 0) {
+    throw new Error("Missing or empty key parameter");
+  }
+  if (value !== null && typeof value !== "string") {
+    throw new Error(
+      "value must be a string, or null to remove the key. Figma stores plugin data as strings; serialize structured data yourself",
+    );
+  }
+  // Figma removes a key when it is written the empty string, so "" is not a
+  // storable value on this platform - it is a second, implicit spelling of
+  // delete. Refuse it rather than accept a write that silently erases: the
+  // caller learns the constraint here instead of discovering a missing key later.
+  if (value === "") {
+    throw new Error(
+      `Figma removes a key when it is written the empty string, so "" cannot be stored. Pass value: null to remove "${key}" explicitly, or store a non-empty placeholder`,
+    );
+  }
+
+  const keysBefore = target.keys();
+  const existed = keysBefore.indexOf(key) !== -1;
+  const previousBytes = existed ? utf8ByteLength(target.read(key)) : null;
+
+  let operation;
+  let bytes;
+  if (value === null) {
+    // null is the single, explicit spelling of delete. The "" spelling is
+    // refused above, so a removal is never something the caller did by accident.
+    if (existed) {
+      target.write(key, "");
+      operation = "removed";
+    } else {
+      operation = "noop_absent";
+    }
+    bytes = null;
+  } else {
+    bytes = utf8ByteLength(value);
+    if (bytes > PLUGIN_DATA_MAX_VALUE_BYTES) {
+      throw new Error(
+        `Plugin data value for key "${key}" is ${bytes} bytes, above the ${PLUGIN_DATA_MAX_VALUE_BYTES} byte per-entry ceiling. Store a reference instead of the payload, or split it across keys`,
+      );
+    }
+    target.write(key, value);
+    operation = "set";
+  }
+
+  return {
+    nodeId: target.node.id,
+    nodeName: target.node.name,
+    nodeType: target.node.type,
+    store: target.store,
+    namespace: target.namespace,
+    key,
+    operation,
+    existed,
+    previousBytes,
+    bytes,
+    keyCount: target.keys().length,
   };
 }
 

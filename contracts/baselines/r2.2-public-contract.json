@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.4.0",
-  "serverSchemaVersion": "1.4.0",
+  "publicContractVersion": "1.3.0",
+  "serverSchemaVersion": "1.3.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+  "capabilityFingerprint": "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
   "capabilities": [
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -25,7 +25,6 @@
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
-    "figma.command.get_plugin_data@1",
     "figma.command.get_reactions@1",
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
@@ -53,7 +52,6 @@
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
-    "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
@@ -77,8 +75,6 @@
       "get_pages",
       "set_current_page",
       "create_page",
-      "get_plugin_data",
-      "set_plugin_data",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -131,8 +127,6 @@
       "get_pages",
       "set_current_page",
       "create_page",
-      "get_plugin_data",
-      "set_plugin_data",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -185,8 +179,6 @@
       "get_pages",
       "set_current_page",
       "create_page",
-      "get_plugin_data",
-      "set_plugin_data",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -1189,53 +1181,6 @@
       },
       "pluginCommand": "get_pages",
       "resultStability": "additive-preview"
-    },
-    {
-      "kind": "tool",
-      "name": "get_plugin_data",
-      "description": "[Node scoped] Read the plugin metadata stored on a node. Omit `namespace` for this plugin's private store, or pass one to read Figma's shared store, which any plugin or the REST API can also read",
-      "direction": "read",
-      "scope": "node",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "nodeId": {
-            "type": "string",
-            "description": "The ID of the node to read metadata from"
-          },
-          "key": {
-            "type": "string",
-            "description": "Read a single key. Omit to read every key on the node, bounded by limit/offset"
-          },
-          "namespace": {
-            "type": "string",
-            "description": "Shared-plugin-data namespace. Omit to use this plugin's private store, which nothing else can read"
-          },
-          "limit": {
-            "type": "integer",
-            "description": "Maximum number of keys to return (default 100). Ignored when `key` is given"
-          },
-          "offset": {
-            "type": "integer",
-            "description": "0-based key offset for paging (default 0). Ignored when `key` is given"
-          },
-          "maxValueBytes": {
-            "type": "integer",
-            "description": "Truncate any value longer than this many UTF-8 bytes (default 10000). The full length is still reported as `bytes` and the truncation is declared"
-          }
-        },
-        "required": [
-          "nodeId"
-        ],
-        "additionalProperties": false
-      },
-      "timeoutClass": "standard",
-      "progress": {
-        "relayHeartbeatSeconds": 15,
-        "pluginUpdates": "none"
-      },
-      "pluginCommand": "get_plugin_data",
-      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2268,50 +2213,6 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_parent",
-      "resultStability": "stable"
-    },
-    {
-      "kind": "tool",
-      "name": "set_plugin_data",
-      "description": "[Node scoped] Write or remove one plugin metadata entry on a node. Pass `value: null` to remove the key. An empty string is refused, because Figma treats writing \"\" as a removal and it would delete silently. Omit `namespace` for this plugin's private store",
-      "direction": "write",
-      "scope": "node",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "nodeId": {
-            "type": "string",
-            "description": "The ID of the node to write metadata to"
-          },
-          "key": {
-            "type": "string",
-            "description": "The metadata key to write"
-          },
-          "value": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The value to store as a string, or null to remove the key. Figma stores plugin data as strings; serialize structured data yourself"
-          },
-          "namespace": {
-            "type": "string",
-            "description": "Shared-plugin-data namespace. Omit to use this plugin's private store, which nothing else can read"
-          }
-        },
-        "required": [
-          "nodeId",
-          "key",
-          "value"
-        ],
-        "additionalProperties": false
-      },
-      "timeoutClass": "standard",
-      "progress": {
-        "relayHeartbeatSeconds": 15,
-        "pluginUpdates": "none"
-      },
-      "pluginCommand": "set_plugin_data",
       "resultStability": "stable"
     },
     {

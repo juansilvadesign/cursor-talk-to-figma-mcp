@@ -100,6 +100,7 @@ const READ_TOOLS = new Set([
   "get_node_variables",
   "get_instance_overrides",
   "export_node_as_image",
+  "get_plugin_data",
 ]);
 
 const TOOL_SCOPES = {
@@ -109,6 +110,8 @@ const TOOL_SCOPES = {
   get_pages: "document",
   set_current_page: "session_navigation",
   create_page: "document",
+  get_plugin_data: "node",
+  set_plugin_data: "node",
   get_selection: "current_page_selection",
   read_my_design: "current_page_selection",
   get_node_info: "node_subtree",

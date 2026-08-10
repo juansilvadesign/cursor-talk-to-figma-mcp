@@ -10,3 +10,4 @@ docs/*
 !docs/COMPATIBILITY-POLICY.md
 !docs/R2.1-EXPORT-SAFETY.md
 !docs/R2.2-CREATE-PAGE.md
+!docs/R2.3-PLUGIN-DATA.md

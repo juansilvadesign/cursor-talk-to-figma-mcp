@@ -108,6 +108,7 @@ const TOOL_SCOPES = {
   get_document_info: "current_page_with_document_page_index",
   get_pages: "document",
   set_current_page: "session_navigation",
+  create_page: "document",
   get_selection: "current_page_selection",
   read_my_design: "current_page_selection",
   get_node_info: "node_subtree",

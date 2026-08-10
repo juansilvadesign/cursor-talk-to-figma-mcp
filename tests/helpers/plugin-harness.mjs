@@ -131,6 +131,31 @@ function createFixtureRuntime(fixture, options) {
     node.findAllWithCriteria = ({ types }) =>
       descendants(node).filter((candidate) => types.includes(candidate.type));
 
+    // Plugin data. Figma deletes a key when it is written the empty string, and
+    // reads an absent key back as "" — both reproduced here, because the tools
+    // exist precisely to make that ambiguity visible to a caller.
+    const privateData = new Map();
+    const sharedData = new Map();
+    function pluginDataStore(namespace) {
+      if (namespace === undefined) return privateData;
+      if (!sharedData.has(namespace)) sharedData.set(namespace, new Map());
+      return sharedData.get(namespace);
+    }
+    function writePluginData(store, key, value) {
+      if (value === "") store.delete(key);
+      else store.set(key, value);
+    }
+    node.getPluginData = (key) => privateData.get(key) ?? "";
+    node.setPluginData = (key, value) => writePluginData(privateData, key, value);
+    node.getPluginDataKeys = () => [...privateData.keys()];
+    node.getSharedPluginData = (namespace, key) =>
+      pluginDataStore(namespace).get(key) ?? "";
+    node.setSharedPluginData = (namespace, key, value) =>
+      writePluginData(pluginDataStore(namespace), key, value);
+    node.getSharedPluginDataKeys = (namespace) => [
+      ...pluginDataStore(namespace).keys(),
+    ];
+
     if (containers.has(node.type)) {
       node.appendChild = (child) => appendChild(node, child);
       node.insertChild = (index, child) => appendChild(node, child, index);

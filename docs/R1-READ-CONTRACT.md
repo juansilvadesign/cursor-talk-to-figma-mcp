@@ -52,7 +52,7 @@ milliseconds and would otherwise downgrade a 120 s budget to 60 s instantly.
 | `get_local_components` | document_or_selected_pages | heavy_read | additive-preview | per page + heartbeat |
 | `get_node_info` | node_subtree | standard | stable | none |
 | `get_nodes_info` | requested_node_subtrees | standard | stable | none |
-| `get_node_variables` | node_subtree | standard | additive-preview | per 100 nodes + heartbeat |
+| `get_node_variables` | node_subtree | heavy_read | additive-preview | per 100 nodes + heartbeat |
 | `get_reactions` | requested_node_subtrees | standard | additive-preview | per requested root |
 | `get_annotations` | document_or_node_subtree | standard | stable | operation specific |
 | `get_selection` | current_page_selection | standard | stable | none |
@@ -60,7 +60,7 @@ milliseconds and would otherwise downgrade a 120 s budget to 60 s instantly.
 | `scan_text_nodes` | node_subtree | standard | stable | chunked |
 | `scan_nodes_by_types` | node_subtree | standard | stable | chunked |
 | `get_instance_overrides` | node_or_current_page_selection | standard | stable | none |
-| `export_node_as_image` | node | standard | additive-preview | none |
+| `export_node_as_image` | node | heavy_read | additive-preview | preflight + encoding |
 
 ---
 
@@ -102,7 +102,7 @@ Every heavy read is bounded by default. These are the knobs:
 | `get_local_components` | `pages[]` (scope to specific pages), `summary`, `familyLimit`, `sessionLimit`, `timeBudgetMs` |
 | `get_pages` | `includeChildCount` (opt-in; measured cheap on a 6-page/826-child file) |
 | `get_node_variables` | `maxNodes` (**defaults to 5000**), `timeBudgetMs`, `limit`, `offset` — **added in R2**, see below |
-| `export_node_as_image` | `scale`, and **`filePath`** to keep bytes out of the transcript |
+| `export_node_as_image` | `scale`, `allowLargeExport` (explicit risk override), and **`filePath`** to keep bytes out of the transcript |
 
 ### R2 amendment — `get_node_variables` is bounded by default
 
@@ -132,6 +132,33 @@ and the multi-megabyte exports `filePath` exists for are exactly the ones that e
 30 s. `get_node_variables` moved with it, since a 5000-node scan is not a 30 s job
 either. Raising a timeout class is treated as a **compatible** change by the contract
 gate (a consumer prepared to wait less cannot break); lowering one is rejected.
+
+### R2.1 amendment — raster exports declare their cost before encoding
+
+The 120 s timeout does not cancel `node.exportAsync()`: Figma may continue rasterizing
+after the MCP request has failed and leave the plugin unable to answer any command. R2.1
+therefore bounds the work before entering the encoder:
+
+- PNG/JPG preflight uses `absoluteRenderBounds` when available, otherwise the node's
+  `width`/`height`, applies `scale` to both dimensions, and reports projected dimensions
+  plus megapixels in the receipt's `preflight` block.
+- **16 MP is the fork safety ceiling**, not a claimed Figma platform limit. A larger or
+  unmeasurable raster request is refused before `exportAsync` unless the caller passes
+  `allowLargeExport: true`. The error reports the dimensions, scale, projected MP, and
+  the ceiling so the caller can reduce scope deliberately.
+- SVG/PDF receive the same projection for planning, but the raster ceiling is not
+  applied (`limitApplied: false`) because pixel area is not their encoding cost model.
+- A `started` progress update is flushed before encoding, followed by preparation and
+  completion updates. These identify where a long request reached; they do not raise or
+  remove the 120 s inactivity bound.
+- If an explicitly overridden export still times out, the server immediately marks the
+  runtime incompatible. Only `get_runtime_info` may clear that latch by proving the
+  plugin is responsive again.
+
+This is a deliberate default-behavior change for raster requests above 16 MP, so the
+contract/schema/plugin API moved from `1.2.0` to `1.2.1`. Migration guidance and the
+accepted live evidence are recorded in
+[`R2.1-EXPORT-SAFETY.md`](R2.1-EXPORT-SAFETY.md).
 
 Scoping changes the reply shape on purpose: a scoped `get_local_components` **omits
 `pageCount`** and says so in `limitations` — `"Scoped to N requested page(s); N scanned
@@ -216,7 +243,18 @@ The reply now always includes a JSON receipt:
   "width": 1440,
   "height": 900,
   "dimensionSource": "png-ihdr",
-  "delivery": "inline"
+  "delivery": "inline",
+  "preflight": {
+    "boundsSource": "absoluteRenderBounds",
+    "projectedWidth": 1440,
+    "projectedHeight": 900,
+    "projectedMegapixels": 1.296,
+    "megapixelLimit": 16,
+    "limitApplied": true,
+    "costKnown": true,
+    "overLimit": false,
+    "overrideUsed": false
+  }
 }
 ```
 
@@ -232,6 +270,9 @@ attributes or `viewBox` — so they describe the artifact Figma actually produce
 than the node box times the scale. **PDF exports report `null` dimensions** with
 `dimensionSource: null`, because a PDF has no single intrinsic pixel size and inventing
 one would be a fabrication. Always read `dimensionSource` before trusting a size.
+`preflight.projectedWidth`/`projectedHeight` are deliberately separate: they are a
+before-encoding cost estimate, while the top-level dimensions are parsed evidence from
+the resulting artifact.
 
 ---
 

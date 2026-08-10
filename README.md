@@ -269,7 +269,7 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Export & Advanced
 
-- `export_node_as_image` - Export a node as an image (PNG, JPG, SVG, or PDF) - limited support on image currently returning base64 as text
+- `export_node_as_image` - Export PNG/JPG/SVG/PDF with a typed receipt and preflight cost estimate. Use `filePath` to keep bytes out of context; PNG/JPG above 16 MP require explicit `allowLargeExport: true`
 
 ### Connection Management
 
@@ -325,6 +325,18 @@ node scripts/live-smoke.mjs --channel=<channel-shown-in-plugin>
 
 It performs one bounded read, creates an isolated frame/text pair, reads them back, and
 deletes only those recorded IDs in `finally` cleanup.
+
+The fixture-specific R2.1 export acceptance is also executable. Against the SYD file
+containing section `1113:5031`, it verifies the pinned runtime, fast over-limit refusal,
+safe file-backed export, independent PNG bytes/hash/dimensions, and post-export
+responsiveness:
+
+```bash
+node scripts/live-export-gate.mjs --channel=<channel-shown-in-plugin>
+```
+
+The harness writes its report and PNG under a new `/tmp/talk-to-figma-r2.1-live-*`
+directory and prints the exact path.
 
 ### Building the Figma Plugin
 

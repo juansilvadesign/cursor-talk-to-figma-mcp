@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R1 is accepted; R2 is the open front
+## ▶ Next session — R2.1 is accepted; R2 authoring is the open front
 
 **R0 accepted 2026-08-08** ([`docs/R0-BUILD.md`](docs/R0-BUILD.md)).
 **R1 accepted 2026-08-08** ([`docs/R1-RELEASE.md`](docs/R1-RELEASE.md)) — offline gate
@@ -178,8 +178,9 @@ smoke exit 0 on the pinned pair, export receipt verified against disk byte for b
 652 remote-library style references resolving values `get_styles` cannot see. R1 owes
 nothing further; the payload is in that release note.
 
-**R2.0 shipped both R1-derived defects (commits `752504a` + `6357f8d`); offline gate green
-at 41 tests. The live gate SPLIT — read the two halves separately:**
+**R2.0 shipped both R1-derived defects (commits `752504a` + `6357f8d`), and R2.1's
+export safety amendment is accepted: the offline gate is green at 47 tests and both
+halves of the connected gate have passed. Read the two halves separately:**
 
 - ✅ **`get_node_variables` bounding — PASSED live 2026-08-08** on the pinned R2 pair,
   channel `jky2ox2v`, same SYD file. Page `14:2` ("2-App"), the ~12k-node page that
@@ -190,14 +191,20 @@ at 41 tests. The live gate SPLIT — read the two halves separately:**
   limit: 2` → the last 2 of 1817 styles, `hasMore: false`), and a **local** style
   (`secundaria`) resolved with `remote: false` and a populated value — a second live
   observation of the branch R1 already confirmed, not a new retirement.
-- 🔴 **The multi-megabyte export — STILL OWED, and it found a new defect.** See R2.1.
+- ✅ **Bounded export preflight — PASSED live 2026-08-10** on channel `4g146t0n` and
+  the exact R2.1 pair. The 3× request projected **800.3556 MP** and refused in 11 ms
+  without a file; 0.5× also honestly refused at 22.2321 MP. A derived 0.4× export
+  completed in 22.550 s at a projected 14.2296 MP. Its receipt matched the saved
+  1,265,757-byte, 2672×5422 PNG byte-for-byte, and `get_runtime_info` / `get_pages`
+  answered in 11 ms / 16 ms immediately afterwards. Full payload:
+  [`docs/R2.1-EXPORT-SAFETY.md`](docs/R2.1-EXPORT-SAFETY.md).
 
-⛔ **The pinned pair changed.** `serverSchemaVersion` 1.1.0 → **1.2.0**, so the capability
-fingerprint moved `sha256:40a64c28…` → `sha256:fb3318c6…`; builds are now
-`r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17`. An R1 plugin is **rejected** by the
-R2 server's preflight, which is the point — reload the DEV plugin in Figma **and**
-restart the MCP client before any live work. Verified both halves reported R2 before the
-gate ran; a first attempt on channel `qdzselca` was correctly caught still on the R1 pair.
+**The accepted R2.1 pair** moved `serverSchemaVersion` 1.2.0 → **1.2.1** and is
+`r2-server-41d4d9bcf84a` ↔
+`r2-plugin-7e738b3a6c10`, fingerprint `sha256:eb7ac4f…e2e2dab`. The R2.0 pair
+(`r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17`, `sha256:fb3318c6…`) is now
+historical and is rejected by the new preflight. The R2.0 read live result below remains
+valid evidence for the runtime it names.
 
 ⛔ **Do not log those timeouts as an export bug.** The diagnosis is in the release note:
 `get_runtime_info` reported `plugin: null` / `incompatible` / *"Plugin runtime probe
@@ -464,8 +471,8 @@ node timed out right after, and `get_runtime_info` then returned `plugin: null` 
 `compatibility: "incompatible"` / *"Plugin runtime probe failed"*. The preceding
 page-wide 11,733-node scan had saturated the plugin. Two R2 follow-ups fall out of it:
 give `export_node_as_image` a declared heavy budget, and bound/page `get_node_variables`
-so one scan cannot wedge the plugin. A genuinely multi-megabyte `filePath` export
-remains unconfirmed end to end.
+so one scan cannot wedge the plugin. A large `filePath` export was still unconfirmed at
+R1; R2.1 later closed that gate with a bounded live export and independent disk checks.
 
 `figma-to-code` then updates its own pin and runs its own capture/emission acceptance.
 That consumer pass is evidence for the interface, not part of this repository's
@@ -475,7 +482,7 @@ implementation.
 
 ## Release R2 — safe authoring release
 
-### R2.0 — the two live-gate defects — 🛠️ FIXED IN SOURCE 2026-08-08, live gate owed
+### R2.0 — the two live-gate defects — ✅ LIVE GATE CLOSED BY R2.1 2026-08-10
 
 Taken first because they are R1-derived cost/safety defects, not new capability. Contract
 version `1.2.0`, release label `R2`.
@@ -512,10 +519,13 @@ version `1.2.0`, release label `R2`.
       whole-scan totals against a 1000-record window — **and `get_pages` answered
       immediately afterwards.** Paging verified live at `offset: 1815, limit: 2`.
       A first attempt on channel `qdzselca` was correctly rejected as the R1 pair.
-- [ ] **Live gate, export half — still owed.** Blocked on the R2.1 defect below, then
-      retry at a modest scale rather than 3×.
+- [x] **Live gate, export half — PASSED 2026-08-10**, channel `4g146t0n`, exact R2.1
+      pair verified first. The 3× request refused in 11 ms at 800.3556 MP and wrote no
+      file; 0.5× correctly remained over-limit, then 0.4× completed in 22.550 s. The
+      file receipt matched independent byte/hash/dimension checks, and both runtime and
+      page probes answered immediately afterwards.
 
-### R2.1 — export has a hard deadline and no cost signal — 🔴 OPEN, found 2026-08-08
+### R2.1 — bounded export preflight — ✅ ACCEPTED 2026-08-10
 
 Found by R2.0's own live gate, on the pinned R2 pair. Exporting section `1113:5031`
 ("LP" on page `3-LP`) as PNG at **`scale: 3`** with `filePath`:
@@ -532,24 +542,37 @@ Found by R2.0's own live gate, on the pinned R2 pair. Exporting section `1113:50
   was refused by the latched preflight. The server gave up; **Figma kept rasterizing.**
   A DEV plugin reload is required to recover, exactly as in the R1 incident.
 
-**The real defect is the missing cost signal, not the budget.** A caller cannot tell
+**The real defect was the missing cost signal, not the budget.** A caller could not tell
 before committing that a request will cost 120 s and then cost the *whole session* its
-plugin. Raising the budget further would only lengthen the wedge. Candidate fixes, cheapest
-first:
+plugin. Raising the budget further would only lengthen the wedge.
 
-- [ ] Pre-flight the export in the plugin: report node width × height × `scale` (megapixels)
-      and refuse — or require an explicit override — above a declared ceiling. This is the
-      same "declare the bound, don't discover it" rule the reads already follow.
-- [ ] Emit at least one `progress_update` when the plugin begins encoding, so a long export
-      is distinguishable from a dead plugin.
-- [ ] Consider whether the server should mark the pair `incompatible` on an export timeout
-      rather than leaving the next caller to discover a latched preflight failure.
+- [x] **Pre-flight the export in the plugin.** PNG/JPG now report node and render bounds,
+      projected width/height/megapixels, the **16 MP fork safety ceiling**, whether the
+      cost is known, and whether an override was used. Over-limit or unmeasurable raster
+      requests refuse before `exportAsync`; `allowLargeExport: true` is the explicit
+      escape hatch. SVG/PDF report the projection without applying a raster ceiling.
+- [x] **Emit encoding progress.** `started` is flushed before `exportAsync`, followed by
+      `in_progress` after Figma returns bytes and `completed` after response preparation.
+      The existing 120 s inactivity budget is unchanged.
+- [x] **Latch after an export timeout.** The server immediately marks compatibility
+      `incompatible` and refuses document operations until `get_runtime_info` proves the
+      plugin recovered. The last known plugin identity is retained for diagnostics.
+- [x] **Version and verify the contract.** Public contract/server schema/plugin API
+      `1.2.1`; source pair `r2-server-41d4d9bcf84a` ↔
+      `r2-plugin-7e738b3a6c10`; fingerprint `sha256:eb7ac4f…e2e2dab`; 47 tests;
+      R0/R1 compatibility baselines clean; `dist/` rebuilt. Consumer migration note:
+      [`docs/R2.1-EXPORT-SAFETY.md`](docs/R2.1-EXPORT-SAFETY.md).
+- [x] **Connected gate.** Section `1113:5031` passed the complete gate on channel
+      `4g146t0n`: fast over-limit refusals at 3× and 0.5×, safe 0.4× file delivery under
+      the budget, independent byte/hash/dimension agreement, and immediate compatible
+      `get_runtime_info` + complete `get_pages` replies. Evidence:
+      [`docs/R2.1-EXPORT-SAFETY.md`](docs/R2.1-EXPORT-SAFETY.md).
 
 ⛔ Do not "fix" this by raising `HEAVY_READ_TIMEOUT_MS`. The 120 s bound is not what broke.
 
 ### Generic safety and orchestration primitives
 
-Keep coarse until R2.0's live gate closes.
+R2.0's live gate is closed; these are now the next R2 implementation front.
 
 - [ ] Add `create_page` with explicit naming and duplicate behavior.
 - [ ] Add bounded `get_plugin_data` / `set_plugin_data` tools so consumers may own

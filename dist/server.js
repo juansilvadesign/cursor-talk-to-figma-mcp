@@ -13,17 +13,18 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-41d4d9bcf84a",
-  "pluginBuildId": "r2-plugin-7e738b3a6c10",
-  "serverSchemaVersion": "1.2.1",
-  "pluginApiVersion": "1.2.1",
+  "serverBuildId": "r2-server-79eb6a3d10d2",
+  "pluginBuildId": "r2-plugin-3b393bab2224",
+  "serverSchemaVersion": "1.3.0",
+  "pluginApiVersion": "1.3.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
+  "capabilityFingerprint": "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
     "get_pages",
     "set_current_page",
+    "create_page",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -74,6 +75,7 @@ var RUNTIME_METADATA = {
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
@@ -125,6 +127,7 @@ var RUNTIME_METADATA = {
     "create_component_instance",
     "create_connections",
     "create_frame",
+    "create_page",
     "create_rectangle",
     "create_section",
     "create_text",
@@ -606,6 +609,45 @@ server.tool(
           {
             type: "text",
             text: `Error setting current page: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "create_page",
+  "[Document scoped] Create a new page in the Figma document. Does not switch the active page - call set_current_page afterwards if you need to work inside it",
+  {
+    name: z.string().describe("Name for the new page"),
+    onDuplicate: z.enum(["error", "allow"]).optional().describe(
+      "What to do when a page with this exact name already exists. 'error' (default) refuses and names the existing page IDs; 'allow' creates another page with the same name, as Figma itself permits"
+    ),
+    index: z.number().int().optional().describe(
+      "Optional 0-based position among the document's pages. Defaults to appending last. The reply reports the observed index alongside the requested one"
+    )
+  },
+  async ({ name, onDuplicate, index }) => {
+    try {
+      const result = await sendCommandToFigma("create_page", {
+        name,
+        onDuplicate,
+        index
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating page: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

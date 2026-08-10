@@ -178,28 +178,35 @@ smoke exit 0 on the pinned pair, export receipt verified against disk byte for b
 652 remote-library style references resolving values `get_styles` cannot see. R1 owes
 nothing further; the payload is in that release note.
 
-**✅ Both R1-derived live-gate defects are FIXED IN SOURCE — offline gate green,
-live gate NOT yet run.** See "R2.0 — the two live-gate defects" below for what shipped and
-what is still owed. The remaining evidence is a connected run: a genuinely
-multi-megabyte `filePath` export under the new 120 s budget, and a page-wide
-`get_node_variables` that now returns a declared-truncated reply and leaves the plugin
-answering.
+**R2.0 shipped both R1-derived defects (commits `752504a` + `6357f8d`); offline gate green
+at 41 tests. The live gate SPLIT — read the two halves separately:**
+
+- ✅ **`get_node_variables` bounding — PASSED live 2026-08-08** on the pinned R2 pair,
+  channel `jky2ox2v`, same SYD file. Page `14:2` ("2-App"), the ~12k-node page that
+  wedged the plugin under R1: **`nodesScanned: 5000`, `coverage.nodeCapReached: true`,
+  `traversalTruncated: true`, `complete: false`**, all three limitations fired, and the
+  reply was **518 KB instead of 3.66 MB**. Decisively: **`get_pages` answered immediately
+  afterwards** — the wedge is retired. Live paging also verified (`offset: 1815,
+  limit: 2` → the last 2 of 1817 styles, `hasMore: false`), and a **local** style
+  (`secundaria`) resolved with `remote: false` and a populated value — a second live
+  observation of the branch R1 already confirmed, not a new retirement.
+- 🔴 **The multi-megabyte export — STILL OWED, and it found a new defect.** See R2.1.
 
 ⛔ **The pinned pair changed.** `serverSchemaVersion` 1.1.0 → **1.2.0**, so the capability
 fingerprint moved `sha256:40a64c28…` → `sha256:fb3318c6…`; builds are now
-`r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17`. An R1 plugin will be **rejected** by
-the R2 server's preflight, which is the point — reload the DEV plugin in Figma **and**
-restart the MCP client before the live gate.
+`r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17`. An R1 plugin is **rejected** by the
+R2 server's preflight, which is the point — reload the DEV plugin in Figma **and**
+restart the MCP client before any live work. Verified both halves reported R2 before the
+gate ran; a first attempt on channel `qdzselca` was correctly caught still on the R1 pair.
 
 ⛔ **Do not log those timeouts as an export bug.** The diagnosis is in the release note:
 `get_runtime_info` reported `plugin: null` / `incompatible` / *"Plugin runtime probe
 failed"* right after, so the plugin was saturated and answering nothing. Verify a
 suspected tool failure against `get_runtime_info` before attributing it to the tool.
+**This reproduced exactly on 2026-08-08 under R2** — see R2.1.
 
-Then: R2 (safe authoring release) is next in sequence, **except** the variable half of R3
-already has a detailed plan and a real consumer waiting — see the R3 section. The one
-piece of R1 evidence still worth taking opportunistically is a genuinely multi-megabyte
-`filePath` export, once (1) gives it a budget that can finish.
+Then: the rest of R2 (safe authoring release) is next in sequence, **except** the variable
+half of R3 already has a detailed plan and a real consumer waiting — see the R3 section.
 
 ⛔ **Restarting `bun run socket` does NOT restart the MCP connection.** The relay and the
 MCP stdio server are separate processes; the server holds `dist/server.js` from load
@@ -497,17 +504,48 @@ version `1.2.0`, release label `R2`.
       declaration, the timeout ladder in both directions, the node cap, the default cap,
       the time budget, count-vs-window separation, and offset paging reassembling the
       full record set in order.
-- [ ] **Live gate — the only thing R2.0 still owes.** On the pinned R2 pair: a genuinely
-      multi-megabyte `filePath` export completing inside the new budget (the R1
-      opportunistic item, now affordable), and a page-wide `get_node_variables` that
-      returns `coverage.nodeCapReached: true` **and** leaves the plugin able to answer a
-      following command. ⛔ Verify plugin health with `get_runtime_info`, not by assuming.
-      **Checked 2026-08-08 on channel `qdzselca`: the connected pair was still
-      `r1-server-25902c2adcd3` ↔ `r1-plugin-2b9a727f3499` / `sha256:40a64c28…`**, i.e. the
-      R2 code was on disk and in `dist/` but in neither running process — exactly the
-      restart trap below. The gate needs a Figma DEV plugin reload **and** an MCP client
-      restart first, then `get_runtime_info` must report `r2-server-9c6fe62b7cb2` ↔
-      `r2-plugin-0e6528efaf17` / `sha256:fb3318c6…` before any measurement counts.
+- [x] **Live gate, `get_node_variables` half — PASSED 2026-08-08**, channel `jky2ox2v`,
+      pair verified `r2-server-9c6fe62b7cb2` ↔ `r2-plugin-0e6528efaf17` /
+      `sha256:fb3318c6…` **before** any measurement. Page `14:2` under the default cap:
+      `nodesScanned: 5000`, `nodeCapReached: true`, `complete: false`, 518 KB (was
+      3.66 MB), all three limitations present, `bindingCount: 1` / `styleCount: 1817` as
+      whole-scan totals against a 1000-record window — **and `get_pages` answered
+      immediately afterwards.** Paging verified live at `offset: 1815, limit: 2`.
+      A first attempt on channel `qdzselca` was correctly rejected as the R1 pair.
+- [ ] **Live gate, export half — still owed.** Blocked on the R2.1 defect below, then
+      retry at a modest scale rather than 3×.
+
+### R2.1 — export has a hard deadline and no cost signal — 🔴 OPEN, found 2026-08-08
+
+Found by R2.0's own live gate, on the pinned R2 pair. Exporting section `1113:5031`
+("LP" on page `3-LP`) as PNG at **`scale: 3`** with `filePath`:
+
+- The request consumed the **full 120 s and rejected** — `"Error exporting node as image:
+  Request to Figma timed out [runtime: server=r2-server-9c6fe62b7cb2, schema=1.2.0,
+  plugin=r2-plugin-0e6528efaf17, compatibility=compatible]"`. The R2 budget behaved
+  **correctly**: `server.ts` only resets a pending request's timer on a
+  `progress_update`, export emits none, so its 120 s is a hard deadline, not a
+  heartbeat-extended one. No partial file was written.
+- ⛔ **The plugin then stayed saturated well past the server's deadline** —
+  `get_runtime_info` returned `plugin: null` / `incompatible` / *"Plugin runtime probe
+  failed"* on three successive probes over ~2 minutes, and a `get_selection` in between
+  was refused by the latched preflight. The server gave up; **Figma kept rasterizing.**
+  A DEV plugin reload is required to recover, exactly as in the R1 incident.
+
+**The real defect is the missing cost signal, not the budget.** A caller cannot tell
+before committing that a request will cost 120 s and then cost the *whole session* its
+plugin. Raising the budget further would only lengthen the wedge. Candidate fixes, cheapest
+first:
+
+- [ ] Pre-flight the export in the plugin: report node width × height × `scale` (megapixels)
+      and refuse — or require an explicit override — above a declared ceiling. This is the
+      same "declare the bound, don't discover it" rule the reads already follow.
+- [ ] Emit at least one `progress_update` when the plugin begins encoding, so a long export
+      is distinguishable from a dead plugin.
+- [ ] Consider whether the server should mark the pair `incompatible` on an export timeout
+      rather than leaving the next caller to discover a latched preflight failure.
+
+⛔ Do not "fix" this by raising `HEAVY_READ_TIMEOUT_MS`. The 120 s bound is not what broke.
 
 ### Generic safety and orchestration primitives
 

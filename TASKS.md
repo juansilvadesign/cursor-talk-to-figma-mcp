@@ -169,18 +169,37 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.2 (`create_page`) is accepted; the rest of R2 is the open front
+## ▶ Next session — R2.3 is accepted; the batch contract is the open front
 
-**R2.2 accepted 2026-08-10** ([`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md)) —
-offline 54 tests with three baselines clean, live gate passed on channel `0bcywzod`,
-document restored id-for-id. **The current pinned pair is
-`r2-server-79eb6a3d10d2` ↔ `r2-plugin-3b393bab2224`, schema `1.3.0`, fingerprint
-`sha256:3f2407b8…310bb45`, 50 tools / 49 plugin commands.** Everything below that names
-the `1.2.1` pair is historical and is now rejected by the preflight.
+**R2.2 `create_page` accepted 2026-08-10** ([`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md)).
+**R2.3 plugin data accepted 2026-08-10** ([`docs/R2.3-PLUGIN-DATA.md`](docs/R2.3-PLUGIN-DATA.md)).
 
-⭐ **Next in sequence:** bounded `get_plugin_data` / `set_plugin_data`, then the generic
-batch contract — which forces the open question *"should create operations be supported in
-the first batch version, or only mutations of existing IDs?"*
+**The current pinned pair is `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f`, schema
+`1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`, 52 tools / 51 plugin commands.** Every pair
+named below (`1.2.1`, `1.3.0`) is historical and is now rejected by the preflight.
+
+⭐ **Next in sequence:** the generic batch operation contract — which forces the open
+question *"should create operations be supported in the first batch version, or only
+mutations of existing IDs?"* Two shipped tools now inform it: `create_page`'s
+`onDuplicate` shows how a per-operation policy reads in practice, and `set_plugin_data`'s
+`operation` field (`set` / `removed` / `noop_absent`) is a working example of the typed
+per-operation receipt the batch contract needs.
+
+⛔ **Two standing lessons from these releases, both earned the hard way:**
+
+1. **A gate that mutates must clean up in a `finally`, not on the success path.** R2.2's
+   first connected run aborted mid-gate and left three pages in a real document. R2.3's
+   gate cleans up on both paths and re-asserts the baseline.
+2. **In a live gate a refusal is an expected outcome, not an exception** — and a
+   schema-level refusal arrives as a *thrown* protocol error, never as an error result, so
+   a harness that only inspects results mistakes the stronger behavior for a crash. This
+   bit R2.1 (an honest over-ceiling refusal) and R2.2 (a Zod enum rejection). Both times
+   the product was correct and the harness mis-scored it.
+
+⭐ **Verify a platform assumption before designing around it.** R2.3 set out to make `""`
+storable so `null` could be the only delete; **Figma defines writing `""` as removal**, so
+half the design was impossible. An offline test written to the intended behavior is what
+caught it — before it reached a consumer.
 
 ⛔ **A gate that mutates must clean up on the failure path.** R2.2's first connected run
 aborted mid-gate and left three pages behind; R2.1's export gate mis-scored an honest
@@ -616,8 +635,26 @@ R2.0's live gate is closed; these are now the next R2 implementation front.
       ⛔ **The pair guard is proven, not assumed:** run against the still-loaded 1.2.1
       plugin, the fresh 1.3.0 server refused at `join_channel` and named
       *"Plugin is missing commands: create_page"* before touching the document.
-- [ ] Add bounded `get_plugin_data` / `set_plugin_data` tools so consumers may own
-      their metadata conventions without the fork defining those conventions.
+- [x] **Add bounded `get_plugin_data` / `set_plugin_data` tools so consumers may own
+      their metadata conventions without the fork defining those conventions.**
+      → **R2.3, ACCEPTED 2026-08-10** — [`docs/R2.3-PLUGIN-DATA.md`](docs/R2.3-PLUGIN-DATA.md).
+      One optional `namespace` selects the store: omit it for this plugin's private data,
+      pass one for Figma's shared store that the REST API and other plugins can read.
+      Namespace isolation verified live. Bounded three ways — `limit`/`offset` key paging
+      with `keyCount` kept as a whole-node total, `maxValueBytes` truncating the reply
+      while reporting true `bytes`, and a write refusal above Figma's 100000-byte
+      per-entry ceiling. Sizes are **UTF-8 bytes**, not UTF-16 units.
+      Contract/schema/plugin API `1.3.0` → **`1.4.0`**; pair
+      `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f`; fingerprint
+      `sha256:c3cd6e71…dcc6bd`; 50 → **52 tools**, 49 → **51 plugin commands**. Offline
+      54 → **65 tests**, R2.2 frozen as a fourth baseline; all four replay at zero errors.
+      ⛔ **`set_plugin_data` refuses `value: ""`** — the design intent was that `""` stays
+      storable, but **Figma defines writing `""` as removal**, so it is not implementable.
+      An offline test written to the intended behavior failed and caught it. Encoding a
+      sentinel was rejected because it would corrupt the shared store for every other
+      reader; refusing keeps `null` the single explicit delete. `noop_absent` is reported
+      rather than claiming a removal that did not happen.
+      An absent key reads back `present: false`, never as a stored empty string.
 - [ ] Add a generic batch operation contract with operation IDs, references to prior
       results, prevalidation, progress, stop/continue-on-error policy, and typed
       per-operation receipts.

@@ -108,6 +108,25 @@ test("every read whose cost scales with the file declares the heavy budget", asy
   }
 });
 
+test("export declares its bounded cost preflight and explicit large-request override", async () => {
+  const built = await buildContract();
+  const exported = built.contract.tools.find(
+    (tool) => tool.name === "export_node_as_image",
+  );
+
+  assert.equal(exported.progress.pluginUpdates, "preflight_and_encoding");
+  assert.deepEqual(exported.inputSchema.properties.allowLargeExport, {
+    type: "boolean",
+    default: false,
+    description:
+      "Explicitly accept the risk of a PNG/JPG export above the 16 MP safety ceiling (default: false). A timed-out Figma export cannot be cancelled and may leave the plugin unresponsive; prefer reducing scale or exporting a smaller node.",
+  });
+  assert.ok(
+    !exported.inputSchema.required.includes("allowLargeExport"),
+    "existing callers must remain valid and receive the safe default",
+  );
+});
+
 test("a timeout budget may be raised across releases but never lowered", async () => {
   const snapshot = JSON.parse(
     await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),

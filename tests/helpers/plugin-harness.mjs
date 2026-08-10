@@ -16,6 +16,7 @@ function createFixtureRuntime(fixture, options) {
   const nodes = new Map();
   const messages = [];
   const notifications = [];
+  const exportCalls = [];
   const storage = new Map();
   const clock = { now: 0 };
   let dynamicId = 1;
@@ -115,9 +116,12 @@ function createFixtureRuntime(fixture, options) {
       unregister(node);
     };
     node.exportAsync = async (settings) => {
+      exportCalls.push({ nodeId: node.id, settings: clone(settings) });
       if (settings?.format === "JSON_REST_V1") {
         return { document: serializeNode(node) };
       }
+      if (options.exportError) throw new Error(options.exportError);
+      if (options.exportBytes) return Uint8Array.from(options.exportBytes);
       return Uint8Array.from([137, 80, 78, 71]);
     };
     node.getRangeFontName = () => node.fontName;
@@ -302,6 +306,7 @@ function createFixtureRuntime(fixture, options) {
     nodes,
     messages,
     notifications,
+    exportCalls,
     clock,
     plain: clone,
   };
@@ -362,6 +367,7 @@ export async function loadPluginHarness(options = {}) {
     },
     messages: runtime.messages,
     notifications: runtime.notifications,
+    exportCalls: runtime.exportCalls,
     advanceClock(milliseconds) {
       runtime.clock.now += milliseconds;
     },

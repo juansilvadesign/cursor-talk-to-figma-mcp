@@ -105,10 +105,19 @@ test("unreadable formats report null rather than a fabricated size", () => {
 
 test("the export receipt identifies the export and reports its delivery mode", () => {
   const bytes = pngWith(1440, 900);
+  const preflight = {
+    projectedWidth: 1440,
+    projectedHeight: 900,
+    projectedMegapixels: 1.296,
+    megapixelLimit: 16,
+    overLimit: false,
+    overrideUsed: false,
+  };
   const inline = buildExportReceipt(bytes, "image/png", {
     nodeId: "1:23",
     format: "PNG",
     scale: 2,
+    preflight,
   });
 
   assert.equal(inline.nodeId, "1:23");
@@ -121,6 +130,7 @@ test("the export receipt identifies the export and reports its delivery mode", (
   assert.equal(inline.height, 900);
   assert.equal(inline.dimensionSource, "png-ihdr");
   assert.equal(inline.delivery, "inline");
+  assert.deepEqual(inline.preflight, preflight);
   assert.ok(!("path" in inline), "an inline export has no file path");
 
   const toFile = buildExportReceipt(bytes, "image/png", {

@@ -150,6 +150,91 @@ test("a style whose value cannot be read says so instead of reporting no value",
   }
 });
 
+test("raster export preflight reports scaled pixel cost and encoding progress", async () => {
+  const harness = await loadPluginHarness();
+  const result = await harness.command("export_node_as_image", {
+    nodeId: "10:4",
+    format: "PNG",
+    scale: 2,
+    commandId: "export-small",
+  });
+
+  assert.equal(result.preflight.nodeWidth, 100);
+  assert.equal(result.preflight.nodeHeight, 100);
+  assert.equal(result.preflight.projectedWidth, 200);
+  assert.equal(result.preflight.projectedHeight, 200);
+  assert.equal(result.preflight.projectedMegapixels, 0.04);
+  assert.equal(result.preflight.megapixelLimit, 16);
+  assert.equal(result.preflight.limitApplied, true);
+  assert.equal(result.preflight.overLimit, false);
+  assert.equal(result.preflight.overrideUsed, false);
+
+  const progress = harness.messages.filter(
+    (message) =>
+      message.type === "command_progress" &&
+      message.commandId === "export-small",
+  );
+  assert.deepEqual(
+    progress.map((message) => message.status),
+    ["started", "in_progress", "completed"],
+  );
+  assert.equal(progress[0].payload.preflight.projectedMegapixels, 0.04);
+  assert.equal(harness.exportCalls.length, 1);
+  assert.deepEqual(harness.exportCalls[0], {
+    nodeId: "10:4",
+    settings: {
+      format: "PNG",
+      constraint: { type: "SCALE", value: 2 },
+    },
+  });
+});
+
+test("raster export preflight refuses an implicit over-limit request before exportAsync", async () => {
+  const harness = await loadPluginHarness();
+  harness.getNode("10:4").resize(5000, 5000);
+
+  await assert.rejects(
+    () => harness.command("export_node_as_image", {
+      nodeId: "10:4",
+      format: "PNG",
+      scale: 1,
+    }),
+    /projects to 5000x5000 \(25 MP\), above the 16 MP safety ceiling/,
+  );
+  assert.equal(
+    harness.exportCalls.length,
+    0,
+    "the guard must run before Figma begins an export that cannot be cancelled",
+  );
+});
+
+test("an explicit large-export override is auditable and vector exports are not pixel-capped", async () => {
+  const raster = await loadPluginHarness();
+  raster.getNode("10:4").resize(5000, 5000);
+  const overridden = await raster.command("export_node_as_image", {
+    nodeId: "10:4",
+    format: "JPG",
+    scale: 1,
+    allowLargeExport: true,
+  });
+  assert.equal(overridden.preflight.overLimit, true);
+  assert.equal(overridden.preflight.overrideUsed, true);
+  assert.equal(raster.exportCalls.length, 1);
+
+  const vector = await loadPluginHarness();
+  vector.getNode("10:4").resize(5000, 5000);
+  const svg = await vector.command("export_node_as_image", {
+    nodeId: "10:4",
+    format: "SVG",
+    scale: 1,
+  });
+  assert.equal(svg.preflight.projectedMegapixels, 25);
+  assert.equal(svg.preflight.limitApplied, false);
+  assert.equal(svg.preflight.overLimit, false);
+  assert.equal(svg.preflight.overrideUsed, false);
+  assert.equal(vector.exportCalls.length, 1);
+});
+
 test("time budgets and missing page IDs cannot masquerade as complete component counts", async () => {
   const harness = await loadPluginHarness();
   const budgeted = await harness.command("get_local_components", {

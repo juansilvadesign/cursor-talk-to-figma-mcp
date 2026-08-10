@@ -238,6 +238,18 @@ function createFixtureRuntime(fixture, options) {
     createFrame: () => createDynamicNode("FRAME", "Frame"),
     createText: () => createDynamicNode("TEXT", "Text"),
     createSection: () => createDynamicNode("SECTION", "Section"),
+    // Pages attach to the document root, not to the current page, so this
+    // deliberately does not go through createDynamicNode.
+    createPage: () => {
+      const page = makeNode({
+        id: `900:${dynamicId++}`,
+        type: "PAGE",
+        name: "Page",
+        children: [],
+      });
+      appendChild(rootNode, page);
+      return page;
+    },
     createImage: (bytes) => ({
       hash: `image-${bytes.length}`,
       getSizeAsync: async () => ({ width: 2, height: 2 }),

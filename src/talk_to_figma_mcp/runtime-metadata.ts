@@ -2,12 +2,12 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-9c6fe62b7cb2",
-  "pluginBuildId": "r2-plugin-0e6528efaf17",
-  "serverSchemaVersion": "1.2.0",
-  "pluginApiVersion": "1.2.0",
+  "serverBuildId": "r2-server-41d4d9bcf84a",
+  "pluginBuildId": "r2-plugin-7e738b3a6c10",
+  "serverSchemaVersion": "1.2.1",
+  "pluginApiVersion": "1.2.1",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
+  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",

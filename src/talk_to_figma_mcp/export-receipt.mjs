@@ -12,7 +12,7 @@ import { readImageDimensions } from "./image-dimensions.mjs";
  *
  * @param {Buffer} bytes decoded export bytes
  * @param {string} mimeType the plugin-reported MIME type
- * @param {{nodeId: string, format: string, scale: number, filePath?: string}} request
+ * @param {{nodeId: string, format: string, scale: number, filePath?: string, preflight?: Record<string, unknown>}} request
  * @returns {Record<string, unknown>}
  */
 export function buildExportReceipt(bytes, mimeType, request) {
@@ -34,6 +34,9 @@ export function buildExportReceipt(bytes, mimeType, request) {
   };
   if (request.filePath) {
     receipt.path = request.filePath;
+  }
+  if (request.preflight) {
+    receipt.preflight = request.preflight;
   }
   return receipt;
 }

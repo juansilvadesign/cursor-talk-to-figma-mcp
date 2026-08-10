@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-0e6528efaf17",
-  "apiVersion": "1.2.0",
-  "serverSchemaVersion": "1.2.0",
+  "buildId": "r2-plugin-7e738b3a6c10",
+  "apiVersion": "1.2.1",
+  "serverSchemaVersion": "1.2.1",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
+  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -118,6 +118,13 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
 const state = {
   serverPort: 3055, // Default port
 };
+
+// A raster export is encoded in the plugin sandbox before the server can write it to
+// disk. Past this point the server cannot cancel Figma's work, so reject surprising
+// requests before exportAsync can monopolize the plugin. 16 MP is this fork's safety
+// ceiling, not a claim about a Figma platform limit: at four bytes per pixel it already
+// represents about 64 MB of raw RGBA data before encoder/rendering overhead.
+const RASTER_EXPORT_MEGAPIXEL_LIMIT = 16;
 
 
 // Helper function for progress updates
@@ -3226,7 +3233,12 @@ async function createComponentInstance(params) {
 }
 
 async function exportNodeAsImage(params) {
-  const { nodeId, scale = 1 } = params || {};
+  const {
+    nodeId,
+    scale = 1,
+    allowLargeExport = false,
+    commandId = generateCommandId(),
+  } = params || {};
 
   const format = (params && params.format || "PNG").toUpperCase();
 
@@ -3243,13 +3255,103 @@ async function exportNodeAsImage(params) {
     throw new Error(`Node does not support exporting: ${nodeId}`);
   }
 
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error(`Export scale must be a finite positive number; received ${scale}`);
+  }
+
+  const rasterFormat = format === "PNG" || format === "JPG";
+  const nodeWidth = Number.isFinite(node.width) && node.width >= 0
+    ? node.width
+    : null;
+  const nodeHeight = Number.isFinite(node.height) && node.height >= 0
+    ? node.height
+    : null;
+  const renderBounds = node.absoluteRenderBounds;
+  const hasRenderBounds = Boolean(
+    renderBounds &&
+    Number.isFinite(renderBounds.width) &&
+    renderBounds.width >= 0 &&
+    Number.isFinite(renderBounds.height) &&
+    renderBounds.height >= 0
+  );
+  const boundsWidth = hasRenderBounds ? renderBounds.width : nodeWidth;
+  const boundsHeight = hasRenderBounds ? renderBounds.height : nodeHeight;
+  const scaledWidth = boundsWidth === null ? null : boundsWidth * scale;
+  const scaledHeight = boundsHeight === null ? null : boundsHeight * scale;
+  const costKnown = Boolean(
+    Number.isFinite(scaledWidth) &&
+    scaledWidth >= 0 &&
+    Number.isFinite(scaledHeight) &&
+    scaledHeight >= 0
+  );
+  const projectedWidth = costKnown ? Math.ceil(scaledWidth) : null;
+  const projectedHeight = costKnown ? Math.ceil(scaledHeight) : null;
+  const projectedPixels = costKnown ? projectedWidth * projectedHeight : null;
+  const projectedMegapixels = Number.isFinite(projectedPixels)
+    ? Number((projectedPixels / 1000000).toFixed(6))
+    : null;
+  const overLimit = Boolean(
+    rasterFormat &&
+    projectedPixels !== null &&
+    projectedPixels > RASTER_EXPORT_MEGAPIXEL_LIMIT * 1000000
+  );
+  const preflight = {
+    nodeWidth,
+    nodeHeight,
+    boundsWidth,
+    boundsHeight,
+    boundsSource: hasRenderBounds ? "absoluteRenderBounds" : "node-width-height",
+    projectedWidth,
+    projectedHeight,
+    projectedMegapixels,
+    megapixelLimit: RASTER_EXPORT_MEGAPIXEL_LIMIT,
+    limitApplied: rasterFormat,
+    costKnown,
+    overLimit,
+    overrideUsed: Boolean(allowLargeExport && rasterFormat && (!costKnown || overLimit)),
+  };
+
+  if (rasterFormat && !costKnown && !allowLargeExport) {
+    throw new Error(
+      `Export preflight refused ${format} for node ${nodeId}: finite export bounds could not be determined at scale ${scale}. Export a bounded child node or retry with allowLargeExport: true to accept the unbounded cost.`
+    );
+  }
+
+  if (overLimit && !allowLargeExport) {
+    throw new Error(
+      `Export preflight refused ${format} for node ${nodeId}: ${boundsWidth}x${boundsHeight} at scale ${scale} projects to ${projectedWidth}x${projectedHeight} (${projectedMegapixels} MP), above the ${RASTER_EXPORT_MEGAPIXEL_LIMIT} MP safety ceiling. Reduce the scale or node area, or retry with allowLargeExport: true to accept the session-saturation risk.`
+    );
+  }
+
   try {
     const settings = {
       format: format,
       constraint: { type: "SCALE", value: scale },
     };
 
+    await sendProgressUpdate(
+      commandId,
+      "export_node_as_image",
+      "started",
+      0,
+      1,
+      0,
+      `Encoding ${format} export for ${nodeId} (${projectedMegapixels === null ? "unknown cost" : `${projectedMegapixels} MP projected`})`,
+      { preflight }
+    );
+
     const bytes = await node.exportAsync(settings);
+
+    await sendProgressUpdate(
+      commandId,
+      "export_node_as_image",
+      "in_progress",
+      90,
+      1,
+      1,
+      `Figma encoded ${format}; preparing ${bytes.byteLength} bytes for delivery`,
+      { preflight, encodedBytes: bytes.byteLength }
+    );
 
     let mimeType;
     switch (format) {
@@ -3273,14 +3375,36 @@ async function exportNodeAsImage(params) {
     const base64 = customBase64Encode(bytes);
     // const imageData = `data:${mimeType};base64,${base64}`;
 
+    await sendProgressUpdate(
+      commandId,
+      "export_node_as_image",
+      "completed",
+      100,
+      1,
+      1,
+      `Prepared ${format} export for delivery`,
+      { preflight, encodedBytes: bytes.byteLength }
+    );
+
     return {
       nodeId,
       format,
       scale,
       mimeType,
       imageData: base64,
+      preflight,
     };
   } catch (error) {
+    await sendProgressUpdate(
+      commandId,
+      "export_node_as_image",
+      "error",
+      0,
+      1,
+      0,
+      `Export failed: ${error.message || String(error)}`,
+      { preflight }
+    );
     throw new Error(`Error exporting node as image: ${error.message}`);
   }
 }

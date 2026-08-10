@@ -10,6 +10,7 @@ import path from "path";
 import { RUNTIME_METADATA } from "./runtime-metadata.js";
 import { comparePluginRuntimeMetadata } from "./runtime-compatibility.mjs";
 import { buildExportReceipt } from "./export-receipt.mjs";
+import { runtimeCompatibilityAfterTimeout } from "./timeout-safety.mjs";
 
 // Define TypeScript interfaces for Figma responses
 interface FigmaResponse {
@@ -81,6 +82,7 @@ const pendingRequests = new Map<string, {
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
   timeout: ReturnType<typeof setTimeout>;
+  command: FigmaCommand;
   timeoutMs: number; // The budget this request was armed with, reused on each reset
   lastActivity: number; // Add timestamp for last activity
 }>();
@@ -101,6 +103,16 @@ let runtimeCompatibility: RuntimeCompatibility = {
   issues: ["Join a channel to run the server/plugin compatibility preflight."],
   plugin: null,
 };
+
+function latchRuntimeAfterTimeout(command: FigmaCommand): void {
+  // exportAsync cannot be cancelled when the MCP-side inactivity budget expires.
+  // Refuse subsequent document operations until get_runtime_info proves that the
+  // plugin has recovered; otherwise the next caller rediscovers the wedge by timeout.
+  runtimeCompatibility = runtimeCompatibilityAfterTimeout(
+    runtimeCompatibility,
+    command,
+  ) as RuntimeCompatibility;
+}
 
 // Create MCP server
 const server = new McpServer({
@@ -1081,7 +1093,7 @@ server.tool(
 // Export Node as Image Tool
 server.tool(
   "export_node_as_image",
-  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
+  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
   {
     nodeId: z.string().describe("The ID of the node to export"),
     format: z
@@ -1089,6 +1101,13 @@ server.tool(
       .optional()
       .describe("Export format"),
     scale: z.number().positive().optional().describe("Export scale"),
+    allowLargeExport: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe(
+        "Explicitly accept the risk of a PNG/JPG export above the 16 MP safety ceiling (default: false). A timed-out Figma export cannot be cancelled and may leave the plugin unresponsive; prefer reducing scale or exporting a smaller node."
+      ),
     filePath: z
       .string()
       .optional()
@@ -1096,7 +1115,7 @@ server.tool(
         "Absolute path to write the exported bytes to. When set, the reply is the receipt only — no base64 image block — which keeps multi-megabyte exports out of the model context. Parent directories are created."
       ),
   },
-  async ({ nodeId, format, scale, filePath }: any) => {
+  async ({ nodeId, format, scale, allowLargeExport, filePath }: any) => {
     try {
       if (filePath !== undefined && filePath !== "" && !path.isAbsolute(filePath)) {
         throw new Error(
@@ -1107,14 +1126,14 @@ server.tool(
       const requestedFormat = format || "PNG";
       const requestedScale = scale || 1;
       // Heavy budget, not the 30s default: an export's cost scales with pixel area and
-      // with base64-transferring the bytes back through the relay, neither of which is
-      // visible in the arguments. The multi-megabyte exports `filePath` exists for are
-      // exactly the ones that exceed 30s, and the plugin emits no progress for an
-      // export — so as with get_document_info, the initial budget IS the whole budget.
+      // with base64-transferring the bytes back through the relay. The plugin emits a
+      // pre-encoding progress update, but the 120s inactivity budget remains a hard
+      // bound while Figma is inside exportAsync; raising it would only lengthen a wedge.
       const result = await sendCommandToFigma("export_node_as_image", {
         nodeId,
         format: requestedFormat,
         scale: requestedScale,
+        allowLargeExport: Boolean(allowLargeExport),
       }, HEAVY_READ_TIMEOUT_MS);
       const typedResult = result as {
         nodeId?: string;
@@ -1122,6 +1141,7 @@ server.tool(
         scale?: number;
         imageData: string;
         mimeType: string;
+        preflight?: Record<string, unknown>;
       };
 
       const mimeType = typedResult.mimeType || "image/png";
@@ -1131,6 +1151,7 @@ server.tool(
         format: typedResult.format || requestedFormat,
         scale: typedResult.scale ?? requestedScale,
         filePath,
+        preflight: typedResult.preflight,
       });
 
       if (filePath) {
@@ -3211,6 +3232,7 @@ type CommandParams = {
     nodeId: string;
     format?: "PNG" | "JPG" | "SVG" | "PDF";
     scale?: number;
+    allowLargeExport?: boolean;
   };
   join: {
     channel: string;
@@ -3416,6 +3438,7 @@ function connectToFigma(port: number = 3055) {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
+              latchRuntimeAfterTimeout(request.command);
               request.reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
             }
           }, inactivityMs);
@@ -3570,6 +3593,7 @@ function sendCommandToFigma(
       if (pendingRequests.has(id)) {
         pendingRequests.delete(id);
         logger.error(`Request ${id} to Figma timed out after ${timeoutMs / 1000} seconds`);
+        latchRuntimeAfterTimeout(command);
         reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
       }
     }, timeoutMs);
@@ -3579,6 +3603,7 @@ function sendCommandToFigma(
       resolve,
       reject,
       timeout,
+      command,
       timeoutMs,
       lastActivity: Date.now()
     });

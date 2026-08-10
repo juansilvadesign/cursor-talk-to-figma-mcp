@@ -169,7 +169,29 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.1 is accepted; R2 authoring is the open front
+## ▶ Next session — R2.2 (`create_page`) is accepted; the rest of R2 is the open front
+
+**R2.2 accepted 2026-08-10** ([`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md)) —
+offline 54 tests with three baselines clean, live gate passed on channel `0bcywzod`,
+document restored id-for-id. **The current pinned pair is
+`r2-server-79eb6a3d10d2` ↔ `r2-plugin-3b393bab2224`, schema `1.3.0`, fingerprint
+`sha256:3f2407b8…310bb45`, 50 tools / 49 plugin commands.** Everything below that names
+the `1.2.1` pair is historical and is now rejected by the preflight.
+
+⭐ **Next in sequence:** bounded `get_plugin_data` / `set_plugin_data`, then the generic
+batch contract — which forces the open question *"should create operations be supported in
+the first batch version, or only mutations of existing IDs?"*
+
+⛔ **A gate that mutates must clean up on the failure path.** R2.2's first connected run
+aborted mid-gate and left three pages behind; R2.1's export gate mis-scored an honest
+refusal the same way. **In a live gate a refusal is an expected outcome, not an
+exception** — and a schema-level refusal arrives as a *thrown* protocol error, never as an
+error result, so a harness that only inspects results mistakes the stronger behavior for a
+crash. Both incidents were harness defects with the product behaving correctly.
+
+---
+
+## Historical — R2.1 acceptance notes
 
 **R0 accepted 2026-08-08** ([`docs/R0-BUILD.md`](docs/R0-BUILD.md)).
 **R1 accepted 2026-08-08** ([`docs/R1-RELEASE.md`](docs/R1-RELEASE.md)) — offline gate
@@ -574,7 +596,26 @@ plugin. Raising the budget further would only lengthen the wedge.
 
 R2.0's live gate is closed; these are now the next R2 implementation front.
 
-- [ ] Add `create_page` with explicit naming and duplicate behavior.
+- [x] **Add `create_page` with explicit naming and duplicate behavior.**
+      → **R2.2, ACCEPTED 2026-08-10** — [`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md).
+      `create_page(name, onDuplicate?, index?)`; `onDuplicate` is `"error"` (default) or
+      `"allow"`. `"reuse"` is **deliberately absent** and pinned absent by a test, because
+      that is idempotency and the task below requires its semantics be proven first.
+      Contract/schema/plugin API `1.2.1` → **`1.3.0`**; pair
+      `r2-server-79eb6a3d10d2` ↔ `r2-plugin-3b393bab2224`; fingerprint
+      `sha256:3f2407b8…310bb45`; 49 → **50 tools**, 48 → **49 plugin commands**; new
+      capability `figma.command.create_page@1`. Offline 47 → **54 tests**, with the R2.1
+      contract now frozen as a third baseline — R0/R1/R2.1 all replay at zero errors.
+      **Live gate PASSED** on channel `0bcywzod`: append landed last (80 ms) without
+      switching pages, the duplicate was refused in 5 ms naming the colliding id and wrote
+      nothing, `"allow"` created a distinct page declaring `duplicateNameExisted`,
+      `index: 0` shifted the previous first page, four invalid inputs were refused, and
+      the three created pages were deleted leaving the document identical **id-for-id and
+      in order** — re-verified afterwards from a separate client. `get_runtime_info`
+      answered in 11 ms, still `compatible`.
+      ⛔ **The pair guard is proven, not assumed:** run against the still-loaded 1.2.1
+      plugin, the fresh 1.3.0 server refused at `join_channel` and named
+      *"Plugin is missing commands: create_page"* before touching the document.
 - [ ] Add bounded `get_plugin_data` / `set_plugin_data` tools so consumers may own
       their metadata conventions without the fork defining those conventions.
 - [ ] Add a generic batch operation contract with operation IDs, references to prior

@@ -199,6 +199,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `get_document_info` - Get current-page details plus a document-wide page index; the current page's children are always bounded by `limit`/`offset`, with `childTypes`/`childFamilies` rollups describing every child
 - `get_pages` - Enumerate every page; top-level child counts are opt-in
 - `set_current_page` - Switch the active page for subsequent page-scoped operations
+- `create_page` - Create a page with an explicit name, duplicate-name policy (`error` by default, or `allow`), and optional position; does not switch the active page
 - `get_selection` - Get information about the current-page selection
 - `read_my_design` - Get detailed node information about the current selection without parameters
 - `get_node_info` - Get detailed information about a specific node

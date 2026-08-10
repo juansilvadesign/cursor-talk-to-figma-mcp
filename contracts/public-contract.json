@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.2.0",
-  "serverSchemaVersion": "1.2.0",
+  "publicContractVersion": "1.2.1",
+  "serverSchemaVersion": "1.2.1",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
+  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
   "capabilities": [
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -797,7 +797,7 @@
     {
       "kind": "tool",
       "name": "export_node_as_image",
-      "description": "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
+      "description": "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
       "direction": "read",
       "scope": "node",
       "inputSchema": {
@@ -822,6 +822,11 @@
             "exclusiveMinimum": 0,
             "description": "Export scale"
           },
+          "allowLargeExport": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly accept the risk of a PNG/JPG export above the 16 MP safety ceiling (default: false). A timed-out Figma export cannot be cancelled and may leave the plugin unresponsive; prefer reducing scale or exporting a smaller node."
+          },
           "filePath": {
             "type": "string",
             "description": "Absolute path to write the exported bytes to. When set, the reply is the receipt only — no base64 image block — which keeps multi-megabyte exports out of the model context. Parent directories are created."
@@ -835,7 +840,7 @@
       "timeoutClass": "heavy_read",
       "progress": {
         "relayHeartbeatSeconds": 15,
-        "pluginUpdates": "none"
+        "pluginUpdates": "preflight_and_encoding"
       },
       "pluginCommand": "export_node_as_image",
       "resultStability": "additive-preview"

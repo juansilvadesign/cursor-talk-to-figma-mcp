@@ -8,3 +8,4 @@ docs/*
 !docs/R1-RELEASE.md
 !docs/R1-READ-CONTRACT.md
 !docs/COMPATIBILITY-POLICY.md
+!docs/R2.1-EXPORT-SAFETY.md

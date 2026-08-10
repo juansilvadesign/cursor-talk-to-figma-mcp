@@ -137,6 +137,7 @@ const TOOL_SCOPES = {
 };
 
 const SPECIAL_PROGRESS = {
+  export_node_as_image: "preflight_and_encoding",
   get_pages: "conditional_per_page",
   get_styles: "per_resource_with_heartbeat",
   get_local_components: "per_page_with_heartbeat",

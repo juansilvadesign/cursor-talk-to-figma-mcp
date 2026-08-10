@@ -5,16 +5,17 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-7e738b3a6c10",
-  "apiVersion": "1.2.1",
-  "serverSchemaVersion": "1.2.1",
+  "buildId": "r2-plugin-3b393bab2224",
+  "apiVersion": "1.3.0",
+  "serverSchemaVersion": "1.3.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
+  "capabilityFingerprint": "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
     "get_pages",
     "set_current_page",
+    "create_page",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -65,6 +66,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
@@ -254,6 +256,8 @@ async function handleCommand(command, params) {
       return await getPages(params);
     case "set_current_page":
       return await setCurrentPage(params);
+    case "create_page":
+      return await createPage(params);
     case "get_selection":
       return await getSelection();
     case "get_node_info":
@@ -613,6 +617,76 @@ async function setCurrentPage(params) {
       name: page.name,
       childCount: page.children.length,
     },
+  };
+}
+
+async function createPage(params) {
+  const { name, onDuplicate, index } = params || {};
+
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error("Missing or empty name parameter");
+  }
+
+  // Figma itself permits duplicate page names, so the caller declares intent.
+  // The default refuses, because a consumer re-running a sequence would
+  // otherwise fan out same-named pages silently.
+  const duplicatePolicy =
+    onDuplicate === undefined || onDuplicate === null ? "error" : onDuplicate;
+  if (duplicatePolicy !== "error" && duplicatePolicy !== "allow") {
+    throw new Error(
+      `Invalid onDuplicate value ${JSON.stringify(
+        onDuplicate
+      )}; expected "error" or "allow"`
+    );
+  }
+
+  // Page id/name are readable without loadAsync under dynamic-page access;
+  // only a page's children require loading.
+  const pageCountBefore = figma.root.children.length;
+  const requestedIndex =
+    index === undefined || index === null ? null : index;
+
+  if (requestedIndex !== null) {
+    if (typeof requestedIndex !== "number" || !Number.isInteger(requestedIndex)) {
+      throw new Error("index must be an integer when provided");
+    }
+    if (requestedIndex < 0 || requestedIndex > pageCountBefore) {
+      throw new Error(
+        `index ${requestedIndex} is out of range; expected 0..${pageCountBefore} for a document with ${pageCountBefore} pages`
+      );
+    }
+  }
+
+  const duplicateNameIds = figma.root.children
+    .filter((existing) => existing.name === name)
+    .map((existing) => existing.id);
+
+  if (duplicateNameIds.length > 0 && duplicatePolicy === "error") {
+    throw new Error(
+      `A page named "${name}" already exists (${duplicateNameIds.join(
+        ", "
+      )}). Pass onDuplicate: "allow" to create another page with the same name.`
+    );
+  }
+
+  const page = figma.createPage();
+  page.name = name;
+
+  if (requestedIndex !== null) {
+    figma.root.insertChild(requestedIndex, page);
+  }
+
+  // Report the observed position rather than the requested one: reordering an
+  // existing child is index-sensitive, and a receipt must state what happened.
+  return {
+    id: page.id,
+    name: page.name,
+    index: figma.root.children.indexOf(page),
+    requestedIndex,
+    pageCount: figma.root.children.length,
+    onDuplicate: duplicatePolicy,
+    duplicateNameExisted: duplicateNameIds.length > 0,
+    existingPageIds: duplicateNameIds,
   };
 }
 

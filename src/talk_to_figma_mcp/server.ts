@@ -351,6 +351,54 @@ server.tool(
   }
 );
 
+// Create Page Tool
+server.tool(
+  "create_page",
+  "[Document scoped] Create a new page in the Figma document. Does not switch the active page - call set_current_page afterwards if you need to work inside it",
+  {
+    name: z.string().describe("Name for the new page"),
+    onDuplicate: z
+      .enum(["error", "allow"])
+      .optional()
+      .describe(
+        "What to do when a page with this exact name already exists. 'error' (default) refuses and names the existing page IDs; 'allow' creates another page with the same name, as Figma itself permits"
+      ),
+    index: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        "Optional 0-based position among the document's pages. Defaults to appending last. The reply reports the observed index alongside the requested one"
+      ),
+  },
+  async ({ name, onDuplicate, index }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_page", {
+        name,
+        onDuplicate,
+        index,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating page: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Selection Tool
 server.tool(
   "get_selection",
@@ -3080,6 +3128,7 @@ type FigmaCommand =
   | "get_document_info"
   | "get_pages"
   | "set_current_page"
+  | "create_page"
   | "get_selection"
   | "get_node_info"
   | "get_nodes_info"
@@ -3136,6 +3185,11 @@ type CommandParams = {
   };
   get_pages: { includeChildCount?: boolean };
   set_current_page: { pageId: string };
+  create_page: {
+    name: string;
+    onDuplicate?: "error" | "allow";
+    index?: number;
+  };
   get_selection: Record<string, never>;
   get_node_info: { nodeId: string };
   get_nodes_info: { nodeIds: string[] };

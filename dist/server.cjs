@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-9c6fe62b7cb2",
-  "pluginBuildId": "r2-plugin-0e6528efaf17",
-  "serverSchemaVersion": "1.2.0",
-  "pluginApiVersion": "1.2.0",
+  "serverBuildId": "r2-server-41d4d9bcf84a",
+  "pluginBuildId": "r2-plugin-7e738b3a6c10",
+  "serverSchemaVersion": "1.2.1",
+  "pluginApiVersion": "1.2.1",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:fb3318c64fae322f05537cd97e478cb89944070b90543522d0ccef5df176e02b",
+  "capabilityFingerprint": "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -396,7 +396,22 @@ function buildExportReceipt(bytes, mimeType, request) {
   if (request.filePath) {
     receipt.path = request.filePath;
   }
+  if (request.preflight) {
+    receipt.preflight = request.preflight;
+  }
   return receipt;
+}
+
+// src/talk_to_figma_mcp/timeout-safety.mjs
+var EXPORT_TIMEOUT_ISSUE = "export_node_as_image exceeded its inactivity budget. The Figma plugin may still be encoding; call get_runtime_info to prove it is responsive before another document operation.";
+function runtimeCompatibilityAfterTimeout(current, command, checkedAt = (/* @__PURE__ */ new Date()).toISOString()) {
+  if (command !== "export_node_as_image") return current;
+  return {
+    status: "incompatible",
+    checkedAt,
+    issues: [EXPORT_TIMEOUT_ISSUE],
+    plugin: current.plugin ?? null
+  };
 }
 
 // src/talk_to_figma_mcp/server.ts
@@ -422,6 +437,12 @@ var runtimeCompatibility = {
   issues: ["Join a channel to run the server/plugin compatibility preflight."],
   plugin: null
 };
+function latchRuntimeAfterTimeout(command) {
+  runtimeCompatibility = runtimeCompatibilityAfterTimeout(
+    runtimeCompatibility,
+    command
+  );
+}
 var server = new import_mcp.McpServer({
   name: "TalkToFigmaMCP",
   version: RUNTIME_METADATA.packageVersion
@@ -1237,16 +1258,19 @@ server.tool(
 );
 server.tool(
   "export_node_as_image",
-  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export (nodeId, format, scale, mimeType, byte length, sha256, and intrinsic dimensions where readable). Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
+  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
   {
     nodeId: import_zod.z.string().describe("The ID of the node to export"),
     format: import_zod.z.enum(["PNG", "JPG", "SVG", "PDF"]).optional().describe("Export format"),
     scale: import_zod.z.number().positive().optional().describe("Export scale"),
+    allowLargeExport: import_zod.z.boolean().optional().default(false).describe(
+      "Explicitly accept the risk of a PNG/JPG export above the 16 MP safety ceiling (default: false). A timed-out Figma export cannot be cancelled and may leave the plugin unresponsive; prefer reducing scale or exporting a smaller node."
+    ),
     filePath: import_zod.z.string().optional().describe(
       "Absolute path to write the exported bytes to. When set, the reply is the receipt only \u2014 no base64 image block \u2014 which keeps multi-megabyte exports out of the model context. Parent directories are created."
     )
   },
-  async ({ nodeId, format, scale, filePath }) => {
+  async ({ nodeId, format, scale, allowLargeExport, filePath }) => {
     try {
       if (filePath !== void 0 && filePath !== "" && !import_path.default.isAbsolute(filePath)) {
         throw new Error(
@@ -1258,7 +1282,8 @@ server.tool(
       const result = await sendCommandToFigma("export_node_as_image", {
         nodeId,
         format: requestedFormat,
-        scale: requestedScale
+        scale: requestedScale,
+        allowLargeExport: Boolean(allowLargeExport)
       }, HEAVY_READ_TIMEOUT_MS);
       const typedResult = result;
       const mimeType = typedResult.mimeType || "image/png";
@@ -1267,7 +1292,8 @@ server.tool(
         nodeId: typedResult.nodeId || nodeId,
         format: typedResult.format || requestedFormat,
         scale: typedResult.scale ?? requestedScale,
-        filePath
+        filePath,
+        preflight: typedResult.preflight
       });
       if (filePath) {
         await (0, import_promises.mkdir)(import_path.default.dirname(filePath), { recursive: true });
@@ -2919,6 +2945,7 @@ function connectToFigma(port = 3055) {
             if (pendingRequests.has(requestId)) {
               logger.error(`Request ${requestId} timed out after extended period of inactivity`);
               pendingRequests.delete(requestId);
+              latchRuntimeAfterTimeout(request.command);
               request.reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
             }
           }, inactivityMs);
@@ -3034,6 +3061,7 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
       if (pendingRequests.has(id)) {
         pendingRequests.delete(id);
         logger.error(`Request ${id} to Figma timed out after ${timeoutMs / 1e3} seconds`);
+        latchRuntimeAfterTimeout(command);
         reject(new Error(`Request to Figma timed out${runtimeDiagnosticSuffix()}`));
       }
     }, timeoutMs);
@@ -3041,6 +3069,7 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
       resolve,
       reject,
       timeout,
+      command,
       timeoutMs,
       lastActivity: Date.now()
     });

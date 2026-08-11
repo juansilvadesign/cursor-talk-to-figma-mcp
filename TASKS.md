@@ -169,44 +169,65 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.3 is accepted; the batch contract is the open front
+## ▶ Next session — R2.4 is planned and its open question is closed; the build is the front
 
 **R2.2 `create_page` accepted 2026-08-10** ([`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md)).
 **R2.3 plugin data accepted 2026-08-10** ([`docs/R2.3-PLUGIN-DATA.md`](docs/R2.3-PLUGIN-DATA.md)).
+**R2.4 batch contract planned 2026-08-10** ([`docs/BATCH-CONTRACT-PLAN.md`](docs/BATCH-CONTRACT-PLAN.md))
+— **planned, not started.** No `src/` change, no schema bump yet.
 
 **The current pinned pair is `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f`, schema
 `1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`, 52 tools / 51 plugin commands.** Every pair
 named below (`1.2.1`, `1.3.0`) is historical and is now rejected by the preflight.
 
-⭐ **Next in sequence:** the generic batch operation contract — which forces the open
-question *"should create operations be supported in the first batch version, or only
-mutations of existing IDs?"* Two shipped tools now inform it: `create_page`'s
-`onDuplicate` shows how a per-operation policy reads in practice, and `set_plugin_data`'s
-`operation` field (`set` / `removed` / `noop_absent`) is a working example of the typed
-per-operation receipt the batch contract needs.
+✅ **The open question is CLOSED: `apply_batch` v1 is `mutate-only`** — operations may only
+target a node ID that already exists. Decided through the interview gate before any design
+was written; the four reasons are recorded under *Open questions to close at the relevant
+checkpoint* and in full in the plan. Two shipped tools informed the shape: `create_page`'s
+`onDuplicate` is the named-policy-with-a-safe-default pattern that became `onError`, and
+`set_plugin_data`'s `operation` field (`set` / `removed` / `noop_absent`) is the working
+precedent for a typed per-operation receipt that reports what happened instead of
+collapsing it to a boolean.
 
-⛔ **Two standing lessons from these releases, both earned the hard way:**
+⭐ **Next in sequence: build R2.4 Phase 1** — the shared receipt-vocabulary module (imported
+by `apply_batch` *and* the three legacy tools, or Finding 2 gains a fourth dialect), then
+the `apply_batch` Zod schema with unique-`id` and allowlist assertions. All five phases,
+the acceptance criteria, and the four traps are already written, so the session starts at
+**1.1**, not at a design decision.
+
+⛔ **Do these before touching `src/`:** freeze R2.3 as the **fifth baseline** with a plain
+`cp` *before* regenerating the contract — the test discovers baselines by filename — and
+plan on bumping `serverSchemaVersion` `1.4.0` → **`1.5.0`**. A new command moves the
+fingerprint anyway, but a contract that grows must bump the version regardless.
+
+⛔ **Four standing lessons, all earned the hard way — the R2.4 gate will meet every one:**
 
 1. **A gate that mutates must clean up in a `finally`, not on the success path.** R2.2's
    first connected run aborted mid-gate and left three pages in a real document. R2.3's
-   gate cleans up on both paths and re-asserts the baseline.
+   gate cleans up on both paths and re-asserts the baseline. The R2.4 gate mutates more
+   than any before it.
 2. **In a live gate a refusal is an expected outcome, not an exception** — and a
    schema-level refusal arrives as a *thrown* protocol error, never as an error result, so
    a harness that only inspects results mistakes the stronger behavior for a crash. This
-   bit R2.1 (an honest over-ceiling refusal) and R2.2 (a Zod enum rejection). Both times
-   the product was correct and the harness mis-scored it.
+   bit R2.1 (an honest over-ceiling refusal) and R2.2 (a Zod enum rejection); both times
+   the product was correct and the harness mis-scored it. R2.4's gate deliberately
+   triggers **three** refusals — allowlist, duplicate `id`, prevalidation — so a
+   result-only harness would mis-score correct behavior three separate ways.
+3. **A rebuild reaches neither running side.** After `bun run build` the Figma DEV plugin
+   must be re-run (it holds `code.js` from launch) *and* the MCP server respawned. Verify
+   by **tool surface and exact pair**, never by relay pid or port.
+4. **Verify a platform assumption before designing around it.** R2.3 set out to make `""`
+   storable so `null` could be the only delete; **Figma defines writing `""` as removal**,
+   so half the design was impossible, and an offline test written to the intended behavior
+   is what caught it. ⚠️ The assumption to test early in R2.4 is **whether a mid-batch
+   failure can leave a partially applied operation** (a multi-step mutation such as
+   `set_layout_mode` that throws halfway). Per-operation atomicity is *assumed* by the
+   contract and has not been verified.
 
-⭐ **Verify a platform assumption before designing around it.** R2.3 set out to make `""`
-storable so `null` could be the only delete; **Figma defines writing `""` as removal**, so
-half the design was impossible. An offline test written to the intended behavior is what
-caught it — before it reached a consumer.
-
-⛔ **A gate that mutates must clean up on the failure path.** R2.2's first connected run
-aborted mid-gate and left three pages behind; R2.1's export gate mis-scored an honest
-refusal the same way. **In a live gate a refusal is an expected outcome, not an
-exception** — and a schema-level refusal arrives as a *thrown* protocol error, never as an
-error result, so a harness that only inspects results mistakes the stronger behavior for a
-crash. Both incidents were harness defects with the product behaving correctly.
+⛔ **`docs/*` is gitignored with per-file `!docs/…` exceptions.** Every new release note or
+plan needs its own allowlist line or `git status` reads **clean while the file is
+untracked** — `docs/VARIABLE-WRITE-PLAN.md` sat untracked for three days that way. Verify
+with `git ls-files docs/`, not with `git status`.
 
 ---
 
@@ -658,10 +679,59 @@ R2.0's live gate is closed; these are now the next R2 implementation front.
 - [ ] Add a generic batch operation contract with operation IDs, references to prior
       results, prevalidation, progress, stop/continue-on-error policy, and typed
       per-operation receipts.
+      → **R2.4, PLANNED 2026-08-10 — planned, not started** —
+      [`docs/BATCH-CONTRACT-PLAN.md`](docs/BATCH-CONTRACT-PLAN.md). `apply_batch` takes a
+      caller-supplied `id` per operation (receipts correlate by `id`, never by array
+      position), lifts `nodeId` **out** of `params` onto the envelope so the resolve pass
+      need not know every tool's parameter shape, and returns a typed `outcome` enum —
+      `all_succeeded` / `partial` / `all_failed` / `refused_prevalidation`. Bounded three
+      ways like R2.3: a `maxOperations` schema ceiling, a **total** `timeBudgetMs`, and
+      `maxResultBytes` truncating each result while reporting its true size. New
+      `heavy_batch` timeout class at rank 4 (`heavy_read` means cost scales with the
+      *file*; a batch scales with its *arguments*).
+      ⛔ **"references to prior results" is deliberately NOT in v1** — it is the forward
+      `$ref` machinery the create decision defers along with creates. See the closed R2
+      batch-boundary question under *Open questions*.
+      ⭐ **Auditing the three already-shipped batch tools produced five findings, and the
+      contract is shaped by every one of them:** **(1)** the aggregate lies — all three
+      return `success: successCount > 0`, so a batch of 100 where **99 fail still reports
+      `success: true`** (`code.js:4720`, `:5129`, `:5333`); **(2)** three vocabularies for
+      one concept (`replacementsApplied` / `annotationsApplied` / `nodesDeleted`, each
+      with its own `*Failed` and `total*` spelling); **(3)** three execution models under
+      one declared class — text and delete chunk by 5 with a 1 s inter-chunk sleep, while
+      `set_multiple_annotations` is a plain sequential loop with no chunking, no delay and
+      **no progress updates at all** (`code.js:5075`); **(4)** the public contract asserts
+      progress that never happens — `SPECIAL_PROGRESS` (`contract-lib.mjs:257`) is a
+      hand-maintained map declaring annotations `pluginUpdates: "chunked"` and it emits
+      nothing, the R1 *"a hand-written schema drifts from observed replies"* lesson
+      repeating with nothing asserting it against the runtime; **(5)** ⛔ **there is no
+      total-duration ceiling, only an inactivity one** — `server.ts:3608-3627` resets the
+      request timeout to `max(60000, timeoutMs)` on *every* progress update, so a chunked
+      batch that keeps reporting **never times out** (10k deletes ≈ 33 min of inter-chunk
+      sleep alone). Same defect class R2.0 already fixed once in `get_node_variables` via
+      `timeBudgetMs`. ⭐ **Composed, 3+4+5 are a live defect:** annotations is the *only*
+      one of the three that can actually hit the 30 s wall, precisely because it is the
+      only one that never resets the timer — while the two declared identically to it are
+      effectively unbounded.
+      Phase 4 aligns the three shipped tools **additively** — new
+      `outcome`/`succeeded`/`failed`/`total` *alongside* untouched legacy fields, so all
+      four frozen baselines keep replaying at zero errors. ⚠️ Finding 4 is fixed **upward**
+      (give annotations real progress updates) rather than by correcting the declaration
+      to `"none"`, which would weaken a declared behavior and drop that tool onto the 30 s
+      wall it already sits on.
 - [ ] Add generic idempotency only after its semantics are proven independently of a
       consumer scene format.
+      ⭐ **Load-bearing in the R2.4 decision** — this deferral is reason (3) for keeping
+      creates out of the first batch version.
 - [ ] Make destructive batch operations require exact node IDs and report their
       resolved scope before mutation.
+      ⭐ **Load-bearing in the R2.4 decision** — this promise is reason (1) for keeping
+      creates out of the first batch version. Satisfied by the plan's **D1** (prevalidation
+      is a separate, *total* pass, and the `prevalidation` block is returned under **both**
+      `onError` policies) and **D7** (`delete_node` inside a batch takes an exact node ID —
+      no name or selector resolution, ever — and its prevalidation entry reports `name`,
+      `type` and `childCount` so the caller sees the true blast radius before anything is
+      mutated).
 
 ### Typography, layout, visuals, and assets
 
@@ -756,8 +826,24 @@ design-system format—remains consumer work.
       is exactly the failure that produced the consumer's seven validator corrections.
       Cross-release safety comes from replaying frozen baselines, not from a schema
       dialect. See [`docs/COMPATIBILITY-POLICY.md`](docs/COMPATIBILITY-POLICY.md).
-- [ ] **R2 — generic batch boundary:** should create operations be supported in the
-      first batch version, or only mutations of existing IDs?
+- [x] **R2 — generic batch boundary:** *mutations of existing IDs only.* Closed
+      2026-08-10, through the interview gate and before any design was written →
+      [`docs/BATCH-CONTRACT-PLAN.md`](docs/BATCH-CONTRACT-PLAN.md). Four reasons, in the
+      order that decided it: **(1)** prevalidation and create are in direct tension and
+      prevalidation is **already promised** by the destructive-batch line above — with
+      existing IDs the resolve pass is *total*, but a created node has no ID at
+      prevalidation time, so the guarantee silently degrades to partial and that line
+      becomes unsatisfiable as written; **(2)** creates are only useful with forward
+      `$ref`s, which drag in a reference resolver, cycle detection, and an
+      orphan-rollback story for mid-batch failures — none of it proven, none of it
+      needed to ship batching's actual value; **(3)** a create batch without idempotency
+      duplicates on every rerun, which forces the idempotency decision *already deferred*
+      above through the back door; **(4)** it is a **version** boundary, not a permanent
+      one — `op` is an allowlisted string and the receipt is already per-operation and
+      typed, so creates arrive later as a new `op` kind with no envelope change.
+      ⛔ **The absence of creates must be pinned by a test**, exactly as R2.2 pinned
+      `"reuse"` absent from `onDuplicate`; a deliberate omission that is not asserted
+      reads as an oversight the next time someone extends the allowlist.
 - [ ] **R3 — resource identity:** plugin data, Figma keys/IDs, explicit caller key, or
       a layered strategy?
 

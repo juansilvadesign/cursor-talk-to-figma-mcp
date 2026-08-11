@@ -11,3 +11,5 @@ docs/*
 !docs/R2.1-EXPORT-SAFETY.md
 !docs/R2.2-CREATE-PAGE.md
 !docs/R2.3-PLUGIN-DATA.md
+!docs/VARIABLE-WRITE-PLAN.md
+!docs/BATCH-CONTRACT-PLAN.md

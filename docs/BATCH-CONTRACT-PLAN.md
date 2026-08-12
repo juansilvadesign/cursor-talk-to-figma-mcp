@@ -1,8 +1,20 @@
 # Batch Contract Plan — the generic batch operation contract (R2.4)
 
-> **Status: planned, not started.** Cut 2026-08-10, immediately after R2.3 was accepted.
-> This plan owns the generic batch envelope only. R2's typography/layout/visual half
-> stays coarse until it is cut separately.
+> **Status 2026-08-12: Phases 1 and 2 BUILT and green offline; `apply_batch` executes.**
+> Remaining: **3.1/3.2** (chunked progress and the measured sleep default), **Phase 4**
+> (additive alignment of the three shipped tools), **5.5** (the live gate) and **5.6**
+> (the pin). Cut 2026-08-10, immediately after R2.3 was accepted. This plan owns the
+> generic batch envelope only. R2's typography/layout/visual half stays coarse until it
+> is cut separately.
+>
+> ⛔ **The pinned pair changed.** `1.4.0` → **`1.5.0`**, 52 → **53 tools**,
+> `r2-server-9239fd0bc71b` ↔ `r2-plugin-d0342abb6c4a`, fingerprint
+> `sha256:a87b5d98…835704`. Any running Figma session is on the old pair and will fail the
+> preflight until the DEV plugin is re-run *and* the MCP server respawned.
+>
+> 🔴 **The contract's per-operation atomicity assumption was tested and is FALSE** — see
+> Traps. Three handlers are proven to write before they throw; the contract now declares
+> non-atomicity rather than promising it.
 >
 > **The open question is closed here.** `TASKS.md` *"R2 — generic batch boundary: should
 > create operations be supported in the first batch version, or only mutations of
@@ -186,10 +198,17 @@ green, five baselines replaying, and the contract, fingerprint and pinned pair
       `import`**, so Phase 4's plugin half must carry a *mirrored copy*, held to this one
       by a parity test rather than by convention. "Import it in both places" is not
       available; plan 4.1 accordingly.
-- [ ] **1.2 Register `apply_batch`** in `server.ts` with a Zod schema: `operations`
+- [x] **1.2 Register `apply_batch`** in `server.ts` with a Zod schema: `operations`
       (non-empty, `maxOperations` ceiling), `onError`, `prevalidateOnly`, `timeBudgetMs`,
       `maxResultBytes`.
-      ⛔ **Deferred to Phase 2, on purpose.** Registration is not a local act: the parity
+      ✅ **Done 2026-08-12 with Phase 2**, exactly as sequenced: the tool, the
+      `FigmaCommand`/`CommandParams` entries and the `code.js` dispatcher case landed in
+      one change, so the parity guard was satisfied at the same commit that published the
+      tool. ⭐ **The constraint below was real and cost nothing because it was known** —
+      the first draft used `.max(BATCH_MAX_OPERATIONS)` and would have failed contract
+      generation; the literals are inline, with a test asserting they equal the constants
+      the runtime enforces.
+      ⛔ *Deferred from Phase 1 on purpose.* Registration is not a local act: the parity
       guard requires a matching `code.js` dispatcher entry, so registering in Phase 1
       forces either a *failing* parity test or a dispatcher stub — and a stub would
       publish a tool into the generated contract that refuses every call. Both are worse
@@ -215,26 +234,60 @@ green, five baselines replaying, and the contract, fingerprint and pinned pair
 
 ## Phase 2 — prevalidation
 
-- [ ] **2.1 Resolve every target first**, in one pass, writing nothing.
-- [ ] **2.2 Report the resolved scope** — `name`, `type`, `childCount` per target.
-- [ ] **2.3 Implement `prevalidateOnly`** as a first-class dry run. This is the cheapest
-      possible way for a caller to check a plan against a live file, and it makes the
-      destructive-scope report usable *before* committing to the mutation.
-- [ ] **2.4 Refuse atomically under `onError: "stop"`.** Prove by fixture that a batch
-      with one bad target leaves **zero** observable mutations.
+**Status 2026-08-12: BUILT, offline.** `apply_batch` is registered and executing;
+98 offline tests (75 → 98), `bun run verify` green, five baselines replaying at zero
+errors. Contract `1.4.0` → **`1.5.0`**, 52 → **53 tools**, 51 → **52 plugin commands**,
+new pair `r2-server-9239fd0bc71b` ↔ `r2-plugin-d0342abb6c4a`, fingerprint
+`sha256:a87b5d98…835704`. ⛔ **The previously pinned pair is now rejected by the
+preflight** — re-run the Figma DEV plugin *and* respawn the MCP server.
+
+- [x] **2.1 Resolve every target first**, in one pass, writing nothing.
+- [x] **2.2 Report the resolved scope** — `name`, `type`, `childCount` per target.
+      `childCount` is `null`, not `0`, for a node that cannot have children: "cannot" is
+      not "has none". It counts **direct** children, and the description says so, because
+      a delete takes the whole subtree.
+- [x] **2.3 Implement `prevalidateOnly`** as a first-class dry run.
+      ⭐ **This forced a fifth outcome.** A dry run applies nothing *by design*, so every
+      operation is `skipped` and `succeeded === 0` — which the Phase 1 rule classifies as
+      `all_failed`. That would have been a fresh instance of Finding 1, the exact defect
+      the enum exists to kill, so `prevalidated` was added. A dry run that *would* have
+      been refused still reports `refused_prevalidation`: "what would happen" is the only
+      question a dry run is asked.
+- [x] **2.4 Refuse atomically under `onError: "stop"`.** Proven by fixture, including the
+      ordering case where the good operation comes **last** — a lazily-validating executor
+      would have applied it before ever reaching the bad target.
 
 ## Phase 3 — the executor
 
+**3.3 · 3.4 · 3.5 shipped with Phase 2**, because registering the tool makes it callable
+and a registered tool that refuses every real call is precisely what deferring 1.2 was
+avoiding. What remains is chunking, which is a performance and progress concern, not a
+correctness one.
+
 - [ ] **3.1 Chunk with progress updates**, reusing the existing `sendProgressUpdate`
       shape so the relay heartbeat and inactivity reset keep working.
+      ⚠️ **Sequencing note:** the contract currently declares `pluginUpdates: "none"` for
+      `apply_batch`, which is *true* today. Landing 3.1 must update that declaration in
+      the same change, or it becomes Finding 4 all over again — a hand-written behavioural
+      claim with nothing asserting it against the runtime.
+      ⭐ Deferring it also means the batch presently has a **real** ceiling: with no
+      progress updates there is nothing to reset the inactivity timer, so the armed
+      transport budget actually fires. Adding chunking re-opens Finding 5 unless
+      `timeBudgetMs` stays the binding constraint.
 - [ ] **3.2 Drop the fixed 1 s inter-chunk sleep.** It is an unmeasured constant that
       costs 19 s on a 100-item batch and ≈ 3.3 min on a 1,000-item one. Make the pause a
       documented, tunable yield — and measure it before choosing a default.
-- [ ] **3.3 Enforce `timeBudgetMs`** across the whole run; on exhaustion stop, mark the
+      ⛔ Blocked offline on purpose: choosing the default requires measuring against a
+      real file, which is the live gate's job.
+- [x] **3.3 Enforce `timeBudgetMs`** across the whole run; on exhaustion stop, mark the
       remainder `skipped`, set `complete: false`, and set `timing.budgetExhausted`.
-- [ ] **3.4 Never abort a `continue` run on a single failure**; never continue a `stop`
-      run past one.
-- [ ] **3.5 Truncate per-operation results** to `maxResultBytes`, reporting true size —
+      The budget is checked **before** starting an operation, never mid-operation:
+      interrupting a write is the partial application this contract already has to
+      declare, not something to add to.
+- [x] **3.4 Never abort a `continue` run on a single failure**; never continue a `stop`
+      run past one. Skipped-after-halt entries carry `stopped_after_failure`, distinct
+      from a budget skip and from an unresolved target.
+- [x] **3.5 Truncate per-operation results** to `maxResultBytes`, reporting true size —
       the R2.3 `maxValueBytes` pattern.
 
 ## Phase 4 — additive alignment of the three shipped tools
@@ -265,22 +318,27 @@ exact current spelling and semantics; the unified vocabulary appears alongside t
       touched: `contracts/baselines/r2.3-public-contract.json`, verified to carry
       contract `1.4.0` and fingerprint `sha256:c3cd6e71…dcc6bd` — the accepted R2.3 pair,
       not some later state. All five baselines replay at zero errors.
-- [ ] **5.2 Bump `serverSchemaVersion` 1.4.0 → 1.5.0.** A new command moves the
-      fingerprint anyway, but ⛔ **a contract that grows must bump the version** regardless
-      — that is the standing R1 finding.
-      ⛔ **Do this when the contract actually grows (with 1.2), not before.** Bumping it
+- [x] **5.2 Bump `serverSchemaVersion` 1.4.0 → 1.5.0.** ✅ **Done 2026-08-12, with 1.2**,
+      exactly as sequenced — `publicContractVersion`, `serverSchemaVersion` and
+      `pluginApiVersion` all moved in the same change that added the command.
+      ⛔ *Do this when the contract actually grows (with 1.2), not before.* Bumping it
       ahead of the new command would move the fingerprint with nothing behind it and make
-      the preflight reject the currently pinned, working pair
-      `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f` for no gain — a live session
-      broken by bookkeeping. The R1 finding requires the bump to *accompany* growth, not
-      to precede it.
-- [ ] **5.3 Offline fixtures**, at minimum: an atomic prevalidation refusal that mutates
-      nothing · `continue` producing a genuine `partial` · every-op-fails producing
-      `all_failed`, **not** `success: true` · budget exhaustion setting `complete: false`
-      · a create rejected by the allowlist · a duplicate `id` refused · result truncation
-      reporting true size · the three legacy tools' additive fields **with their legacy
-      fields unchanged**.
-- [ ] **5.4 Regenerate the contract, rebuild `dist/`, re-run parity.** ⚠️ Load-bearing:
+      the preflight reject the then-working pair for no gain — a live session broken by
+      bookkeeping. The R1 finding requires the bump to *accompany* growth, not precede it.
+- [x] **5.3 Offline fixtures** — `tests/apply-batch.test.mjs`, 20 cases; the suite is 98
+      tests (was 75). Every listed fixture except the legacy-tool one, which is Phase 4:
+      an atomic prevalidation refusal that mutates nothing (**and** the ordering variant
+      where the good op is last) · `continue` producing a genuine `partial` ·
+      every-op-fails producing `all_failed` · a first-op failure under `stop` producing
+      `all_failed`, not `partial` · budget exhaustion setting `complete: false` · a create
+      rejected by the allowlist · a duplicate `id` refused · truncation reporting true
+      size · `delete_node` really deleting and reporting its subtree · the envelope
+      `nodeId` beating one hidden in `params` · the plugin mirror matching the module
+      value-for-value and behaviour-for-behaviour · the inline `z.enum` equalling
+      `V1_BATCH_OPERATIONS` · the three proven non-atomic handlers.
+      - [ ] The three legacy tools' additive fields with their legacy fields unchanged —
+            **Phase 4**, not shipped.
+- [x] **5.4 Regenerate the contract, rebuild `dist/`, re-run parity.** ⚠️ Load-bearing:
       `.mcp.json` points at this checkout's `dist/server.js`, so a source-only change
       ships nothing to the running agent.
 - [ ] **5.5 Live gate on the SYD throwaway copy** — a mixed batch with one bad target
@@ -309,6 +367,44 @@ exact current spelling and semantics; the unified vocabulary appears alongside t
   to test early here is **whether a mid-batch failure can leave a partially applied
   operation** (a multi-step mutation like `set_layout_mode` that throws halfway).
   Per-operation atomicity is assumed by this contract and has not been verified.
+  → 🔴 **TESTED 2026-08-12, and the assumption is FALSE.** This trap paid for itself a
+  second time. Three of the fifteen allowlisted handlers write their first field, then
+  validate the second and throw — all three reproduced offline against the fixture
+  document *before* anything shipped:
+
+  | Operation | What lands | Then throws on |
+  | --- | --- | --- |
+  | `set_item_spacing` | `itemSpacing` 16 → 20 | `counterAxisSpacing` on a non-`WRAP` frame |
+  | `set_axis_align` | `primaryAxisAlignItems` MIN → CENTER | `BASELINE` outside a horizontal layout |
+  | `set_layout_sizing` | `layoutSizingHorizontal` FIXED → HUG | `FILL` outside an auto-layout child |
+
+  Six more (`set_layout_mode`, `set_padding`, `set_corner_radius`, `set_stroke_color`,
+  `set_parent`, `move_node`) perform several writes in sequence with no interleaved throw
+  and no rollback, so a platform-level rejection on a later field leaves the earlier ones
+  applied. That path is unproven, and is listed rather than assumed away because a caller
+  cannot tell the two classes apart from the outside.
+
+  ⭐ **The contract now declares non-atomicity instead of promising something the handlers
+  do not deliver.** A `failed` receipt carries `partialApplicationPossible`, plus the
+  recorded reason when true, so a caller knows to re-read the node rather than assume its
+  own request was a no-op. `NON_ATOMIC_BATCH_OPERATIONS` holds the list, a test pins every
+  entry to the allowlist, and the three proven cases are reproduced by test so the finding
+  cannot rot — making a handler transactional will fail that test and force the
+  declaration to be revisited deliberately. ⛔ **Fixing the nine handlers is a change to
+  nine shipped tools and is out of scope for the batch envelope**; it is the honest
+  follow-up, not a Phase 2 task.
+
+## A fifth trap, found while building Phase 2
+
+⛔ **An envelope refusal cannot be reported inside the receipt it breaks.** The plan's
+receipt correlates by caller-supplied `id` (D8) and carries one entry per operation. A
+duplicate `id` makes that correlation *undefined*; an unknown `op` has no handler and so
+no entry shape. Neither can be expressed in the structure they invalidate, so those two
+refusals **throw**, with the code in the message. Everything below the envelope — an
+unresolvable target, an exhausted budget, a failed operation — is reported *in* a
+well-formed receipt, which is what D1 promises. `BATCH_ERROR_CODE_DELIVERY` records which
+half each code belongs to, and a test asserts it covers every code, because a consumer
+writes different handling for a thrown refusal than for a receipt entry.
 
 ## Acceptance
 

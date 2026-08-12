@@ -169,7 +169,58 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.4 is planned and its open question is closed; the build is the front
+## ▶ Next session — R2.4 Phases 1 and 2 are BUILT; the live gate is the front
+
+**R2.4 Phase 2 built 2026-08-12 — `apply_batch` is registered and executing, offline.**
+1.2 and the `serverSchemaVersion` bump landed with it, exactly as sequenced. 75 → **98
+offline tests**, `bun run verify` green, **five baselines replaying at zero errors**.
+
+⛔ **The pinned pair CHANGED — a running Figma session is now incompatible.**
+
+| | Before | Now |
+| --- | --- | --- |
+| Contract / schema | `1.4.0` | **`1.5.0`** |
+| Tools / plugin commands | 52 / 51 | **53 / 52** |
+| Server | `r2-server-f152fb666599` | **`r2-server-9239fd0bc71b`** |
+| Plugin | `r2-plugin-8dc3783f024f` | **`r2-plugin-d0342abb6c4a`** |
+| Fingerprint | `sha256:c3cd6e71…dcc6bd` | **`sha256:a87b5d98…835704`** |
+
+Re-run the Figma **DEV plugin** *and* respawn the MCP server before any live work, and
+verify by **tool surface + exact pair** — a rebuild reaches neither running side.
+
+🔴 **The plan's per-operation atomicity assumption was tested and is FALSE.** Trap #4 paid
+for itself a second time. `set_item_spacing`, `set_axis_align` and `set_layout_sizing` all
+write their first field, then validate the second and throw — reproduced offline before
+anything shipped. Six more do several writes with no rollback. The contract now
+**declares** non-atomicity: a `failed` receipt carries `partialApplicationPossible` and
+its recorded reason, so a caller re-reads instead of assuming a no-op. ⛔ Making those nine
+handlers transactional is a change to nine **shipped** tools — the honest follow-up, not a
+batch-envelope task.
+
+⭐ **Two design consequences worth carrying forward:**
+- **A fifth outcome, `prevalidated`.** A dry run applies nothing by design, so every op is
+  `skipped` and `succeeded === 0` — which the Phase 1 rule would classify `all_failed`, a
+  fresh instance of the very defect the enum exists to kill.
+- **Envelope refusals throw; everything below the envelope returns a receipt.** A
+  duplicate `id` makes receipt correlation undefined and an unknown `op` has no entry
+  shape, so neither can be reported inside the structure it breaks.
+  `BATCH_ERROR_CODE_DELIVERY` records which half each code belongs to.
+
+**Next: R2.4 5.5, the live gate** on the SYD throwaway copy — a mixed batch with one bad
+target under both `stop` and `continue`, a `prevalidateOnly` dry run, and a destructive op
+whose reported scope is checked against the document before and after. ⛔ Clean up in a
+`finally`. ⛔ The gate triggers **three** refusals on purpose; two of them arrive **thrown**,
+so a result-only harness mis-scores correct behaviour. Then 3.1/3.2 (chunked progress and
+the measured sleep default — 3.2 is deliberately blocked offline), Phase 4, and 5.6.
+
+⚠️ **Landing 3.1 must update the contract's `pluginUpdates` declaration in the same
+change.** It currently reads `"none"`, which is *true*; adding progress without moving it
+recreates Finding 4. And progress updates reset the inactivity timer, so `timeBudgetMs`
+has to stay the binding constraint or Finding 5 re-opens.
+
+---
+
+## Historical — R2.4 planning and Phase 1
 
 **R2.2 `create_page` accepted 2026-08-10** ([`docs/R2.2-CREATE-PAGE.md`](docs/R2.2-CREATE-PAGE.md)).
 **R2.3 plugin data accepted 2026-08-10** ([`docs/R2.3-PLUGIN-DATA.md`](docs/R2.3-PLUGIN-DATA.md)).

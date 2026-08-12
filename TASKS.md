@@ -837,11 +837,23 @@ machine-verified ~10-edit correction list against a live file, and **no current 
 write a single one of them back**; `get_variables` reads the whole tree and nothing
 returns. That is the dependency rule's stated trigger for fork work.
 
-⚠️ **The queue-jump is bounded, not waived.** The plan's Phase 0 ships the one R0 guard
-`TASKS.md` requires before any new tool (server-schema ↔ plugin-dispatch parity + a
-contract snapshot). The rest of R0 — runtime fingerprint, full fixture harness, release
-mechanics — is **still owed** and is not discharged by that phase. Styles, components and
-variants stay coarse below.
+✅ **The queue-jump's precondition is GONE — corrected 2026-08-12.** This paragraph
+previously read *"the queue-jump is bounded, not waived … the rest of R0 is still owed"*.
+That was written 2026-08-07, **one day before R0 was accepted**, and R0 discharged all of
+it: the plan's Phase 0 (parity + contract snapshot + one test command) **and** the three
+things it had deferred — runtime fingerprint, full fixture harness, release mechanics. The
+plan therefore carries **no prerequisite**; its entry point is **Phase 1.1**
+(`hasVariableWriteApi`), and what remains is net-new work only. Styles, components and
+variants still stay coarse below.
+
+⛔ **The consumer gap is still open — re-verified 2026-08-12** against HEAD `c10c9ff`
+(schema `1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`): of **52 registered tools**, the only
+variable-aware ones are `get_variables` and `get_node_variables`, **both read-only**;
+`set_variable*` / `create_variable*` / `bind_variable*` match nothing in `server.ts` or
+`code.js`; and none of the 33 write tools touches a variable, collection, or mode. All ten
+`umjuansantos` §1.4 corrections remain hand-transcription. ⚠️ **`apply_batch` does not close
+this** — it is mutate-only over existing **node** IDs, and variables are not nodes, so R2.4
+completing changes nothing here.
 
 - [ ] Create/update local variable collections, modes, variables, aliases, and
       bindings with explicit Figma-plan capability responses.

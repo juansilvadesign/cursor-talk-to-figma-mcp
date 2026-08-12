@@ -1,9 +1,24 @@
 # Variable-Write Plan — the variable half of R3
 
-> **Status: planned, not started.** Cut 2026-08-07 from a real consumer gap.
-> Scope decided with the maintainer: **the full variable half of R3** — collections,
-> modes, variables, aliases, *and* node bindings — preceded by the one R0 guard the
-> fork's own [`TASKS.md`](../TASKS.md) says must exist before any new tool lands.
+> **Status: Phase 0 DISCHARGED — Phases 1–4 not started.** Cut 2026-08-07 from a real
+> consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
+> collections, modes, variables, aliases, *and* node bindings.
+>
+> ⭐ **Re-verified 2026-08-12: this plan no longer has a prerequisite.** Phase 0 was
+> written on 2026-08-07, **one day before R0 was accepted**, and R0 shipped every one of
+> its four items — see the phase below, where each is now ticked against the artifact that
+> discharged it. **The entry point is Phase 1.1**, not Phase 0. Everything that remains is
+> net-new work.
+>
+> ⛔ **The consumer gap is still open, re-verified the same day** against HEAD `c10c9ff`
+> (schema `1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`): **52 registered tools, of which
+> the only variable-aware ones are `get_variables` and `get_node_variables` — both
+> read-only.** `set_variable*` / `create_variable*` / `bind_variable*` return zero matches
+> in `server.ts` and `code.js`, and none of the 33 write tools touches a variable,
+> collection, or mode. Nothing since the cut has narrowed the gap: R2.1–R2.4 shipped export
+> safety, `create_page`, plugin data, and the batch receipt vocabulary. ⚠️ **`apply_batch`
+> will not help even once it lands** — it is mutate-only over existing **node** IDs, and
+> variables are not nodes.
 >
 > This plan owns **variables only**. R3's paint/text/effect/grid *styles* and its
 > component/variant authoring stay coarse until they are cut separately.
@@ -29,14 +44,21 @@ additive field here, test it here, rebuild `dist/`, and assign a new pin."*
 names, or any `umjuansantos` token vocabulary. The consumer's correction list is the
 *motivation*; the tools stay Figma-native and consumer-neutral.
 
-## Phase 0 — the guard that must land first
+## ✅ Phase 0 — the guard that must land first — DISCHARGED BY R0, 2026-08-08
 
 `TASKS.md` ▶ item 3 is explicit: *"Add server-schema ↔ plugin-dispatch parity checks
-**before adding a new tool**."* This phase is the minimum slice of R0 that satisfies
-that, and nothing more. Runtime fingerprinting, the full fixture harness, and the
-release mechanics stay in R0 proper.
+**before adding a new tool**."* This phase was the minimum slice of R0 that satisfies
+that, and nothing more.
 
-The repository already carries most of the contract surface — this phase makes it
+⭐ **It was overtaken by events the day after it was written.** R0 was accepted
+2026-08-08 ([`R0-BUILD.md`](R0-BUILD.md)) and delivered all four items below **plus** the
+three things this phase deliberately deferred to "R0 proper" — the runtime fingerprint
+(`get_runtime_info` + `capabilityFingerprint`), the full fixture harness (ten files under
+`tests/`), and the release mechanics (`scripts/verify-release.mjs`, five frozen baselines
+under `contracts/baselines/`). **Nothing in this phase is owed.** Each box below is ticked
+against the artifact that discharges it, verified 2026-08-12.
+
+The repository already carried most of the contract surface — this phase made it
 enforceable rather than inventing it:
 
 | Surface | Where it lives today |
@@ -46,25 +68,27 @@ enforceable rather than inventing it:
 | Plugin dispatcher `case "…":` labels | `src/cursor_mcp_plugin/code.js` ≈ L129+ |
 | Registered MCP tools | `server.tool(...)` calls throughout `server.ts` |
 
-- [ ] **0.1 Extract all four surfaces mechanically.** Parse the `FigmaCommand` union and
-      `CommandParams` keys from `server.ts`, the `case "…"` labels from `code.js`, and the
-      `server.tool()` names. Regex is acceptable for the plugin (it is a flat dispatcher);
-      prefer the TypeScript AST for `server.ts` so a reformat cannot break the check.
-- [ ] **0.2 Assert the bijection.** Every `FigmaCommand` has a plugin handler; every public
-      plugin command has a server schema. **Connection-only commands (`join`, and the
-      `update-settings`/`notify`/`close-plugin`/`execute-command` UI messages) are excluded
-      by an explicit allowlist**, not by a name heuristic — `TASKS.md` 0.1 already requires
-      connection plumbing to stay distinct from document commands.
-- [ ] **0.3 Commit a contract snapshot.** Serialize tool name, direction
-      (`read|write|connection`), input schema, and timeout class to a checked-in JSON.
-      The test fails on any unreviewed removal or incompatible parameter change; additive
-      fields pass.
-- [ ] **0.4 Wire one documented test command** into `package.json` (`TASKS.md` 0.2 asks for
-      exactly one). Phase 1+ tests attach to this same command.
+- [x] **0.1 Extract all four surfaces mechanically.** → `scripts/contract-lib.mjs` +
+      `scripts/generate-contract.mjs`, emitting `contracts/public-contract.json`.
+- [x] **0.2 Assert the bijection.** Every `FigmaCommand` has a plugin handler; every public
+      plugin command has a server schema. → enforced in `contract-lib.mjs`, and the
+      connection-only exclusion is the **explicit allowlist** this item demanded rather than
+      a name heuristic — an unlisted UI message fails with *"Plugin UI message … is not
+      explicitly allowlisted"* (`contract-lib.mjs:399`).
+- [x] **0.3 Commit a contract snapshot.** → `contracts/public-contract.json`, with the
+      additive-vs-breaking rule pinned by
+      *"snapshot guard rejects removals and incompatible parameters but accepts additive
+      optional fields"* (`tests/contract.test.mjs:153`).
+- [x] **0.4 Wire one documented test command** into `package.json` → `"test": "node --test"`,
+      with `bun run verify` as the full release gate. Phase 1+ tests attach to the same
+      command.
 
-✅ **Phase 0 acceptance:** the parity test passes on the current 48 tools, and fails if a
-`case` label or a `CommandParams` entry is deleted. Prove the failure mode deliberately —
-a guard never observed failing is not a guard.
+✅ **Phase 0 acceptance — MET.** The parity test passes on the current **52** tools (the
+figure in this line was 48 when written), and the failure mode is not merely assumed: the
+suite carries a dedicated case named *"parity guard is observed failing when a dispatcher
+command disappears"* (`tests/contract.test.mjs:30`), which is exactly the
+*"a guard never observed failing is not a guard"* clause this acceptance demanded.
+**Re-run 2026-08-12: 75/75 pass, 0 fail.**
 
 ## Phase 1 — read-side capability probe
 

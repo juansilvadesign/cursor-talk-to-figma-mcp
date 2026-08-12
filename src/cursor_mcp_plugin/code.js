@@ -4720,7 +4720,7 @@ async function setMultipleTextContents(params) {
     }
   );
 
-  return {
+  return Object.assign(legacyBatchSummary(successCount, failureCount), {
     success: successCount > 0,
     nodeId: nodeId,
     replacementsApplied: successCount,
@@ -4729,7 +4729,7 @@ async function setMultipleTextContents(params) {
     results: results,
     completedInChunks: chunks.length,
     commandId,
-  };
+  });
 }
 
 // Function to generate simple UUIDs for command IDs
@@ -5061,6 +5061,7 @@ async function setMultipleAnnotations(params) {
   console.log("Input params:", JSON.stringify(params, null, 2));
 
   const { nodeId, annotations } = params;
+  const commandId = (params && params.commandId) || generateCommandId();
 
   if (!annotations || annotations.length === 0) {
     console.error("Validation failed: No annotations provided");
@@ -5074,6 +5075,22 @@ async function setMultipleAnnotations(params) {
   const results = [];
   let successCount = 0;
   let failureCount = 0;
+
+  // Phase 4.3 — Finding 4 made TRUE rather than corrected downward. The public contract
+  // has always declared this tool `pluginUpdates: "chunked"` and it emitted nothing: a
+  // hand-written behavioural claim with no runtime behind it. ⛔ Correcting the map to
+  // "none" instead would WEAKEN a declared behaviour and leave this tool the only batch
+  // tool on the plain 30 s wall, because nothing would reset the inactivity timer.
+  await sendProgressUpdate(
+    commandId,
+    "set_multiple_annotations",
+    "started",
+    0,
+    annotations.length,
+    0,
+    `Starting annotation of ${annotations.length} node${annotations.length === 1 ? "" : "s"}`,
+    { chunkSize: 1, currentChunk: 0, totalChunks: annotations.length }
+  );
 
   // Process annotations sequentially
   for (let i = 0; i < annotations.length; i++) {
@@ -5127,15 +5144,29 @@ async function setMultipleAnnotations(params) {
         stack: error.stack,
       });
     }
+
+    // Per item, because that is the unit this tool actually processes — it has no chunks
+    // to report. Each update resets the inactivity timer, which is the point: a long
+    // annotation run no longer races a 30 s wall it never announced it could hit.
+    await sendProgressUpdate(
+      commandId,
+      "set_multiple_annotations",
+      i === annotations.length - 1 ? "completed" : "in_progress",
+      Math.round(((i + 1) / annotations.length) * 100),
+      annotations.length,
+      i + 1,
+      `Annotated ${i + 1}/${annotations.length}. ${successCount} successful, ${failureCount} failed`,
+      { chunkSize: 1, currentChunk: i + 1, totalChunks: annotations.length }
+    );
   }
 
-  const summary = {
+  const summary = Object.assign(legacyBatchSummary(successCount, failureCount), {
     success: successCount > 0,
     annotationsApplied: successCount,
     annotationsFailed: failureCount,
     totalAnnotations: annotations.length,
     results: results,
-  };
+  });
 
   console.log("\n=== setMultipleAnnotations Summary ===");
   console.log(JSON.stringify(summary, null, 2));
@@ -5333,7 +5364,7 @@ async function deleteMultipleNodes(params) {
     }
   );
 
-  return {
+  return Object.assign(legacyBatchSummary(successCount, failureCount), {
     success: successCount > 0,
     nodesDeleted: successCount,
     nodesFailed: failureCount,
@@ -5341,7 +5372,7 @@ async function deleteMultipleNodes(params) {
     results: results,
     completedInChunks: chunks.length,
     commandId,
-  };
+  });
 }
 
 // Implementation for getInstanceOverrides function
@@ -6639,6 +6670,39 @@ const BATCH_DEFAULT_TIME_BUDGET_MS = 60000;
 const BATCH_MAX_TIME_BUDGET_MS = 240000;
 const BATCH_DEFAULT_MAX_RESULT_BYTES = 2000;
 
+// 3.1 / 3.2. Chunk size matches the three shipped batch tools so one mental model covers
+// all four. The pause between chunks does NOT: theirs is a hard 1 s that costs 19 s on a
+// 100-item batch and was never measured. Here it defaults to 0 and is a caller-tunable
+// yield — the live gate's job is to prove 0 keeps the plugin responsive, which is a
+// falsifiable claim in a way "sleep a second and hope" never was.
+const BATCH_CHUNK_SIZE = 5;
+const BATCH_DEFAULT_CHUNK_PAUSE_MS = 0;
+const BATCH_MAX_CHUNK_PAUSE_MS = 5000;
+
+/**
+ * Phase 4.1 — the unified aggregate for the three shipped batch tools, built from the
+ * SAME mirrored vocabulary `apply_batch` uses, so a fourth dialect cannot appear.
+ *
+ * ⛔ Purely additive. The caller's `success`, `nodesDeleted`, `replacementsApplied`,
+ * `annotationsApplied` and every `total*` spelling keep their exact current meaning —
+ * including `success: successCount > 0`, which is Finding 1 and is now documented as
+ * legacy rather than silently corrected. `outcome` is the field that cannot lie.
+ *
+ * The vacuous case is explicit rather than thrown: `set_multiple_text_contents` accepts
+ * an empty `text` array today, and adding a field must not add a failure mode to a tool
+ * that already shipped.
+ */
+function legacyBatchSummary(successCount, failureCount) {
+  const total = successCount + failureCount;
+  if (total === 0) {
+    return { outcome: "all_succeeded", total: 0, succeeded: 0, failed: 0, skipped: 0 };
+  }
+  const operations = [];
+  for (let index = 0; index < successCount; index++) operations.push({ status: "succeeded" });
+  for (let index = 0; index < failureCount; index++) operations.push({ status: "failed" });
+  return summarizeOperations(operations);
+}
+
 // The v1 allowlist bound to the handlers that implement it. Built on call rather than at
 // load so it never depends on declaration order, and asserted against V1_BATCH_OPERATIONS
 // by a test — an allowlist entry with no handler would otherwise fail at runtime only.
@@ -6684,6 +6748,11 @@ async function applyBatch(params) {
     settings.timeBudgetMs === undefined
       ? BATCH_DEFAULT_TIME_BUDGET_MS
       : settings.timeBudgetMs;
+  const chunkPauseMs =
+    settings.chunkPauseMs === undefined
+      ? BATCH_DEFAULT_CHUNK_PAUSE_MS
+      : settings.chunkPauseMs;
+  const commandId = settings.commandId || generateCommandId();
 
   // ---- envelope: refusals that cannot be expressed as a receipt ----
   if (!Array.isArray(operations) || operations.length === 0) {
@@ -6710,6 +6779,16 @@ async function applyBatch(params) {
   if (typeof maxResultBytes !== "number" || !Number.isFinite(maxResultBytes) || maxResultBytes < 0) {
     throw new Error(
       `maxResultBytes must be a non-negative number, received ${JSON.stringify(maxResultBytes)}`,
+    );
+  }
+  if (
+    typeof chunkPauseMs !== "number" ||
+    !Number.isFinite(chunkPauseMs) ||
+    chunkPauseMs < 0 ||
+    chunkPauseMs > BATCH_MAX_CHUNK_PAUSE_MS
+  ) {
+    throw new Error(
+      `chunkPauseMs must be between 0 and ${BATCH_MAX_CHUNK_PAUSE_MS} ms, received ${JSON.stringify(chunkPauseMs)}`,
     );
   }
   for (const operation of operations) {
@@ -6740,6 +6819,19 @@ async function applyBatch(params) {
   }
 
   const startedAt = Date.now();
+
+  // 3.1. The resolve pass is a real await per operation, so it is inside the reported
+  // work rather than before it — 200 targets on a cold page is not instant.
+  await sendProgressUpdate(
+    commandId,
+    "apply_batch",
+    "started",
+    0,
+    operations.length,
+    0,
+    `Resolving ${operations.length} target${operations.length === 1 ? "" : "s"}`,
+    { chunkSize: BATCH_CHUNK_SIZE, currentChunk: 0, totalChunks: Math.ceil(operations.length / BATCH_CHUNK_SIZE) }
+  );
 
   // ---- 2.1 / 2.2 prevalidation: resolve every target, write nothing ----
   const resolved = [];
@@ -6790,6 +6882,21 @@ async function applyBatch(params) {
       return receipt;
     });
 
+    // Both paths are a completed unit of work, not an abandoned one — the caller asked a
+    // question and got a total answer, so the progress stream has to close.
+    await sendProgressUpdate(
+      commandId,
+      "apply_batch",
+      "completed",
+      100,
+      operations.length,
+      operations.length,
+      refusedPrevalidation
+        ? `Refused: ${unresolved.length} target${unresolved.length === 1 ? "" : "s"} unresolvable under onError "stop"`
+        : `Prevalidated ${operations.length} operation${operations.length === 1 ? "" : "s"}, nothing written`,
+      { chunkSize: BATCH_CHUNK_SIZE, currentChunk: 0, totalChunks: 0 }
+    );
+
     return Object.assign(
       summarizeOperations(receipts, { refusedPrevalidation, prevalidateOnly }),
       {
@@ -6811,72 +6918,110 @@ async function applyBatch(params) {
   let budgetExhausted = false;
   let stopped = false;
 
-  for (const operation of operations) {
-    const receipt = baseReceipt(operation);
+  // 3.1. Chunked so the Figma UI gets a breath and the caller gets progress; the chunk is
+  // a reporting and yielding unit only — every decision below is still per operation.
+  const chunks = [];
+  for (let index = 0; index < operations.length; index += BATCH_CHUNK_SIZE) {
+    chunks.push(operations.slice(index, index + BATCH_CHUNK_SIZE));
+  }
 
-    if (unresolvedIds.has(operation.id)) {
-      // Only reachable under "continue" — "stop" refused above without writing.
-      receipt.status = "skipped";
-      receipt.error = {
-        code: BATCH_ERROR_CODES.NODE_NOT_FOUND,
-        message: `Node not found with ID: ${operation.nodeId}`,
-      };
-      receipts.push(receipt);
-      continue;
+  for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+    // 3.2. Between chunks only, never before the first, and CLAMPED to what is left of
+    // the budget. Skipping the pause only once the budget is already spent would still
+    // let a 5 s pause overshoot a 6 s budget by 4 s, which would make "timeBudgetMs is
+    // the total ceiling" false — the exact class of claim Finding 5 was about.
+    if (chunkIndex > 0 && chunkPauseMs > 0 && !budgetExhausted) {
+      const remainingMs = timeBudgetMs - (Date.now() - startedAt);
+      if (remainingMs > 0) await delay(Math.min(chunkPauseMs, remainingMs));
     }
 
-    if (stopped) {
-      receipt.status = "skipped";
-      receipt.error = {
-        code: BATCH_ERROR_CODES.STOPPED_AFTER_FAILURE,
-        message: 'not attempted: an earlier operation failed under onError: "stop"',
-      };
-      receipts.push(receipt);
-      continue;
-    }
+    for (const operation of chunks[chunkIndex]) {
+      const receipt = baseReceipt(operation);
 
-    // Checked before starting, never mid-operation: stopping halfway through a write is
-    // the partial application this contract already has to declare, not add to.
-    if (budgetExhausted || Date.now() - startedAt >= timeBudgetMs) {
-      budgetExhausted = true;
-      receipt.status = "skipped";
-      receipt.error = {
-        code: BATCH_ERROR_CODES.BUDGET_EXHAUSTED,
-        message: `not attempted: the ${timeBudgetMs} ms total budget was exhausted`,
-      };
-      receipts.push(receipt);
-      continue;
-    }
-
-    try {
-      // The envelope's nodeId wins over anything of the same name inside params: it is
-      // the field prevalidation resolved, so the executed target must be the reported one.
-      const handlerParams = Object.assign({}, operation.params, {
-        nodeId: operation.nodeId,
-      });
-      const raw = await handlers[operation.op](handlerParams);
-      const truncated = truncateResult(raw, maxResultBytes);
-      receipt.status = "succeeded";
-      receipt.result = truncated.result;
-      receipt.resultBytes = truncated.bytes;
-      receipt.resultTruncated = truncated.truncated;
-    } catch (error) {
-      receipt.status = "failed";
-      receipt.error = {
-        code: BATCH_ERROR_CODES.OPERATION_FAILED,
-        message: (error && error.message) || String(error),
-      };
-      // ⛔ Per-operation atomicity is FALSE for the nine ops listed in the mirror above,
-      // three of them proven. A failed receipt does NOT imply an unchanged document, so
-      // say which case this is rather than let a caller assume its request was a no-op.
-      receipt.partialApplicationPossible = partialApplicationPossible(operation.op);
-      if (receipt.partialApplicationPossible) {
-        receipt.partialApplicationReason = NON_ATOMIC_BATCH_OPERATIONS[operation.op];
+      if (unresolvedIds.has(operation.id)) {
+        // Only reachable under "continue" — "stop" refused above without writing.
+        receipt.status = "skipped";
+        receipt.error = {
+          code: BATCH_ERROR_CODES.NODE_NOT_FOUND,
+          message: `Node not found with ID: ${operation.nodeId}`,
+        };
+        receipts.push(receipt);
+        continue;
       }
-      if (onError === "stop") stopped = true;
+
+      if (stopped) {
+        receipt.status = "skipped";
+        receipt.error = {
+          code: BATCH_ERROR_CODES.STOPPED_AFTER_FAILURE,
+          message: 'not attempted: an earlier operation failed under onError: "stop"',
+        };
+        receipts.push(receipt);
+        continue;
+      }
+
+      // Checked before starting, never mid-operation: stopping halfway through a write is
+      // the partial application this contract already has to declare, not add to.
+      if (budgetExhausted || Date.now() - startedAt >= timeBudgetMs) {
+        budgetExhausted = true;
+        receipt.status = "skipped";
+        receipt.error = {
+          code: BATCH_ERROR_CODES.BUDGET_EXHAUSTED,
+          message: `not attempted: the ${timeBudgetMs} ms total budget was exhausted`,
+        };
+        receipts.push(receipt);
+        continue;
+      }
+
+      try {
+        // The envelope's nodeId wins over anything of the same name inside params: it is
+        // the field prevalidation resolved, so the executed target must be the reported one.
+        const handlerParams = Object.assign({}, operation.params, {
+          nodeId: operation.nodeId,
+        });
+        const raw = await handlers[operation.op](handlerParams);
+        const truncated = truncateResult(raw, maxResultBytes);
+        receipt.status = "succeeded";
+        receipt.result = truncated.result;
+        receipt.resultBytes = truncated.bytes;
+        receipt.resultTruncated = truncated.truncated;
+      } catch (error) {
+        receipt.status = "failed";
+        receipt.error = {
+          code: BATCH_ERROR_CODES.OPERATION_FAILED,
+          message: (error && error.message) || String(error),
+        };
+        // ⛔ Per-operation atomicity is FALSE for the nine ops listed in the mirror above,
+        // three of them proven. A failed receipt does NOT imply an unchanged document, so
+        // say which case this is rather than let a caller assume its request was a no-op.
+        receipt.partialApplicationPossible = partialApplicationPossible(operation.op);
+        if (receipt.partialApplicationPossible) {
+          receipt.partialApplicationReason = NON_ATOMIC_BATCH_OPERATIONS[operation.op];
+        }
+        if (onError === "stop") stopped = true;
+      }
+
+      receipts.push(receipt);
     }
 
-    receipts.push(receipt);
+    // ⚠️ Finding 5 stays closed BECAUSE of what this update does not do. It resets the
+    // server's inactivity timer, exactly as the shipped tools' updates do — the reason
+    // that is safe here is that `timeBudgetMs` is enforced plugin-side and capped at
+    // BATCH_MAX_TIME_BUDGET_MS, so the run has a real total ceiling no reset can extend.
+    // ⛔ Never make the pause or the chunk loop skip that check.
+    await sendProgressUpdate(
+      commandId,
+      "apply_batch",
+      chunkIndex === chunks.length - 1 ? "completed" : "in_progress",
+      Math.round(((chunkIndex + 1) / chunks.length) * 100),
+      operations.length,
+      receipts.length,
+      `Applied ${receipts.length}/${operations.length} operations`,
+      {
+        chunkSize: BATCH_CHUNK_SIZE,
+        currentChunk: chunkIndex + 1,
+        totalChunks: chunks.length,
+      }
+    );
   }
 
   return Object.assign(

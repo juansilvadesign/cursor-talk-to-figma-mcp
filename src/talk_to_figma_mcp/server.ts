@@ -90,6 +90,14 @@ const BATCH_MAX_TIME_BUDGET_MS = 240000;
 const BATCH_TIMEOUT_SLACK_MS = 30000;
 const HEAVY_BATCH_TIMEOUT_MS =
   BATCH_MAX_TIME_BUDGET_MS + BATCH_TIMEOUT_SLACK_MS;
+// R2.4 3.2. The three shipped batch tools pause a hard, unmeasured 1 s between chunks —
+// 19 s of pure sleep on a 100-item batch. Here the pause defaults to 0 and is tunable, so
+// a caller who actually needs Figma to breathe can ask for it and everyone else does not
+// pay for it. The plugin skips the pause once the budget is spent, so the worst case stays
+// inside the transport slack above.
+const BATCH_DEFAULT_CHUNK_PAUSE_MS = 0;
+const BATCH_MAX_CHUNK_PAUSE_MS = 5000;
+const BATCH_CHUNK_SIZE = 5;
 
 // WebSocket connection and request tracking
 let ws: WebSocket | null = null;
@@ -530,7 +538,7 @@ server.tool(
 // Batch Tool (R2.4)
 server.tool(
   "apply_batch",
-  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so. Runs in chunks of 5 with progress updates; `timeBudgetMs` is the total ceiling and is enforced regardless",
   {
     operations: z
       .array(
@@ -565,7 +573,7 @@ server.tool(
           params: z
             .record(z.any())
             .optional()
-            .describe("The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name"),
+            .describe("The parameters that operation takes, minus nodeId. ⚠️ These go straight to the plugin handler, so for two operations they are NOT the standalone tool's shape: set_fill_color and set_stroke_color take {color:{r,g,b,a}} here (plus weight for the stroke), where the standalone tools take flat r,g,b,a. Everything else matches its tool. This object is not schema-validated, so a wrong shape fails plugin-side and comes back as a failed receipt entry rather than a schema error"),
         })
       )
       .min(1)
@@ -598,8 +606,17 @@ server.tool(
       .min(0)
       .optional()
       .describe("Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`"),
+    chunkPauseMs: z
+      .number()
+      .int()
+      .min(0)
+      // ⚠️ Inline literal for the same reason as 200 and 240000 above: the contract
+      // generator re-evaluates this schema's source text with `z` as the only binding.
+      .max(5000)
+      .optional()
+      .describe("Milliseconds to yield between chunks of 5 operations (default 0). Raise it only if Figma's UI needs to breathe on a heavy batch — the pause is skipped once timeBudgetMs is spent, so it can never push a run past its own ceiling"),
   },
-  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes }: any) => {
+  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes, chunkPauseMs }: any) => {
     try {
       // Arm the transport just past the batch's own budget, so the plugin's ceiling is
       // always the one that fires and the reply is a receipt rather than a timeout.
@@ -613,6 +630,7 @@ server.tool(
           prevalidateOnly,
           timeBudgetMs,
           maxResultBytes,
+          chunkPauseMs,
         },
         Math.min(HEAVY_BATCH_TIMEOUT_MS, budget + BATCH_TIMEOUT_SLACK_MS)
       );
@@ -3456,6 +3474,7 @@ type CommandParams = {
     prevalidateOnly?: boolean;
     timeBudgetMs?: number;
     maxResultBytes?: number;
+    chunkPauseMs?: number;
   };
   get_selection: Record<string, never>;
   get_node_info: { nodeId: string };

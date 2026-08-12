@@ -550,8 +550,9 @@ test("apply_batch declares heavy_batch, and the batch budget outlasts it nowhere
   assert.equal(tool.pluginCommand, "apply_batch");
 
   // The contract must not claim progress the plugin does not emit — Finding 4 is exactly
-  // that drift, and Phase 2 deliberately ships no progress updates.
-  assert.equal(tool.progress.pluginUpdates, "none");
+  // that drift. 3.1 moved this from "none" to "chunked" in the SAME change that added the
+  // chunking, and tests/progress-declaration.test.mjs checks it against code.js.
+  assert.equal(tool.progress.pluginUpdates, "chunked");
 
   // The server arms the transport past the plugin's own ceiling, so the batch budget
   // always fires first and the caller gets a receipt instead of a transport error.
@@ -561,4 +562,143 @@ test("apply_batch declares heavy_batch, and the batch budget outlasts it nowhere
   );
   assert.match(server, /const BATCH_MAX_TIME_BUDGET_MS = 240000;/);
   assert.match(server, /const BATCH_TIMEOUT_SLACK_MS = 30000;/);
+});
+
+// ---------------------------------------------------------------------------
+// R2.4 3.1 / 3.2 — chunked progress and the tunable yield
+// ---------------------------------------------------------------------------
+
+function progressUpdates(harness) {
+  return harness.messages.filter(
+    (message) =>
+      message.type === "command_progress" && message.commandType === "apply_batch",
+  );
+}
+
+function renames(count) {
+  return Array.from({ length: count }, (_, index) =>
+    operation(`op-${index}`, "rename_node", FRAME, { name: `name-${index}` }),
+  );
+}
+
+test("the executor chunks by 5 and reports progress in the shipped shape", async () => {
+  const harness = await loadPluginHarness();
+  const receipt = await harness.command("apply_batch", { operations: renames(12) });
+
+  assert.equal(receipt.outcome, "all_succeeded");
+  const updates = progressUpdates(harness);
+  assert.equal(updates[0].status, "started");
+  assert.equal(updates.at(-1).status, "completed");
+
+  // 12 operations at 5 per chunk is 3 chunks: started, two in_progress, one completed.
+  const executorUpdates = updates.slice(1);
+  assert.equal(executorUpdates.length, 3);
+  assert.deepEqual(
+    executorUpdates.map((update) => update.status),
+    ["in_progress", "in_progress", "completed"],
+  );
+  assert.deepEqual(
+    executorUpdates.map((update) => update.processedItems),
+    [5, 10, 12],
+    "processedItems must count receipts, not chunks",
+  );
+  for (const update of executorUpdates) {
+    assert.equal(update.totalItems, 12);
+    assert.equal(update.chunkSize, 5);
+    assert.equal(update.totalChunks, 3);
+  }
+  assert.equal(executorUpdates.at(-1).progress, 100);
+});
+
+test("a dry run closes its progress stream instead of leaving it open", async () => {
+  const harness = await loadPluginHarness();
+  await harness.command("apply_batch", {
+    operations: renames(3),
+    prevalidateOnly: true,
+  });
+
+  const updates = progressUpdates(harness);
+  assert.deepEqual(
+    updates.map((update) => update.status),
+    ["started", "completed"],
+    "a dry run is a completed unit of work, not an abandoned one",
+  );
+  assert.match(updates.at(-1).message, /nothing written/);
+});
+
+test("the default pause is 0, so a batch never awaits a timer", async () => {
+  // Load WITHOUT runTimers: the harness leaves a non-zero delay pending forever, so if
+  // the executor awaited one by default this test would hang rather than fail. That is
+  // the assertion — the default really is a no-op yield.
+  const harness = await loadPluginHarness();
+  const receipt = await harness.command("apply_batch", { operations: renames(12) });
+  assert.equal(receipt.outcome, "all_succeeded");
+  assert.equal(receipt.timing.elapsedMs, 0);
+});
+
+test("chunkPauseMs yields between chunks, never before the first", async () => {
+  const harness = await loadPluginHarness({ runTimers: true });
+  const receipt = await harness.command("apply_batch", {
+    operations: renames(12),
+    chunkPauseMs: 100,
+  });
+
+  assert.equal(receipt.outcome, "all_succeeded");
+  // 3 chunks means 2 gaps, never 3 — a pause before the first chunk is pure latency.
+  assert.equal(receipt.timing.elapsedMs, 200);
+});
+
+test("the pause is clamped to the budget, so it cannot overshoot the ceiling", async () => {
+  // ⛔ Skipping the pause only once the budget is spent is not enough: a 5 s pause on a
+  // 6 s budget would still land at 10 s and make timeBudgetMs a lie.
+  const harness = await loadPluginHarness({ runTimers: true });
+  const receipt = await harness.command("apply_batch", {
+    operations: renames(12),
+    chunkPauseMs: 5000,
+    timeBudgetMs: 6000,
+    onError: "continue",
+  });
+
+  assert.ok(
+    receipt.timing.elapsedMs <= 6000,
+    `the run took ${receipt.timing.elapsedMs} ms against a 6000 ms budget`,
+  );
+  assert.equal(receipt.timing.budgetExhausted, true);
+  assert.equal(receipt.complete, false);
+  assert.equal(receipt.succeeded, 10, "two chunks land before the budget is spent");
+  assert.ok(
+    receipt.operations.slice(10).every((entry) => entry.error.code === "budget_exhausted"),
+  );
+});
+
+test("chunkPauseMs is bounded in the plugin, not only by the schema", async () => {
+  const harness = await loadPluginHarness();
+  for (const chunkPauseMs of [-1, 5001, "fast"]) {
+    await assert.rejects(
+      () => harness.command("apply_batch", { operations: renames(1), chunkPauseMs }),
+      /chunkPauseMs must be between 0 and 5000 ms/,
+      `chunkPauseMs ${JSON.stringify(chunkPauseMs)} must be refused`,
+    );
+  }
+});
+
+test("the registered chunkPauseMs literals equal the runtime constants", async () => {
+  const server = await readFile(
+    path.join(root, "src/talk_to_figma_mcp/server.ts"),
+    "utf8",
+  );
+  assert.match(server, /const BATCH_DEFAULT_CHUNK_PAUSE_MS = 0;/);
+  assert.match(server, /const BATCH_MAX_CHUNK_PAUSE_MS = 5000;/);
+  assert.match(server, /const BATCH_CHUNK_SIZE = 5;/);
+  // Same inline-literal trap as the op enum: the schema's source text is re-evaluated
+  // with `z` as the only binding, so the ceiling cannot reference the constant above it.
+  assert.match(server, /chunkPauseMs: z[\s\S]*?\.max\(5000\)/);
+
+  const plugin = await readFile(
+    path.join(root, "src/cursor_mcp_plugin/code.js"),
+    "utf8",
+  );
+  assert.match(plugin, /const BATCH_CHUNK_SIZE = 5;/);
+  assert.match(plugin, /const BATCH_DEFAULT_CHUNK_PAUSE_MS = 0;/);
+  assert.match(plugin, /const BATCH_MAX_CHUNK_PAUSE_MS = 5000;/);
 });

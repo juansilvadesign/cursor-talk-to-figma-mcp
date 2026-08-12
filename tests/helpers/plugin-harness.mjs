@@ -374,9 +374,16 @@ export async function loadPluginHarness(options = {}) {
     setTimeout(callback, delay = 0) {
       const id = ++timerId;
       timers.set(id, callback);
-      if (delay === 0) queueMicrotask(() => {
-        if (timers.delete(id)) callback();
-      });
+      // A non-zero delay normally stays pending forever, which is what lets the
+      // timeout-safety tests observe a hang. `runTimers` opts a suite out of that so a
+      // deliberate yield — R2.4's chunkPauseMs — can be executed instead of shipped
+      // untested; it advances the fake clock so elapsed time stays honest.
+      if (delay === 0 || options.runTimers) {
+        if (delay > 0) runtime.clock.now += delay;
+        queueMicrotask(() => {
+          if (timers.delete(id)) callback();
+        });
+      }
       return id;
     },
     clearTimeout(id) {

@@ -174,6 +174,10 @@ const SPECIAL_PROGRESS = {
   set_multiple_annotations: "chunked",
   delete_multiple_nodes: "chunked",
   create_connections: "chunked",
+  // R2.4 3.1. Moved off the default "none" in the SAME change that added the chunking, so
+  // this map never describes behaviour the runtime does not have — which is Finding 4.
+  // `tests/progress-declaration.test.mjs` now asserts every entry here against code.js.
+  apply_batch: "chunked",
 };
 
 function sha256(value) {

@@ -189,16 +189,40 @@ checkpoint* and in full in the plan. Two shipped tools informed the shape: `crea
 precedent for a typed per-operation receipt that reports what happened instead of
 collapsing it to a boolean.
 
-⭐ **Next in sequence: build R2.4 Phase 1** — the shared receipt-vocabulary module (imported
-by `apply_batch` *and* the three legacy tools, or Finding 2 gains a fourth dialect), then
-the `apply_batch` Zod schema with unique-`id` and allowlist assertions. All five phases,
-the acceptance criteria, and the four traps are already written, so the session starts at
-**1.1**, not at a design decision.
+✅ **R2.4 Phase 1 is BUILT (2026-08-12) — 1.1, 1.3 and 1.4; 1.2 deferred to Phase 2.**
+`src/talk_to_figma_mcp/batch-receipt.mjs` is the single receipt vocabulary; 10 new offline
+tests (65 → **75**) pin it. `bun run verify` green, **five** baselines replaying, and the
+contract, fingerprint and pinned pair are **unchanged** — this session added no tool.
 
-⛔ **Do these before touching `src/`:** freeze R2.3 as the **fifth baseline** with a plain
-`cp` *before* regenerating the contract — the test discovers baselines by filename — and
-plan on bumping `serverSchemaVersion` `1.4.0` → **`1.5.0`**. A new command moves the
-fingerprint anyway, but a contract that grows must bump the version regardless.
+- ⭐ **Finding 1 is now unrepresentable, not merely avoided:** `succeeded === 0`
+  classifies as `all_failed` for every mix of `failed`/`skipped` (pinned by an exhaustive
+  test), and the counts are derived *from* the per-operation receipts, so the aggregate
+  cannot disagree with what it summarizes.
+- ⛔ **Creates are pinned absent by a dedicated test**, the R2.2 `"reuse"` precedent, so
+  mutate-only reads as a decision rather than an oversight.
+- ⚠️ **1.2 (registering `apply_batch`) was deferred on purpose.** Registration is not
+  local: the parity guard needs a matching `code.js` dispatcher entry, so registering now
+  forces either a failing parity test or a stub that publishes a tool refusing every call.
+  It lands with the Phase 2 handler, together with the `serverSchemaVersion`
+  `1.4.0` → **`1.5.0`** bump — ⛔ **not before**, or the preflight rejects the working pair
+  `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f` over bookkeeping.
+- ⚠️ **Constraint found, load-bearing for the eventual schema:** `evaluateToolSchema`
+  (`scripts/contract-lib.mjs:220`) re-evaluates each schema's **source text** through
+  `Function("z", …)`, so a registered schema literal **cannot reference an imported
+  constant** — the allowlist must be spelled inline as a `z.enum([...])`, with a test
+  asserting it equals `V1_BATCH_OPERATIONS`.
+- ⚠️ **Phase 4 cannot "import the module in both places":** `code.js` is a single bundled
+  file in the Figma sandbox with no `import`. The module is dependency-free so the plugin
+  can carry a **mirrored copy** held by a parity test.
+
+⭐ **Next in sequence: R2.4 Phase 2 — prevalidation** (2.1–2.4), landing 1.2 and the
+schema bump with it. All five phases, the acceptance criteria, and the four traps are
+already written in [`docs/BATCH-CONTRACT-PLAN.md`](docs/BATCH-CONTRACT-PLAN.md), so the
+session starts at **2.1**, not at a design decision.
+
+✅ **The baseline freeze is DONE** — `contracts/baselines/r2.3-public-contract.json`,
+copied before any regeneration and verified to carry contract `1.4.0` and fingerprint
+`sha256:c3cd6e71…dcc6bd`.
 
 ⛔ **Four standing lessons, all earned the hard way — the R2.4 gate will meet every one:**
 

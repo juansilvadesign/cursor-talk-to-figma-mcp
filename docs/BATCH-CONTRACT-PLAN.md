@@ -160,17 +160,58 @@ tools (a batch of batches has no defined receipt).
 
 ## Phase 1 — the envelope and the shared receipt vocabulary
 
-- [ ] **1.1 Define the receipt vocabulary once, in one module**, and have both the new
+**Status 2026-08-12: 1.1 · 1.3 · 1.4 BUILT as the vocabulary module and its tests; 1.2
+deliberately deferred to Phase 2.** 10 new offline tests (65 → **75**), `bun run verify`
+green, five baselines replaying, and the contract, fingerprint and pinned pair
+**unchanged** — see *Why 1.2 was deferred* below.
+
+- [x] **1.1 Define the receipt vocabulary once, in one module**, and have both the new
       tool and the three legacy tools import it. Finding 2 exists because three
       implementations each invented their own nouns; a second generic implementation that
       does not share code will become the fourth.
+      → **`src/talk_to_figma_mcp/batch-receipt.mjs`**: `BATCH_OUTCOMES`,
+      `OPERATION_STATUSES`, `BATCH_ERROR_CODES`, `V1_BATCH_OPERATIONS`,
+      `EXCLUDED_BATCH_OPERATIONS`, `classifyOutcome`, `summarizeOperations`,
+      `duplicateOperationIds`, `disallowedOperations`, `utf8ByteLength`,
+      `truncateResult`.
+      ⭐ **The anti-Finding-1 property is stated as one rule and pinned by an exhaustive
+      test:** `succeeded === 0` classifies as `all_failed` for *every* mix of `failed` and
+      `skipped`, so no combination of counts can report success when nothing was applied.
+      `summarizeOperations` derives the counts *from* the per-operation receipts, so the
+      aggregate cannot disagree with the operations it summarizes — which is exactly how
+      `successCount` currently can.
+      ⚠️ **The module is deliberately dependency-free** — no Node built-ins, no `zod`
+      (hence a hand-written `utf8ByteLength`, asserted against `Buffer.byteLength`).
+      `code.js` runs in the Figma plugin sandbox as one bundled file and **cannot
+      `import`**, so Phase 4's plugin half must carry a *mirrored copy*, held to this one
+      by a parity test rather than by convention. "Import it in both places" is not
+      available; plan 4.1 accordingly.
 - [ ] **1.2 Register `apply_batch`** in `server.ts` with a Zod schema: `operations`
       (non-empty, `maxOperations` ceiling), `onError`, `prevalidateOnly`, `timeBudgetMs`,
       `maxResultBytes`.
-- [ ] **1.3 Assert unique `id`s** at schema level and return a named refusal on collision.
-- [ ] **1.4 Assert the allowlist** at schema level so an unknown or excluded `op` is
-      refused before it reaches the plugin. ⚠️ A Zod enum rejection surfaces as a **thrown**
-      protocol error, not an error result — the harness must expect that (see Traps).
+      ⛔ **Deferred to Phase 2, on purpose.** Registration is not a local act: the parity
+      guard requires a matching `code.js` dispatcher entry, so registering in Phase 1
+      forces either a *failing* parity test or a dispatcher stub — and a stub would
+      publish a tool into the generated contract that refuses every call. Both are worse
+      than waiting. Registering alongside the Phase 2 prevalidation handler costs
+      nothing and keeps the contract truthful at every commit.
+      ⚠️ **A constraint found while deferring it, load-bearing for 1.4:**
+      `evaluateToolSchema` (`scripts/contract-lib.mjs:220`) extracts each schema by
+      re-evaluating its **source text** through `Function("z", …)` — `z` is the *only*
+      binding in scope. So the registered schema literal **cannot reference an imported
+      constant**; the allowlist must be spelled out inline as a `z.enum([...])`, with a
+      test asserting the inline literal equals `V1_BATCH_OPERATIONS`. Discovering this at
+      registration time would have looked like a broken build.
+- [x] **1.3 Assert unique `id`s** and return a named refusal on collision.
+      → `duplicateOperationIds` + `BATCH_ERROR_CODES.DUPLICATE_OPERATION_ID`. The
+      schema-level half lands with 1.2.
+- [x] **1.4 Assert the allowlist** so an unknown or excluded `op` is refused before it
+      reaches the plugin. ⚠️ A Zod enum rejection surfaces as a **thrown** protocol error,
+      not an error result — the harness must expect that (see Traps).
+      → `disallowedOperations` refuses with each op's *recorded reason*, and
+      **creates are pinned absent by a dedicated test**, the R2.2 `"reuse"` precedent. A
+      second test asserts nothing is both allowlisted and excluded. The schema-level half
+      lands with 1.2.
 
 ## Phase 2 — prevalidation
 
@@ -218,11 +259,21 @@ exact current spelling and semantics; the unified vocabulary appears alongside t
 
 ## Phase 5 — tests, contract, dist, gates, pin
 
-- [ ] **5.1 Freeze R2.3 as the fifth baseline** with a plain `cp` **before** regenerating
+- [x] **5.1 Freeze R2.3 as the fifth baseline** with a plain `cp` **before** regenerating
       the contract. The test discovers baselines by filename.
+      → **Done 2026-08-12, first action of the session**, before a line of `src/` was
+      touched: `contracts/baselines/r2.3-public-contract.json`, verified to carry
+      contract `1.4.0` and fingerprint `sha256:c3cd6e71…dcc6bd` — the accepted R2.3 pair,
+      not some later state. All five baselines replay at zero errors.
 - [ ] **5.2 Bump `serverSchemaVersion` 1.4.0 → 1.5.0.** A new command moves the
       fingerprint anyway, but ⛔ **a contract that grows must bump the version** regardless
       — that is the standing R1 finding.
+      ⛔ **Do this when the contract actually grows (with 1.2), not before.** Bumping it
+      ahead of the new command would move the fingerprint with nothing behind it and make
+      the preflight reject the currently pinned, working pair
+      `r2-server-f152fb666599` ↔ `r2-plugin-8dc3783f024f` for no gain — a live session
+      broken by bookkeeping. The R1 finding requires the bump to *accompany* growth, not
+      to precede it.
 - [ ] **5.3 Offline fixtures**, at minimum: an atomic prevalidation refusal that mutates
       nothing · `continue` producing a genuine `partial` · every-op-fails producing
       `all_failed`, **not** `success: true` · budget exhaustion setting `complete: false`

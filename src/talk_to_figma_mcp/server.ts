@@ -76,6 +76,21 @@ const logger = {
 // headroom for cold page loads, not an expected duration.
 const HEAVY_READ_TIMEOUT_MS = 120000;
 
+// R2.4. A batch's cost scales with its arguments, not with the file, so it is its own
+// timeout class rather than a second meaning for `heavy_read`. These mirror the ceilings
+// the plugin enforces in `applyBatch`; the schema below refuses anything above them.
+const BATCH_MAX_OPERATIONS = 200;
+const BATCH_DEFAULT_TIME_BUDGET_MS = 60000;
+const BATCH_MAX_TIME_BUDGET_MS = 240000;
+// The transport timeout is derived from the batch's own declared budget plus slack, so
+// the plugin's total budget always fires FIRST and the caller gets an honest receipt with
+// `complete: false` instead of a transport error that says nothing about what was applied.
+// This is Finding 5's fix: the shipped batch tools have only an inactivity timer, which a
+// chunked run resets forever, so a 10k-node delete has no ceiling at all.
+const BATCH_TIMEOUT_SLACK_MS = 30000;
+const HEAVY_BATCH_TIMEOUT_MS =
+  BATCH_MAX_TIME_BUDGET_MS + BATCH_TIMEOUT_SLACK_MS;
+
 // WebSocket connection and request tracking
 let ws: WebSocket | null = null;
 const pendingRequests = new Map<string, {
@@ -505,6 +520,116 @@ server.tool(
           {
             type: "text",
             text: `Error setting plugin data: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Batch Tool (R2.4)
+server.tool(
+  "apply_batch",
+  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+  {
+    operations: z
+      .array(
+        z.object({
+          id: z
+            .string()
+            .min(1)
+            .describe("Your own identifier for this operation. Receipts correlate by it, never by array position, so it must be unique within the batch"),
+          op: z
+            .enum([
+              "delete_node",
+              "move_node",
+              "rename_node",
+              "resize_node",
+              "set_axis_align",
+              "set_corner_radius",
+              "set_fill_color",
+              "set_item_spacing",
+              "set_layout_mode",
+              "set_layout_sizing",
+              "set_padding",
+              "set_parent",
+              "set_plugin_data",
+              "set_stroke_color",
+              "set_text_content",
+            ])
+            .describe("The mutation to apply. Only these fifteen node-scoped mutations are accepted; every create_* is excluded because v1 is mutate-only"),
+          nodeId: z
+            .string()
+            .min(1)
+            .describe("The existing node to mutate. Lifted out of `params` deliberately: this is the field prevalidation resolves, and it wins over any nodeId inside `params`"),
+          params: z
+            .record(z.any())
+            .optional()
+            .describe("The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name"),
+        })
+      )
+      .min(1)
+      // ⚠️ 200 and 240000 below are inline literals, not BATCH_MAX_OPERATIONS /
+      // BATCH_MAX_TIME_BUDGET_MS, and that is forced rather than sloppy: the contract
+      // generator extracts this schema by re-evaluating its SOURCE TEXT through
+      // Function("z", …), where `z` is the only binding in scope, so any identifier from
+      // module scope is a ReferenceError at generation time. A test asserts these
+      // literals equal the constants the runtime actually enforces.
+      .max(200)
+      .describe("The operations to apply, in order"),
+    onError: z
+      .enum(["stop", "continue"])
+      .optional()
+      .describe("\"stop\" (default) refuses the whole batch if any target is unresolvable, and halts after the first failure. \"continue\" skips unresolvable targets and runs the rest"),
+    prevalidateOnly: z
+      .boolean()
+      .optional()
+      .describe("true runs the resolve pass and returns the report without writing anything — a dry run against the live file. Default false"),
+    timeBudgetMs: z
+      .number()
+      .int()
+      .min(1000)
+      .max(240000)
+      .optional()
+      .describe("Total wall clock for the whole batch, not per operation (default 60000). On exhaustion the remaining operations are skipped and `complete` is false"),
+    maxResultBytes: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`"),
+  },
+  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes }: any) => {
+    try {
+      // Arm the transport just past the batch's own budget, so the plugin's ceiling is
+      // always the one that fires and the reply is a receipt rather than a timeout.
+      const budget =
+        typeof timeBudgetMs === "number" ? timeBudgetMs : BATCH_DEFAULT_TIME_BUDGET_MS;
+      const result = await sendCommandToFigma(
+        "apply_batch",
+        {
+          operations,
+          onError,
+          prevalidateOnly,
+          timeBudgetMs,
+          maxResultBytes,
+        },
+        Math.min(HEAVY_BATCH_TIMEOUT_MS, budget + BATCH_TIMEOUT_SLACK_MS)
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error applying batch: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
       };
@@ -3244,6 +3369,7 @@ type FigmaCommand =
   | "create_page"
   | "get_plugin_data"
   | "set_plugin_data"
+  | "apply_batch"
   | "get_selection"
   | "get_node_info"
   | "get_nodes_info"
@@ -3318,6 +3444,18 @@ type CommandParams = {
     key: string;
     value: string | null;
     namespace?: string;
+  };
+  apply_batch: {
+    operations: Array<{
+      id: string;
+      op: string;
+      nodeId: string;
+      params?: Record<string, unknown>;
+    }>;
+    onError?: "stop" | "continue";
+    prevalidateOnly?: boolean;
+    timeBudgetMs?: number;
+    maxResultBytes?: number;
   };
   get_selection: Record<string, never>;
   get_node_info: { nodeId: string };

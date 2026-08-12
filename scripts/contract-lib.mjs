@@ -51,12 +51,25 @@ const HEAVY_READ_TOOLS = new Set([
 // consumer that was already prepared to wait less; lowering one can, because a call
 // that used to finish starts timing out. So this is compared as a ladder, like
 // resultStability — not as equality.
+//
+// `heavy_batch` is R2.4's. `heavy_read` is documented as "cost scales with the file
+// rather than the arguments"; a batch scales with its arguments, so reusing that label
+// would make the contract lie about why the budget is large.
+// ⚠️ Adding a rank is safe for baseline replay ONLY because no existing tool changes
+// class: the ladder check errors on an unknown value found in a PREVIOUS baseline, and a
+// brand-new tool has no previous entry to compare against.
 const TIMEOUT_RANK = {
   local: 0,
   preflight: 1,
   standard: 2,
   heavy_read: 3,
+  heavy_batch: 4,
 };
+
+// Tools whose budget scales with the number of operations the caller submitted. Unlike a
+// heavy read, the caller controls this cost directly, and declares its own ceiling with
+// timeBudgetMs.
+const HEAVY_BATCH_TOOLS = new Set(["apply_batch"]);
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_document_info",
@@ -70,6 +83,11 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
+  // R2.4, and deliberately not "stable" yet: apply_batch has never run against a real
+  // Figma file. The R1 precedent is that a promise is promoted once a live gate has
+  // earned it, and the ladder allows strengthening later while a walk-back would be a
+  // breaking change. Promote at R2.4 acceptance, not at registration.
+  "apply_batch",
 ]);
 
 const LEGACY_RESULTS = new Set(["read_my_design"]);
@@ -112,6 +130,7 @@ const TOOL_SCOPES = {
   create_page: "document",
   get_plugin_data: "node",
   set_plugin_data: "node",
+  apply_batch: "requested_nodes",
   get_selection: "current_page_selection",
   read_my_design: "current_page_selection",
   get_node_info: "node_subtree",
@@ -295,9 +314,11 @@ function extractRegistrations(sourceFile) {
           ? "local"
           : name === "get_runtime_info"
             ? "preflight"
-            : HEAVY_READ_TOOLS.has(name)
-              ? "heavy_read"
-              : "standard",
+            : HEAVY_BATCH_TOOLS.has(name)
+              ? "heavy_batch"
+              : HEAVY_READ_TOOLS.has(name)
+                ? "heavy_read"
+                : "standard",
       progress: getProgress(name, kind, pluginCommand),
       pluginCommand,
       resultStability: getResultStability(name, kind),

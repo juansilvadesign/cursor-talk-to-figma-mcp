@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-8dc3783f024f",
-  "apiVersion": "1.4.0",
-  "serverSchemaVersion": "1.4.0",
+  "buildId": "r2-plugin-d0342abb6c4a",
+  "apiVersion": "1.5.0",
+  "serverSchemaVersion": "1.5.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -18,6 +18,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "create_page",
     "get_plugin_data",
     "set_plugin_data",
+    "apply_batch",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -64,6 +65,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.apply_batch@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -266,6 +268,8 @@ async function handleCommand(command, params) {
       return await getPluginData(params);
     case "set_plugin_data":
       return await setPluginData(params);
+    case "apply_batch":
+      return await applyBatch(params);
     case "get_selection":
       return await getSelection();
     case "get_node_info":
@@ -6422,4 +6426,470 @@ async function setSelections(params) {
     notFoundIds: notFoundIds,
     message: `Selected ${nodes.length} nodes${notFoundIds.length > 0 ? ` (${notFoundIds.length} not found)` : ''}`
   };
+}
+
+// ============================================================================
+// R2.4 apply_batch — the generic batch operation contract
+// ============================================================================
+
+// talk-to-figma-batch-receipt-mirror:start
+// ⛔ MIRROR of src/talk_to_figma_mcp/batch-receipt.mjs. Do not edit one copy alone.
+//
+// code.js runs in the Figma plugin sandbox as a single bundled file and cannot `import`,
+// so "share the module" is not available here and the vocabulary has to exist twice.
+// Finding 2 of the R2.4 audit is what three independent dialects of one concept cost, so
+// the two copies are held together by a parity test rather than by convention: the test
+// evaluates this block through the offline harness and compares every constant and every
+// function's behaviour against the module. `utf8ByteLength` is deliberately NOT mirrored
+// — the plugin already has its own from R2.3, and the parity test asserts the two
+// independent implementations agree instead of adding a third.
+
+const BATCH_OUTCOMES = Object.freeze([
+  "all_succeeded",
+  "partial",
+  "all_failed",
+  "prevalidated",
+  "refused_prevalidation",
+]);
+
+const OPERATION_STATUSES = Object.freeze(["succeeded", "failed", "skipped"]);
+
+const BATCH_ERROR_CODES = Object.freeze({
+  DUPLICATE_OPERATION_ID: "duplicate_operation_id",
+  OPERATION_NOT_ALLOWED: "operation_not_allowed",
+  NODE_NOT_FOUND: "node_not_found",
+  BUDGET_EXHAUSTED: "budget_exhausted",
+  OPERATION_FAILED: "operation_failed",
+  STOPPED_AFTER_FAILURE: "stopped_after_failure",
+});
+
+const V1_BATCH_OPERATIONS = Object.freeze([
+  "delete_node",
+  "move_node",
+  "rename_node",
+  "resize_node",
+  "set_axis_align",
+  "set_corner_radius",
+  "set_fill_color",
+  "set_item_spacing",
+  "set_layout_mode",
+  "set_layout_sizing",
+  "set_padding",
+  "set_parent",
+  "set_plugin_data",
+  "set_stroke_color",
+  "set_text_content",
+]);
+
+const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
+  create_rectangle: "v1 is mutate-only; creates arrive later as a new op kind",
+  create_frame: "v1 is mutate-only; creates arrive later as a new op kind",
+  create_text: "v1 is mutate-only; creates arrive later as a new op kind",
+  create_section: "v1 is mutate-only; creates arrive later as a new op kind",
+  create_page: "v1 is mutate-only; creates arrive later as a new op kind",
+  create_component_instance:
+    "v1 is mutate-only; creates arrive later as a new op kind",
+  create_connections: "v1 is mutate-only; creates arrive later as a new op kind",
+  export_node_as_image:
+    "binary payloads have their own bounded contract and belong nowhere near a 200-item receipt",
+  join_channel: "connection plumbing stays distinct from document commands",
+  get_runtime_info: "connection plumbing stays distinct from document commands",
+  set_multiple_text_contents: "a batch of batches has no defined receipt",
+  set_multiple_annotations: "a batch of batches has no defined receipt",
+  delete_multiple_nodes: "a batch of batches has no defined receipt",
+});
+
+const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({
+  set_item_spacing:
+    "proven: writes itemSpacing, then throws if counterAxisSpacing is given on a non-WRAP frame",
+  set_axis_align:
+    "proven: writes primaryAxisAlignItems, then throws on an invalid or BASELINE counterAxisAlignItems",
+  set_layout_sizing:
+    "proven: writes layoutSizingHorizontal, then throws on an invalid HUG/FILL layoutSizingVertical",
+  set_layout_mode: "writes layoutMode, then layoutWrap, with no rollback",
+  set_padding: "writes up to four padding fields in sequence, with no rollback",
+  set_corner_radius: "writes up to four corner radii in sequence, with no rollback",
+  set_stroke_color: "writes strokes, then strokeWeight, with no rollback",
+  set_parent: "reparents the node, then writes its position, with no rollback",
+  move_node: "writes x, then y, with no rollback",
+});
+
+function partialApplicationPossible(op) {
+  return Object.prototype.hasOwnProperty.call(NON_ATOMIC_BATCH_OPERATIONS, op);
+}
+
+function classifyOutcome(counts) {
+  const {
+    total,
+    succeeded,
+    failed,
+    skipped,
+    refusedPrevalidation,
+    prevalidateOnly,
+  } = counts;
+
+  if (!Number.isInteger(total) || total < 1) {
+    throw new Error("a batch outcome requires at least one operation");
+  }
+  if (succeeded + failed + skipped !== total) {
+    throw new Error(
+      `operation counts do not sum to total: ${succeeded}+${failed}+${skipped} !== ${total}`,
+    );
+  }
+
+  if (refusedPrevalidation) return "refused_prevalidation";
+  if (prevalidateOnly) return "prevalidated";
+
+  if (succeeded === total) return "all_succeeded";
+  if (succeeded === 0) return "all_failed";
+  return "partial";
+}
+
+function summarizeOperations(operations, options) {
+  const settings = options || {};
+  const counts = { total: operations.length, succeeded: 0, failed: 0, skipped: 0 };
+
+  for (const operation of operations) {
+    if (OPERATION_STATUSES.indexOf(operation.status) === -1) {
+      throw new Error(`unknown operation status ${JSON.stringify(operation.status)}`);
+    }
+    counts[operation.status] += 1;
+  }
+
+  return Object.assign(
+    {
+      outcome: classifyOutcome(
+        Object.assign({}, counts, {
+          refusedPrevalidation: settings.refusedPrevalidation,
+          prevalidateOnly: settings.prevalidateOnly,
+        }),
+      ),
+    },
+    counts,
+  );
+}
+
+function duplicateOperationIds(operations) {
+  const seen = new Set();
+  const duplicates = new Set();
+  for (const operation of operations) {
+    if (seen.has(operation.id)) duplicates.add(operation.id);
+    seen.add(operation.id);
+  }
+  return [...duplicates];
+}
+
+function disallowedOperations(operations) {
+  return operations
+    .filter((operation) => V1_BATCH_OPERATIONS.indexOf(operation.op) === -1)
+    .map((operation) => ({
+      id: operation.id,
+      op: operation.op,
+      reason:
+        EXCLUDED_BATCH_OPERATIONS[operation.op] ||
+        "not a v1 batch operation; see V1_BATCH_OPERATIONS",
+    }));
+}
+
+function truncateResult(result, maxResultBytes) {
+  if (result === undefined) {
+    return { result: null, bytes: 0, truncated: false };
+  }
+
+  const encoded = JSON.stringify(result);
+  const bytes = utf8ByteLength(encoded);
+  if (bytes <= maxResultBytes) {
+    return { result, bytes, truncated: false };
+  }
+
+  return {
+    result: encoded.slice(0, Math.max(0, maxResultBytes)),
+    bytes,
+    truncated: true,
+  };
+}
+
+// The parity test's single entry point. A `vm` context exposes function declarations but
+// not `const` bindings, so the values are unreachable without this.
+function batchVocabulary() {
+  return {
+    BATCH_OUTCOMES,
+    OPERATION_STATUSES,
+    BATCH_ERROR_CODES,
+    V1_BATCH_OPERATIONS,
+    EXCLUDED_BATCH_OPERATIONS,
+    NON_ATOMIC_BATCH_OPERATIONS,
+    partialApplicationPossible,
+    classifyOutcome,
+    summarizeOperations,
+    duplicateOperationIds,
+    disallowedOperations,
+    truncateResult,
+    utf8ByteLength,
+  };
+}
+// talk-to-figma-batch-receipt-mirror:end
+
+// D6 bounds this three ways: a ceiling on the operation count refused at schema level, a
+// total wall-clock budget, and per-operation result truncation. The budget ceiling is
+// lower than the server's transport timeout on purpose, so the batch's own budget always
+// fires first and the caller gets an honest receipt instead of a transport error.
+const BATCH_MAX_OPERATIONS = 200;
+const BATCH_DEFAULT_TIME_BUDGET_MS = 60000;
+const BATCH_MAX_TIME_BUDGET_MS = 240000;
+const BATCH_DEFAULT_MAX_RESULT_BYTES = 2000;
+
+// The v1 allowlist bound to the handlers that implement it. Built on call rather than at
+// load so it never depends on declaration order, and asserted against V1_BATCH_OPERATIONS
+// by a test — an allowlist entry with no handler would otherwise fail at runtime only.
+function batchOperationHandlers() {
+  return {
+    delete_node: deleteNode,
+    move_node: moveNode,
+    rename_node: renameNode,
+    resize_node: resizeNode,
+    set_axis_align: setAxisAlign,
+    set_corner_radius: setCornerRadius,
+    set_fill_color: setFillColor,
+    set_item_spacing: setItemSpacing,
+    set_layout_mode: setLayoutMode,
+    set_layout_sizing: setLayoutSizing,
+    set_padding: setPadding,
+    set_parent: setParent,
+    set_plugin_data: setPluginData,
+    set_stroke_color: setStrokeColor,
+    set_text_content: setTextContent,
+  };
+}
+
+/**
+ * Apply many node mutations in one call, against node IDs that already exist.
+ *
+ * The envelope is validated, then every target is resolved in one total pass that writes
+ * nothing (D1), then the resolved operations execute in order. Envelope violations throw
+ * — a duplicate `id` makes the receipt's correlation undefined and an unknown `op` has no
+ * entry shape, so neither can be reported inside the structure it breaks. Everything
+ * below that is reported in a typed receipt.
+ */
+async function applyBatch(params) {
+  const settings = params || {};
+  const operations = settings.operations;
+  const onError = settings.onError === undefined ? "stop" : settings.onError;
+  const prevalidateOnly = settings.prevalidateOnly === true;
+  const maxResultBytes =
+    settings.maxResultBytes === undefined
+      ? BATCH_DEFAULT_MAX_RESULT_BYTES
+      : settings.maxResultBytes;
+  const timeBudgetMs =
+    settings.timeBudgetMs === undefined
+      ? BATCH_DEFAULT_TIME_BUDGET_MS
+      : settings.timeBudgetMs;
+
+  // ---- envelope: refusals that cannot be expressed as a receipt ----
+  if (!Array.isArray(operations) || operations.length === 0) {
+    throw new Error("operations must be a non-empty array");
+  }
+  if (operations.length > BATCH_MAX_OPERATIONS) {
+    throw new Error(
+      `operations has ${operations.length} entries, above the ${BATCH_MAX_OPERATIONS} per-batch ceiling`,
+    );
+  }
+  if (onError !== "stop" && onError !== "continue") {
+    throw new Error(`onError must be "stop" or "continue", received ${JSON.stringify(onError)}`);
+  }
+  if (
+    typeof timeBudgetMs !== "number" ||
+    !Number.isFinite(timeBudgetMs) ||
+    timeBudgetMs < 1000 ||
+    timeBudgetMs > BATCH_MAX_TIME_BUDGET_MS
+  ) {
+    throw new Error(
+      `timeBudgetMs must be between 1000 and ${BATCH_MAX_TIME_BUDGET_MS} ms, received ${JSON.stringify(timeBudgetMs)}`,
+    );
+  }
+  if (typeof maxResultBytes !== "number" || !Number.isFinite(maxResultBytes) || maxResultBytes < 0) {
+    throw new Error(
+      `maxResultBytes must be a non-negative number, received ${JSON.stringify(maxResultBytes)}`,
+    );
+  }
+  for (const operation of operations) {
+    if (!operation || typeof operation.id !== "string" || operation.id.length === 0) {
+      throw new Error("every operation requires a non-empty caller-supplied id");
+    }
+    if (typeof operation.nodeId !== "string" || operation.nodeId.length === 0) {
+      throw new Error(`operation ${operation.id} requires a nodeId`);
+    }
+    if (operation.params !== undefined && (typeof operation.params !== "object" || operation.params === null || Array.isArray(operation.params))) {
+      throw new Error(`operation ${operation.id} params must be an object`);
+    }
+  }
+
+  const duplicates = duplicateOperationIds(operations);
+  if (duplicates.length > 0) {
+    throw new Error(
+      `${BATCH_ERROR_CODES.DUPLICATE_OPERATION_ID}: receipts correlate by id, so ids must be unique. Repeated: ${duplicates.join(", ")}`,
+    );
+  }
+
+  const disallowed = disallowedOperations(operations);
+  if (disallowed.length > 0) {
+    const detail = disallowed
+      .map((entry) => `${entry.id} (${entry.op}: ${entry.reason})`)
+      .join("; ");
+    throw new Error(`${BATCH_ERROR_CODES.OPERATION_NOT_ALLOWED}: ${detail}`);
+  }
+
+  const startedAt = Date.now();
+
+  // ---- 2.1 / 2.2 prevalidation: resolve every target, write nothing ----
+  const resolved = [];
+  const unresolved = [];
+  const unresolvedIds = new Set();
+  for (const operation of operations) {
+    const node = await figma.getNodeByIdAsync(operation.nodeId);
+    if (!node) {
+      unresolved.push({
+        id: operation.id,
+        nodeId: operation.nodeId,
+        reason: BATCH_ERROR_CODES.NODE_NOT_FOUND,
+      });
+      unresolvedIds.add(operation.id);
+      continue;
+    }
+    resolved.push({
+      id: operation.id,
+      nodeId: node.id,
+      name: node.name,
+      type: node.type,
+      // D7: the caller sees the blast radius before anything is mutated. null rather
+      // than 0 for a leaf, because "cannot have children" is not "has none". Note this
+      // counts DIRECT children — a delete takes the whole subtree with it.
+      childCount: "children" in node ? node.children.length : null,
+    });
+  }
+
+  const refusedPrevalidation = unresolved.length > 0 && onError === "stop";
+  const prevalidation = { resolved, unresolved };
+
+  const baseReceipt = (operation) => ({
+    id: operation.id,
+    op: operation.op,
+    nodeId: operation.nodeId,
+  });
+
+  // ---- 2.3 dry run / 2.4 atomic refusal: both write nothing ----
+  if (refusedPrevalidation || prevalidateOnly) {
+    const receipts = operations.map((operation) => {
+      const receipt = Object.assign(baseReceipt(operation), { status: "skipped" });
+      if (unresolvedIds.has(operation.id)) {
+        receipt.error = {
+          code: BATCH_ERROR_CODES.NODE_NOT_FOUND,
+          message: `Node not found with ID: ${operation.nodeId}`,
+        };
+      }
+      return receipt;
+    });
+
+    return Object.assign(
+      summarizeOperations(receipts, { refusedPrevalidation, prevalidateOnly }),
+      {
+        onError,
+        prevalidateOnly,
+        prevalidation,
+        operations: receipts,
+        timing: { startedAt, elapsedMs: Date.now() - startedAt, budgetExhausted: false },
+        // A refusal and a dry run are both final, total decisions: every operation
+        // reached the answer the caller asked for. Only an interrupted run is incomplete.
+        complete: true,
+      },
+    );
+  }
+
+  // ---- the executor: 3.3 budget, 3.4 stop/continue, 3.5 truncation ----
+  const handlers = batchOperationHandlers();
+  const receipts = [];
+  let budgetExhausted = false;
+  let stopped = false;
+
+  for (const operation of operations) {
+    const receipt = baseReceipt(operation);
+
+    if (unresolvedIds.has(operation.id)) {
+      // Only reachable under "continue" — "stop" refused above without writing.
+      receipt.status = "skipped";
+      receipt.error = {
+        code: BATCH_ERROR_CODES.NODE_NOT_FOUND,
+        message: `Node not found with ID: ${operation.nodeId}`,
+      };
+      receipts.push(receipt);
+      continue;
+    }
+
+    if (stopped) {
+      receipt.status = "skipped";
+      receipt.error = {
+        code: BATCH_ERROR_CODES.STOPPED_AFTER_FAILURE,
+        message: 'not attempted: an earlier operation failed under onError: "stop"',
+      };
+      receipts.push(receipt);
+      continue;
+    }
+
+    // Checked before starting, never mid-operation: stopping halfway through a write is
+    // the partial application this contract already has to declare, not add to.
+    if (budgetExhausted || Date.now() - startedAt >= timeBudgetMs) {
+      budgetExhausted = true;
+      receipt.status = "skipped";
+      receipt.error = {
+        code: BATCH_ERROR_CODES.BUDGET_EXHAUSTED,
+        message: `not attempted: the ${timeBudgetMs} ms total budget was exhausted`,
+      };
+      receipts.push(receipt);
+      continue;
+    }
+
+    try {
+      // The envelope's nodeId wins over anything of the same name inside params: it is
+      // the field prevalidation resolved, so the executed target must be the reported one.
+      const handlerParams = Object.assign({}, operation.params, {
+        nodeId: operation.nodeId,
+      });
+      const raw = await handlers[operation.op](handlerParams);
+      const truncated = truncateResult(raw, maxResultBytes);
+      receipt.status = "succeeded";
+      receipt.result = truncated.result;
+      receipt.resultBytes = truncated.bytes;
+      receipt.resultTruncated = truncated.truncated;
+    } catch (error) {
+      receipt.status = "failed";
+      receipt.error = {
+        code: BATCH_ERROR_CODES.OPERATION_FAILED,
+        message: (error && error.message) || String(error),
+      };
+      // ⛔ Per-operation atomicity is FALSE for the nine ops listed in the mirror above,
+      // three of them proven. A failed receipt does NOT imply an unchanged document, so
+      // say which case this is rather than let a caller assume its request was a no-op.
+      receipt.partialApplicationPossible = partialApplicationPossible(operation.op);
+      if (receipt.partialApplicationPossible) {
+        receipt.partialApplicationReason = NON_ATOMIC_BATCH_OPERATIONS[operation.op];
+      }
+      if (onError === "stop") stopped = true;
+    }
+
+    receipts.push(receipt);
+  }
+
+  return Object.assign(
+    summarizeOperations(receipts, { refusedPrevalidation: false, prevalidateOnly: false }),
+    {
+      onError,
+      prevalidateOnly,
+      prevalidation,
+      operations: receipts,
+      timing: { startedAt, elapsedMs: Date.now() - startedAt, budgetExhausted },
+      // Honest incompleteness, the get_node_variables shape: false whenever operations
+      // were never attempted because the run was cut short, rather than decided.
+      complete: !budgetExhausted && !stopped,
+    },
+  );
 }

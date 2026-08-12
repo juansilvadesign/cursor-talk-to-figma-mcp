@@ -24,11 +24,19 @@
  * fail reports `success: true`. The precedent is R2.3's `operation` field
  * (`set` / `removed` / `noop_absent`), which reports what actually happened instead of
  * collapsing it to success.
+ *
+ * ⚠️ `prevalidated` was added in Phase 2 because the original four could not describe a
+ * clean dry run. A `prevalidateOnly` batch applies nothing *by design*, so every
+ * operation is `skipped` and `succeeded === 0` — which the rule below would classify as
+ * `all_failed`. That would be a new instance of exactly the defect this enum exists to
+ * kill: an aggregate that misreports what happened. A dry run that resolved every target
+ * is `prevalidated`; one that would have been refused is still `refused_prevalidation`.
  */
 export const BATCH_OUTCOMES = Object.freeze([
   "all_succeeded",
   "partial",
   "all_failed",
+  "prevalidated",
   "refused_prevalidation",
 ]);
 
@@ -49,6 +57,31 @@ export const BATCH_ERROR_CODES = Object.freeze({
   NODE_NOT_FOUND: "node_not_found",
   BUDGET_EXHAUSTED: "budget_exhausted",
   OPERATION_FAILED: "operation_failed",
+  STOPPED_AFTER_FAILURE: "stopped_after_failure",
+});
+
+/**
+ * Where each code can appear, because the two halves behave differently and a consumer
+ * has to know which to write handling for.
+ *
+ * ⭐ The split is not stylistic. A receipt correlates by caller-supplied `id` (D8) and
+ * carries one entry per operation, so it can only be built when the envelope itself is
+ * coherent. A duplicate `id` makes that correlation *undefined*, and an unknown `op` has
+ * no handler and therefore no entry shape — neither can be reported *in* the structure
+ * they break. Those refusals throw, with the code in the message. Everything below the
+ * envelope — an unresolvable target, an exhausted budget, a failed operation — is
+ * reported inside a well-formed receipt, which is what D1 promises.
+ *
+ * ⛔ In a live gate the thrown half is an *expected outcome*, not a crash. A schema-level
+ * rejection arrives as a thrown protocol error too. A result-only harness mis-scores both.
+ */
+export const BATCH_ERROR_CODE_DELIVERY = Object.freeze({
+  duplicate_operation_id: "thrown",
+  operation_not_allowed: "thrown",
+  node_not_found: "receipt",
+  budget_exhausted: "receipt",
+  operation_failed: "receipt",
+  stopped_after_failure: "receipt",
 });
 
 /**
@@ -103,6 +136,56 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
 });
 
 /**
+ * Operations that can leave the document changed even when they report `failed`.
+ *
+ * ⛔ **Per-operation atomicity was assumed by this contract and is FALSE.** The plan's
+ * trap #4 said to verify the platform assumption before designing around it — the R2.3
+ * `""` lesson — and the probe found three handlers that write their first field, then
+ * validate the second and throw. All three were reproduced offline against the fixture
+ * document before any of this shipped:
+ *
+ *   set_item_spacing    itemSpacing 16 -> 20 lands, then the layoutWrap check throws
+ *   set_axis_align      primaryAxisAlignItems MIN -> CENTER lands, then BASELINE throws
+ *   set_layout_sizing   layoutSizingHorizontal FIXED -> HUG lands, then FILL throws
+ *
+ * The remaining six perform several writes in sequence with no interleaved throw and no
+ * rollback, so a platform-level rejection on a later field leaves the earlier ones
+ * applied. That path is unproven, which is precisely why it is listed rather than
+ * assumed away: a caller cannot tell the two classes apart from the outside.
+ *
+ * ⭐ The honest consequence is that the contract *declares* non-atomicity instead of
+ * promising something the handlers do not deliver. A `failed` receipt for one of these
+ * carries `partialApplicationPossible: true`, which tells a caller to re-read the node
+ * rather than assume its own request was a no-op. Making these handlers transactional is
+ * a separate change to nine shipped tools, out of scope for the batch envelope.
+ */
+export const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({
+  set_item_spacing:
+    "proven: writes itemSpacing, then throws if counterAxisSpacing is given on a non-WRAP frame",
+  set_axis_align:
+    "proven: writes primaryAxisAlignItems, then throws on an invalid or BASELINE counterAxisAlignItems",
+  set_layout_sizing:
+    "proven: writes layoutSizingHorizontal, then throws on an invalid HUG/FILL layoutSizingVertical",
+  set_layout_mode: "writes layoutMode, then layoutWrap, with no rollback",
+  set_padding: "writes up to four padding fields in sequence, with no rollback",
+  set_corner_radius: "writes up to four corner radii in sequence, with no rollback",
+  set_stroke_color: "writes strokes, then strokeWeight, with no rollback",
+  set_parent: "reparents the node, then writes its position, with no rollback",
+  move_node: "writes x, then y, with no rollback",
+});
+
+/**
+ * Whether a failed `op` may have left the document changed. Anything not on the list
+ * above validates fully before its single write, so a failure means nothing was applied.
+ *
+ * @param {string} op
+ * @returns {boolean}
+ */
+export function partialApplicationPossible(op) {
+  return Object.hasOwn(NON_ATOMIC_BATCH_OPERATIONS, op);
+}
+
+/**
  * Classify a run into one of BATCH_OUTCOMES.
  *
  * The load-bearing rule is the middle one: **`succeeded === 0` is always `all_failed`**,
@@ -110,13 +193,22 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
  * the honest reading, and it is the single property that makes Finding 1 unrepeatable —
  * there is no combination of counts that reports success when nothing succeeded.
  *
- * @param {{total: number, succeeded: number, failed: number, skipped: number, refusedPrevalidation?: boolean}} counts
- * @returns {"all_succeeded"|"partial"|"all_failed"|"refused_prevalidation"}
+ * The two overrides are ordered, and the order is the decision: a dry run that would
+ * have been refused reports the refusal, because "what would happen" is the only
+ * question a dry run is asked.
+ *
+ * @param {{total: number, succeeded: number, failed: number, skipped: number, refusedPrevalidation?: boolean, prevalidateOnly?: boolean}} counts
+ * @returns {"all_succeeded"|"partial"|"all_failed"|"prevalidated"|"refused_prevalidation"}
  */
 export function classifyOutcome(counts) {
-  const { total, succeeded, failed, skipped, refusedPrevalidation } = counts;
-
-  if (refusedPrevalidation) return "refused_prevalidation";
+  const {
+    total,
+    succeeded,
+    failed,
+    skipped,
+    refusedPrevalidation,
+    prevalidateOnly,
+  } = counts;
 
   if (!Number.isInteger(total) || total < 1) {
     throw new Error("a batch outcome requires at least one operation");
@@ -126,6 +218,9 @@ export function classifyOutcome(counts) {
       `operation counts do not sum to total: ${succeeded}+${failed}+${skipped} !== ${total}`,
     );
   }
+
+  if (refusedPrevalidation) return "refused_prevalidation";
+  if (prevalidateOnly) return "prevalidated";
 
   if (succeeded === total) return "all_succeeded";
   if (succeeded === 0) return "all_failed";
@@ -137,7 +232,7 @@ export function classifyOutcome(counts) {
  * disagree with the operations they summarize — the way `successCount` currently can.
  *
  * @param {Array<{status: string}>} operations
- * @param {{refusedPrevalidation?: boolean}} [options]
+ * @param {{refusedPrevalidation?: boolean, prevalidateOnly?: boolean}} [options]
  * @returns {{outcome: string, total: number, succeeded: number, failed: number, skipped: number}}
  */
 export function summarizeOperations(operations, options = {}) {
@@ -154,6 +249,7 @@ export function summarizeOperations(operations, options = {}) {
     outcome: classifyOutcome({
       ...counts,
       refusedPrevalidation: options.refusedPrevalidation,
+      prevalidateOnly: options.prevalidateOnly,
     }),
     ...counts,
   };

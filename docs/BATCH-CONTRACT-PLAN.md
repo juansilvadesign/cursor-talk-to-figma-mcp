@@ -341,10 +341,17 @@ exact current spelling and semantics; the unified vocabulary appears alongside t
 - [x] **5.4 Regenerate the contract, rebuild `dist/`, re-run parity.** ⚠️ Load-bearing:
       `.mcp.json` points at this checkout's `dist/server.js`, so a source-only change
       ships nothing to the running agent.
-- [ ] **5.5 Live gate on the SYD throwaway copy** — a mixed batch with one bad target
-      under both `stop` and `continue`, a `prevalidateOnly` dry run, and a destructive op
-      whose reported scope is checked against the document before and after.
-      ⛔ Clean up in a `finally`, and re-assert the baseline.
+- [x] **5.5 Live gate on the SYD throwaway copy** — ✅ **PASSED 2026-08-12**, twice, on
+      channel `8fbuzws2`. `scripts/live-batch-gate.mjs`; full payload in
+      [`R2.4-BATCH-CONTRACT.md`](R2.4-BATCH-CONTRACT.md) § Connected gate.
+      `prevalidated` / `refused_prevalidation` / `partial` / `all_succeeded` all observed
+      on the pinned pair, both refusals recorded with the layer that answered, the
+      destructive op's `childCount: 3` checked against the document before and after, and
+      the plugin answering `compatible` in 4 ms afterwards. Both runs restored the 6-page
+      baseline id-for-id — run 2 reading it is the proof run 1 left nothing behind.
+      ⭐ The gate found three defects, all in [`R2.4-BATCH-CONTRACT.md`](R2.4-BATCH-CONTRACT.md)
+      § What the gate found; the description defect is fixed **with 3.1**, which re-pins
+      the pair anyway rather than moving the build this gate just pinned.
 - [ ] **5.6 Record server + plugin identity** in the release note, per *"Local runtime
       honesty."* Assign the new pin and let consumers adopt on their own schedule.
 
@@ -383,6 +390,19 @@ exact current spelling and semantics; the unified vocabulary appears alongside t
   and no rollback, so a platform-level rejection on a later field leaves the earlier ones
   applied. That path is unproven, and is listed rather than assumed away because a caller
   cannot tell the two classes apart from the outside.
+
+  → ⭐ **TWO OF THOSE SIX ARE NOW PROVEN, live, by the 5.5 gate (2026-08-12).** The
+  hypothesis in the paragraph above is no longer a hypothesis: the rejection arrives from
+  the **Figma property setter**, not from fork code, and the earlier field stays applied.
+
+  | Operation | What lands | Then throws on |
+  | --- | --- | --- |
+  | `move_node` | `x` 0 → 120 | `in set_y: Property "y" failed validation: Expected number, received string` |
+  | `set_stroke_color` | `strokes` none → SOLID `#ff0000` | `in set_strokeWeight: … Expected number, received string` |
+
+  Five of the nine are now proven; four remain listed. Reaching a later-field rejection
+  takes a param that survives to the setter, which `params: z.record(z.any())` allows —
+  the batch does no per-operation schema validation.
 
   ⭐ **The contract now declares non-atomicity instead of promising something the handlers
   do not deliver.** A `failed` receipt carries `partialApplicationPossible`, plus the

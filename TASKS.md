@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.4 Phases 1 and 2 are BUILT; the live gate is the front
+## ▶ Next session — R2.4 Phases 1 and 2 are BUILT and LIVE-GATED; 3.1 is the front
 
 **R2.4 Phase 2 built 2026-08-12 — `apply_batch` is registered and executing, offline.**
 1.2 and the `serverSchemaVersion` bump landed with it, exactly as sequenced. 75 → **98
@@ -206,12 +206,30 @@ batch-envelope task.
   shape, so neither can be reported inside the structure it breaks.
   `BATCH_ERROR_CODE_DELIVERY` records which half each code belongs to.
 
-**Next: R2.4 5.5, the live gate** on the SYD throwaway copy — a mixed batch with one bad
-target under both `stop` and `continue`, a `prevalidateOnly` dry run, and a destructive op
-whose reported scope is checked against the document before and after. ⛔ Clean up in a
-`finally`. ⛔ The gate triggers **three** refusals on purpose; two of them arrive **thrown**,
-so a result-only harness mis-scores correct behaviour. Then 3.1/3.2 (chunked progress and
-the measured sleep default — 3.2 is deliberately blocked offline), Phase 4, and 5.6.
+✅ **5.5 — THE LIVE GATE PASSED 2026-08-12**, twice, channel `8fbuzws2`, on the pinned pair
+above. `scripts/live-batch-gate.mjs`; payload transcribed into
+[`docs/R2.4-BATCH-CONTRACT.md`](docs/R2.4-BATCH-CONTRACT.md). All four outcomes observed
+live (`prevalidated` · `refused_prevalidation` · `partial` · `all_succeeded`), both
+envelope refusals recorded with the layer that answered, a `delete_node` blast radius
+reported on a **real** node without touching it, and the plugin answering `compatible` in
+4 ms afterwards. Both runs restored the 6-page baseline id-for-id — run 2 reading it is
+what proves run 1 left nothing behind.
+
+⭐ **The non-atomicity declaration is now observed, not asserted**, and it grew: `move_node`
+(`x` 0 → 120) and `set_stroke_color` (`strokes` none → SOLID) were two of the *six listed
+but unproven* ops, and both reproduced a partial application under a `failed` receipt —
+rejected by the **Figma property setter**, exactly the mechanism the plan hypothesised.
+Five of nine now proven.
+
+🔴 **The gate found a description defect: `apply_batch` claims its `params` are the "same
+shape as the standalone tool of the same name" and that is FALSE** for `set_fill_color`
+and `set_stroke_color`, which take `{color:{r,g,b,a}}` in a batch and flat `r,g,b,a` as
+tools. ⛔ Fix it **with 3.1**, not on its own — 3.1 re-pins the pair anyway, and editing it
+alone would move the build the gate just pinned.
+
+**Next: 3.1 + 3.2** (chunked progress and the measured sleep default — 3.2 is deliberately
+blocked offline), then Phase 4, then 5.6. ⛔ `apply_batch` stays `additive-preview` until
+acceptance; promotion is an acceptance act, the R1 precedent.
 
 ⚠️ **Landing 3.1 must update the contract's `pluginUpdates` declaration in the same
 change.** It currently reads `"none"`, which is *true*; adding progress without moving it

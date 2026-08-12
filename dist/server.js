@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-f152fb666599",
-  "pluginBuildId": "r2-plugin-8dc3783f024f",
-  "serverSchemaVersion": "1.4.0",
-  "pluginApiVersion": "1.4.0",
+  "serverBuildId": "r2-server-9239fd0bc71b",
+  "pluginBuildId": "r2-plugin-d0342abb6c4a",
+  "serverSchemaVersion": "1.5.0",
+  "pluginApiVersion": "1.5.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -27,6 +27,7 @@ var RUNTIME_METADATA = {
     "create_page",
     "get_plugin_data",
     "set_plugin_data",
+    "apply_batch",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -73,6 +74,7 @@ var RUNTIME_METADATA = {
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.apply_batch@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -127,6 +129,7 @@ var RUNTIME_METADATA = {
     "relay.channel@1"
   ],
   "supportedTools": [
+    "apply_batch",
     "clone_node",
     "create_component_instance",
     "create_connections",
@@ -415,6 +418,10 @@ var logger = {
 `)
 };
 var HEAVY_READ_TIMEOUT_MS = 12e4;
+var BATCH_DEFAULT_TIME_BUDGET_MS = 6e4;
+var BATCH_MAX_TIME_BUDGET_MS = 24e4;
+var BATCH_TIMEOUT_SLACK_MS = 3e4;
+var HEAVY_BATCH_TIMEOUT_MS = BATCH_MAX_TIME_BUDGET_MS + BATCH_TIMEOUT_SLACK_MS;
 var ws = null;
 var pendingRequests = /* @__PURE__ */ new Map();
 var currentChannel = null;
@@ -740,6 +747,73 @@ server.tool(
           {
             type: "text",
             text: `Error setting plugin data: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "apply_batch",
+  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+  {
+    operations: z.array(
+      z.object({
+        id: z.string().min(1).describe("Your own identifier for this operation. Receipts correlate by it, never by array position, so it must be unique within the batch"),
+        op: z.enum([
+          "delete_node",
+          "move_node",
+          "rename_node",
+          "resize_node",
+          "set_axis_align",
+          "set_corner_radius",
+          "set_fill_color",
+          "set_item_spacing",
+          "set_layout_mode",
+          "set_layout_sizing",
+          "set_padding",
+          "set_parent",
+          "set_plugin_data",
+          "set_stroke_color",
+          "set_text_content"
+        ]).describe("The mutation to apply. Only these fifteen node-scoped mutations are accepted; every create_* is excluded because v1 is mutate-only"),
+        nodeId: z.string().min(1).describe("The existing node to mutate. Lifted out of `params` deliberately: this is the field prevalidation resolves, and it wins over any nodeId inside `params`"),
+        params: z.record(z.any()).optional().describe("The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name")
+      })
+    ).min(1).max(200).describe("The operations to apply, in order"),
+    onError: z.enum(["stop", "continue"]).optional().describe('"stop" (default) refuses the whole batch if any target is unresolvable, and halts after the first failure. "continue" skips unresolvable targets and runs the rest'),
+    prevalidateOnly: z.boolean().optional().describe("true runs the resolve pass and returns the report without writing anything \u2014 a dry run against the live file. Default false"),
+    timeBudgetMs: z.number().int().min(1e3).max(24e4).optional().describe("Total wall clock for the whole batch, not per operation (default 60000). On exhaustion the remaining operations are skipped and `complete` is false"),
+    maxResultBytes: z.number().int().min(0).optional().describe("Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`")
+  },
+  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes }) => {
+    try {
+      const budget = typeof timeBudgetMs === "number" ? timeBudgetMs : BATCH_DEFAULT_TIME_BUDGET_MS;
+      const result = await sendCommandToFigma(
+        "apply_batch",
+        {
+          operations,
+          onError,
+          prevalidateOnly,
+          timeBudgetMs,
+          maxResultBytes
+        },
+        Math.min(HEAVY_BATCH_TIMEOUT_MS, budget + BATCH_TIMEOUT_SLACK_MS)
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error applying batch: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

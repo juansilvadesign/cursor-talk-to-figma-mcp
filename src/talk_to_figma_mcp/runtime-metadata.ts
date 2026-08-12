@@ -2,12 +2,12 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-f152fb666599",
-  "pluginBuildId": "r2-plugin-8dc3783f024f",
-  "serverSchemaVersion": "1.4.0",
-  "pluginApiVersion": "1.4.0",
+  "serverBuildId": "r2-server-9239fd0bc71b",
+  "pluginBuildId": "r2-plugin-d0342abb6c4a",
+  "serverSchemaVersion": "1.5.0",
+  "pluginApiVersion": "1.5.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -16,6 +16,7 @@ export const RUNTIME_METADATA = {
     "create_page",
     "get_plugin_data",
     "set_plugin_data",
+    "apply_batch",
     "get_selection",
     "get_node_info",
     "get_nodes_info",
@@ -62,6 +63,7 @@ export const RUNTIME_METADATA = {
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.apply_batch@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -116,6 +118,7 @@ export const RUNTIME_METADATA = {
     "relay.channel@1"
   ],
   "supportedTools": [
+    "apply_batch",
     "clone_node",
     "create_component_instance",
     "create_connections",

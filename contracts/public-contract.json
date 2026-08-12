@@ -1,11 +1,12 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.4.0",
-  "serverSchemaVersion": "1.4.0",
+  "publicContractVersion": "1.5.0",
+  "serverSchemaVersion": "1.5.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
   "capabilities": [
+    "figma.command.apply_batch@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -79,6 +80,7 @@
       "create_page",
       "get_plugin_data",
       "set_plugin_data",
+      "apply_batch",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -133,6 +135,7 @@
       "create_page",
       "get_plugin_data",
       "set_plugin_data",
+      "apply_batch",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -187,6 +190,7 @@
       "create_page",
       "get_plugin_data",
       "set_plugin_data",
+      "apply_batch",
       "get_selection",
       "get_node_info",
       "get_nodes_info",
@@ -234,6 +238,105 @@
     ]
   },
   "tools": [
+    {
+      "kind": "tool",
+      "name": "apply_batch",
+      "description": "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+      "direction": "write",
+      "scope": "requested_nodes",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Your own identifier for this operation. Receipts correlate by it, never by array position, so it must be unique within the batch"
+                },
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "delete_node",
+                    "move_node",
+                    "rename_node",
+                    "resize_node",
+                    "set_axis_align",
+                    "set_corner_radius",
+                    "set_fill_color",
+                    "set_item_spacing",
+                    "set_layout_mode",
+                    "set_layout_sizing",
+                    "set_padding",
+                    "set_parent",
+                    "set_plugin_data",
+                    "set_stroke_color",
+                    "set_text_content"
+                  ],
+                  "description": "The mutation to apply. Only these fifteen node-scoped mutations are accepted; every create_* is excluded because v1 is mutate-only"
+                },
+                "nodeId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "The existing node to mutate. Lifted out of `params` deliberately: this is the field prevalidation resolves, and it wins over any nodeId inside `params`"
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {},
+                  "description": "The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name"
+                }
+              },
+              "required": [
+                "id",
+                "op",
+                "nodeId"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 200,
+            "description": "The operations to apply, in order"
+          },
+          "onError": {
+            "type": "string",
+            "enum": [
+              "stop",
+              "continue"
+            ],
+            "description": "\"stop\" (default) refuses the whole batch if any target is unresolvable, and halts after the first failure. \"continue\" skips unresolvable targets and runs the rest"
+          },
+          "prevalidateOnly": {
+            "type": "boolean",
+            "description": "true runs the resolve pass and returns the report without writing anything — a dry run against the live file. Default false"
+          },
+          "timeBudgetMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 240000,
+            "description": "Total wall clock for the whole batch, not per operation (default 60000). On exhaustion the remaining operations are skipped and `complete` is false"
+          },
+          "maxResultBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`"
+          }
+        },
+        "required": [
+          "operations"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_batch",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "apply_batch",
+      "resultStability": "additive-preview"
+    },
     {
       "kind": "tool",
       "name": "clone_node",

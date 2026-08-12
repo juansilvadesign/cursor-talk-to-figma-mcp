@@ -1,7 +1,7 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.4.0",
-  "serverSchemaVersion": "1.4.0",
-  "pluginApiVersion": "1.4.0",
+  "publicContractVersion": "1.5.0",
+  "serverSchemaVersion": "1.5.0",
+  "pluginApiVersion": "1.5.0",
   "relayProtocolVersion": "1"
 }

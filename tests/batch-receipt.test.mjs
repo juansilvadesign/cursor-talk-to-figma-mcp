@@ -3,17 +3,21 @@ import test from "node:test";
 
 import {
   BATCH_ERROR_CODES,
+  BATCH_ERROR_CODE_DELIVERY,
   BATCH_OUTCOMES,
   EXCLUDED_BATCH_OPERATIONS,
+  NON_ATOMIC_BATCH_OPERATIONS,
   OPERATION_STATUSES,
   V1_BATCH_OPERATIONS,
   classifyOutcome,
   disallowedOperations,
   duplicateOperationIds,
+  partialApplicationPossible,
   summarizeOperations,
   truncateResult,
   utf8ByteLength,
 } from "../src/talk_to_figma_mcp/batch-receipt.mjs";
+import { loadPluginHarness } from "./helpers/plugin-harness.mjs";
 
 const op = (status) => ({ id: `op-${status}`, status });
 
@@ -68,8 +72,10 @@ test("classifyOutcome covers the whole enum and refuses incoherent counts", () =
     "refused_prevalidation",
   );
 
-  // The refusal outcome is the only one that does not require a coherent run beneath it,
-  // because under `onError: "stop"` nothing was attempted at all.
+  // Coherence is checked before either override, so even a refusal has to be backed by
+  // counts that sum. In the handler a refusal is always all-skipped, so it always does —
+  // and an aggregate that cannot be built from incoherent counts is one fewer way for a
+  // receipt to disagree with the operations it summarizes.
   assert.throws(
     () => classifyOutcome({ total: 3, succeeded: 1, failed: 1, skipped: 0 }),
     /do not sum to total/,
@@ -78,6 +84,38 @@ test("classifyOutcome covers the whole enum and refuses incoherent counts", () =
     () => classifyOutcome({ total: 0, succeeded: 0, failed: 0, skipped: 0 }),
     /at least one operation/,
   );
+  assert.throws(
+    () =>
+      classifyOutcome({
+        total: 3,
+        succeeded: 0,
+        failed: 0,
+        skipped: 1,
+        refusedPrevalidation: true,
+      }),
+    /do not sum to total/,
+  );
+});
+
+test("a clean dry run is `prevalidated`, never `all_failed`", () => {
+  // A prevalidateOnly batch applies nothing by design, so every operation is skipped and
+  // succeeded === 0. Without its own outcome that lands on `all_failed` — a fresh
+  // instance of Finding 1, an aggregate misreporting what happened.
+  const dryRun = summarizeOperations(
+    [op("skipped"), op("skipped"), { id: "op-3", status: "skipped" }],
+    { prevalidateOnly: true },
+  );
+  assert.equal(dryRun.outcome, "prevalidated");
+  assert.equal(dryRun.skipped, 3);
+  assert.equal(dryRun.succeeded, 0);
+
+  // A dry run that would have been refused still reports the refusal: "what would
+  // happen" is the only question a dry run is asked, so the refusal wins.
+  const refusedDryRun = summarizeOperations([op("skipped")], {
+    prevalidateOnly: true,
+    refusedPrevalidation: true,
+  });
+  assert.equal(refusedDryRun.outcome, "refused_prevalidation");
 });
 
 test("every classified outcome and status is a declared member of its enum", () => {
@@ -85,6 +123,7 @@ test("every classified outcome and status is a declared member of its enum", () 
     "all_succeeded",
     "partial",
     "all_failed",
+    "prevalidated",
     "refused_prevalidation",
   ]);
   assert.deepEqual(OPERATION_STATUSES, ["succeeded", "failed", "skipped"]);
@@ -158,6 +197,83 @@ test("the other exclusions are refused with their recorded reason", () => {
     assert.ok(
       !V1_BATCH_OPERATIONS.includes(name),
       `${name} is both allowlisted and excluded`,
+    );
+  }
+});
+
+test("every non-atomic op is allowlisted, and every error code declares its delivery", () => {
+  for (const name of Object.keys(NON_ATOMIC_BATCH_OPERATIONS)) {
+    assert.ok(
+      V1_BATCH_OPERATIONS.includes(name),
+      `${name} is flagged non-atomic but is not a v1 operation`,
+    );
+  }
+  assert.equal(partialApplicationPossible("set_item_spacing"), true);
+  assert.equal(partialApplicationPossible("rename_node"), false);
+  assert.equal(partialApplicationPossible("delete_node"), false);
+
+  // Every code has to say which half of the contract it arrives in, because a consumer
+  // writes different handling for a thrown refusal than for a receipt entry.
+  assert.deepEqual(
+    Object.values(BATCH_ERROR_CODES).sort(),
+    Object.keys(BATCH_ERROR_CODE_DELIVERY).sort(),
+  );
+  for (const delivery of Object.values(BATCH_ERROR_CODE_DELIVERY)) {
+    assert.ok(["thrown", "receipt"].includes(delivery));
+  }
+});
+
+test("the three proven non-atomic ops really do write before they throw", async () => {
+  // ⛔ Trap #4 of the plan: verify a platform assumption before designing around it.
+  // The contract ASSUMED per-operation atomicity. These three handlers write their first
+  // field, then validate the second and throw — so a `failed` receipt can sit on top of a
+  // changed document. Reproduced here so the finding cannot rot: if a handler is ever
+  // made transactional, this test fails and the declaration gets revisited deliberately.
+  const cases = [
+    {
+      op: "set_item_spacing",
+      params: { itemSpacing: 20, counterAxisSpacing: 10 },
+      field: "itemSpacing",
+      applied: 20,
+      throws: /layoutWrap set to WRAP/,
+    },
+    {
+      op: "set_axis_align",
+      params: { primaryAxisAlignItems: "CENTER", counterAxisAlignItems: "BASELINE" },
+      field: "primaryAxisAlignItems",
+      applied: "CENTER",
+      throws: /BASELINE alignment is only valid/,
+    },
+    {
+      op: "set_layout_sizing",
+      params: { layoutSizingHorizontal: "HUG", layoutSizingVertical: "FILL" },
+      field: "layoutSizingHorizontal",
+      applied: "HUG",
+      throws: /FILL sizing is only valid/,
+    },
+  ];
+
+  for (const testCase of cases) {
+    const harness = await loadPluginHarness();
+    await harness.command("set_layout_mode", {
+      nodeId: "10:1",
+      layoutMode: "VERTICAL",
+      layoutWrap: "NO_WRAP",
+    });
+
+    await assert.rejects(
+      () => harness.command(testCase.op, { nodeId: "10:1", ...testCase.params }),
+      testCase.throws,
+      `${testCase.op} was expected to throw`,
+    );
+    assert.equal(
+      harness.getNode("10:1")[testCase.field],
+      testCase.applied,
+      `${testCase.op} threw but its first write still landed — this is the finding`,
+    );
+    assert.ok(
+      partialApplicationPossible(testCase.op),
+      `${testCase.op} is observably non-atomic and must be declared as such`,
     );
   }
 });

@@ -402,6 +402,19 @@ export async function loadPluginHarness(options = {}) {
     getNode(id) {
       return runtime.nodes.get(id) || null;
     },
+    // Reach a top-level declaration inside the plugin script. A `vm` context exposes
+    // function declarations on the global object but NOT `const` bindings, so anything
+    // a test needs to inspect has to be reachable through a function — which is why the
+    // batch vocabulary mirror publishes itself through `batchVocabulary()`.
+    globals(name) {
+      const value = context[name];
+      if (value === undefined) {
+        throw new Error(
+          `plugin global ${name} is not reachable (const bindings are not exposed by vm)`,
+        );
+      }
+      return value;
+    },
     messages: runtime.messages,
     notifications: runtime.notifications,
     exportCalls: runtime.exportCalls,

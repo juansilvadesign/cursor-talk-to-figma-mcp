@@ -169,21 +169,56 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.4 Phases 1 and 2 are BUILT and LIVE-GATED; 3.1 is the front
+## ▶ Next session — 3.1 / 3.2 / Phase 4 are BUILT and OFFLINE-GREEN; the LIVE PASS is the front
 
-**R2.4 Phase 2 built 2026-08-12 — `apply_batch` is registered and executing, offline.**
-1.2 and the `serverSchemaVersion` bump landed with it, exactly as sequenced. 75 → **98
-offline tests**, `bun run verify` green, **five baselines replaying at zero errors**.
+**R2.4 3.1, 3.2 and Phase 4 built and committed 2026-08-12 (`664135b`); offline gate green
+2026-08-12 — 114 tests, `bun run verify` → "R2 offline gate passed: 53 tools, 6 prompts,
+source/runtime parity verified", five baselines replaying at zero errors, `dist/`
+deterministic.** The live pass is the only thing between here and 5.6 + acceptance.
 
-⛔ **The pinned pair CHANGED — a running Figma session is now incompatible.**
+⛔ **The pinned pair CHANGED AGAIN — a running Figma session is now incompatible.**
 
 | | Before | Now |
 | --- | --- | --- |
-| Contract / schema | `1.4.0` | **`1.5.0`** |
-| Tools / plugin commands | 52 / 51 | **53 / 52** |
-| Server | `r2-server-f152fb666599` | **`r2-server-9239fd0bc71b`** |
-| Plugin | `r2-plugin-8dc3783f024f` | **`r2-plugin-d0342abb6c4a`** |
-| Fingerprint | `sha256:c3cd6e71…dcc6bd` | **`sha256:a87b5d98…835704`** |
+| Contract / schema | `1.5.0` | **`1.6.0`** |
+| Tools / plugin commands | 53 / 52 | **53 / 52 — UNCHANGED** |
+| Server | `r2-server-9239fd0bc71b` | **`r2-server-d248ed7bc295`** |
+| Plugin | `r2-plugin-d0342abb6c4a` | **`r2-plugin-53a1fa676d6a`** |
+| Fingerprint | `sha256:a87b5d98…835704` | **`sha256:d39aefef…ca6289`** |
+
+⭐ **Read that second row carefully: the tool count did NOT move.** 3.1 added a *parameter*
+and Phase 4 added *reply fields*, so a preflight pinning `toolCount` would accept a stale
+DEV plugin without a murmur. The fingerprint is the only discriminator here — which is the
+mirror image of the R1 finding, where the fingerprint held still while the contract grew.
+⛔ Assert **both**; each is blind to exactly what the other catches.
+
+**⏳ 2026-08-13 — the live pass is RE-PINNED and EXTENDED but has NOT RUN.**
+`scripts/live-batch-gate.mjs` was still pinned to the 1.5.0 pair and now carries checks
+7–11 for the work 5.5 never covered: **3.1** progress frames on a 15-op / 3-chunk batch,
+**3.2** the pause *measured* at 0 / 250 / 1000 ms against `timing.elapsedMs`, the **clamp**
+(max pause 5000 vs min budget 1000) doubling as the Finding 5 regression, and **Phase 4**'s
+additive fields. Two runs on channel `l6pf0qsq` both died in `join_channel`'s compatibility
+preflight — the plugin stopped answering mid-session — **before the scratch page existed,
+so nothing was mutated.** Re-run with Figma in the **foreground**: the preflight allows the
+plugin only **5 s**, and a backgrounded tab throttles its JS.
+
+- ⭐ **3.1 is observable ONLY through the server's stderr.** Progress frames are consumed
+  server-side to reset the inactivity timer and logged via `logger.info`; **none is
+  forwarded to the MCP client.** The gate spawned with `stderr: "ignore"`, which would have
+  observed zero frames and passed vacuously — Finding 4's exact shape. It now pipes stderr,
+  parses `[INFO] Progress update for <command>: <n>%`, and treats an unavailable stream as
+  a hard failure. `record.serverLogTail` carries the last 60 lines.
+- 🔴 **Found while wiring check 10 — Phase 4.1 reaches a live consumer for
+  `delete_multiple_nodes` ONLY.** That tool returns `JSON.stringify(result)`;
+  `set_multiple_text_contents` and `set_multiple_annotations` return
+  `progressText + detailedResponse` — prose, no JSON — so the `outcome`/`succeeded`/
+  `failed`/`total` their handlers now produce is **discarded by the MCP wrapper**. The
+  offline suite passes because `tests/legacy-batch-alignment.test.mjs` pins the *plugin
+  handler*, which is the layer Phase 4 changed. Check 10 records it rather than failing;
+  the wrapper is pre-existing shipped behaviour, so this is a **4.x follow-up**.
+- ✅ **An agent session holding the channel does NOT break a scripted gate** — `ui.html`
+  handles a second joiner's notice as a plain string (no `.result`, not an `error`), so the
+  socket is never closed. Ruled out at source level, not assumed.
 
 Re-run the Figma **DEV plugin** *and* respawn the MCP server before any live work, and
 verify by **tool surface + exact pair** — a rebuild reaches neither running side.

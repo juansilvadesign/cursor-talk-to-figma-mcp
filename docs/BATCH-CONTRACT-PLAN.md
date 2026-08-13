@@ -1,16 +1,25 @@
 # Batch Contract Plan — the generic batch operation contract (R2.4)
 
-> **Status 2026-08-12: Phases 1 and 2 BUILT and green offline; `apply_batch` executes.**
-> Remaining: **3.1/3.2** (chunked progress and the measured sleep default), **Phase 4**
-> (additive alignment of the three shipped tools), **5.5** (the live gate) and **5.6**
-> (the pin). Cut 2026-08-10, immediately after R2.3 was accepted. This plan owns the
-> generic batch envelope only. R2's typography/layout/visual half stays coarse until it
-> is cut separately.
+> **Status 2026-08-13: Phases 1–4 BUILT and green offline (114 tests); `apply_batch`
+> chunks, reports progress, and honours a clamped pause.** Remaining: the **live pass**
+> (5.5 re-run on the new pair, extended to cover 3.1/3.2/Phase 4) and **5.6** (the pin).
+> Cut 2026-08-10, immediately after R2.3 was accepted. This plan owns the generic batch
+> envelope only. R2's typography/layout/visual half stays coarse until it is cut
+> separately.
 >
-> ⛔ **The pinned pair changed.** `1.4.0` → **`1.5.0`**, 52 → **53 tools**,
-> `r2-server-9239fd0bc71b` ↔ `r2-plugin-d0342abb6c4a`, fingerprint
-> `sha256:a87b5d98…835704`. Any running Figma session is on the old pair and will fail the
+> ⛔ **The pinned pair changed AGAIN.** `1.5.0` → **`1.6.0`**,
+> `r2-server-d248ed7bc295` ↔ `r2-plugin-53a1fa676d6a`, fingerprint
+> `sha256:d39aefef…ca6289`. Any running Figma session is on the old pair and will fail the
 > preflight until the DEV plugin is re-run *and* the MCP server respawned.
+> ⭐ **The tool count did NOT move (53 both sides)** — 3.1 added a parameter, Phase 4 added
+> reply fields — so a `toolCount` check would accept a stale plugin. Assert the fingerprint
+> **and** the count; each is blind to what the other catches.
+>
+> ⏳ **The live pass has NOT run yet.** Two attempts on 2026-08-13 (channel `l6pf0qsq`)
+> both died in `join_channel`'s compatibility preflight because the plugin stopped
+> answering — **before the scratch page existed, so nothing was mutated.** Re-run with
+> Figma in the **foreground**: the preflight allows only 5 s and a backgrounded tab
+> throttles plugin JS.
 >
 > 🔴 **The contract's per-operation atomicity assumption was tested and is FALSE** — see
 > Traps. Three handlers are proven to write before they throw; the contract now declares
@@ -264,7 +273,12 @@ and a registered tool that refuses every real call is precisely what deferring 1
 avoiding. What remains is chunking, which is a performance and progress concern, not a
 correctness one.
 
-- [ ] **3.1 Chunk with progress updates**, reusing the existing `sendProgressUpdate`
+- [x] **3.1 Chunk with progress updates** — ✅ **built 2026-08-12**; `SPECIAL_PROGRESS`
+      gained `apply_batch: "chunked"` in the same change, so Finding 4 cannot recur.
+      ⚠️ **Live-observable only via the server's stderr** — frames reset the inactivity
+      timer and are logged, never forwarded to the MCP client; a client-only harness
+      observes nothing and passes vacuously. The gate now pipes stderr.
+      Original text: chunk with progress updates, reusing the existing `sendProgressUpdate`
       shape so the relay heartbeat and inactivity reset keep working.
       ⚠️ **Sequencing note:** the contract currently declares `pluginUpdates: "none"` for
       `apply_batch`, which is *true* today. Landing 3.1 must update that declaration in
@@ -274,7 +288,12 @@ correctness one.
       progress updates there is nothing to reset the inactivity timer, so the armed
       transport budget actually fires. Adding chunking re-opens Finding 5 unless
       `timeBudgetMs` stays the binding constraint.
-- [ ] **3.2 Drop the fixed 1 s inter-chunk sleep.** It is an unmeasured constant that
+- [x] **3.2 Drop the fixed 1 s inter-chunk sleep** — ✅ **built 2026-08-12**: the pause is
+      public (`chunkPauseMs`, 0–5000, **default 0**) and ⭐ **clamped to the remaining
+      budget**, so `timeBudgetMs` stays a true ceiling. ⏳ **The measurement itself is
+      still owed** — it is check 8 of the extended live gate (0 / 250 / 1000 ms against
+      `timing.elapsedMs`, requiring `all_succeeded` at 0), which has not run yet.
+      Original text: drop the fixed 1 s inter-chunk sleep. It is an unmeasured constant that
       costs 19 s on a 100-item batch and ≈ 3.3 min on a 1,000-item one. Make the pause a
       documented, tunable yield — and measure it before choosing a default.
       ⛔ Blocked offline on purpose: choosing the default requires measuring against a

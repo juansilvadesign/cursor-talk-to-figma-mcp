@@ -65,13 +65,17 @@ if (!options.channel) {
   process.exit(2);
 }
 
+// ⛔ Re-pinned for 3.1/3.2/Phase 4. The tool COUNT is unchanged at 53 — 3.1 added a
+// parameter and Phase 4 added reply fields, neither of which is a new tool — so the count
+// alone would have happily accepted the old pair. The fingerprint is what moved, and it
+// is what makes a stale DEV plugin fail here instead of halfway through a mutation.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-9239fd0bc71b",
-  pluginBuildId: "r2-plugin-d0342abb6c4a",
-  schemaVersion: "1.5.0",
+  serverBuildId: "r2-server-d248ed7bc295",
+  pluginBuildId: "r2-plugin-53a1fa676d6a",
+  schemaVersion: "1.6.0",
   fingerprint:
-    "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
+    "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
   toolCount: 53,
 };
 
@@ -97,8 +101,50 @@ const transport = new StdioClientTransport({
   command: process.execPath,
   args: [serverPath],
   cwd: root,
-  stderr: "ignore",
+  // ⭐ 3.1 is observable ONLY here. The server consumes each `progress_update` to reset the
+  // inactivity timer and logs it to stderr; it never forwards one to the MCP client as a
+  // protocol notification. Leaving this on "ignore" would make the contract's "with
+  // progress updates" claim unobservable from the outside — a hand-written behavioural
+  // claim with nothing asserting it against the runtime, which is Finding 4 exactly.
+  stderr: "pipe",
 });
+
+/** Every stderr line the spawned server wrote, in order. See `progressFramesSince`. */
+const serverLog = [];
+function captureServerLog() {
+  if (!transport.stderr) return false;
+  let pending = "";
+  transport.stderr.setEncoding("utf8");
+  transport.stderr.on("data", (chunk) => {
+    pending += chunk;
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    for (const line of lines) serverLog.push(line);
+  });
+  return true;
+}
+
+// `logger.info` writes this shape and nothing else does.
+const PROGRESS_LINE = /^\[INFO\] Progress update for (\S+): (-?\d+)% - (.*)$/;
+
+/**
+ * Progress frames for one command, from a mark taken before the call. stderr is a
+ * different OS pipe from the stdio protocol, so a frame the server logged just before it
+ * answered can still be in flight when the result lands — hence `settle` at every call
+ * site rather than reading the log the instant a tool returns.
+ */
+function progressFramesSince(mark, commandType) {
+  const frames = [];
+  for (let index = mark; index < serverLog.length; index++) {
+    const match = PROGRESS_LINE.exec(serverLog[index]);
+    if (match && match[1] === commandType) {
+      frames.push({ progress: Number(match[2]), message: match[3] });
+    }
+  }
+  return frames;
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 250));
 
 function textContent(result) {
   return (result.content || [])
@@ -265,6 +311,11 @@ let failure = null;
 
 try {
   await client.connect(transport);
+  // The child process only exists after connect, so the stderr stream can only be
+  // attached here. If it were ever unavailable, checks 7/9/10 would silently observe zero
+  // frames and "pass" — so its absence is a hard failure, not a skipped check.
+  record.serverLogCaptured = captureServerLog();
+  assert.ok(record.serverLogCaptured, "server stderr is not capturable — 3.1 cannot be observed");
   const inventory = await client.listTools();
   record.inventory = {
     toolCount: inventory.tools.length,
@@ -684,7 +735,236 @@ try {
     childGone: await callExpectingRefusal("get_node_info", { nodeId: childIds[0] }),
   };
 
-  // ---- check 7 — the plugin still answers, unwedged ----
+  // ---- 3.1 / 3.2 fixture ----
+  // Fifteen operations is three chunks of five, so it has exactly two inter-chunk gaps —
+  // the smallest batch that can show a pause at all. The targets cycle over the scratch
+  // nodes we still own (the delete-target frame is gone by now), and `rename_node` is the
+  // cheapest real mutation there is, so the wall clock below is dominated by the pause
+  // rather than by Figma's own work. That is what makes 3.2's number a measurement of the
+  // pause instead of a measurement of the document.
+  const CHUNK_SIZE = 5;
+  const BATCH_OPERATION_COUNT = 15;
+  const expectedChunks = Math.ceil(BATCH_OPERATION_COUNT / CHUNK_SIZE);
+  const chunkPool = [probeRectId, probeText.id, layoutFrame.id];
+  const chunkedOperations = (tag) =>
+    Array.from({ length: BATCH_OPERATION_COUNT }, (_, index) => ({
+      id: `${tag}-${index}`,
+      op: "rename_node",
+      nodeId: chunkPool[index % chunkPool.length],
+      params: { name: `gate-${tag}-${index}` },
+    }));
+
+  // ---- check 7 — 3.1, chunked progress observed over the real transport ----
+  const progressMark = serverLog.length;
+  const chunked = await callJson("apply_batch", {
+    operations: chunkedOperations("chunk"),
+    onError: "continue",
+    chunkPauseMs: 0,
+    timeBudgetMs: 60000,
+  });
+  await settle();
+  assertReceiptInvariants(chunked.value, "chunked");
+  assert.equal(chunked.value.outcome, "all_succeeded");
+  assert.equal(chunked.value.total, BATCH_OPERATION_COUNT);
+  assert.equal(chunked.value.complete, true);
+  const chunkFrames = progressFramesSince(progressMark, "apply_batch");
+  record.checks.chunkedProgress = {
+    operations: BATCH_OPERATION_COUNT,
+    chunkSize: CHUNK_SIZE,
+    expectedChunks,
+    frameCount: chunkFrames.length,
+    frames: chunkFrames,
+    reachedComplete: chunkFrames.some((frame) => frame.progress === 100),
+    pluginElapsedMs: chunked.value.timing?.elapsedMs ?? null,
+  };
+  // One "started" frame plus one per chunk. Fewer than that and the tool description's
+  // "Runs in chunks of 5 with progress updates" is not true of the running plugin.
+  assert.ok(
+    chunkFrames.length >= expectedChunks + 1,
+    `3.1 declares chunked progress; only ${chunkFrames.length} frame(s) reached the server for ${expectedChunks} chunks`,
+  );
+  assert.ok(
+    record.checks.chunkedProgress.reachedComplete,
+    "the final chunk must report 100% — a progress stream that never completes is worse than none",
+  );
+
+  // ---- check 8 — 3.2, the pause MEASURED on a real file ----
+  // The plan blocks this offline on purpose: the default cannot be chosen honestly
+  // without a number from a real document. Same batch, three pause settings, generous
+  // budget so the ceiling never interferes.
+  const pauseMeasurements = [];
+  for (const chunkPauseMs of [0, 250, 1000]) {
+    const startedAt = Date.now();
+    const measured = await callJson("apply_batch", {
+      operations: chunkedOperations(`pause${chunkPauseMs}`),
+      onError: "continue",
+      chunkPauseMs,
+      timeBudgetMs: 60000,
+    });
+    const wallClockMs = Date.now() - startedAt;
+    assertReceiptInvariants(measured.value, `pause ${chunkPauseMs}`);
+    // The real question behind the default: does Figma actually need the breath? If ops
+    // start failing at 0 the default is wrong, and that is a finding, not a pass.
+    assert.equal(
+      measured.value.outcome,
+      "all_succeeded",
+      `every operation must still succeed at chunkPauseMs=${chunkPauseMs}`,
+    );
+    pauseMeasurements.push({
+      chunkPauseMs,
+      // The pause is never taken before the first chunk, so it is paid (chunks - 1) times.
+      sleepBudgetMs: chunkPauseMs * (expectedChunks - 1),
+      pluginElapsedMs: measured.value.timing?.elapsedMs ?? null,
+      wallClockMs,
+      outcome: measured.value.outcome,
+    });
+  }
+  const [zeroPause, midPause, fullPause] = pauseMeasurements;
+  const observedPauseCostMs = fullPause.pluginElapsedMs - zeroPause.pluginElapsedMs;
+  record.checks.pauseMeasurement = {
+    method:
+      `${BATCH_OPERATION_COUNT} rename_node ops over ${expectedChunks} chunks; pluginElapsedMs is the plugin's own timing.elapsedMs, which excludes transport`,
+    measurements: pauseMeasurements,
+    observedPauseCostMs,
+    predictedPauseCostMs: fullPause.sleepBudgetMs,
+    // Recorded rather than asserted: 250 ms × 2 gaps is 500 ms of signal, which is inside
+    // run-to-run noise on a live file. Only the 1 s case is asserted below.
+    midPauseTracksPrediction:
+      midPause.pluginElapsedMs - zeroPause.pluginElapsedMs >= midPause.sleepBudgetMs * 0.5,
+    conclusion:
+      "the pause is pure additive latency — no operation needed it to succeed, so 0 is the honest default and the knob stays for callers who hit a wedge",
+  };
+  assert.ok(
+    observedPauseCostMs >= fullPause.sleepBudgetMs * 0.8,
+    `a ${fullPause.chunkPauseMs} ms pause over ${expectedChunks - 1} gaps should cost about ${fullPause.sleepBudgetMs} ms; observed ${observedPauseCostMs} ms`,
+  );
+
+  // ---- check 9 — the pause is CLAMPED to the remaining budget ----
+  // ⭐ The load-bearing claim behind 3.2: "the pause is skipped once timeBudgetMs is spent,
+  // so it can never push a run past its own ceiling." The maximum pause against the
+  // minimum budget is the case that would expose a lie — an unclamped 5 s sleep would
+  // overshoot a 1 s ceiling five-fold. This is simultaneously the Finding 5 regression:
+  // progress updates reset the inactivity timer, so timeBudgetMs has to stay the binding
+  // constraint or the batch loses its real ceiling.
+  const clampMark = serverLog.length;
+  const clampStartedAt = Date.now();
+  const clamped = await callJson("apply_batch", {
+    operations: chunkedOperations("clamp"),
+    onError: "continue",
+    chunkPauseMs: 5000, // the schema maximum
+    timeBudgetMs: 1000, // the schema minimum
+  });
+  const clampWallClockMs = Date.now() - clampStartedAt;
+  await settle();
+  assertReceiptInvariants(clamped.value, "clamp");
+  const clampFrames = progressFramesSince(clampMark, "apply_batch");
+  record.checks.pauseClamp = {
+    chunkPauseMs: 5000,
+    timeBudgetMs: 1000,
+    unclampedWouldBeMs: 5000 * (expectedChunks - 1),
+    pluginElapsedMs: clamped.value.timing?.elapsedMs ?? null,
+    wallClockMs: clampWallClockMs,
+    budgetExhausted: clamped.value.timing?.budgetExhausted ?? null,
+    complete: clamped.value.complete,
+    outcome: clamped.value.outcome,
+    succeeded: clamped.value.succeeded,
+    skipped: clamped.value.skipped,
+    progressFrameCount: clampFrames.length,
+  };
+  assert.equal(clamped.value.complete, false, "an exhausted budget must report complete: false");
+  assert.equal(clamped.value.timing.budgetExhausted, true);
+  assert.ok(
+    clamped.value.skipped > 0,
+    "the operations past the ceiling must be skipped, not silently dropped",
+  );
+  assert.ok(
+    clamped.value.timing.elapsedMs <= 1000 + 750,
+    `the pause overshot the ceiling: ${clamped.value.timing.elapsedMs} ms elapsed against a 1000 ms budget, so timeBudgetMs is not the binding constraint`,
+  );
+  // Finding 5 stays closed only if BOTH are true at once: frames were emitted (they reset
+  // the inactivity timer) AND the budget still fired.
+  assert.ok(
+    clampFrames.length > 0,
+    "no progress frames during the clamped run — the Finding 5 interaction is untested",
+  );
+
+  // ---- check 10 — Phase 4's additive vocabulary, as a live consumer sees it ----
+  const legacyTargets = [];
+  for (const index of [0, 1]) {
+    const rect = await callEmbeddedJson("create_rectangle", {
+      x: index * 40,
+      y: 760,
+      width: 30,
+      height: 30,
+      name: `gate-legacy-${index}`,
+      parentId: scratchPageId,
+    });
+    legacyTargets.push(rect.value.id);
+  }
+  const deleteMany = await callJson("delete_multiple_nodes", { nodeIds: legacyTargets });
+  record.checks.legacyAlignment = {
+    delete_multiple_nodes: {
+      surfaced: "json",
+      legacy: {
+        success: deleteMany.value.success,
+        nodesDeleted: deleteMany.value.nodesDeleted,
+        totalNodes: deleteMany.value.totalNodes,
+      },
+      unified: {
+        outcome: deleteMany.value.outcome,
+        total: deleteMany.value.total,
+        succeeded: deleteMany.value.succeeded,
+        failed: deleteMany.value.failed,
+      },
+    },
+  };
+  // 4.1, live: the unified quartet arrives WITHOUT disturbing the legacy spelling.
+  assert.ok(
+    BATCH_OUTCOMES.includes(deleteMany.value.outcome),
+    "delete_multiple_nodes did not surface a unified outcome to a live consumer",
+  );
+  assert.equal(deleteMany.value.outcome, "all_succeeded");
+  assert.equal(deleteMany.value.total, legacyTargets.length);
+  assert.equal(deleteMany.value.succeeded, legacyTargets.length);
+  assert.equal(deleteMany.value.success, true, "the legacy flag must keep its exact spelling");
+  assert.equal(deleteMany.value.nodesDeleted, legacyTargets.length);
+
+  // ⚠️ The other two shipped batch tools format their reply as PROSE in the MCP wrapper
+  // and return no JSON at all, so whatever Phase 4 added to their plugin handlers cannot
+  // reach a consumer through this transport. Observed, not asserted: the offline suite
+  // pins the handler and it passes there — the gap is the wrapper, which is pre-existing
+  // shipped behaviour and a 4.x follow-up, not a failure of this run.
+  const textReply = await call("set_multiple_text_contents", {
+    nodeId: scratchPageId,
+    text: [{ nodeId: probeText.id, text: "gate-phase-4" }],
+  });
+  const annotationMark = serverLog.length;
+  let annotationText = null;
+  try {
+    const annotationReply = await call("set_multiple_annotations", {
+      nodeId: scratchPageId,
+      annotations: [{ nodeId: probeRectId, labelMarkdown: "gate annotation" }],
+    });
+    annotationText = annotationReply.text;
+  } catch (error) {
+    annotationText = error instanceof Error ? error.message : String(error);
+  }
+  await settle();
+  const carriesUnified = (text) => /"outcome"\s*:/.test(text);
+  record.checks.legacyAlignment.set_multiple_text_contents = {
+    surfaced: carriesUnified(textReply.text) ? "json" : "prose",
+    unifiedFieldsVisibleToConsumer: carriesUnified(textReply.text),
+    reply: textReply.text.trim().slice(0, 400),
+  };
+  record.checks.legacyAlignment.set_multiple_annotations = {
+    surfaced: carriesUnified(annotationText) ? "json" : "prose",
+    unifiedFieldsVisibleToConsumer: carriesUnified(annotationText),
+    // 4.3 gave this tool real per-item progress so its "chunked" declaration became true.
+    progressFrames: progressFramesSince(annotationMark, "set_multiple_annotations").length,
+    reply: String(annotationText).trim().slice(0, 400),
+  };
+
+  // ---- check 11 — the plugin still answers, unwedged ----
   const runtimeStarted = Date.now();
   const runtimeAfter = await callJson("get_runtime_info");
   record.runtimeAfter = {
@@ -697,6 +977,14 @@ try {
     "batch params are in the PLUGIN HANDLER shape, not the standalone tool's: set_fill_color/set_stroke_color take {color:{r,g,b,a}} in a batch but flat r,g,b,a as tools. The apply_batch description's \"Same shape as the standalone tool of the same name\" is wrong for those two.",
     "params is z.record(z.any()), so per-operation arguments get no schema validation — a wrong-shaped param fails plugin-side and arrives as a receipt entry rather than a schema throw.",
     "operation_not_allowed is unreachable through this transport: the tool's inline z.enum rejects a disallowed op first, so the plugin's own allowlist check never answers a live consumer.",
+  );
+  if (!record.checks.legacyAlignment.set_multiple_text_contents.unifiedFieldsVisibleToConsumer) {
+    record.findings.push(
+      "Phase 4.1 reaches a live consumer for delete_multiple_nodes ONLY. set_multiple_text_contents and set_multiple_annotations format their MCP reply as prose (progressText + detailedResponse) and return no JSON, so the unified outcome/succeeded/failed/total the plugin now returns is discarded by the wrapper. The offline suite passes because it pins the plugin handler, which is the layer that was actually changed.",
+    );
+  }
+  record.findings.push(
+    `3.2 measured on a real file: ${record.checks.pauseMeasurement.observedPauseCostMs} ms observed for a 1000 ms pause over ${expectedChunks - 1} gaps (predicted ${record.checks.pauseMeasurement.predictedPauseCostMs} ms). Every operation succeeded at chunkPauseMs=0, so the pause bought nothing on this document — the 0 default is measured, not assumed.`,
   );
   record.success = true;
 } catch (error) {
@@ -725,6 +1013,9 @@ try {
         cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
     }
   }
+  // The spawned server's own account of the run. On a failure this is usually the only
+  // place the cause is written down, since the client only ever sees the timeout.
+  record.serverLogTail = serverLog.slice(-60);
   await client.close().catch(() => undefined);
   await writeFile(reportPath, `${JSON.stringify(record, null, 2)}\n`);
   process.stdout.write(
@@ -752,6 +1043,22 @@ try {
         },
         refusals: record.checks.refusals ?? null,
         observedPartialApplication: record.checks.observedPartialApplication ?? null,
+        chunkedProgress: record.checks.chunkedProgress
+          ? {
+              frameCount: record.checks.chunkedProgress.frameCount,
+              expectedChunks: record.checks.chunkedProgress.expectedChunks,
+              reachedComplete: record.checks.chunkedProgress.reachedComplete,
+            }
+          : null,
+        pauseMeasurement: record.checks.pauseMeasurement
+          ? {
+              measurements: record.checks.pauseMeasurement.measurements,
+              observedPauseCostMs: record.checks.pauseMeasurement.observedPauseCostMs,
+              predictedPauseCostMs: record.checks.pauseMeasurement.predictedPauseCostMs,
+            }
+          : null,
+        pauseClamp: record.checks.pauseClamp ?? null,
+        legacyAlignment: record.checks.legacyAlignment ?? null,
         destructiveScope: record.checks.destructiveAfter?.reportedChildCount ?? null,
         cleanup: record.cleanup?.reply ?? null,
         cleanupRestoredBaseline: record.cleanupRestoredBaseline ?? null,

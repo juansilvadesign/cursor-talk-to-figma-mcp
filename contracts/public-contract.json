@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.5.0",
-  "serverSchemaVersion": "1.5.0",
+  "publicContractVersion": "1.6.0",
+  "serverSchemaVersion": "1.6.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
+  "capabilityFingerprint": "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.clone_node@1",
@@ -241,7 +241,7 @@
     {
       "kind": "tool",
       "name": "apply_batch",
-      "description": "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+      "description": "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so. Runs in chunks of 5 with progress updates; `timeBudgetMs` is the total ceiling and is enforced regardless",
       "direction": "write",
       "scope": "requested_nodes",
       "inputSchema": {
@@ -286,7 +286,7 @@
                 "params": {
                   "type": "object",
                   "additionalProperties": {},
-                  "description": "The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name"
+                  "description": "The parameters that operation takes, minus nodeId. ⚠️ These go straight to the plugin handler, so for two operations they are NOT the standalone tool's shape: set_fill_color and set_stroke_color take {color:{r,g,b,a}} here (plus weight for the stroke), where the standalone tools take flat r,g,b,a. Everything else matches its tool. This object is not schema-validated, so a wrong shape fails plugin-side and comes back as a failed receipt entry rather than a schema error"
                 }
               },
               "required": [
@@ -322,6 +322,12 @@
             "type": "integer",
             "minimum": 0,
             "description": "Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`"
+          },
+          "chunkPauseMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5000,
+            "description": "Milliseconds to yield between chunks of 5 operations (default 0). Raise it only if Figma's UI needs to breathe on a heavy batch — the pause is skipped once timeBudgetMs is spent, so it can never push a run past its own ceiling"
           }
         },
         "required": [
@@ -332,7 +338,7 @@
       "timeoutClass": "heavy_batch",
       "progress": {
         "relayHeartbeatSeconds": 15,
-        "pluginUpdates": "none"
+        "pluginUpdates": "chunked"
       },
       "pluginCommand": "apply_batch",
       "resultStability": "additive-preview"

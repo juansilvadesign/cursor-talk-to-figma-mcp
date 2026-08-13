@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-9239fd0bc71b",
-  "pluginBuildId": "r2-plugin-d0342abb6c4a",
-  "serverSchemaVersion": "1.5.0",
-  "pluginApiVersion": "1.5.0",
+  "serverBuildId": "r2-server-d248ed7bc295",
+  "pluginBuildId": "r2-plugin-53a1fa676d6a",
+  "serverSchemaVersion": "1.6.0",
+  "pluginApiVersion": "1.6.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:a87b5d98e8ef24f73d461c7d05cdd59e43bcf20d6c11a5cfdfc6e47128835704",
+  "capabilityFingerprint": "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -755,7 +755,7 @@ server.tool(
 );
 server.tool(
   "apply_batch",
-  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so",
+  "[Multi-node scoped] Apply many node mutations in one call, against node IDs that already exist. Every target is resolved in one pass before anything is written, and the resolved scope is reported either way. Creates are not accepted in v1. Returns a typed per-operation receipt correlated by your own `id`, and an `outcome` that cannot report success when nothing succeeded. Refusals for a duplicate `id` or a disallowed `op` are thrown, not returned. Operations are NOT atomic: a failed operation on a multi-field mutation may have partially applied, and says so. Runs in chunks of 5 with progress updates; `timeBudgetMs` is the total ceiling and is enforced regardless",
   {
     operations: z.array(
       z.object({
@@ -778,15 +778,16 @@ server.tool(
           "set_text_content"
         ]).describe("The mutation to apply. Only these fifteen node-scoped mutations are accepted; every create_* is excluded because v1 is mutate-only"),
         nodeId: z.string().min(1).describe("The existing node to mutate. Lifted out of `params` deliberately: this is the field prevalidation resolves, and it wins over any nodeId inside `params`"),
-        params: z.record(z.any()).optional().describe("The parameters that operation takes, minus nodeId. Same shape as the standalone tool of the same name")
+        params: z.record(z.any()).optional().describe("The parameters that operation takes, minus nodeId. \u26A0\uFE0F These go straight to the plugin handler, so for two operations they are NOT the standalone tool's shape: set_fill_color and set_stroke_color take {color:{r,g,b,a}} here (plus weight for the stroke), where the standalone tools take flat r,g,b,a. Everything else matches its tool. This object is not schema-validated, so a wrong shape fails plugin-side and comes back as a failed receipt entry rather than a schema error")
       })
     ).min(1).max(200).describe("The operations to apply, in order"),
     onError: z.enum(["stop", "continue"]).optional().describe('"stop" (default) refuses the whole batch if any target is unresolvable, and halts after the first failure. "continue" skips unresolvable targets and runs the rest'),
     prevalidateOnly: z.boolean().optional().describe("true runs the resolve pass and returns the report without writing anything \u2014 a dry run against the live file. Default false"),
     timeBudgetMs: z.number().int().min(1e3).max(24e4).optional().describe("Total wall clock for the whole batch, not per operation (default 60000). On exhaustion the remaining operations are skipped and `complete` is false"),
-    maxResultBytes: z.number().int().min(0).optional().describe("Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`")
+    maxResultBytes: z.number().int().min(0).optional().describe("Truncate each operation's result above this many UTF-8 bytes (default 2000). The true size is still reported as `resultBytes`"),
+    chunkPauseMs: z.number().int().min(0).max(5e3).optional().describe("Milliseconds to yield between chunks of 5 operations (default 0). Raise it only if Figma's UI needs to breathe on a heavy batch \u2014 the pause is skipped once timeBudgetMs is spent, so it can never push a run past its own ceiling")
   },
-  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes }) => {
+  async ({ operations, onError, prevalidateOnly, timeBudgetMs, maxResultBytes, chunkPauseMs }) => {
     try {
       const budget = typeof timeBudgetMs === "number" ? timeBudgetMs : BATCH_DEFAULT_TIME_BUDGET_MS;
       const result = await sendCommandToFigma(
@@ -796,7 +797,8 @@ server.tool(
           onError,
           prevalidateOnly,
           timeBudgetMs,
-          maxResultBytes
+          maxResultBytes,
+          chunkPauseMs
         },
         Math.min(HEAVY_BATCH_TIMEOUT_MS, budget + BATCH_TIMEOUT_SLACK_MS)
       );

@@ -24,8 +24,10 @@ type: project
 The server and plugin builds are a **matched PAIR**. Current pair:
 
 ```
-r2-server-d248ed7bc295  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)
+r2-server-dbcede2e0895  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)
 ```
+
+⭐ **The 4.1 wrapper fix moved the SERVER half only.** `pluginBuildId`, `serverSchemaVersion` (1.6.0) and the fingerprint are all unchanged, because the fingerprint hashes `{serverSchemaVersion, capabilityIds}` and the plugin ID hashes only plugin sources — and `code.js` was not touched. So this one needs **a server respawn and NOT a DEV plugin re-run**, and compatibility stays `compatible` across it. ⚠️ That is the exception, not the rule: it holds only because the change was server-side.
 
 - ⛔ **A running Figma session is incompatible until the DEV plugin is re-run *and* the server respawned.** Restarting one side only looks like success.
 - ⚠️ **The pair ID moves on every rebuild** — it moved twice already (`r2-server-9239fd0bc71b ↔ r2-plugin-d0342abb6c4a`, 53 tools, was the 5.5 pair).
@@ -51,16 +53,30 @@ Channel `hjyg56t5`, **one run, green on the first try**. `record.success: true`,
 - ✅ **Partial application reproduced on all three** non-atomic ops — `move_node` (x 0→120), `set_stroke_color` (null→red), `set_item_spacing` (16→24) — each rejected by the *Figma property setter*, not by our envelope.
 - ⛔ Stays `additive-preview` until acceptance.
 
-### 🔴 What the green run RECORDED rather than failed on
+### ✅ 4.1 — the wrapper gap is CLOSED, 2026-08-18 (offline; live gate not yet re-run)
 
-⭐ **A gate can be green and still be telling you something.** The script pins these as data, not assertions — so they do **not** move the verdict, and they are easy to walk past:
+The two prose tools now deliver the unified receipt to an MCP consumer. **125/125 offline, 5 baselines replayed, `dist/` rebuilt and byte-deterministic.**
 
-- 🔴 **Phase 4.1 reaches a live consumer for `delete_multiple_nodes` ONLY.** `set_multiple_text_contents` and `set_multiple_annotations` format their MCP reply as **prose** and return no JSON, so the unified `outcome/succeeded/failed/total` the plugin now returns is **discarded by the wrapper** (`unifiedFieldsVisibleToConsumer: false`). The offline suite passes because it pins the **plugin handler** — the layer that actually changed. This is Finding 4's shape again: a behavioural claim with nothing asserting it end-to-end.
+- ✅ **The receipt is APPENDED, never substituted.** `content[0]` and `content[1]` — the only positions that existed before — are **byte-identical** for `set_multiple_text_contents`, proved by re-running HEAD's own template literal against the new formatter across success / partial / total-failure. The receipt is a third content item, so a prose reader sees no change.
+- ✅ **The wrapper is now asserted end-to-end offline** — `tests/wrapper-end-to-end.test.mjs` drives a real MCP `callTool` over stdio, through a relay, into the **real** `code.js`. ⭐ The relay is faked; the **plugin is not**. Nothing in the test supplies an `outcome`.
+- ✅ **Mutation-tested against the SOURCE:** deleting the appended-receipt line kills **4 of 5** tests, and `delete_multiple_nodes` correctly **survives** — it never used the new module. A suite that stayed green there would have been the same defect one layer up.
+- ✅ **The live gate now ASSERTS it** instead of recording it, and asserts the annotations prose no longer claims batching.
+- ⚠️ **New server CLI flag `--port=`** (default 3055). Without it the offline end-to-end test would have to bind the one port a live session already holds. `--server=` cannot substitute — anything but literal `localhost` switches the scheme to `wss://` and drops the port.
+
+### 🔴 Two lies fixed, one finding that had outlived its defect
+
+- ✅ **`set_multiple_annotations` was announcing "processed in batches of 5" and printing "Processed in 1 batches"** — from `completedInChunks || 1`. It processes **one annotation at a time** (`chunkSize: 1`) and reports no chunk field at all, so both statements described work that never happened. The `|| 1` was **fabricating** the number, and the description also claimed "parallelly".
+- 🔴 **The gate was filing a finding about a defect fixed two commits earlier.** It hard-coded the claim that `apply_batch`'s description says *"Same shape as the standalone tool of the same name"* — a sentence removed in `664135b`. The gate never **read** the description; it asserted a narrative. It now reads the **published schema** from `listTools` and asserts the param-shape declaration is present. ⭐ A finding is not evidence — check when it was last verified against the thing it describes.
+- ⚠️ **`resultStability: "stable"` on these two tools is a DEFAULT, not a decision** — `getResultStability` returns `stable` for everything except `read_my_design` and the additive-preview set. So the contract promises "frozen" over two replies whose shape was never designed. ⛔ It cannot simply be relabelled: weakening a level is a breaking change and `compatibilityErrors()` rejects it by name.
+
+### 🔴 Still recorded rather than failed on
+
+⭐ **A gate can be green and still be telling you something.** These remain data, not assertions:
+
 - 🔴 **`operation_not_allowed` is unreachable through this transport** — the tool's inline `z.enum` rejects a disallowed op first, so the plugin's own allowlist check never answers a live consumer.
-- 🔴 The `set_fill_color` / `set_stroke_color` **plugin-handler-shape** discrepancy is still live in the tool description, now confirmed against a real file.
 - ⚠️ `params` is `z.record(z.any())` — per-operation arguments get **no schema validation**; a wrong-shaped param fails plugin-side and arrives as a receipt entry rather than a schema throw.
 
-**Next = the Phase 4.1 gap** (make the unified fields survive the wrapper for the two prose tools), then acceptance.
+**Next = re-run the 5.6 live gate on the new server build** (respawn only, no plugin re-run), then acceptance. ⚠️ The gate's new assertions are proven only offline so far: the published-schema check was confirmed against a real `listTools`, and its receipt-parsing logic was run against real wrapper replies — but the gate itself has not executed against a live Figma session since the change.
 
 ### ⛔ R3 variable-write is still OPEN
 

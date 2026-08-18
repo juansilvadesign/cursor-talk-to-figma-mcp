@@ -259,19 +259,108 @@ halves still hold their pre-rebuild bundles, so a rebuild reaches neither. ⚠�
 matches the source tree. It is a pairing check, exactly as `COMPATIBILITY-POLICY.md` says
 — and it will answer `compatible` all day on a build that is two releases stale.
 
-### Phase 2 — bounded font inventory and preflight
+### Phase 2 — bounded font inventory and preflight — ✅ COMPLETE 2026-08-18 (offline)
 
-- [ ] **2.1 `get_available_fonts`** over `figma.listAvailableFontsAsync()`. Bounded exactly
-      as R2.0 bounded `get_node_variables` and R2.3 bounded plugin data: `limit` / `offset`,
-      a whole-inventory `fontCount` that keeps its total meaning against a window,
-      `complete: false` whenever anything truncated, and `timeBudgetMs`.
-      ⛔ Unbounded is not an option — a real machine returns thousands of faces, which is the
-      3.66 MB → 518 KB defect again.
-- [ ] **2.2 Declare `heavy_read`.** Cost scales with the *machine's* font set, not with the
-      arguments — the same criterion that put `get_document_info` on the heavy budget.
-- [ ] **2.3 `check_fonts`** — given `{family, style}` pairs, report availability and
-      loadability **before** a write commits. This is the R2.1 lesson applied to text: give
-      the caller the cost signal instead of a longer budget.
+**153 tests green** (was 136), **55 tools / 54 plugin commands** (was 53 / 52), contract stays
+**`1.7.0`** — R2.5 already spent its one bump in Phase 1, and these two tools are additive
+inside the same in-flight release, so only the build IDs and the fingerprint move. All six
+baselines replay at zero errors, `dist/` rebuilt and byte-deterministic across two runs,
+`verify-release.mjs` passed.
+
+- [x] **2.1 `get_available_fonts`** over `figma.listAvailableFontsAsync()` — which appeared
+      **zero times** in the source before this phase. Bounded as R2.0 bounded
+      `get_node_variables`: `limit` (default 1000, ceiling 5000) / `offset`, whole-inventory
+      `fontCount` **and** `familyCount` that survive both the window and the filter, a
+      separate `matchCount` for the filter, `complete: false` on any truncation.
+      - ⭐ **A `family` filter was added beyond the plan.** Without one, answering *"does this
+        machine have Poppins?"* means paging the entire inventory — the cost signal this
+        phase exists to remove. It is an exact, case-sensitive match, and a miss says so in
+        `limitations`, because `fonts: []` alone cannot distinguish a misspelling from an
+        absent family.
+      - ⭐ **Ordering is a deterministic family-then-style code-unit sort.** Figma does not
+        document `listAvailableFontsAsync()`'s order, so `offset` paging would otherwise be
+        repeatable only by luck. ⛔ Compared with plain `<`, never `localeCompare` — that is
+        locale-dependent and would page one machine's inventory differently from another's,
+        a defect that only appears abroad.
+      - ⭐ **Absent counts are `null`, never `0`.** A `0` here reads as *"this machine has no
+        fonts installed"* — a real finding rather than the absence of one, which `code.js`
+        already carries a comment about for another count.
+- [x] **2.2 Declared `heavy_read`.** Cost scales with the machine's font set, which the
+      caller cannot bound from outside — the criterion that put `get_document_info` on the
+      heavy budget.
+      - ⛔ **`check_fonts` is deliberately NOT `heavy_read`.** Its cost scales with the
+        caller's own capped pair list, and `TIMEOUT_RANK`'s own comment says reusing
+        `heavy_read` for an argument-scaled tool *"would make the contract lie about why the
+        budget is large"*. It ships **`standard`**, the weakest claim that can be true;
+        raising a budget after a live gate is the safe direction, lowering one is breaking.
+- [x] **2.3 `check_fonts`** — `{family, style}` pairs, capped at **50** per call, each probed
+      with a **real `figma.loadFontAsync`** rather than a list lookup.
+      - ⭐ **`available` and `loadable` are two fields because they can disagree.** A face can
+        be listed and still refuse to load, and `setCharacters` answers that refusal by
+        substituting Inter silently — F2. A single field would have answered `true` and let
+        the substitution happen anyway, which is a *consistency* check standing in for a
+        *correctness* check.
+      - ⭐ **`familyAvailable` separates a misspelled style from an absent family** — *"Inter
+        has no Blond"* versus *"this machine has no Ghost"*. Opposite fixes; one field cannot
+        carry both.
+      - ⭐ **Validate-all-before-probe-any**, borrowed from 3.2's rule. Nothing is written, so
+        there is no partial document state — but a list that fails on its ninth entry after
+        loading eight fonts still charges the caller for work it then refuses to report.
+      - ⭐ **An exhausted budget SKIPS.** Unprobed pairs are absent from `results` and counted
+        in `skippedCount`; emitting them as `available: false` would report a fact the tool
+        never established, and the caller would swap a font that was on the machine all along.
+
+⚠️ **Where the plan was wrong: `timeBudgetMs` cannot bound the fetch.**
+`listAvailableFontsAsync()` takes no cancellation signal and is a single await, so a budget
+can only bound **the reply** — the call is *abandoned*, not stopped, and is still running when
+the reply returns. Rather than ship a field that quietly means less than every other
+`timeBudgetMs` in this contract, the reply carries `coverage.budgetCancelsFetch: false` as a
+permanent declaration alongside `budgetExhausted`, plus a `limitations` entry naming it. ⛔ On
+`check_fonts` the inventory fetch is deliberately **un**budgeted for the same reason in
+reverse: a truncated inventory would turn every `available` into a false negative, which is a
+far worse answer than a slow one. The budget there governs the load probes, checked *between*
+them since an individual `loadFontAsync` cannot be cancelled either.
+
+⭐ **CC1 held, and it was the whole point of doing this phase first.** Both tools are in
+`ADDITIVE_PREVIEW_RESULTS` in the same change that registers them. Six hand-maintained maps
+updated per F7, including a **new `font_inventory` scope** — `TOOL_SCOPES` falls through to
+`"node"`, which would have been wrong and silent for two tools that never touch a node.
+
+⭐ **CC2 held both ways.** `check_fonts` declares `per_font` and emits it, in the same change.
+⛔ **`get_available_fonts` declares `"none"` on purpose** — one un-cancellable await plus an
+in-memory sort has no point between them to report from, and declaring progress there would
+have minted Finding 4 a third time. `tests/progress-declaration.test.mjs` covers both.
+
+⭐ **Mutation-tested against the SOURCE, five ways, all killed:** removing the sort (4 tests),
+collapsing `available` into `loadable` (3), moving validation into the probe loop (1),
+returning `0` instead of `null` (2), and making `fontCount` describe the window (5). ⛔ The
+validation mutation is the one that matters — a throw-only assertion would have **survived**
+it, so the test asserts that no font was loaded before the throw, not merely that it threw.
+
+⚠️ **CC6, owed to the live gate:** the fixture supplies the inventory, so offline these tests
+prove the window, the filter, the sort and the available-vs-loadable split — **not** what a
+real machine returns, nor how large it is. The 3.66 MB defect this phase is bounded against
+has never been reproduced here. Same standing debt as F3's reachability.
+
+### Runtime identity after Phase 2
+
+| | R2.5 Phase 1 | R2.5 Phase 2 (this build) |
+| --- | --- | --- |
+| Contract / schema / plugin API | `1.7.0` | `1.7.0` — unchanged |
+| Server | `r2-server-194bc059487c` | **`r2-server-1a74a40ba8b2`** |
+| Plugin | `r2-plugin-75048983ede3` | **`r2-plugin-10787ea0bdd5`** |
+| Fingerprint | `sha256:09175c89…` | **`sha256:56ea2c94…`** |
+| Tools / plugin commands | 53 / 52 | **55 / 54** |
+
+⛔ **Adopting this build needs a DEV plugin re-run AND a server respawn.** Both halves moved
+again — the same answer as Phase 1, but re-derived rather than carried forward, because it
+flipped on three consecutive steps before this one.
+
+⭐ **Note which pins would have caught a stale build this time.** The fingerprint hashes
+`{serverSchemaVersion, capabilityIds}` and two new capability IDs moved it, so on *this* step
+the fingerprint works. That is luck, not a property: R2.4 moved the server twice with the
+fingerprint, schema and tool count all holding still. **`serverBuildId` remains the only pin
+that fails on every stale build**, and CC4 still requires pinning it.
 
 ### Phase 3 — the typography write surface
 

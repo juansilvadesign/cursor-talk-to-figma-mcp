@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.5 typography, Phase 1
+## ▶ Next session — R2.5 typography, Phase 3
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
@@ -181,23 +181,50 @@ record: [`docs/R2.4-BATCH-CONTRACT.md`](docs/R2.4-BATCH-CONTRACT.md).
 **R2.5 typography → R2.6 layout → R2.7 visuals**, three contract bumps, three live gates,
 R2 acceptance at the end of R2.7.
 
-**✅ R2.5 Phase 1 is DONE (2026-08-18)** — both text defects closed, 136 tests green,
-contract at `1.7.0`, offline gate passed. Details in the plan.
+**✅ R2.5 Phase 1 is DONE (2026-08-18)** — both text defects closed, contract at `1.7.0`,
+offline gate passed. Details in the plan.
 
-**Next = R2.5 Phase 2** — the bounded font inventory (`get_available_fonts`) and the
-`check_fonts` preflight. ⛔ These are the **first new tools of the release**, so CC1 applies
-from the first commit: add each to `ADDITIVE_PREVIEW_RESULTS` in the same change that
-registers it, or it ships frozen. Phase 2 is still offline; the live gate is owed at the
-end of R2.5 and needs the disposable-file permission.
+**✅ R2.5 Phase 2 is DONE (2026-08-18, offline)** — `get_available_fonts` + `check_fonts`,
+the release's first new tools. **153 tests green**, **55 tools / 54 plugin commands**,
+contract stays `1.7.0` (R2.5 spent its one bump in Phase 1; these are additive inside the
+same in-flight release), six baselines replaying, `dist/` deterministic, `verify-release`
+passed. ⭐ **CC1 held** — both are in `ADDITIVE_PREVIEW_RESULTS` in the same commit that
+registers them, so neither shipped frozen. Five source mutations, all killed.
 
-⚠️ **The accepted pair — server moved, plugin did NOT.**
+⚠️ **The plan was wrong about one thing and the code says so:** `timeBudgetMs` cannot bound
+`listAvailableFontsAsync()`, which takes no cancellation signal — the budget bounds the
+**reply**, and the call is abandoned rather than stopped. `coverage.budgetCancelsFetch:
+false` is a permanent declaration in the reply, not a state.
 
-| | Before | Now |
+**Next = R2.5 Phase 3** — the typography write surface (`set_text_style` 3.1–3.5).
+⛔ **3.2 is non-negotiable: validate-all-then-write from birth.** It is a twelve-field
+write, the exact shape F4 proves broken in three shipped ops; building it any other way
+mints a fourth in the same release that pays off the first three. ⛔ CC1 again for
+`set_text_style`. ⚠️ 3.5 touches `create_text`, which still has the deferred un-awaited
+`setCharacters` at `code.js:1790`.
+
+⛔ **Still offline.** The R2.5 live gate is owed at the end of the release and needs the
+**disposable-file permission** plus a channel and a foreground Figma tab (CC7). It carries
+two standing debts: **F3's reachability** (the harness injects the refused write) and
+**Phase 2's inventory shape and size** (the fixture supplies eight faces; a real machine
+returns thousands, and that is precisely what the bounding exists for).
+
+⛔ **The current pair — BOTH halves moved, twice in a row now.**
+
+| | R2.4 ACCEPTED | R2.5 Phase 2 (HEAD) |
 | --- | --- | --- |
-| Contract / schema | `1.6.0` | **`1.6.0` — UNCHANGED** |
-| Tools / plugin commands | 53 / 52 | **53 / 52 — UNCHANGED** |
-| Server | `r2-server-d248ed7bc295` | **`r2-server-5ac4bcd1a2a5`** |
-| Plugin | `r2-plugin-53a1fa676d6a` | **`r2-plugin-53a1fa676d6a` — UNCHANGED** |
+| Contract / schema | `1.6.0` | **`1.7.0`** |
+| Tools / plugin commands | 53 / 52 | **55 / 54** |
+| Server | `r2-server-5ac4bcd1a2a5` | **`r2-server-1a74a40ba8b2`** |
+| Plugin | `r2-plugin-53a1fa676d6a` | **`r2-plugin-10787ea0bdd5`** |
+| Fingerprint | `sha256:d39aefef…` | **`sha256:56ea2c94…`** |
+
+⛔ **Adopting HEAD needs a DEV plugin re-run AND a server respawn.** ⭐ Re-derive this every
+release rather than carrying the last answer forward — it flipped on three consecutive
+steps before Phase 1. And note the fingerprint moved *this* time only because two
+capability IDs were added: R2.4 moved the server twice with fingerprint, schema and tool
+count all holding still, so **`serverBuildId` is still the only pin that fails on every
+stale build** (CC4).
 | Fingerprint | `sha256:d39aefef…ca6289` | **`sha256:d39aefef…ca6289` — UNCHANGED** |
 
 ⭐ **Only the server moved, so this step needs a server respawn and NOT a DEV plugin
@@ -945,8 +972,15 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             `setCharacters` **without `await`** (`code.js:1790`), so `create_text` can
             return before its text is set. Out of Phase 1's scope; 3.5 rewrites this
             handler anyway.
-      - [ ] Bounded `get_available_fonts` (`limit`/`offset`, whole-inventory `fontCount`,
-            `complete`, `timeBudgetMs`, `heavy_read`) + `check_fonts` preflight.
+      - [x] ✅ **Phase 2 DONE 2026-08-18 (offline).** Bounded `get_available_fonts`
+            (`limit`/`offset`, whole-inventory `fontCount`+`familyCount`, `complete`,
+            `heavy_read`) with an exact `family` filter added beyond the plan, plus the
+            `check_fonts` preflight — a **real `loadFontAsync` probe**, `standard` budget,
+            50-pair cap, `available`/`familyAvailable`/`loadable` as three separate facts.
+            ⚠️ `timeBudgetMs` bounds the REPLY, not the fetch: `listAvailableFontsAsync`
+            takes no cancellation signal, and `coverage.budgetCancelsFetch: false` says so
+            permanently. ⛔ Reachability of the real inventory's shape/size is owed to the
+            live gate — the fixture supplies eight faces.
       - [ ] `set_text_style` — node-level, twelve optional fields, **validate-all-then-write
             from birth**. ⚠️ `lineHeight`/`letterSpacing` are `{value, unit}`, not numbers.
       - [ ] `create_text` takes the same params; Inter only when nothing is supplied.

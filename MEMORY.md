@@ -25,13 +25,14 @@ The server and plugin builds are a **matched PAIR**. Current pair:
 
 ```
 r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← R2.4 ACCEPTED
-r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← HEAD, schema 1.7.0
+r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← R2.5 Phase 1
+r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)         ← HEAD, 1.7.0, 55 tools
 ```
 
-⛔ **The tree is now R2.5 Phase 1, not R2.4.** Schema `1.6.0` → **`1.7.0`**, and **BOTH
-halves moved** — so adopting HEAD needs a **DEV plugin re-run AND a server respawn**. That
-is the opposite of the last step, where only the server moved. ⭐ Re-derive it per release;
-it has now flipped on three consecutive steps.
+⛔ **The tree is now R2.5 Phase 2, not R2.4.** Schema stayed `1.7.0` (R2.5 spent its bump in
+Phase 1) but **BOTH halves moved again**, and tools went 53 → **55** — so adopting HEAD needs
+a **DEV plugin re-run AND a server respawn**. ⭐ Re-derive it per release rather than carrying
+the answer forward; it flipped on three consecutive steps before Phase 1.
 
 ⭐ **Observed 2026-08-18, not assumed:** with the tree at `1.7.0`, a session still open on
 channel `yba88v0x` answered `get_runtime_info` with the **old** pair and
@@ -144,9 +145,64 @@ granted only to `legacy` / `additive-preview` — so the `stable`-by-default tra
 ⚠️ **Found and deferred:** `createText` calls `setCharacters` **without `await`**
 (`code.js:1790`), so `create_text` can return before its text is set. Belongs to 3.5.
 
-**Next = R2.5 Phase 2** — `get_available_fonts` + `check_fonts`. ⛔ First new tools of the
-release, so CC1 binds from the first commit: list each in `ADDITIVE_PREVIEW_RESULTS` in the
-same change that registers it, or it ships frozen.
+### ✅ R2.5 Phase 2 — the font inventory and preflight are BUILT, 2026-08-18 (offline)
+
+**153 tests green** (was 136), **55 tools / 54 plugin commands** (was 53 / 52), contract
+**stays `1.7.0`** — R2.5 spent its one bump in Phase 1 and these are additive inside the same
+in-flight release, so only the build IDs and fingerprint moved. Six baselines replay at zero
+errors, `dist/` byte-deterministic across two builds, `verify-release.mjs` passed.
+
+- ✅ **CC1 held on the release's first new tools.** Both are in `ADDITIVE_PREVIEW_RESULTS` in
+  the same commit that registers them, so neither shipped frozen. Six hand-maintained maps
+  updated per F7, including a **new `font_inventory` scope** — `TOOL_SCOPES` falls through to
+  `"node"`, which would have been wrong and silent for two tools that touch no node.
+- ⭐ **`available` and `loadable` are two fields because they can disagree.** A face can be
+  listed and still refuse to load, and `setCharacters` answers that refusal by substituting
+  Inter silently — F2. One field would have answered `true` and let the substitution happen:
+  a *consistency* check standing in for a *correctness* check. `familyAvailable` is a third
+  fact, separating *"Inter has no Blond"* from *"this machine has no Ghost"* — opposite fixes.
+- 🔴 **The plan was wrong about `timeBudgetMs`, and the reply says so.**
+  `listAvailableFontsAsync()` takes no cancellation signal, so a budget bounds the **reply**
+  and the call is *abandoned*, not stopped. `coverage.budgetCancelsFetch: false` is a
+  permanent declaration next to `budgetExhausted`, because a bare `budgetExhausted` reads as
+  "work was skipped". ⛔ On `check_fonts` the inventory fetch is **un**budgeted for the mirror
+  reason: a truncated inventory turns every `available` into a false negative, which is worse
+  than slow.
+- ⭐ **Absent counts are `null`, never `0`** — a `0` reads as "this machine has no fonts", a
+  real finding rather than the absence of one.
+- ⭐ **Ordering is a deterministic family-then-style code-unit sort.** Figma does not document
+  the API's order, so `offset` paging would be repeatable only by luck. ⛔ Plain `<`, never
+  `localeCompare` — locale-dependent ordering is a paging defect that only appears abroad.
+- ⭐ **Mutation-tested against the SOURCE, five ways, all killed:** removing the sort (4
+  tests), collapsing `available` into `loadable` (3), moving validation into the probe loop
+  (1), `null` → `0` (2), `fontCount` describing the window (5). ⛔ The validation one is the
+  one that matters — a throw-only assertion would have **survived** it, so the test asserts
+  that no font was loaded before the throw, not merely that it threw.
+- ⛔ **`check_fonts` is `standard`, not `heavy_read`.** Its cost scales with the caller's
+  capped 50-pair list; `TIMEOUT_RANK`'s own comment says reusing `heavy_read` for an
+  argument-scaled tool makes the contract lie about why the budget is large. `standard` is
+  the weakest claim that can be true, and raising a budget later is the safe direction.
+- ⛔ **CC2 held both ways.** `check_fonts` declares `per_font` and emits it in the same
+  change; **`get_available_fonts` declares `"none"` on purpose** — one un-cancellable await
+  plus an in-memory sort has no point between them to report from, and declaring progress
+  there would have minted Finding 4 a third time.
+
+⚠️ **CC6 debt, owed to the live gate:** the fixture supplies the inventory (8 faces), so
+offline these tests prove the window, filter, sort and the available-vs-loadable split —
+**not** what a real machine returns or how large it is. The 3.66 MB defect this phase is
+bounded against has never been reproduced here.
+
+⛔ **BOTH halves moved again** → `r2-server-1a74a40ba8b2` ↔ `r2-plugin-10787ea0bdd5`,
+fingerprint `sha256:56ea2c94…`. Adopting HEAD needs a **DEV plugin re-run AND a server
+respawn**. ⭐ The fingerprint moved *this* time only because two capability IDs were added —
+R2.4 moved the server twice with fingerprint, schema and tool count all holding still, so
+**`serverBuildId` is still the only pin that fails on every stale build**.
+
+**Next = R2.5 Phase 3** — `set_text_style` (3.1–3.5). ⛔ **3.2 is non-negotiable:
+validate-all-then-write from birth.** It is a twelve-field write, the exact shape F4 proves
+broken in three shipped ops; any other construction mints a fourth in the release that pays
+off the first three. ⛔ CC1 again. ⚠️ 3.5 touches `create_text`, which still has the deferred
+un-awaited `setCharacters` at `code.js:1790`.
 
 🔴 **The cut's highest-leverage finding:** `getResultStability`
 (`scripts/contract-lib.mjs:267`) returns **`stable`** for any tool not named in

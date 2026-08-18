@@ -234,6 +234,11 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_text_content` - Set the text content of a single text node
 - `set_multiple_text_contents` - Batch update multiple text nodes efficiently
 
+### Fonts
+
+- `get_available_fonts` - List the fonts installed on the machine running Figma, as a bounded window with a whole-inventory `fontCount`/`familyCount` that survive the window. Filter with `family` instead of paging thousands of faces; ordering is a deterministic family-then-style code-unit sort, so `offset` paging is repeatable
+- `check_fonts` - Preflight `{family, style}` pairs before a text write commits. Reports `available` (in the inventory), `familyAvailable` (the family exists under another style) and `loadable` (`loadFontAsync` actually succeeded) as separate facts, because a listed face can still refuse to load and `setCharacters` answers that refusal by substituting Inter silently
+
 ### Auto Layout & Spacing
 
 - `set_layout_mode` - Set the layout mode and wrap behavior of a frame (NONE, HORIZONTAL, VERTICAL)

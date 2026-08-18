@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-194bc059487c",
-  "pluginBuildId": "r2-plugin-75048983ede3",
+  "serverBuildId": "r2-server-1a74a40ba8b2",
+  "pluginBuildId": "r2-plugin-10787ea0bdd5",
   "serverSchemaVersion": "1.7.0",
   "pluginApiVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:09175c89dc496287372b495df5d8eb320f3a8e9e9c05b36a5989ae0ec94a4fb0",
+  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -67,6 +67,8 @@ var RUNTIME_METADATA = {
     "get_local_components",
     "get_variables",
     "get_node_variables",
+    "get_available_fonts",
+    "check_fonts",
     "create_component_instance",
     "export_node_as_image",
     "set_corner_radius",
@@ -97,6 +99,7 @@ var RUNTIME_METADATA = {
   ],
   "capabilityIds": [
     "figma.command.apply_batch@1",
+    "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -109,6 +112,7 @@ var RUNTIME_METADATA = {
     "figma.command.delete_node@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
+    "figma.command.get_available_fonts@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -152,6 +156,7 @@ var RUNTIME_METADATA = {
   ],
   "supportedTools": [
     "apply_batch",
+    "check_fonts",
     "clone_node",
     "create_component_instance",
     "create_connections",
@@ -164,6 +169,7 @@ var RUNTIME_METADATA = {
     "delete_node",
     "export_node_as_image",
     "get_annotations",
+    "get_available_fonts",
     "get_document_info",
     "get_instance_overrides",
     "get_local_components",
@@ -1774,6 +1780,93 @@ server.tool(
           {
             type: "text",
             text: `Error getting node variables: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "get_available_fonts",
+  "[Font-inventory scoped] List the fonts installed on the machine running Figma, as a bounded window. This is the MACHINE's inventory, not the file's: a real machine returns thousands of faces, so the reply is always windowed and fontCount/familyCount stay whole-inventory totals against any window or filter. Pass family to narrow to one family in a single call instead of paging. Ordering is a deterministic family-then-style code-unit sort, so offset paging is repeatable. Use check_fonts, not this tool, to decide whether a specific font will survive a write.",
+  {
+    family: import_zod.z.string().optional().describe(
+      "Exact, case-sensitive family name to filter by; omit for the whole inventory. A near miss returns zero matches and reads identically to an absent family, so the reply says so in limitations."
+    ),
+    limit: import_zod.z.number().int().positive().max(5e3).optional().describe(
+      "Maximum faces returned; defaults to 1000. fontCount, familyCount and matchCount remain whole-inventory totals, so truncation is always visible."
+    ),
+    offset: import_zod.z.number().int().nonnegative().optional().describe(
+      "Face offset within the matching set, for paging. The sort is deterministic and locale-independent, so paging is repeatable as long as the machine's font set does not change."
+    ),
+    timeBudgetMs: import_zod.z.number().int().nonnegative().optional().describe(
+      "Optional wall-clock budget for the inventory fetch; 0 (the default) means no budget. \u26A0\uFE0F It bounds the REPLY, not the work: Figma's listAvailableFontsAsync takes no cancellation signal, so an exhausted budget abandons the call rather than stopping it and returns coverage.budgetExhausted with coverage.inventoryFetched false and null counts."
+    )
+  },
+  async ({ family, limit, offset, timeBudgetMs }) => {
+    try {
+      const result = await sendCommandToFigma("get_available_fonts", {
+        family,
+        limit,
+        offset,
+        timeBudgetMs
+      }, HEAVY_READ_TIMEOUT_MS);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting available fonts: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "check_fonts",
+  "[Font-inventory scoped] Preflight {family, style} pairs before a text write commits. Each pair reports `available` (present in the machine's inventory), `familyAvailable` (the family exists under some other style, which separates a misspelled style from an absent family), and `loadable` (figma.loadFontAsync actually succeeded), plus the error when it did not. Availability and loadability are reported separately on purpose: a listed face can still refuse to load, and a write that assumes otherwise substitutes Inter silently. Writes nothing to the document, but it does load the fonts it probes into the plugin session. Capped at 50 pairs per call.",
+  {
+    fonts: import_zod.z.array(
+      import_zod.z.object({
+        family: import_zod.z.string().describe("Font family, e.g. Inter"),
+        style: import_zod.z.string().describe("Font style, e.g. Regular or Semi Bold")
+      })
+    ).min(1).max(50).describe(
+      "Font pairs to preflight. Capped at 50 because a preflight that outlasts the write it precedes is not a preflight; split longer lists across calls."
+    ),
+    timeBudgetMs: import_zod.z.number().int().nonnegative().optional().describe(
+      "Optional wall-clock budget for the load probes; 0 (the default) means no budget. Checked between probes, since an individual loadFontAsync cannot be cancelled either. Unprobed pairs are absent from results and counted in skippedCount rather than reported as unavailable."
+    )
+  },
+  async ({ fonts, timeBudgetMs }) => {
+    try {
+      const result = await sendCommandToFigma("check_fonts", {
+        fonts,
+        timeBudgetMs
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error checking fonts: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

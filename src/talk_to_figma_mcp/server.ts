@@ -1772,6 +1772,125 @@ server.tool(
   }
 );
 
+// Get Available Fonts Tool
+server.tool(
+  "get_available_fonts",
+  "[Font-inventory scoped] List the fonts installed on the machine running Figma, as a bounded window. This is the MACHINE's inventory, not the file's: a real machine returns thousands of faces, so the reply is always windowed and fontCount/familyCount stay whole-inventory totals against any window or filter. Pass family to narrow to one family in a single call instead of paging. Ordering is a deterministic family-then-style code-unit sort, so offset paging is repeatable. Use check_fonts, not this tool, to decide whether a specific font will survive a write.",
+  {
+    family: z
+      .string()
+      .optional()
+      .describe(
+        "Exact, case-sensitive family name to filter by; omit for the whole inventory. A near miss returns zero matches and reads identically to an absent family, so the reply says so in limitations."
+      ),
+    limit: z
+      .number()
+      .int()
+      .positive()
+      .max(5000)
+      .optional()
+      .describe(
+        "Maximum faces returned; defaults to 1000. fontCount, familyCount and matchCount remain whole-inventory totals, so truncation is always visible."
+      ),
+    offset: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Face offset within the matching set, for paging. The sort is deterministic and locale-independent, so paging is repeatable as long as the machine's font set does not change."
+      ),
+    timeBudgetMs: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Optional wall-clock budget for the inventory fetch; 0 (the default) means no budget. ⚠️ It bounds the REPLY, not the work: Figma's listAvailableFontsAsync takes no cancellation signal, so an exhausted budget abandons the call rather than stopping it and returns coverage.budgetExhausted with coverage.inventoryFetched false and null counts."
+      ),
+  },
+  async ({ family, limit, offset, timeBudgetMs }: any) => {
+    try {
+      const result = await sendCommandToFigma("get_available_fonts", {
+        family,
+        limit,
+        offset,
+        timeBudgetMs,
+      }, HEAVY_READ_TIMEOUT_MS);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting available fonts: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// Check Fonts Tool
+server.tool(
+  "check_fonts",
+  "[Font-inventory scoped] Preflight {family, style} pairs before a text write commits. Each pair reports `available` (present in the machine's inventory), `familyAvailable` (the family exists under some other style, which separates a misspelled style from an absent family), and `loadable` (figma.loadFontAsync actually succeeded), plus the error when it did not. Availability and loadability are reported separately on purpose: a listed face can still refuse to load, and a write that assumes otherwise substitutes Inter silently. Writes nothing to the document, but it does load the fonts it probes into the plugin session. Capped at 50 pairs per call.",
+  {
+    fonts: z
+      .array(
+        z.object({
+          family: z.string().describe("Font family, e.g. Inter"),
+          style: z.string().describe("Font style, e.g. Regular or Semi Bold"),
+        })
+      )
+      .min(1)
+      .max(50)
+      .describe(
+        "Font pairs to preflight. Capped at 50 because a preflight that outlasts the write it precedes is not a preflight; split longer lists across calls."
+      ),
+    timeBudgetMs: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Optional wall-clock budget for the load probes; 0 (the default) means no budget. Checked between probes, since an individual loadFontAsync cannot be cancelled either. Unprobed pairs are absent from results and counted in skippedCount rather than reported as unavailable."
+      ),
+  },
+  async ({ fonts, timeBudgetMs }: any) => {
+    try {
+      const result = await sendCommandToFigma("check_fonts", {
+        fonts,
+        timeBudgetMs,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error checking fonts: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Annotations Tool
 server.tool(
   "get_annotations",
@@ -3311,6 +3430,8 @@ type FigmaCommand =
   | "get_local_components"
   | "get_variables"
   | "get_node_variables"
+  | "get_available_fonts"
+  | "check_fonts"
   | "create_component_instance"
   | "get_instance_overrides"
   | "set_instance_overrides"
@@ -3460,6 +3581,16 @@ type CommandParams = {
     types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;
   };
   get_node_variables: { nodeId: string };
+  get_available_fonts: {
+    family?: string;
+    limit?: number;
+    offset?: number;
+    timeBudgetMs?: number;
+  };
+  check_fonts: {
+    fonts: Array<{ family: string; style: string }>;
+    timeBudgetMs?: number;
+  };
   create_component_instance: {
     componentId?: string;
     componentKey?: string;

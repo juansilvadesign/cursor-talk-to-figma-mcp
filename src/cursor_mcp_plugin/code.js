@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-75048983ede3",
+  "buildId": "r2-plugin-10787ea0bdd5",
   "apiVersion": "1.7.0",
   "serverSchemaVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:09175c89dc496287372b495df5d8eb320f3a8e9e9c05b36a5989ae0ec94a4fb0",
+  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -36,6 +36,8 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "get_local_components",
     "get_variables",
     "get_node_variables",
+    "get_available_fonts",
+    "check_fonts",
     "create_component_instance",
     "export_node_as_image",
     "set_corner_radius",
@@ -66,6 +68,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
   ],
   "capabilityIds": [
     "figma.command.apply_batch@1",
+    "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -78,6 +81,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.delete_node@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
+    "figma.command.get_available_fonts@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -310,6 +314,10 @@ async function handleCommand(command, params) {
       return await getVariables(params);
     case "get_node_variables":
       return await getNodeVariables(params);
+    case "get_available_fonts":
+      return await getAvailableFonts(params);
+    case "check_fonts":
+      return await checkFonts(params);
     // case "get_team_components":
     //   return await getTeamComponents();
     case "create_component_instance":
@@ -3459,6 +3467,339 @@ async function getNodeVariables(params) {
     styleCount,
     unresolvedStyles,
     styles,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// R2.5 Phase 2 — the bounded font inventory and the write preflight.
+//
+// ⛔ Unbounded is not an option. `figma.listAvailableFontsAsync()` answers with every
+// face installed on the MACHINE — not with what the file references — which is
+// thousands of entries on an ordinary laptop. That is the 3.66 MB -> 518 KB defect R2.0
+// paid off for variables, arriving again through a different door.
+const FONT_INVENTORY_LIMIT_DEFAULT = 1000;
+const FONT_INVENTORY_LIMIT_CEILING = 5000;
+// A preflight that can outlast the write it precedes is not a preflight. Deliberately
+// small: unlike the machine's inventory, the pair list belongs to the CALLER, so a
+// caller with more to check pages rather than being handed a larger budget.
+const CHECK_FONTS_MAX_PAIRS = 50;
+
+// Figma does not document the order of `listAvailableFontsAsync()`, so `offset` paging
+// would be repeatable only by luck. Compared with plain code-unit `<` rather than
+// `localeCompare`, which is locale-dependent and would order one machine's inventory
+// differently from another's — a paging defect that only appears abroad.
+function compareFontFaces(left, right) {
+  if (left.family !== right.family) return left.family < right.family ? -1 : 1;
+  if (left.style === right.style) return 0;
+  return left.style < right.style ? -1 : 1;
+}
+
+// A single space is not a safe separator on its own, so the key keeps the family length
+// in front of it: "Foo Bar"/"Baz" and "Foo"/"Bar Baz" are different pairs and must not
+// collide into one inventory entry.
+function fontFaceKey(family, style) {
+  return family.length + ":" + family + style;
+}
+
+// One fetch, shared by both tools. Answers `supported: false` rather than throwing when
+// the host predates the API, so a consumer gets a typed reply instead of an error
+// string — the shape `get_node_variables` already uses for a missing variables API.
+//
+// ⚠️ `timeBudgetMs` bounds THIS REPLY, not the underlying call: Figma's
+// `listAvailableFontsAsync()` takes no cancellation signal, so an exhausted budget
+// abandons the promise rather than stopping the work. Said out loud here and in
+// `limitations` because a budget that quietly does neither is exactly the class of
+// half-true field this fork keeps finding.
+async function readFontInventory(timeBudgetMs) {
+  if (typeof figma.listAvailableFontsAsync !== "function") {
+    return { supported: false, fetched: false, faces: [], fetchMs: 0 };
+  }
+  const startedAt = Date.now();
+  const pending = figma.listAvailableFontsAsync();
+  let raw;
+  if (timeBudgetMs > 0) {
+    const abandoned = {};
+    let timer = null;
+    const deadline = new Promise((resolve) => {
+      timer = setTimeout(() => resolve(abandoned), timeBudgetMs);
+    });
+    // An abandoned fetch must not surface later as an unhandled rejection.
+    pending.catch(() => undefined);
+    raw = await Promise.race([pending, deadline]);
+    if (timer !== null) clearTimeout(timer);
+    if (raw === abandoned) {
+      return {
+        supported: true,
+        fetched: false,
+        faces: [],
+        fetchMs: Date.now() - startedAt,
+      };
+    }
+  } else {
+    raw = await pending;
+  }
+  const fetchMs = Date.now() - startedAt;
+  const faces = [];
+  for (const entry of raw || []) {
+    const fontName = entry && entry.fontName;
+    if (
+      !fontName ||
+      typeof fontName.family !== "string" ||
+      typeof fontName.style !== "string"
+    ) {
+      continue;
+    }
+    faces.push({ family: fontName.family, style: fontName.style });
+  }
+  faces.sort(compareFontFaces);
+  return { supported: true, fetched: true, faces, fetchMs };
+}
+
+async function getAvailableFonts(params) {
+  const requestedFamily =
+    params && typeof params.family === "string" && params.family.length > 0
+      ? params.family
+      : null;
+  if (params && params.family !== undefined && requestedFamily === null) {
+    throw new Error("family must be a non-empty string when provided");
+  }
+  const limit = Math.min(
+    FONT_INVENTORY_LIMIT_CEILING,
+    Math.max(1, Number((params && params.limit) || FONT_INVENTORY_LIMIT_DEFAULT)),
+  );
+  const offset = Math.max(0, Number((params && params.offset) || 0));
+  const timeBudgetMs = Math.max(0, Number((params && params.timeBudgetMs) || 0));
+
+  const inventory = await readFontInventory(timeBudgetMs);
+  const limitations = [];
+
+  if (!inventory.supported) {
+    limitations.push(
+      "This Figma host does not expose listAvailableFontsAsync, so no inventory could be read. check_fonts still reports loadability, which is observed directly rather than looked up.",
+    );
+  } else if (!inventory.fetched) {
+    limitations.push(
+      `The inventory fetch did not finish within timeBudgetMs (${timeBudgetMs}ms). Figma's listAvailableFontsAsync takes no cancellation signal, so the call was abandoned rather than stopped and is still running. Raise timeBudgetMs or omit it.`,
+    );
+  }
+
+  // Whole-inventory totals. They describe the MACHINE, never the returned window — the
+  // count-vs-window separation get_node_variables and get_plugin_data both use. `null`
+  // rather than 0 when nothing was read: a 0 here would read as "this machine has no
+  // fonts", which is a real finding rather than the absence of one.
+  const known = inventory.supported && inventory.fetched;
+  const fontCount = known ? inventory.faces.length : null;
+  let familyCount = null;
+  const matches = [];
+  if (known) {
+    familyCount = 0;
+    let lastFamily = null;
+    for (const face of inventory.faces) {
+      if (face.family !== lastFamily) {
+        familyCount += 1;
+        lastFamily = face.family;
+      }
+      if (requestedFamily === null || face.family === requestedFamily) {
+        matches.push(face);
+      }
+    }
+  }
+
+  const matchCount = known ? matches.length : null;
+  const fonts = matches.slice(offset, offset + limit);
+  const returned = fonts.length;
+  const hasMore = known ? offset + returned < matches.length : false;
+
+  if (hasMore) {
+    limitations.push(
+      `Returned ${returned} of ${matches.length} matching faces; raise limit (ceiling ${FONT_INVENTORY_LIMIT_CEILING}) or page with offset.`,
+    );
+  }
+  if (requestedFamily !== null && known && matches.length === 0) {
+    limitations.push(
+      `No face on this machine belongs to family "${requestedFamily}". The filter is an exact, case-sensitive family match, so a near miss reads identically to an absent family — page the unfiltered inventory to confirm the spelling.`,
+    );
+  }
+
+  return {
+    scope: "font_inventory",
+    supported: inventory.supported,
+    fonts,
+    // Whole-machine totals, independent of both the window and the filter.
+    fontCount,
+    familyCount,
+    // Faces matching `family`; equal to fontCount when no filter was supplied.
+    matchCount,
+    filter: { family: requestedFamily },
+    pagination: { limit, offset, returned, hasMore },
+    coverage: {
+      timeBudgetMs,
+      fetchMs: inventory.fetchMs,
+      inventoryFetched: inventory.fetched,
+      budgetExhausted: inventory.supported && !inventory.fetched,
+      // ⛔ A permanent declaration, not a state: this budget bounds the reply, never the
+      // underlying Figma call. Reading `budgetExhausted` without it would suggest work
+      // was skipped, when in fact the fetch was merely abandoned mid-flight.
+      budgetCancelsFetch: false,
+    },
+    complete: known && !hasMore,
+    limitations,
+  };
+}
+
+async function checkFonts(params) {
+  const commandId = (params && params.commandId) || generateCommandId();
+  const requested = params && params.fonts;
+  if (!Array.isArray(requested) || requested.length === 0) {
+    throw new Error("fonts must be a non-empty array of {family, style} pairs");
+  }
+  if (requested.length > CHECK_FONTS_MAX_PAIRS) {
+    throw new Error(
+      `fonts contains ${requested.length} pairs, above the ${CHECK_FONTS_MAX_PAIRS}-pair cap. A preflight that outlasts the write it precedes is not a preflight; split the list across calls.`,
+    );
+  }
+  // Validate every pair before probing any of them. This tool writes nothing, so there
+  // is no partial document state to leave behind — but a list that fails on its ninth
+  // entry after loading eight fonts still charges the caller for work it then refuses
+  // to report, which is the same shape as the atomicity debt F4 names.
+  const pairs = [];
+  for (let index = 0; index < requested.length; index++) {
+    const entry = requested[index];
+    if (
+      !entry ||
+      typeof entry.family !== "string" ||
+      entry.family.length === 0 ||
+      typeof entry.style !== "string" ||
+      entry.style.length === 0
+    ) {
+      throw new Error(
+        `fonts[${index}] must be {family, style}, both non-empty strings`,
+      );
+    }
+    pairs.push({ family: entry.family, style: entry.style });
+  }
+  const timeBudgetMs = Math.max(0, Number((params && params.timeBudgetMs) || 0));
+
+  await sendProgressUpdate(
+    commandId,
+    "check_fonts",
+    "started",
+    0,
+    pairs.length,
+    0,
+    `Checking ${pairs.length} font${pairs.length === 1 ? "" : "s"}`,
+  );
+
+  const startedAt = Date.now();
+  // The inventory is deliberately NOT budgeted here: a truncated inventory would turn
+  // every `available` into a false negative, which is a far worse answer than a slow
+  // one. The budget below governs the load probes instead.
+  const inventory = await readFontInventory(0);
+  const installed = new Set();
+  const families = new Set();
+  for (const face of inventory.faces) {
+    installed.add(fontFaceKey(face.family, face.style));
+    families.add(face.family);
+  }
+
+  const results = [];
+  const missing = [];
+  const limitations = [];
+  let availableCount = 0;
+  let loadableCount = 0;
+  let budgetExhausted = false;
+
+  for (const pair of pairs) {
+    // Checked BETWEEN probes: an individual loadFontAsync takes no cancellation signal
+    // either, so the budget bounds how many probes start, not how long one runs.
+    if (timeBudgetMs > 0 && Date.now() - startedAt > timeBudgetMs) {
+      budgetExhausted = true;
+      break;
+    }
+    // ⭐ `available` and `loadable` are separate facts, and the gap between them is the
+    // whole reason this tool exists: a face can be listed and still refuse to load, and
+    // `setCharacters` answers that refusal by silently substituting Inter.
+    const available = inventory.supported
+      ? installed.has(fontFaceKey(pair.family, pair.style))
+      : null;
+    const familyAvailable = inventory.supported
+      ? families.has(pair.family)
+      : null;
+    const probeStartedAt = Date.now();
+    let loadable = false;
+    let error = null;
+    try {
+      await figma.loadFontAsync({ family: pair.family, style: pair.style });
+      loadable = true;
+    } catch (probeError) {
+      error =
+        probeError instanceof Error ? probeError.message : String(probeError);
+    }
+    if (available === true) availableCount += 1;
+    if (loadable) loadableCount += 1;
+    else missing.push({ family: pair.family, style: pair.style });
+    results.push({
+      requested: { family: pair.family, style: pair.style },
+      available,
+      // True when the family exists under some OTHER style — the difference between
+      // "this machine has no Ghost" and "Inter is here but has no Blond".
+      familyAvailable,
+      loadable,
+      error,
+      loadMs: Date.now() - probeStartedAt,
+    });
+    await sendProgressUpdate(
+      commandId,
+      "check_fonts",
+      "in_progress",
+      Math.round((results.length / pairs.length) * 100),
+      pairs.length,
+      results.length,
+      `Checked ${results.length} of ${pairs.length} fonts`,
+    );
+  }
+
+  if (!inventory.supported) {
+    limitations.push(
+      "This Figma host does not expose listAvailableFontsAsync, so `available` and `familyAvailable` are null rather than false — the inventory could not be consulted. `loadable` is unaffected: it is observed by attempting the load.",
+    );
+  }
+  if (budgetExhausted) {
+    limitations.push(
+      `timeBudgetMs (${timeBudgetMs}ms) was exhausted after ${results.length} of ${pairs.length} pairs; the rest were never probed and are absent from results rather than reported as unavailable.`,
+    );
+  }
+
+  await sendProgressUpdate(
+    commandId,
+    "check_fonts",
+    "completed",
+    100,
+    pairs.length,
+    results.length,
+    `${loadableCount} of ${results.length} checked fonts are loadable`,
+  );
+
+  return {
+    scope: "font_inventory",
+    inventorySupported: inventory.supported,
+    results,
+    requestedCount: pairs.length,
+    checkedCount: results.length,
+    skippedCount: pairs.length - results.length,
+    availableCount,
+    loadableCount,
+    // Every checked pair that would NOT survive a write, so a caller can branch on one
+    // array instead of filtering `results` itself.
+    missing,
+    fontCount: inventory.supported ? inventory.faces.length : null,
+    coverage: {
+      timeBudgetMs,
+      budgetExhausted,
+      fetchMs: inventory.fetchMs,
+    },
+    complete: inventory.supported && results.length === pairs.length,
+    limitations,
   };
 }
 

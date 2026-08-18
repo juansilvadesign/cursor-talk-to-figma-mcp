@@ -4,9 +4,10 @@
   "serverSchemaVersion": "1.7.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:09175c89dc496287372b495df5d8eb320f3a8e9e9c05b36a5989ae0ec94a4fb0",
+  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
   "capabilities": [
     "figma.command.apply_batch@1",
+    "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
@@ -19,6 +20,7 @@
     "figma.command.delete_node@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
+    "figma.command.get_available_fonts@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -98,6 +100,8 @@
       "get_local_components",
       "get_variables",
       "get_node_variables",
+      "get_available_fonts",
+      "check_fonts",
       "create_component_instance",
       "get_instance_overrides",
       "set_instance_overrides",
@@ -153,6 +157,8 @@
       "get_local_components",
       "get_variables",
       "get_node_variables",
+      "get_available_fonts",
+      "check_fonts",
       "create_component_instance",
       "get_instance_overrides",
       "set_instance_overrides",
@@ -208,6 +214,8 @@
       "get_local_components",
       "get_variables",
       "get_node_variables",
+      "get_available_fonts",
+      "check_fonts",
       "create_component_instance",
       "export_node_as_image",
       "set_corner_radius",
@@ -342,6 +350,58 @@
       },
       "pluginCommand": "apply_batch",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "check_fonts",
+      "description": "[Font-inventory scoped] Preflight {family, style} pairs before a text write commits. Each pair reports `available` (present in the machine's inventory), `familyAvailable` (the family exists under some other style, which separates a misspelled style from an absent family), and `loadable` (figma.loadFontAsync actually succeeded), plus the error when it did not. Availability and loadability are reported separately on purpose: a listed face can still refuse to load, and a write that assumes otherwise substitutes Inter silently. Writes nothing to the document, but it does load the fonts it probes into the plugin session. Capped at 50 pairs per call.",
+      "direction": "read",
+      "scope": "font_inventory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "fonts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "family": {
+                  "type": "string",
+                  "description": "Font family, e.g. Inter"
+                },
+                "style": {
+                  "type": "string",
+                  "description": "Font style, e.g. Regular or Semi Bold"
+                }
+              },
+              "required": [
+                "family",
+                "style"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Font pairs to preflight. Capped at 50 because a preflight that outlasts the write it precedes is not a preflight; split longer lists across calls."
+          },
+          "timeBudgetMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional wall-clock budget for the load probes; 0 (the default) means no budget. Checked between probes, since an individual loadFontAsync cannot be cancelled either. Unprobed pairs are absent from results and counted in skippedCount rather than reported as unavailable."
+          }
+        },
+        "required": [
+          "fonts"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_font"
+      },
+      "pluginCommand": "check_fonts",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -1033,6 +1093,46 @@
       },
       "pluginCommand": "get_annotations",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_available_fonts",
+      "description": "[Font-inventory scoped] List the fonts installed on the machine running Figma, as a bounded window. This is the MACHINE's inventory, not the file's: a real machine returns thousands of faces, so the reply is always windowed and fontCount/familyCount stay whole-inventory totals against any window or filter. Pass family to narrow to one family in a single call instead of paging. Ordering is a deterministic family-then-style code-unit sort, so offset paging is repeatable. Use check_fonts, not this tool, to decide whether a specific font will survive a write.",
+      "direction": "read",
+      "scope": "font_inventory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "family": {
+            "type": "string",
+            "description": "Exact, case-sensitive family name to filter by; omit for the whole inventory. A near miss returns zero matches and reads identically to an absent family, so the reply says so in limitations."
+          },
+          "limit": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 5000,
+            "description": "Maximum faces returned; defaults to 1000. fontCount, familyCount and matchCount remain whole-inventory totals, so truncation is always visible."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Face offset within the matching set, for paging. The sort is deterministic and locale-independent, so paging is repeatable as long as the machine's font set does not change."
+          },
+          "timeBudgetMs": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional wall-clock budget for the inventory fetch; 0 (the default) means no budget. ⚠️ It bounds the REPLY, not the work: Figma's listAvailableFontsAsync takes no cancellation signal, so an exhausted budget abandons the call rather than stopping it and returns coverage.budgetExhausted with coverage.inventoryFetched false and null counts."
+          }
+        },
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_available_fonts",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

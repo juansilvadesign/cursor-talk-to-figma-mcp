@@ -45,6 +45,15 @@ const HEAVY_READ_TOOLS = new Set([
   // an export with the pixel area of the node, a token scan with the subtree size.
   "export_node_as_image",
   "get_node_variables",
+  // Added in R2.5. Its cost scales with the MACHINE running Figma — thousands of
+  // installed faces — which is neither the file nor the arguments, but is the same
+  // reason get_document_info is here: the caller cannot bound it from outside.
+  // ⛔ check_fonts is deliberately NOT here. Its cost scales with the caller's own
+  // capped pair list, and the comment on TIMEOUT_RANK says reusing heavy_read for an
+  // argument-scaled tool makes the contract lie about why the budget is large. It
+  // ships `standard`, which is the weakest claim that can be true; raising a budget
+  // after a live gate is the safe direction, lowering one is breaking.
+  "get_available_fonts",
 ]);
 
 // Ordered by budget, weakest -> strongest. Raising a tool's budget cannot break a
@@ -83,6 +92,13 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
+  // R2.5 Phase 2, per CC1 of R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md. Listed in the SAME
+  // change that registers them: getResultStability falls through to `stable`, and
+  // compatibilityErrors() refuses to weaken a level, so an unlisted new tool is frozen
+  // on the day it ships without ever having faced a live gate. Promotion is an
+  // acceptance act — these two stay here until R2.5's live gate has earned it.
+  "get_available_fonts",
+  "check_fonts",
 ]);
 
 // ⭐ `apply_batch` was here until R2.4 acceptance (2026-08-18), held at
@@ -125,6 +141,10 @@ const READ_TOOLS = new Set([
   "get_instance_overrides",
   "export_node_as_image",
   "get_plugin_data",
+  // check_fonts calls loadFontAsync, which mutates the PLUGIN SESSION's font cache and
+  // nothing in the document. Direction is about the file, so both are reads.
+  "get_available_fonts",
+  "check_fonts",
 ]);
 
 const TOOL_SCOPES = {
@@ -149,6 +169,10 @@ const TOOL_SCOPES = {
   get_local_components: "document_or_selected_pages",
   get_variables: "document",
   get_node_variables: "node_subtree",
+  // Neither reads the document at all — the subject is the machine running Figma.
+  // ⛔ The fallback below is "node", which would have been wrong and silent.
+  get_available_fonts: "font_inventory",
+  check_fonts: "font_inventory",
   get_instance_overrides: "node_or_current_page_selection",
   export_node_as_image: "node",
   create_rectangle: "current_page_or_parent",
@@ -184,6 +208,11 @@ const SPECIAL_PROGRESS = {
   // this map never describes behaviour the runtime does not have — which is Finding 4.
   // `tests/progress-declaration.test.mjs` now asserts every entry here against code.js.
   apply_batch: "chunked",
+  // R2.5 Phase 2. Declared in the same change that emits it, per CC2.
+  // ⛔ get_available_fonts is deliberately absent: it is one un-cancellable await plus
+  // an in-memory sort, with no point between them to report from. Declaring progress
+  // there would mint Finding 4 a third time.
+  check_fonts: "per_font",
 };
 
 function sha256(value) {

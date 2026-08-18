@@ -17,7 +17,7 @@ type: project
 - **Phases 1 + 2 BUILT**, and the **5.5 live gate PASSED 2026-08-12** — channel `8fbuzws2`, run twice, green on the first run (`953755a`, 🟡 2 unpushed). `apply_batch` executes against a real Figma file. 98 tests, 5 baselines green.
 - ✅ **3.1 + 3.2 + Phase 4 COMMITTED (`664135b`), offline gate PASSED 2026-08-12** — contract regenerated to **1.6.0**, `dist/` rebuilt and deterministic, **114/114 tests**, all 5 baselines replayed individually.
   - ⚠️ The earlier note claiming "1 test fails by design" was **wrong — 5 failed**, all the same stale-contract class, all cleared.
-- 🟡 8 files uncommitted (7 generated + `scripts/live-batch-gate.mjs`), **held back deliberately** until the live gate actually passes.
+- ✅ The 8 files that were held back pending the live gate are **committed** — tree clean at `db4d81b`, gate script tracked.
 
 ### ⛔ The pairing hazard — read before touching a running session
 
@@ -39,13 +39,28 @@ r2-server-d248ed7bc295  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)
 - ⭐ **The chunk pause must be clamped to the remaining budget**, or `timeBudgetMs` is a lie.
 - 🔴 **4.4 found a second Finding-4 instance:** `get_annotations` declares progress and emits none. **Pinned, not fixed.**
 
-### ⏳ Open — the live pass is BLOCKED
+### ✅ 5.6 — the live pass PASSED, 2026-08-18
 
-The gate was re-pinned and extended to cover 3.1 progress · 3.2 *measured* pause · the clamp/Finding-5 regression · Phase-4 additive fields. Then:
+Channel `hjyg56t5`, **one run, green on the first try**. `record.success: true`, no failure. The scratch page was deleted in the `finally` and the baseline restored (6 pages, current page back). **SYD content untouched** — the only ops naming real nodes ran inside the `prevalidateOnly` batch, which writes nothing by construction.
 
-- ⛔ **The Figma plugin went silent mid-session and both runs died at the join preflight.** Nothing mutated; **SYD untouched.**
-- **Next = a fresh channel + a DEV-plugin re-run**, then 5.6.
+- ✅ **The pairing held live:** `r2-server-d248ed7bc295` ↔ `r2-plugin-53a1fa676d6a`, both schema 1.6.0, both fingerprint `sha256:d39aefef…ca6289`, compatibility `compatible`, zero issues. 53 tools, `apply_batch` present.
+- ✅ **Refusals arrived in BOTH shapes, as designed:** duplicate `id` → handler *error result*; disallowed `op` → *thrown* schema `-32602`. The trap that scored correct behaviour as FAIL three times stayed closed.
+- ✅ **3.1 chunked progress observed over the real transport:** 15 ops / chunk 5 → 4 frames (0→33→67→100), reached complete.
+- ✅ **3.2 is now MEASURED, not assumed:** 2019 ms observed vs 2000 ms predicted over 2 gaps. Every op succeeded at `chunkPauseMs=0`, so the pause bought **nothing** on this document — the `0` default is earned, not guessed.
+- ✅ **Clamp / Finding-5 regression closed:** `chunkPauseMs=5000` + `timeBudgetMs=1000` → unclamped would be 10 000 ms, actual **1003 ms**; `partial`, 5 done / 10 skipped, **and** 4 frames still emitted. Both halves true at once, which is the only way Finding 5 stays closed.
+- ✅ **Partial application reproduced on all three** non-atomic ops — `move_node` (x 0→120), `set_stroke_color` (null→red), `set_item_spacing` (16→24) — each rejected by the *Figma property setter*, not by our envelope.
 - ⛔ Stays `additive-preview` until acceptance.
+
+### 🔴 What the green run RECORDED rather than failed on
+
+⭐ **A gate can be green and still be telling you something.** The script pins these as data, not assertions — so they do **not** move the verdict, and they are easy to walk past:
+
+- 🔴 **Phase 4.1 reaches a live consumer for `delete_multiple_nodes` ONLY.** `set_multiple_text_contents` and `set_multiple_annotations` format their MCP reply as **prose** and return no JSON, so the unified `outcome/succeeded/failed/total` the plugin now returns is **discarded by the wrapper** (`unifiedFieldsVisibleToConsumer: false`). The offline suite passes because it pins the **plugin handler** — the layer that actually changed. This is Finding 4's shape again: a behavioural claim with nothing asserting it end-to-end.
+- 🔴 **`operation_not_allowed` is unreachable through this transport** — the tool's inline `z.enum` rejects a disallowed op first, so the plugin's own allowlist check never answers a live consumer.
+- 🔴 The `set_fill_color` / `set_stroke_color` **plugin-handler-shape** discrepancy is still live in the tool description, now confirmed against a real file.
+- ⚠️ `params` is `z.record(z.any())` — per-operation arguments get **no schema validation**; a wrong-shaped param fails plugin-side and arrives as a receipt entry rather than a schema throw.
+
+**Next = the Phase 4.1 gap** (make the unified fields survive the wrapper for the two prose tools), then acceptance.
 
 ### ⛔ R3 variable-write is still OPEN
 

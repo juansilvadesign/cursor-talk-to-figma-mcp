@@ -21,7 +21,7 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   );
   assert.deepEqual(parityErrors(built.surface), []);
   assert.deepEqual(compatibilityErrors(snapshot, built.contract), []);
-  assert.equal(snapshot.tools.length, 53);
+  assert.equal(snapshot.tools.length, 55);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));

@@ -401,5 +401,39 @@
         ]
       }
     ]
-  }
+  },
+  "fonts": [
+    {
+      "family": "Roboto",
+      "style": "Regular"
+    },
+    {
+      "family": "Zapfino",
+      "style": "Regular"
+    },
+    {
+      "family": "Inter",
+      "style": "Bold"
+    },
+    {
+      "family": "Helvetica Neue",
+      "style": "Condensed Bold"
+    },
+    {
+      "family": "Inter",
+      "style": "Regular"
+    },
+    {
+      "family": "Roboto",
+      "style": "Bold"
+    },
+    {
+      "family": "Inter",
+      "style": "Thin"
+    },
+    {
+      "family": "Inter",
+      "style": "Semi Bold"
+    }
+  ]
 }

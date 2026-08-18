@@ -325,6 +325,20 @@ function createFixtureRuntime(fixture, options) {
     setCurrentPageAsync: async (page) => {
       currentPage = page;
     },
+    // R2.5 Phase 2. Figma answers `[{fontName: {family, style}}]`, so the wrapper object
+    // is reproduced rather than flattened — a harness that returned bare pairs would let
+    // an unwrapping bug pass offline and only appear live.
+    //
+    // ⚠️ CC6: this list is supplied by the TEST. Offline it can prove the window, the
+    // filter, the sort and the available-vs-loadable split; it cannot prove that a real
+    // machine's inventory has this shape or this size. That half is owed to the live gate.
+    listAvailableFontsAsync: async () => {
+      if (options.fontListNeverResolves) return new Promise(() => {});
+      if (options.fontListError) throw new Error(options.fontListError);
+      return clone(options.fonts || fixture.fonts || []).map((font) => ({
+        fontName: { family: font.family, style: font.style },
+      }));
+    },
     // ⛔ The previous stub accepted anything, including `figma.mixed` — so the offline
     // suite could not observe the one failure this API actually produces. Figma cannot
     // unwrap a symbol, and says so.
@@ -342,6 +356,10 @@ function createFixtureRuntime(fixture, options) {
       }
       loadedFonts.add(fontKey(font));
       fontLoads.push({ family: font.family, style: font.style });
+      // A real font load costs wall-clock time, which is the only thing check_fonts's
+      // budget can act on. Opt-in and 0 by default, so no existing font fixture changes
+      // meaning — the same reason strictFontLoading is opt-in.
+      clock.now += Number(options.fontLoadMs || 0);
       return undefined;
     },
     createRectangle: () => createDynamicNode("RECTANGLE", "Rectangle"),
@@ -421,6 +439,12 @@ function createFixtureRuntime(fixture, options) {
   }
   if (options.stylesApi === false) {
     delete figma.getStyleByIdAsync;
+  }
+  // A host that predates listAvailableFontsAsync. The tools must answer `supported:
+  // false` with null counts rather than throwing, and check_fonts must still report
+  // loadability — which it observes directly instead of looking up.
+  if (options.fontInventoryApi === false) {
+    delete figma.listAvailableFontsAsync;
   }
 
   return {

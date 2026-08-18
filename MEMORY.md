@@ -52,3 +52,9 @@ The gate was re-pinned and extended to cover 3.1 progress · 3.2 *measured* paus
 `apply_batch` will **never** close it — it is mutate-only over *node* IDs, and variables aren't nodes. Its Phase 0 is discharged, so the entry point is **Phase 1.1**.
 
 ⛔ **Figma defines writing `""` as delete.** Not a bug to route around — a semantic you must respect.
+
+## 📚 Detailed history
+
+⚠️ **This repository is PUBLIC, so the full internal history is deliberately NOT kept here.** This file carries the sanitized technical state only.
+
+The complete record lives in the private `ai-synthesizer` workspace at `knowledge/projects/_memory/project_talk_to_figma_fork_upgrade.md` — session-by-session, including the parts that must not be published (hosting account details, client agreements, internal IDs). Folded there 2026-08-17.

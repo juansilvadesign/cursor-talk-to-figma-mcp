@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.7.0",
-  "serverSchemaVersion": "1.7.0",
+  "publicContractVersion": "1.6.0",
+  "serverSchemaVersion": "1.6.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:09175c89dc496287372b495df5d8eb320f3a8e9e9c05b36a5989ae0ec94a4fb0",
+  "capabilityFingerprint": "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.clone_node@1",

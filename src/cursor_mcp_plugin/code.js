@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-53a1fa676d6a",
-  "apiVersion": "1.6.0",
-  "serverSchemaVersion": "1.6.0",
+  "buildId": "r2-plugin-75048983ede3",
+  "apiVersion": "1.7.0",
+  "serverSchemaVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
+  "capabilityFingerprint": "sha256:09175c89dc496287372b495df5d8eb320f3a8e9e9c05b36a5989ae0ec94a4fb0",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -3837,15 +3837,35 @@ async function setTextContent(params) {
   }
 
   try {
-    await figma.loadFontAsync(node.fontName);
-
-    await setCharacters(node, text);
+    // ⛔ Do NOT pre-load `node.fontName` here. On a node carrying more than one font it
+    // is `figma.mixed` — a symbol — and `loadFontAsync` cannot unwrap it, which is the
+    // whole of the long-standing mixed-font defect. The load is also redundant:
+    // `setCharacters` below branches on `figma.mixed` and loads a concrete font in
+    // every branch, including the single-font one.
+    // ⛔ `setCharacters` returns false when Figma refuses the assignment — it logs
+    // "Failed to set characters. Skipped." and returns. Discarding that return made this
+    // function answer success over a document it had not changed, and the batch tool
+    // above counts its per-entry `success` flags into R2.4's unified totals — so the
+    // aggregate that was fixed to stop lying would have been fed a lie from below.
+    const fontReport = {};
+    const applied = await setCharacters(node, text, { report: fontReport });
+    if (!applied) {
+      throw new Error(
+        `Figma refused the character write for ${nodeId}; the node was not modified`,
+      );
+    }
 
     return {
       id: node.id,
       name: node.name,
       characters: node.characters,
       fontName: node.fontName,
+      // ⭐ Additive, and load-bearing: a substitution means this call CHANGED THE FONT of
+      // the node as a side effect of setting its text. Silence is what made that
+      // invisible; `false` is now an answer, not an absence.
+      fontSubstituted: fontReport.fontSubstituted === true,
+      requestedFont: fontReport.requestedFont,
+      appliedFont: fontReport.appliedFont,
     };
   } catch (error) {
     throw new Error(`Error setting text content: ${error.message}`);
@@ -3893,6 +3913,18 @@ const setCharacters = async (node, characters, options) => {
     family: "Inter",
     style: "Regular",
   };
+  // An optional out-parameter. This function silently retypes a node to the fallback
+  // font whenever the real font will not load — a document mutation the caller never
+  // learned about, because the only record was a console.warn. The boolean return is
+  // deliberately unchanged so the other call site keeps working.
+  const report = (options && options.report) || null;
+  if (report) {
+    report.fontSubstituted = false;
+    report.requestedFont =
+      node.fontName === figma.mixed
+        ? "mixed"
+        : node.fontName && `${node.fontName.family} ${node.fontName.style}`;
+  }
   try {
     if (node.fontName === figma.mixed) {
       if (options && options.smartStrategy === "prevail") {
@@ -3934,6 +3966,13 @@ const setCharacters = async (node, characters, options) => {
     );
     await figma.loadFontAsync(fallbackFont);
     node.fontName = fallbackFont;
+    if (report) report.fontSubstituted = true;
+  }
+  if (report) {
+    report.appliedFont =
+      node.fontName === figma.mixed
+        ? "mixed"
+        : node.fontName && `${node.fontName.family} ${node.fontName.style}`;
   }
   try {
     node.characters = characters;

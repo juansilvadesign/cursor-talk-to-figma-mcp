@@ -49,6 +49,7 @@ import {
   NON_ATOMIC_BATCH_OPERATIONS,
   V1_BATCH_OPERATIONS,
 } from "../src/talk_to_figma_mcp/batch-receipt.mjs";
+import { unifiedFields } from "../src/talk_to_figma_mcp/legacy-batch-reply.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = Object.fromEntries(
@@ -65,13 +66,19 @@ if (!options.channel) {
   process.exit(2);
 }
 
-// ⛔ Re-pinned for 3.1/3.2/Phase 4. The tool COUNT is unchanged at 53 — 3.1 added a
-// parameter and Phase 4 added reply fields, neither of which is a new tool — so the count
-// alone would have happily accepted the old pair. The fingerprint is what moved, and it
-// is what makes a stale DEV plugin fail here instead of halfway through a mutation.
+// ⛔ Re-pinned for 4.1. The tool COUNT is unchanged at 53 — 3.1 added a parameter, Phase
+// 4 added reply fields and 4.1 changed only a wrapper, none of which is a new tool — so
+// the count alone would have happily accepted the old pair.
+//
+// ⭐ And this time the FINGERPRINT did not move either. 4.1 is server-side only, so the
+// capability IDs and `serverSchemaVersion` it hashes are untouched, and a stale
+// `dist/server.js` would sail past the fingerprint check that caught the last stale pair.
+// `serverBuildId` is the only pin that fails on it — which is the whole reason a
+// fingerprint is a PAIRING check and not a contract hash, stated once more in the one
+// place that has to act on it.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-d248ed7bc295",
+  serverBuildId: "r2-server-dbcede2e0895",
   pluginBuildId: "r2-plugin-53a1fa676d6a",
   schemaVersion: "1.6.0",
   fingerprint:
@@ -324,6 +331,27 @@ try {
   assert.equal(record.inventory.toolCount, expectedRuntime.toolCount);
   assert.ok(record.inventory.hasApplyBatch, "apply_batch is not in the tool surface");
 
+  // ⭐ Read the PUBLISHED schema, not the source. This gate spent two runs filing a
+  // finding that quoted a sentence the description had already stopped containing — a
+  // narrated claim nothing checked. What a consumer is actually told about the param
+  // shape is now asserted against the live tool listing.
+  const applyBatchTool = inventory.tools.find((tool) => tool.name === "apply_batch");
+  const publishedParamsDescription = String(
+    applyBatchTool?.inputSchema?.properties?.operations?.items?.properties?.params?.description || "",
+  );
+  record.inventory.applyBatchDeclaresHandlerParamShape =
+    /plugin handler/i.test(publishedParamsDescription) &&
+    /set_fill_color/.test(publishedParamsDescription);
+  assert.ok(
+    record.inventory.applyBatchDeclaresHandlerParamShape,
+    `apply_batch does not tell a consumer that params are the plugin-handler shape. Published description: ${publishedParamsDescription || "(none)"}`,
+  );
+  assert.doesNotMatch(
+    String(applyBatchTool?.description || "") + publishedParamsDescription,
+    /Same shape as the standalone tool/i,
+    "apply_batch is back to claiming batch params match the standalone tools",
+  );
+
   await joinWithRetry();
   const runtimeBefore = await callJson("get_runtime_info");
   record.runtimeBefore = runtimeBefore.value;
@@ -436,8 +464,10 @@ try {
 
   // ⭐ Recorded as a finding, not smuggled into the ops: batch `params` go STRAIGHT to
   // the plugin handler, so they are in the handler's shape, not the standalone tool's.
-  // `set_fill_color` is flat r/g/b/a as a tool and `{color:{…}}` as a handler. The tool
-  // description's "Same shape as the standalone tool of the same name" is false for it.
+  // `set_fill_color` is flat r/g/b/a as a tool and `{color:{…}}` as a handler. The
+  // description now SAYS so — asserted below rather than narrated, because the finding
+  // this gate used to file had outlived the defect: it quoted a sentence the description
+  // stopped containing in 664135b and kept reporting it as live for two runs.
   const fillParams = { color: { r: 0.1, g: 0.4, b: 0.9, a: 1 } };
 
   // ---- check 1 — prevalidateOnly against REAL nodes, writing nothing ----
@@ -940,6 +970,7 @@ try {
   });
   const annotationMark = serverLog.length;
   let annotationText = null;
+  let annotationCallFailed = null;
   try {
     const annotationReply = await call("set_multiple_annotations", {
       nodeId: scratchPageId,
@@ -947,22 +978,74 @@ try {
     });
     annotationText = annotationReply.text;
   } catch (error) {
-    annotationText = error instanceof Error ? error.message : String(error);
+    // ⛔ Caught rather than thrown so the `finally` still deletes the scratch page — but
+    // NOT swallowed. Through 5.6 a refusal and a successful prose reply were both just
+    // "text", which is how a broken tool would have read as a working one.
+    annotationCallFailed = error instanceof Error ? error.message : String(error);
+    annotationText = annotationCallFailed;
   }
   await settle();
-  const carriesUnified = (text) => /"outcome"\s*:/.test(text);
+  // ⭐ This was a RECORDED observation through the 5.6 pass, and the run was green while
+  // it read `false` on both tools — a gate telling you something and not failing over it.
+  // Phase 4.1's fix made the fields survive the wrapper, so the observation is now an
+  // ASSERTION: a wrapper that goes back to discarding them fails the gate rather than
+  // filing a finding nobody reads.
+  // The receipt is the LAST content item and `textContent()` joins items with a newline,
+  // so it is exactly the last line — `JSON.stringify` never emits one.
+  const unifiedFrom = (text) => {
+    const lines = String(text).trim().split("\n");
+    try {
+      return unifiedFields(JSON.parse(lines[lines.length - 1]));
+    } catch {
+      return null;
+    }
+  };
+  const assertUnifiedReaches = (tool, text, expectedTotal) => {
+    const unified = unifiedFrom(text);
+    assert.ok(
+      unified,
+      `${tool} returned no unified receipt to its MCP consumer — the wrapper discarded outcome/succeeded/failed/total. Reply was: ${String(text).trim().slice(0, 400)}`,
+    );
+    assert.ok(
+      BATCH_OUTCOMES.includes(unified.outcome),
+      `${tool} reported an unknown outcome ${unified.outcome}`,
+    );
+    assert.equal(unified.total, expectedTotal, `${tool} total`);
+    assert.equal(
+      unified.succeeded + unified.failed + unified.skipped,
+      unified.total,
+      `${tool} unified counts must sum to the unified total`,
+    );
+    return unified;
+  };
+
   record.checks.legacyAlignment.set_multiple_text_contents = {
-    surfaced: carriesUnified(textReply.text) ? "json" : "prose",
-    unifiedFieldsVisibleToConsumer: carriesUnified(textReply.text),
+    surfaced: "json",
+    unifiedFieldsVisibleToConsumer: true,
+    unified: assertUnifiedReaches("set_multiple_text_contents", textReply.text, 1),
     reply: textReply.text.trim().slice(0, 400),
   };
+  assert.equal(
+    annotationCallFailed,
+    null,
+    `set_multiple_annotations did not answer this run, so its receipt could not be checked: ${annotationCallFailed}`,
+  );
   record.checks.legacyAlignment.set_multiple_annotations = {
-    surfaced: carriesUnified(annotationText) ? "json" : "prose",
-    unifiedFieldsVisibleToConsumer: carriesUnified(annotationText),
+    surfaced: "json",
+    unifiedFieldsVisibleToConsumer: true,
+    unified: assertUnifiedReaches("set_multiple_annotations", annotationText, 1),
     // 4.3 gave this tool real per-item progress so its "chunked" declaration became true.
     progressFrames: progressFramesSince(annotationMark, "set_multiple_annotations").length,
     reply: String(annotationText).trim().slice(0, 400),
   };
+  // ⚠️ The annotations wrapper also stopped announcing "batches of 5" and stopped
+  // printing a chunk count it fabricated with `|| 1`. Both were describing work this
+  // handler has never done — it processes one annotation at a time.
+  assert.doesNotMatch(
+    String(annotationText),
+    /batches of 5|Processed in \d+ batches/,
+    "set_multiple_annotations is claiming batching it does not do",
+  );
 
   // ---- check 11 — the plugin still answers, unwedged ----
   const runtimeStarted = Date.now();
@@ -974,7 +1057,7 @@ try {
   assertRuntime(runtimeAfter.value);
 
   record.findings.push(
-    "batch params are in the PLUGIN HANDLER shape, not the standalone tool's: set_fill_color/set_stroke_color take {color:{r,g,b,a}} in a batch but flat r,g,b,a as tools. The apply_batch description's \"Same shape as the standalone tool of the same name\" is wrong for those two.",
+    "batch params are in the PLUGIN HANDLER shape, not the standalone tool's: set_fill_color/set_stroke_color take {color:{r,g,b,a}} in a batch but flat r,g,b,a as tools \u2014 which the published schema now declares (asserted this run).",
     "params is z.record(z.any()), so per-operation arguments get no schema validation — a wrong-shaped param fails plugin-side and arrives as a receipt entry rather than a schema throw.",
     "operation_not_allowed is unreachable through this transport: the tool's inline z.enum rejects a disallowed op first, so the plugin's own allowlist check never answers a live consumer.",
   );

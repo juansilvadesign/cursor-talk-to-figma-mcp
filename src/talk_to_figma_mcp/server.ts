@@ -10,6 +10,7 @@ import path from "path";
 import { RUNTIME_METADATA } from "./runtime-metadata.js";
 import { comparePluginRuntimeMetadata } from "./runtime-compatibility.mjs";
 import { buildExportReceipt } from "./export-receipt.mjs";
+import { textContentsReply, annotationsReply } from "./legacy-batch-reply.mjs";
 import { runtimeCompatibilityAfterTimeout } from "./timeout-safety.mjs";
 
 // Define TypeScript interfaces for Figma responses
@@ -148,6 +149,16 @@ const args = process.argv.slice(2);
 const serverArg = args.find(arg => arg.startsWith('--server='));
 const serverUrl = serverArg ? serverArg.split('=')[1] : 'localhost';
 const WS_URL = serverUrl === 'localhost' ? `ws://${serverUrl}` : `wss://${serverUrl}`;
+// The relay port was a hardcoded 3055 with no override, which made an offline
+// end-to-end test of the MCP wrappers impossible to run beside a live relay: the test
+// would have had to bind the one port a real session is already holding. `--server=`
+// cannot stand in for it — anything other than the literal `localhost` switches the
+// scheme to `wss://` and drops the port entirely.
+const portArg = args.find(arg => arg.startsWith('--port='));
+const parsedPort = portArg ? Number.parseInt(portArg.split('=')[1], 10) : NaN;
+const RELAY_PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort < 65536
+  ? parsedPort
+  : 3055;
 
 function serverRuntimeInfo() {
   return {
@@ -1856,7 +1867,7 @@ interface SetMultipleAnnotationsParams {
 // Set Multiple Annotations Tool
 server.tool(
   "set_multiple_annotations",
-  "Set multiple annotations parallelly in a node",
+  "Set multiple annotations in a node, one at a time — this tool does not batch or parallelise, and emits one progress frame per annotation. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
   {
     nodeId: z
       .string()
@@ -1888,70 +1899,17 @@ server.tool(
         };
       }
 
-      // Initial response to indicate we're starting the process
-      const initialStatus = {
-        type: "text" as const,
-        text: `Starting annotation process for ${annotations.length} nodes. This will be processed in batches of 5...`,
-      };
-
-      // Track overall progress
-      let totalProcessed = 0;
-      const totalToProcess = annotations.length;
-
-      // Use the plugin's set_multiple_annotations function with chunking
       const result = await sendCommandToFigma("set_multiple_annotations", {
         nodeId,
         annotations,
       });
 
-      // Cast the result to a specific type to work with it safely
-      interface AnnotationResult {
-        success: boolean;
-        nodeId: string;
-        annotationsApplied?: number;
-        annotationsFailed?: number;
-        totalAnnotations?: number;
-        completedInChunks?: number;
-        results?: Array<{
-          success: boolean;
-          nodeId: string;
-          error?: string;
-          annotationId?: string;
-        }>;
-      }
-
-      const typedResult = result as AnnotationResult;
-
-      // Format the results for display
-      const success = typedResult.annotationsApplied && typedResult.annotationsApplied > 0;
-      const progressText = `
-      Annotation process completed:
-      - ${typedResult.annotationsApplied || 0} of ${totalToProcess} successfully applied
-      - ${typedResult.annotationsFailed || 0} failed
-      - Processed in ${typedResult.completedInChunks || 1} batches
-      `;
-
-      // Detailed results
-      const detailedResults = typedResult.results || [];
-      const failedResults = detailedResults.filter(item => !item.success);
-
-      // Create the detailed part of the response
-      let detailedResponse = "";
-      if (failedResults.length > 0) {
-        detailedResponse = `\n\nNodes that failed:\n${failedResults.map(item =>
-          `- ${item.nodeId}: ${item.error || "Unknown error"}`
-        ).join('\n')}`;
-      }
-
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text" as const,
-            text: progressText + detailedResponse,
-          },
-        ],
-      };
+      // Phase 4.1 reaches a live consumer here — see set_multiple_text_contents. The
+      // opening line also stops promising "batches of 5": this handler processes one
+      // annotation at a time (`chunkSize: 1`) and reports no `completedInChunks` at all,
+      // so both the promise and the "Processed in 1 batches" that `|| 1` fabricated
+      // described work that never happened.
+      return { content: annotationsReply(result, annotations.length) as any };
     } catch (error) {
       return {
         content: [
@@ -2549,7 +2507,7 @@ Remember that text is never just text—it's a core design element that must wor
 // Set Multiple Text Contents Tool
 server.tool(
   "set_multiple_text_contents",
-  "Set multiple text contents parallelly in a node",
+  "Set multiple text contents parallelly in a node. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
   {
     nodeId: z
       .string()
@@ -2576,71 +2534,19 @@ server.tool(
         };
       }
 
-      // Initial response to indicate we're starting the process
-      const initialStatus = {
-        type: "text" as const,
-        text: `Starting text replacement for ${text.length} nodes. This will be processed in batches of 5...`,
-      };
-
-      // Track overall progress
-      let totalProcessed = 0;
-      const totalToProcess = text.length;
-
       // Use the plugin's set_multiple_text_contents function with chunking
       const result = await sendCommandToFigma("set_multiple_text_contents", {
         nodeId,
         text,
       });
 
-      // Cast the result to a specific type to work with it safely
-      interface TextReplaceResult {
-        success: boolean;
-        nodeId: string;
-        replacementsApplied?: number;
-        replacementsFailed?: number;
-        totalReplacements?: number;
-        completedInChunks?: number;
-        results?: Array<{
-          success: boolean;
-          nodeId: string;
-          error?: string;
-          originalText?: string;
-          translatedText?: string;
-        }>;
-      }
-
-      const typedResult = result as TextReplaceResult;
-
-      // Format the results for display
-      const success = typedResult.replacementsApplied && typedResult.replacementsApplied > 0;
-      const progressText = `
-      Text replacement completed:
-      - ${typedResult.replacementsApplied || 0} of ${totalToProcess} successfully updated
-      - ${typedResult.replacementsFailed || 0} failed
-      - Processed in ${typedResult.completedInChunks || 1} batches
-      `;
-
-      // Detailed results
-      const detailedResults = typedResult.results || [];
-      const failedResults = detailedResults.filter(item => !item.success);
-
-      // Create the detailed part of the response
-      let detailedResponse = "";
-      if (failedResults.length > 0) {
-        detailedResponse = `\n\nNodes that failed:\n${failedResults.map(item =>
-          `- ${item.nodeId}: ${item.error || "Unknown error"}`
-        ).join('\n')}`;
-      }
-
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text" as const,
-            text: progressText + detailedResponse,
-          },
-        ],
-      };
+      // Phase 4.1 reaches a live consumer here. The prose above the JSON block is
+      // unchanged and stays in the same two content positions; the plugin's unified
+      // `outcome/succeeded/failed/total/skipped` is APPENDED rather than substituted, so
+      // nothing that reads the prose breaks and anything that wants the fields can now
+      // parse them. Before this, the wrapper computed prose from the reply and dropped
+      // the rest — the fields existed on the wire and reached nobody.
+      return { content: textContentsReply(result, text.length) as any };
     } catch (error) {
       return {
         content: [
@@ -3715,7 +3621,7 @@ function processFigmaNodeResponse(result: unknown): any {
 }
 
 // Update the connectToFigma function
-function connectToFigma(port: number = 3055) {
+function connectToFigma(port: number = RELAY_PORT) {
   // Do not create parallel sockets while the initial connection is still opening.
   if (
     ws &&

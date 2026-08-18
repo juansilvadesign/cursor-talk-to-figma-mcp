@@ -35,7 +35,7 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-d248ed7bc295",
+  "serverBuildId": "r2-server-dbcede2e0895",
   "pluginBuildId": "r2-plugin-53a1fa676d6a",
   "serverSchemaVersion": "1.6.0",
   "pluginApiVersion": "1.6.0",
@@ -414,6 +414,57 @@ function buildExportReceipt(bytes, mimeType, request) {
   return receipt;
 }
 
+// src/talk_to_figma_mcp/legacy-batch-reply.mjs
+function chunkLine(completedInChunks) {
+  return typeof completedInChunks === "number" ? `- Processed in ${completedInChunks} batches` : "- Processed one at a time (this tool does not chunk)";
+}
+function failureLines(results) {
+  const failed = (Array.isArray(results) ? results : []).filter((item) => !item.success);
+  if (failed.length === 0) return "";
+  return `
+
+Nodes that failed:
+${failed.map((item) => `- ${item.nodeId}: ${item.error || "Unknown error"}`).join("\n")}`;
+}
+function legacyBatchReplyContent({ opening, summaryLines, results, raw }) {
+  const content = [
+    { type: "text", text: opening },
+    { type: "text", text: `
+      ${summaryLines.join("\n      ")}
+      ` + failureLines(results) }
+  ];
+  content.push({ type: "text", text: JSON.stringify(raw) });
+  return content;
+}
+function textContentsReply(result, requestedCount) {
+  const applied = result?.replacementsApplied || 0;
+  return legacyBatchReplyContent({
+    opening: `Starting text replacement for ${requestedCount} nodes. This will be processed in batches of 5...`,
+    summaryLines: [
+      "Text replacement completed:",
+      `- ${applied} of ${requestedCount} successfully updated`,
+      `- ${result?.replacementsFailed || 0} failed`,
+      chunkLine(result?.completedInChunks)
+    ],
+    results: result?.results,
+    raw: result
+  });
+}
+function annotationsReply(result, requestedCount) {
+  const applied = result?.annotationsApplied || 0;
+  return legacyBatchReplyContent({
+    opening: `Starting annotation process for ${requestedCount} nodes, one at a time...`,
+    summaryLines: [
+      "Annotation process completed:",
+      `- ${applied} of ${requestedCount} successfully applied`,
+      `- ${result?.annotationsFailed || 0} failed`,
+      chunkLine(result?.completedInChunks)
+    ],
+    results: result?.results,
+    raw: result
+  });
+}
+
 // src/talk_to_figma_mcp/timeout-safety.mjs
 var EXPORT_TIMEOUT_ISSUE = "export_node_as_image exceeded its inactivity budget. The Figma plugin may still be encoding; call get_runtime_info to prove it is responsive before another document operation.";
 function runtimeCompatibilityAfterTimeout(current, command, checkedAt = (/* @__PURE__ */ new Date()).toISOString()) {
@@ -467,6 +518,9 @@ var args = process.argv.slice(2);
 var serverArg = args.find((arg) => arg.startsWith("--server="));
 var serverUrl = serverArg ? serverArg.split("=")[1] : "localhost";
 var WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${serverUrl}`;
+var portArg = args.find((arg) => arg.startsWith("--port="));
+var parsedPort = portArg ? Number.parseInt(portArg.split("=")[1], 10) : NaN;
+var RELAY_PORT = Number.isInteger(parsedPort) && parsedPort > 0 && parsedPort < 65536 ? parsedPort : 3055;
 function serverRuntimeInfo() {
   return {
     name: "TalkToFigmaMCP",
@@ -1802,7 +1856,7 @@ server.tool(
 );
 server.tool(
   "set_multiple_annotations",
-  "Set multiple annotations parallelly in a node",
+  "Set multiple annotations in a node, one at a time \u2014 this tool does not batch or parallelise, and emits one progress frame per annotation. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
   {
     nodeId: import_zod.z.string().describe("The ID of the node containing the elements to annotate"),
     annotations: import_zod.z.array(
@@ -1829,44 +1883,11 @@ server.tool(
           ]
         };
       }
-      const initialStatus = {
-        type: "text",
-        text: `Starting annotation process for ${annotations.length} nodes. This will be processed in batches of 5...`
-      };
-      let totalProcessed = 0;
-      const totalToProcess = annotations.length;
       const result = await sendCommandToFigma("set_multiple_annotations", {
         nodeId,
         annotations
       });
-      const typedResult = result;
-      const success = typedResult.annotationsApplied && typedResult.annotationsApplied > 0;
-      const progressText = `
-      Annotation process completed:
-      - ${typedResult.annotationsApplied || 0} of ${totalToProcess} successfully applied
-      - ${typedResult.annotationsFailed || 0} failed
-      - Processed in ${typedResult.completedInChunks || 1} batches
-      `;
-      const detailedResults = typedResult.results || [];
-      const failedResults = detailedResults.filter((item) => !item.success);
-      let detailedResponse = "";
-      if (failedResults.length > 0) {
-        detailedResponse = `
-
-Nodes that failed:
-${failedResults.map(
-          (item) => `- ${item.nodeId}: ${item.error || "Unknown error"}`
-        ).join("\n")}`;
-      }
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text",
-            text: progressText + detailedResponse
-          }
-        ]
-      };
+      return { content: annotationsReply(result, annotations.length) };
     } catch (error) {
       return {
         content: [
@@ -2394,7 +2415,7 @@ Remember that text is never just text\u2014it's a core design element that must 
 );
 server.tool(
   "set_multiple_text_contents",
-  "Set multiple text contents parallelly in a node",
+  "Set multiple text contents parallelly in a node. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
   {
     nodeId: import_zod.z.string().describe("The ID of the node containing the text nodes to replace"),
     text: import_zod.z.array(
@@ -2416,44 +2437,11 @@ server.tool(
           ]
         };
       }
-      const initialStatus = {
-        type: "text",
-        text: `Starting text replacement for ${text.length} nodes. This will be processed in batches of 5...`
-      };
-      let totalProcessed = 0;
-      const totalToProcess = text.length;
       const result = await sendCommandToFigma("set_multiple_text_contents", {
         nodeId,
         text
       });
-      const typedResult = result;
-      const success = typedResult.replacementsApplied && typedResult.replacementsApplied > 0;
-      const progressText = `
-      Text replacement completed:
-      - ${typedResult.replacementsApplied || 0} of ${totalToProcess} successfully updated
-      - ${typedResult.replacementsFailed || 0} failed
-      - Processed in ${typedResult.completedInChunks || 1} batches
-      `;
-      const detailedResults = typedResult.results || [];
-      const failedResults = detailedResults.filter((item) => !item.success);
-      let detailedResponse = "";
-      if (failedResults.length > 0) {
-        detailedResponse = `
-
-Nodes that failed:
-${failedResults.map(
-          (item) => `- ${item.nodeId}: ${item.error || "Unknown error"}`
-        ).join("\n")}`;
-      }
-      return {
-        content: [
-          initialStatus,
-          {
-            type: "text",
-            text: progressText + detailedResponse
-          }
-        ]
-      };
+      return { content: textContentsReply(result, text.length) };
     } catch (error) {
       return {
         content: [
@@ -3122,7 +3110,7 @@ This detailed process ensures you correctly interpret the reaction data, prepare
     };
   }
 );
-function connectToFigma(port = 3055) {
+function connectToFigma(port = RELAY_PORT) {
   if (ws && (ws.readyState === import_ws.default.OPEN || ws.readyState === import_ws.default.CONNECTING)) {
     logger.info("Figma socket is already connected or connecting");
     return;

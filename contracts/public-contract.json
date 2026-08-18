@@ -2171,7 +2171,7 @@
     {
       "kind": "tool",
       "name": "set_multiple_annotations",
-      "description": "Set multiple annotations parallelly in a node",
+      "description": "Set multiple annotations in a node, one at a time — this tool does not batch or parallelise, and emits one progress frame per annotation. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
       "direction": "write",
       "scope": "node_subtree",
       "inputSchema": {
@@ -2245,7 +2245,7 @@
     {
       "kind": "tool",
       "name": "set_multiple_text_contents",
-      "description": "Set multiple text contents parallelly in a node",
+      "description": "Set multiple text contents parallelly in a node. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
       "direction": "write",
       "scope": "node_subtree",
       "inputSchema": {

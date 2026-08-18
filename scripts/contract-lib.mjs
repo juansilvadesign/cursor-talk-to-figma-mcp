@@ -83,12 +83,18 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
-  // R2.4, and deliberately not "stable" yet: apply_batch has never run against a real
-  // Figma file. The R1 precedent is that a promise is promoted once a live gate has
-  // earned it, and the ladder allows strengthening later while a walk-back would be a
-  // breaking change. Promote at R2.4 acceptance, not at registration.
-  "apply_batch",
 ]);
+
+// ⭐ `apply_batch` was here until R2.4 acceptance (2026-08-18), held at
+// `additive-preview` on the stated condition that it had never run against a real Figma
+// file. It has now passed three live gates — 5.5 (2026-08-12), 5.6 (2026-08-18) and the
+// 4.1 re-run on the new server build — so the promise is promoted to `stable` and the
+// entry is gone rather than commented out, because `getResultStability` falls through to
+// `stable` and a leftover entry would silently hold it back.
+//
+// ⛔ `stable` means frozen: from here a change to the receipt shape needs a new
+// `publicContractVersion`, not just a rebuild. Strengthening was allowed; the walk-back
+// is not, and `compatibilityErrors()` rejects it by name.
 
 const LEGACY_RESULTS = new Set(["read_my_design"]);
 

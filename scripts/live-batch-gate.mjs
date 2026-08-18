@@ -66,7 +66,8 @@ if (!options.channel) {
   process.exit(2);
 }
 
-// ⛔ Re-pinned for 4.1. The tool COUNT is unchanged at 53 — 3.1 added a parameter, Phase
+// ⛔ Re-pinned for R2.4 ACCEPTANCE (apply_batch promoted to `stable`, which moves the
+// contract and therefore the server build). The tool COUNT is unchanged at 53 — 3.1 added a parameter, Phase
 // 4 added reply fields and 4.1 changed only a wrapper, none of which is a new tool — so
 // the count alone would have happily accepted the old pair.
 //
@@ -78,7 +79,7 @@ if (!options.channel) {
 // place that has to act on it.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-dbcede2e0895",
+  serverBuildId: "r2-server-5ac4bcd1a2a5",
   pluginBuildId: "r2-plugin-53a1fa676d6a",
   schemaVersion: "1.6.0",
   fingerprint:

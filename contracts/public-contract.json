@@ -341,7 +341,7 @@
         "pluginUpdates": "chunked"
       },
       "pluginCommand": "apply_batch",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",

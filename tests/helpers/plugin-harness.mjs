@@ -12,11 +12,34 @@ function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+// Figma's `figma.mixed` is a unique symbol, and that is the whole point: it cannot
+// survive `JSON.stringify`, cannot be compared structurally, and cannot be unwrapped by
+// an API that expects `{family, style}`. Declared at module scope because fixture nodes
+// are built before the `figma` object exists.
+const MIXED = Symbol("mixed");
+
+function fontKey(font) {
+  return `${font.family}::${font.style}`;
+}
+
+// Real `getRangeFontName` answers `figma.mixed` whenever the requested range spans more
+// than one font, and a concrete `{family, style}` when it does not. Modelling only the
+// first half would let a test pass by reading a symbol where Figma returns a font.
+function rangeFontFor(ranges, start, end) {
+  const covering = ranges.filter((range) => range.start < end && range.end > start);
+  if (covering.length === 0) return null;
+  const distinct = new Set(covering.map(fontKey));
+  if (distinct.size > 1) return MIXED;
+  return { family: covering[0].family, style: covering[0].style };
+}
+
 function createFixtureRuntime(fixture, options) {
   const nodes = new Map();
   const messages = [];
   const notifications = [];
   const exportCalls = [];
+  const fontLoads = [];
+  const loadedFonts = new Set();
   const storage = new Map();
   const clock = { now: 0 };
   let dynamicId = 1;
@@ -124,8 +147,52 @@ function createFixtureRuntime(fixture, options) {
       if (options.exportBytes) return Uint8Array.from(options.exportBytes);
       return Uint8Array.from([137, 80, 78, 71]);
     };
-    node.getRangeFontName = () => node.fontName;
-    node.setRangeFontName = () => undefined;
+    // A fixture declares `fontRanges` to model a genuinely mixed text node. Without
+    // this the harness could only ever build single-font text, which is exactly why no
+    // offline test could reach the mixed-font defect.
+    if (Array.isArray(node.fontRanges) && node.fontRanges.length > 0) {
+      const ranges = node.fontRanges;
+      const distinct = new Set(ranges.map(fontKey));
+      if (distinct.size > 1) node.fontName = MIXED;
+      else node.fontName = { family: ranges[0].family, style: ranges[0].style };
+      node.getRangeFontName = (start, end) => rangeFontFor(ranges, start, end);
+      node.setRangeFontName = (start, end, font) => {
+        ranges.length = 0;
+        ranges.push({ start, end, family: font.family, style: font.style });
+      };
+    } else {
+      node.getRangeFontName = () => node.fontName;
+      node.setRangeFontName = () => undefined;
+    }
+    // Figma refuses to write characters while the node's font is unloaded. Opt-in,
+    // because turning it on globally would change the meaning of every existing text
+    // fixture rather than adding a case to them.
+    if (node.type === "TEXT" && options.strictFontLoading) {
+      let characters = node.characters;
+      Object.defineProperty(node, "characters", {
+        enumerable: true,
+        configurable: true,
+        get: () => characters,
+        set: (value) => {
+          // Figma can refuse a character write for reasons of its own, with the font
+          // perfectly loaded. Modelled as an explicit opt-in so a test can ask what the
+          // plugin *reports* when a write is refused, without pretending to know how
+          // often Figma actually refuses.
+          if ((options.refuseCharacterWrite || []).includes(node.id)) {
+            throw new Error("Cannot write to node: refused");
+          }
+          const font = node.fontName;
+          if (font === MIXED || !font || !loadedFonts.has(fontKey(font))) {
+            throw new Error(
+              `Cannot write to node with unloaded font "${
+                font === MIXED ? "mixed" : font && font.family
+              }"`,
+            );
+          }
+          characters = value;
+        },
+      });
+    }
     node.setRangeFills = () => undefined;
     node.findAll = (predicate) => descendants(node).filter(predicate);
     node.findAllWithCriteria = ({ types }) =>
@@ -244,7 +311,7 @@ function createFixtureRuntime(fixture, options) {
   const figma = {
     editorType: "figma",
     root: rootNode,
-    mixed: Symbol("mixed"),
+    mixed: MIXED,
     showUI: () => undefined,
     closePlugin: () => undefined,
     notify: (message) => notifications.push(message),
@@ -258,7 +325,25 @@ function createFixtureRuntime(fixture, options) {
     setCurrentPageAsync: async (page) => {
       currentPage = page;
     },
-    loadFontAsync: async () => undefined,
+    // ⛔ The previous stub accepted anything, including `figma.mixed` — so the offline
+    // suite could not observe the one failure this API actually produces. Figma cannot
+    // unwrap a symbol, and says so.
+    loadFontAsync: async (font) => {
+      if (typeof font === "symbol" || font === MIXED) {
+        throw new Error("Cannot unwrap symbol");
+      }
+      if (!font || typeof font.family !== "string" || typeof font.style !== "string") {
+        throw new Error(`Cannot load font: ${String(font)}`);
+      }
+      // A font that is referenced by the document but absent from the machine — the
+      // condition that sends `setCharacters` down its silent-substitution path.
+      if ((options.unavailableFonts || []).includes(fontKey(font))) {
+        throw new Error(`Font ${font.family} ${font.style} is not available`);
+      }
+      loadedFonts.add(fontKey(font));
+      fontLoads.push({ family: font.family, style: font.style });
+      return undefined;
+    },
     createRectangle: () => createDynamicNode("RECTANGLE", "Rectangle"),
     createFrame: () => createDynamicNode("FRAME", "Frame"),
     createText: () => createDynamicNode("TEXT", "Text"),
@@ -344,6 +429,8 @@ function createFixtureRuntime(fixture, options) {
     messages,
     notifications,
     exportCalls,
+    fontLoads,
+    loadedFonts,
     clock,
     plain: clone,
   };
@@ -425,6 +512,10 @@ export async function loadPluginHarness(options = {}) {
     messages: runtime.messages,
     notifications: runtime.notifications,
     exportCalls: runtime.exportCalls,
+    // Which fonts the plugin actually asked Figma to load, in order — the only way to
+    // tell "loaded the right font" from "never looked".
+    fontLoads: runtime.fontLoads,
+    isFontLoaded: (family, style) => runtime.loadedFonts.has(`${family}::${style}`),
     advanceClock(milliseconds) {
       runtime.clock.now += milliseconds;
     },

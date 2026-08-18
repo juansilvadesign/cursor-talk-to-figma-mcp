@@ -181,7 +181,39 @@
           "layoutWrap": "WRAP",
           "itemSpacing": 8,
           "counterAxisSpacing": 12,
-          "children": []
+          "children": [
+            {
+              "id": "20:2",
+              "type": "TEXT",
+              "name": "Mixed Heading",
+              "characters": "Bold lead-in, regular tail",
+              "fontSize": 24,
+              "fontRanges": [
+                {
+                  "start": 0,
+                  "end": 13,
+                  "family": "Inter",
+                  "style": "Bold"
+                },
+                {
+                  "start": 13,
+                  "end": 26,
+                  "family": "Inter",
+                  "style": "Regular"
+                }
+              ]
+            },
+            {
+              "id": "20:3",
+              "type": "TEXT",
+              "name": "Branded Label",
+              "characters": "Branded",
+              "fontName": {
+                "family": "Custom Sans",
+                "style": "Bold"
+              }
+            }
+          ]
         }
       ]
     }

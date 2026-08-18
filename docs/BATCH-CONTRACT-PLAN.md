@@ -4,8 +4,12 @@
 > live pass PASSED, 4.1 closed, and `apply_batch` promoted `additive-preview` → `stable`
 > on a re-gated build. Acceptance record: [`R2.4-BATCH-CONTRACT.md`](R2.4-BATCH-CONTRACT.md).
 > Cut 2026-08-10, immediately after R2.3 was accepted. This plan owns the generic batch
-> envelope only. R2's typography/layout/visual half stays coarse until it is cut
-> separately — **accepting R2.4 does not accept R2.**
+> envelope only — **accepting R2.4 does not accept R2.** ✅ R2's typography/layout/visual
+> half was cut separately on 2026-08-18 →
+> [`R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md`](R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md).
+> ⛔ That plan keeps `apply_batch`'s allowlist frozen at **15 ops** for all of R2; new
+> typography/layout/visual tools ship standalone and the extension is deferred until after
+> R2 acceptance, so nothing in it moves this `stable` contract.
 >
 > ⛔ **Accepted pair:** schema `1.6.0`, **`r2-server-5ac4bcd1a2a5`** ↔
 > `r2-plugin-53a1fa676d6a`, fingerprint `sha256:d39aefef…ca6289`.

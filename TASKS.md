@@ -169,14 +169,26 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.4 is ACCEPTED; R2's typography/layout/visual half is the front
+## ▶ Next session — R2.5 typography, Phase 1
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
 and again on the accepted build after `apply_batch` was promoted to `stable`. Acceptance
 record: [`docs/R2.4-BATCH-CONTRACT.md`](docs/R2.4-BATCH-CONTRACT.md).
-⛔ **Accepting R2.4 does not accept R2** — the typography/layout/visual half is still owed
-and has not been cut into a plan.
+⛔ **Accepting R2.4 does not accept R2** — the typography/layout/visual half is still owed.
+✅ **It was CUT into a plan 2026-08-18** →
+[`docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md`](docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md):
+**R2.5 typography → R2.6 layout → R2.7 visuals**, three contract bumps, three live gates,
+R2 acceptance at the end of R2.7.
+
+**✅ R2.5 Phase 1 is DONE (2026-08-18)** — both text defects closed, 136 tests green,
+contract at `1.7.0`, offline gate passed. Details in the plan.
+
+**Next = R2.5 Phase 2** — the bounded font inventory (`get_available_fonts`) and the
+`check_fonts` preflight. ⛔ These are the **first new tools of the release**, so CC1 applies
+from the first commit: add each to `ADDITIVE_PREVIEW_RESULTS` in the same change that
+registers it, or it ships frozen. Phase 2 is still offline; the live gate is owed at the
+end of R2.5 and needs the disposable-file permission.
 
 ⚠️ **The accepted pair — server moved, plugin did NOT.**
 
@@ -882,16 +894,95 @@ R2.0's live gate is closed; these are now the next R2 implementation front.
 
 ### Typography, layout, visuals, and assets
 
-- [ ] Add a bounded font inventory/preflight.
-- [ ] Support font family/style, size, line height, letter spacing, paragraph
-      properties, case/decoration, alignment, and text resize behavior.
-- [ ] Fix mixed-font single/batch content mutation with a dedicated regression fixture.
-- [ ] Add child auto-layout sizing/alignment/grow, absolute positioning, constraints,
-      clipping, and min/max dimensions.
-- [ ] Add generic SVG import, gradient fills, effects, opacity, and blend mode.
-- [ ] Measure/fix image crop behavior or return an explicit limitation.
+⭐ **CUT 2026-08-18 into three sub-releases** →
+[`docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md`](docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md).
+Cut through the interview gate before any design was written, the same sequence that
+closed the R2.4 batch boundary. The four decisions: **three sub-releases defect-first**;
+**ranges internal, never public**; **new tools standalone, `apply_batch`'s allowlist frozen
+at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, and
+`create_text`'s hardcoded Inter are all in.
+
+- [ ] **R2.5 — typography.** Contract `1.6.0` → **`1.7.0` — BUMPED**.
+      **✅ Phase 1 COMPLETE 2026-08-18** — 136 tests green, R2.4 frozen as the 6th baseline,
+      all six replay at zero errors, `dist/` rebuilt, offline gate passed.
+      ⛔ **New pair, BOTH halves moved:** `r2-server-194bc059487c` ↔
+      `r2-plugin-75048983ede3`, fingerprint `sha256:09175c89…`. Needs a **DEV plugin re-run
+      AND a server respawn** — the opposite of the R2.4 promotion step.
+      ⚠️ **Phase 1 was NOT "no schema change".** 1.4 adds fields to `set_text_content`,
+      which is `stable`, and the policy grants free result fields only to `legacy` /
+      `additive-preview` — so the `stable`-by-default trap fired *inside* Phase 1, before
+      any new tool existed.
+      - [x] Deleted the unguarded `figma.loadFontAsync(node.fontName)` at `code.js:3840`.
+            🔴 `node.fontName` is `figma.mixed` on a multi-font node and `loadFontAsync`
+            cannot unwrap a symbol — the reported `Cannot unwrap symbol` verbatim. ⭐ The
+            line is **redundant**: `setCharacters` on the next line already branches on
+            `figma.mixed` (`:3897`) and loads the font itself in every branch. ⭐ **One
+            deletion fixes single *and* batch** — `set_multiple_text_contents` has no font
+            path of its own, it calls `setTextContent` per replacement (`:~4636`).
+      - [x] `tests/mixed-font-text.test.mjs` — 5 cases covering **both** tools. It failed
+            first with `Cannot unwrap symbol`, the reported defect verbatim, reproduced
+            offline for the first time. ⭐ Mutation-tested twice: the pre-fix state, and a
+            *lazy* fallback "fix" that the suite also kills because it asserts the first
+            character's **real** font was loaded, not merely that the call returned.
+            ⭐ **Why it survived four releases:** the harness's `loadFontAsync` was
+            `async () => undefined` and accepted a symbol, and `getRangeFontName` returned
+            the node's own `fontName` — no mixed-font node could exist in a fixture. The
+            suite was not silent on this case, it was **unable to reach it**. The harness
+            now models `figma.mixed`, per-range fonts, a refusing `loadFontAsync`,
+            unavailable fonts, and refused character writes.
+      - [x] `fontSubstituted` / `requestedFont` / `appliedFont` on `set_text_content`.
+            Reported as `false` on the ordinary path too — an absent field cannot be told
+            apart from one the writer forgot.
+      - [x] 🔴 **F3 CONFIRMED and fixed.** Given a refused write the old code returned a
+            success reply and the batch reported `succeeded: 1` / `all_succeeded` over an
+            **unchanged document** — R2.4 finding (1) reappearing one layer *below* the
+            aggregate that was fixed to stop lying. `setTextContent` now honours
+            `setCharacters`'s `false` return and throws, fixing both layers at once.
+            ⛔ **Reachability in real Figma is still UNPROVEN** — the refusal is injected by
+            the harness, so the trigger is exactly what this does not establish. Settle it
+            at the live gate.
+      - [ ] ⚠️ **Deferred to 3.5, found during Phase 1:** `createText` calls
+            `setCharacters` **without `await`** (`code.js:1790`), so `create_text` can
+            return before its text is set. Out of Phase 1's scope; 3.5 rewrites this
+            handler anyway.
+      - [ ] Bounded `get_available_fonts` (`limit`/`offset`, whole-inventory `fontCount`,
+            `complete`, `timeBudgetMs`, `heavy_read`) + `check_fonts` preflight.
+      - [ ] `set_text_style` — node-level, twelve optional fields, **validate-all-then-write
+            from birth**. ⚠️ `lineHeight`/`letterSpacing` are `{value, unit}`, not numbers.
+      - [ ] `create_text` takes the same params; Inter only when nothing is supplied.
+- [ ] **R2.6 — layout.** Contract `1.7.0` → `1.8.0`.
+      - [ ] Pay the atomicity debt. All three have one identical shape — validate first
+            field, **write it**, then validate the second and throw: `setAxisAlign` writes
+            `:5816` throws `:5835`; `setLayoutSizing` writes `:5896` throws `:5922`;
+            `setItemSpacing` writes `:5970` throws `:5984`. ⭐ The fix is a pure reordering.
+      - [ ] ⛔ **Update the R2.4 live gate in the same change** — it *observes* the partial
+            application of `set_item_spacing` as evidence, so fixing these makes the
+            predecessor's own gate fail correctly. Restate the count: five of nine proven
+            becomes **three of seven** (`move_node`/`set_stroke_color` stay declared).
+      - [ ] `set_layout_child`, `set_constraints`, `set_size_limits`, `set_clips_content`.
+- [ ] **R2.7 — visuals, assets, and R2 acceptance.** Contract `1.8.0` → `1.9.0`.
+      - [ ] `set_fill` (solid + gradient), `set_effects`, `set_opacity`, `set_blend_mode`.
+            ⭐ `set_fill` ships **one** param shape, ending the batch-vs-standalone
+            divergence the R2.4 gate caught; `set_fill_color` is `stable` and stays legacy.
+      - [ ] `create_node_from_svg` — standalone, **not** in the batch allowlist, input size
+            bounded, created node count reported. ⚠️ Duplicates on rerun; idempotency stays
+            deferred and is stated rather than silent.
+      - [ ] Fix `CROP`: `imageTransform` appears **zero times** in the plugin while
+            `validScaleModes` advertises `CROP` (`:1950`) — the schema promises a mode the
+            handler cannot deliver. ⛔ Measure live before fixing; the explicit-limitation
+            escape hatch stays open, but only after measurement.
+      - [ ] Build the representative component/page fixture R2 acceptance names, drive it
+            end to end, then promote every new tool `additive-preview` → `stable`.
 - [ ] Keep each narrow tool independently usable; no framework or scene vocabulary in
       its schema.
+
+🔴 **The highest-leverage finding in the cut audit:** `getResultStability`
+(`scripts/contract-lib.mjs:267`) falls through to **`stable`** for anything not named in
+`ADDITIVE_PREVIEW_RESULTS` (`:74`), and `compatibilityErrors()` rejects weakening a level by
+name. ⛔ This plan adds ~10 tools — shipping them unlisted would permanently freeze ten
+result shapes that never faced a live gate. **Every new tool ships `additive-preview`**;
+promotion is an acceptance act. ⚠️ Six hand-maintained maps in the same file must be updated
+per tool, one of which (`SPECIAL_PROGRESS`, `:168`) is what produced Finding 4.
 
 **R2 acceptance:** a generic client can build and edit a representative component/page
 fixture with typed batch outcomes and no hidden dependency on a consumer repository.

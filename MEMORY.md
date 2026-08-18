@@ -24,8 +24,20 @@ type: project
 The server and plugin builds are a **matched PAIR**. Current pair:
 
 ```
-r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← ACCEPTED
+r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← R2.4 ACCEPTED
+r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← HEAD, schema 1.7.0
 ```
+
+⛔ **The tree is now R2.5 Phase 1, not R2.4.** Schema `1.6.0` → **`1.7.0`**, and **BOTH
+halves moved** — so adopting HEAD needs a **DEV plugin re-run AND a server respawn**. That
+is the opposite of the last step, where only the server moved. ⭐ Re-derive it per release;
+it has now flipped on three consecutive steps.
+
+⭐ **Observed 2026-08-18, not assumed:** with the tree at `1.7.0`, a session still open on
+channel `yba88v0x` answered `get_runtime_info` with the **old** pair and
+`compatibility: "compatible"`. A rebuild reaches neither running side — and `compatible`
+means *the two running halves match each other*, never *they match the source tree*. It
+will answer `compatible` all day on a stale build.
 
 ⭐ **The server half moved TWICE after 1.6.0 and the plugin half moved neither time** — 4.1's wrapper fix (`dbcede2e0895`), then the `stable` promotion (`5ac4bcd1a2a5`). Both are server-side, so adopting the accepted build needs **a server respawn and NOT a DEV plugin re-run**, and compatibility stayed `compatible` live across both. ⛔ That is the *opposite* of the 1.5.0 → 1.6.0 step — re-check it each release rather than carrying the last answer forward.
 
@@ -87,7 +99,60 @@ Live gate **passed twice on channel `qvtz3fwr`**, green on the first try both ti
 - ⭐ **The promotion moves the contract, therefore the server build — so the gate was re-pinned and RE-RUN on it.** Accepting a build the gate had never seen would have been the same defect this release spent three phases closing.
 - ✅ Acceptance checklist discharged in `docs/R2.4-BATCH-CONTRACT.md`; 3.2 measured again live (1828 ms observed for a 1000 ms pause over 2 gaps).
 
-**Next = R2's typography/layout/visual half**, which has not been cut into a plan. ⛔ Accepting R2.4 does **not** accept R2. 🟡 Everything above is uncommitted.
+⛔ **Accepting R2.4 does not accept R2.** ✅ **R2's typography/layout/visual half was CUT
+2026-08-18** → [`docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md`](docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md).
+Three sub-releases — **R2.5 typography → R2.6 layout → R2.7 visuals** — three contract bumps
+(`1.6.0` → `1.9.0`), three live gates, R2 acceptance at the end of R2.7. ✅ Committed at
+`750dbd5`; the tree was clean at cut time.
+
+### ✅ R2.5 Phase 1 — the two text defects are CLOSED, 2026-08-18 (offline)
+
+**136 tests green** (was 125), contract `1.6.0` → **`1.7.0`**, R2.4 frozen as the **6th**
+baseline, all six replay at zero errors, `dist/` rebuilt, `verify-release.mjs` passed.
+
+- ✅ **The mixed-font defect was one redundant line.** `setTextContent` pre-loaded
+  `node.fontName`, which is `figma.mixed` — a symbol — on a multi-font node. `setCharacters`
+  on the very next line already branches on `figma.mixed` and loads a concrete font in every
+  branch, so the pre-load did no work and was the only thing that threw. **Deleted.**
+- ✅ **One deletion fixed single AND batch.** `set_multiple_text_contents` has no font path;
+  it calls `setTextContent` per replacement.
+- ✅ **The fixture FAILED FIRST** with `Error setting text content: Cannot unwrap symbol` —
+  the defect reproduced offline for the first time in four releases. ⭐ Mutation-tested
+  **twice**: the pre-fix state, and a *lazy* fallback fix, which the suite also kills
+  because it asserts the first character's **real** font was loaded rather than that the
+  call merely returned.
+- 🔴 **F3 CONFIRMED, not just hypothesised.** Given a refused character write, the old code
+  returned a **success reply** and the batch reported `succeeded: 1` / `all_succeeded` over
+  an **unchanged document** — R2.4's "the aggregate lies" reappearing one layer *below* the
+  aggregate that was fixed to stop lying. `setTextContent` now honours `setCharacters`'s
+  `false` return. ⛔ **Reachability in real Figma is still UNPROVEN** — the harness injects
+  the refusal, so the trigger is exactly what the test does not establish. Live gate owes it.
+- ✅ **The silent Inter substitution is now reported** — `fontSubstituted` / `requestedFont`
+  / `appliedFont`, with `false` on the ordinary path so an absence is never mistaken for a
+  fact.
+
+⭐ **Why it survived four releases, and it was not "nobody wrote the test":** the harness
+could not express the defect. `loadFontAsync` was `async () => undefined` — it accepted a
+symbol — and `getRangeFontName` returned the node's own `fontName`, so no mixed-font node
+could exist in a fixture. The suite was **structurally unable to reach** the case.
+
+⚠️ **Phase 1 was NOT contract-neutral, contrary to how the plan first described it.** 1.4
+adds fields to `set_text_content`, whose stability is `stable`, and free result fields are
+granted only to `legacy` / `additive-preview` — so the `stable`-by-default trap fired
+*inside* Phase 1, before any new tool existed.
+
+⚠️ **Found and deferred:** `createText` calls `setCharacters` **without `await`**
+(`code.js:1790`), so `create_text` can return before its text is set. Belongs to 3.5.
+
+**Next = R2.5 Phase 2** — `get_available_fonts` + `check_fonts`. ⛔ First new tools of the
+release, so CC1 binds from the first commit: list each in `ADDITIVE_PREVIEW_RESULTS` in the
+same change that registers it, or it ships frozen.
+
+🔴 **The cut's highest-leverage finding:** `getResultStability`
+(`scripts/contract-lib.mjs:267`) returns **`stable`** for any tool not named in
+`ADDITIVE_PREVIEW_RESULTS`, and `compatibilityErrors()` refuses to weaken a level. This plan
+adds ~10 tools — unlisted, they would be permanently frozen on day one, never having faced
+a live gate. ⛔ Every new tool ships `additive-preview`; promotion is an acceptance act.
 
 ### ⛔ R3 variable-write is still OPEN
 

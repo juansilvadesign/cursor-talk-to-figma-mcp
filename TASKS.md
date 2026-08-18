@@ -169,30 +169,41 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — 3.1 / 3.2 / Phase 4 are BUILT and OFFLINE-GREEN; the LIVE PASS is the front
+## ▶ Next session — R2.4 is ACCEPTED; R2's typography/layout/visual half is the front
 
-**R2.4 3.1, 3.2 and Phase 4 built and committed 2026-08-12 (`664135b`); offline gate green
-2026-08-12 — 114 tests, `bun run verify` → "R2 offline gate passed: 53 tools, 6 prompts,
-source/runtime parity verified", five baselines replaying at zero errors, `dist/`
-deterministic.** The live pass is the only thing between here and 5.6 + acceptance.
+**R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
+deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
+and again on the accepted build after `apply_batch` was promoted to `stable`. Acceptance
+record: [`docs/R2.4-BATCH-CONTRACT.md`](docs/R2.4-BATCH-CONTRACT.md).
+⛔ **Accepting R2.4 does not accept R2** — the typography/layout/visual half is still owed
+and has not been cut into a plan.
 
-⛔ **The pinned pair CHANGED AGAIN — a running Figma session is now incompatible.**
+⚠️ **The accepted pair — server moved, plugin did NOT.**
 
 | | Before | Now |
 | --- | --- | --- |
-| Contract / schema | `1.5.0` | **`1.6.0`** |
+| Contract / schema | `1.6.0` | **`1.6.0` — UNCHANGED** |
 | Tools / plugin commands | 53 / 52 | **53 / 52 — UNCHANGED** |
-| Server | `r2-server-9239fd0bc71b` | **`r2-server-d248ed7bc295`** |
-| Plugin | `r2-plugin-d0342abb6c4a` | **`r2-plugin-53a1fa676d6a`** |
-| Fingerprint | `sha256:a87b5d98…835704` | **`sha256:d39aefef…ca6289`** |
+| Server | `r2-server-d248ed7bc295` | **`r2-server-5ac4bcd1a2a5`** |
+| Plugin | `r2-plugin-53a1fa676d6a` | **`r2-plugin-53a1fa676d6a` — UNCHANGED** |
+| Fingerprint | `sha256:d39aefef…ca6289` | **`sha256:d39aefef…ca6289` — UNCHANGED** |
 
-⭐ **Read that second row carefully: the tool count did NOT move.** 3.1 added a *parameter*
-and Phase 4 added *reply fields*, so a preflight pinning `toolCount` would accept a stale
-DEV plugin without a murmur. The fingerprint is the only discriminator here — which is the
-mirror image of the R1 finding, where the fingerprint held still while the contract grew.
-⛔ Assert **both**; each is blind to exactly what the other catches.
+⭐ **Only the server moved, so this step needs a server respawn and NOT a DEV plugin
+re-run** — the opposite of the 1.5.0 → 1.6.0 step. ⛔ Check it each time rather than
+carrying the last step's answer forward; it flipped between two consecutive releases.
 
-**⏳ 2026-08-13 — the live pass is RE-PINNED and EXTENDED but has NOT RUN.**
+🔴 **And read the last three rows carefully: schema, tool count AND fingerprint all held
+still while the server changed twice** (4.1's wrapper fix, then the `stable` promotion).
+A preflight pinning any of them would accept a stale `dist/server.js` without a murmur —
+`serverBuildId` is the only pin that catches it. That is the mirror image of the 1.5.0 →
+1.6.0 step, where the fingerprint was the *only* discriminator. ⛔ Assert **all of them**;
+each is blind to exactly what the others catch.
+
+**✅ 2026-08-18 — the live pass RAN and PASSED** (channel `qvtz3fwr`), after the 2026-08-13
+attempts below. Both runs green on the first try, scratch page deleted in the `finally`,
+baseline restored (6 pages, current page back). Historical context follows.
+
+**⏳ 2026-08-13 — the live pass was RE-PINNED and EXTENDED but had NOT RUN.**
 `scripts/live-batch-gate.mjs` was still pinned to the 1.5.0 pair and now carries checks
 7–11 for the work 5.5 never covered: **3.1** progress frames on a 15-op / 3-chunk batch,
 **3.2** the pause *measured* at 0 / 250 / 1000 ms against `timing.elapsedMs`, the **clamp**
@@ -208,14 +219,22 @@ plugin only **5 s**, and a backgrounded tab throttles its JS.
   observed zero frames and passed vacuously — Finding 4's exact shape. It now pipes stderr,
   parses `[INFO] Progress update for <command>: <n>%`, and treats an unavailable stream as
   a hard failure. `record.serverLogTail` carries the last 60 lines.
-- 🔴 **Found while wiring check 10 — Phase 4.1 reaches a live consumer for
-  `delete_multiple_nodes` ONLY.** That tool returns `JSON.stringify(result)`;
-  `set_multiple_text_contents` and `set_multiple_annotations` return
+- ✅ **CLOSED 2026-08-18 — Phase 4.1 now reaches a live consumer on all three.** It had
+  reached `delete_multiple_nodes` only: that tool returns `JSON.stringify(result)`, while
+  `set_multiple_text_contents` and `set_multiple_annotations` returned
   `progressText + detailedResponse` — prose, no JSON — so the `outcome`/`succeeded`/
-  `failed`/`total` their handlers now produce is **discarded by the MCP wrapper**. The
-  offline suite passes because `tests/legacy-batch-alignment.test.mjs` pins the *plugin
-  handler*, which is the layer Phase 4 changed. Check 10 records it rather than failing;
-  the wrapper is pre-existing shipped behaviour, so this is a **4.x follow-up**.
+  `failed`/`total` their handlers produced was **discarded by the MCP wrapper**. The
+  offline suite passed because `tests/legacy-batch-alignment.test.mjs` pins the *plugin
+  handler*, which is the layer Phase 4 changed.
+  ⭐ **The lesson, and it is the general one:** a test that loads the layer it is verifying
+  can only ever prove that layer. Both wrappers now append the receipt as an extra content
+  item — prose byte-identical, nothing substituted — and it is asserted **end-to-end**
+  (`tests/wrapper-end-to-end.test.mjs`: real `callTool` → stdio → relay → real `code.js`,
+  relay faked, plugin NOT) and by the live gate, which now **asserts**
+  `unifiedFieldsVisibleToConsumer` instead of recording it.
+  ⛔ **Check 10 recorded this for a full green run and it changed nothing.** A gate can be
+  green and still be telling you something; a finding does not move the verdict. If a
+  recorded observation matters, make it an assertion or accept that it will be walked past.
 - ✅ **An agent session holding the channel does NOT break a scripted gate** — `ui.html`
   handles a second joiner's notice as a plain string (no `.result`, not an `error`), so the
   socket is never closed. Ruled out at source level, not assumed.

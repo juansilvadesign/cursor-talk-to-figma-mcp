@@ -1,25 +1,32 @@
 # Batch Contract Plan — the generic batch operation contract (R2.4)
 
-> **Status 2026-08-13: Phases 1–4 BUILT and green offline (114 tests); `apply_batch`
-> chunks, reports progress, and honours a clamped pause.** Remaining: the **live pass**
-> (5.5 re-run on the new pair, extended to cover 3.1/3.2/Phase 4) and **5.6** (the pin).
+> **Status 2026-08-18: R2.4 is ACCEPTED.** Phases 1–4 built, 125 tests green offline, the
+> live pass PASSED, 4.1 closed, and `apply_batch` promoted `additive-preview` → `stable`
+> on a re-gated build. Acceptance record: [`R2.4-BATCH-CONTRACT.md`](R2.4-BATCH-CONTRACT.md).
 > Cut 2026-08-10, immediately after R2.3 was accepted. This plan owns the generic batch
 > envelope only. R2's typography/layout/visual half stays coarse until it is cut
-> separately.
+> separately — **accepting R2.4 does not accept R2.**
 >
-> ⛔ **The pinned pair changed AGAIN.** `1.5.0` → **`1.6.0`**,
-> `r2-server-d248ed7bc295` ↔ `r2-plugin-53a1fa676d6a`, fingerprint
-> `sha256:d39aefef…ca6289`. Any running Figma session is on the old pair and will fail the
-> preflight until the DEV plugin is re-run *and* the MCP server respawned.
-> ⭐ **The tool count did NOT move (53 both sides)** — 3.1 added a parameter, Phase 4 added
-> reply fields — so a `toolCount` check would accept a stale plugin. Assert the fingerprint
-> **and** the count; each is blind to what the other catches.
+> ⛔ **Accepted pair:** schema `1.6.0`, **`r2-server-5ac4bcd1a2a5`** ↔
+> `r2-plugin-53a1fa676d6a`, fingerprint `sha256:d39aefef…ca6289`.
+> ⭐ **The plugin half has not moved since 1.6.0.** The server moved twice after it (4.1's
+> wrapper fix, then the `stable` promotion), both server-side, so adopting the accepted
+> build needs a **server respawn and NOT a DEV plugin re-run** — the opposite of the
+> 1.5.0 → 1.6.0 step, and worth checking rather than assuming each time.
 >
-> ⏳ **The live pass has NOT run yet.** Two attempts on 2026-08-13 (channel `l6pf0qsq`)
-> both died in `join_channel`'s compatibility preflight because the plugin stopped
-> answering — **before the scratch page existed, so nothing was mutated.** Re-run with
-> Figma in the **foreground**: the preflight allows only 5 s and a backgrounded tab
-> throttles plugin JS.
+> ⚠️ **Neither of those two moves touched the fingerprint**, because it hashes
+> `{serverSchemaVersion, capabilityIds}` and both changes were wrapper/metadata. A stale
+> `dist/server.js` would pass the fingerprint check that caught the last stale pair —
+> `serverBuildId` is the only pin that fails on it. ⭐ And the tool count did NOT move
+> either (53 throughout): 3.1 added a parameter, Phase 4 added reply fields, 4.1 changed a
+> wrapper. Count, fingerprint and build ID are each blind to what the others catch.
+>
+> ✅ **The live pass ran and passed** (2026-08-18, channel `qvtz3fwr`, twice — once on the
+> 4.1 build, once on the accepted build), after two aborted attempts on 2026-08-13
+> (channel `l6pf0qsq`) that died in `join_channel`'s compatibility preflight because the
+> plugin stopped answering — **before the scratch page existed, so nothing was mutated.**
+> ⛔ Keep Figma in the **foreground** for any re-run: the preflight allows only 5 s and a
+> backgrounded tab throttles plugin JS.
 >
 > 🔴 **The contract's per-operation atomicity assumption was tested and is FALSE** — see
 > Traps. Three handlers are proven to write before they throw; the contract now declares

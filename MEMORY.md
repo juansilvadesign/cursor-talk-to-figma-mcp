@@ -24,10 +24,12 @@ type: project
 The server and plugin builds are a **matched PAIR**. Current pair:
 
 ```
-r2-server-dbcede2e0895  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)
+r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← ACCEPTED
 ```
 
-⭐ **The 4.1 wrapper fix moved the SERVER half only.** `pluginBuildId`, `serverSchemaVersion` (1.6.0) and the fingerprint are all unchanged, because the fingerprint hashes `{serverSchemaVersion, capabilityIds}` and the plugin ID hashes only plugin sources — and `code.js` was not touched. So this one needs **a server respawn and NOT a DEV plugin re-run**, and compatibility stays `compatible` across it. ⚠️ That is the exception, not the rule: it holds only because the change was server-side.
+⭐ **The server half moved TWICE after 1.6.0 and the plugin half moved neither time** — 4.1's wrapper fix (`dbcede2e0895`), then the `stable` promotion (`5ac4bcd1a2a5`). Both are server-side, so adopting the accepted build needs **a server respawn and NOT a DEV plugin re-run**, and compatibility stayed `compatible` live across both. ⛔ That is the *opposite* of the 1.5.0 → 1.6.0 step — re-check it each release rather than carrying the last answer forward.
+
+🔴 **Schema, tool count AND fingerprint all held still across both moves.** The fingerprint hashes `{serverSchemaVersion, capabilityIds}`, and a wrapper fix plus a metadata promotion touch neither — so a stale `dist/server.js` sails past the check that caught the *last* stale pair. **`serverBuildId` is the only pin that fails on it.** The gate pins the build for exactly this reason, and it had to be re-pinned twice this session before it would run.
 
 - ⛔ **A running Figma session is incompatible until the DEV plugin is re-run *and* the server respawned.** Restarting one side only looks like success.
 - ⚠️ **The pair ID moves on every rebuild** — it moved twice already (`r2-server-9239fd0bc71b ↔ r2-plugin-d0342abb6c4a`, 53 tools, was the 5.5 pair).
@@ -76,7 +78,16 @@ The two prose tools now deliver the unified receipt to an MCP consumer. **125/12
 - 🔴 **`operation_not_allowed` is unreachable through this transport** — the tool's inline `z.enum` rejects a disallowed op first, so the plugin's own allowlist check never answers a live consumer.
 - ⚠️ `params` is `z.record(z.any())` — per-operation arguments get **no schema validation**; a wrong-shaped param fails plugin-side and arrives as a receipt entry rather than a schema throw.
 
-**Next = re-run the 5.6 live gate on the new server build** (respawn only, no plugin re-run), then acceptance. ⚠️ The gate's new assertions are proven only offline so far: the published-schema check was confirmed against a real `listTools`, and its receipt-parsing logic was run against real wrapper replies — but the gate itself has not executed against a live Figma session since the change.
+### ✅ R2.4 ACCEPTED — 2026-08-18
+
+Live gate **passed twice on channel `qvtz3fwr`**, green on the first try both times: once on the 4.1 build, then again on the accepted build after the promotion. Scratch page deleted in the `finally`, baseline restored (6 pages, current page back), SYD content untouched.
+
+- ✅ **Both prose tools now report `unifiedFieldsVisibleToConsumer: true` live**, `all_succeeded 1/1/0/0`, with the annotations prose reading "Processed one at a time (this tool does not chunk)" instead of the fabricated "Processed in 1 batches".
+- ✅ **`apply_batch` promoted `additive-preview` → `stable`**, per the R1 precedent that a promise is promoted once a live gate has earned it. ⛔ `stable` means frozen: a receipt-shape change now needs a new `publicContractVersion`, and the walk-back is breaking.
+- ⭐ **The promotion moves the contract, therefore the server build — so the gate was re-pinned and RE-RUN on it.** Accepting a build the gate had never seen would have been the same defect this release spent three phases closing.
+- ✅ Acceptance checklist discharged in `docs/R2.4-BATCH-CONTRACT.md`; 3.2 measured again live (1828 ms observed for a 1000 ms pause over 2 gaps).
+
+**Next = R2's typography/layout/visual half**, which has not been cut into a plan. ⛔ Accepting R2.4 does **not** accept R2. 🟡 Everything above is uncommitted.
 
 ### ⛔ R3 variable-write is still OPEN
 

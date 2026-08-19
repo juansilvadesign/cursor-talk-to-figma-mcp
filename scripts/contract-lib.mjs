@@ -99,6 +99,11 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // acceptance act — these two stay here until R2.5's live gate has earned it.
   "get_available_fonts",
   "check_fonts",
+  // R2.5 Phase 3, same rule, same commit. `set_text_style` is a twelve-field write whose
+  // reply shape is expected to grow — R2.6 adds the child-layout tools that share its
+  // textAutoResize/layoutSizing boundary — so freezing it before a live gate has run
+  // would be freezing a shape nobody has exercised.
+  "set_text_style",
 ]);
 
 // ⭐ `apply_batch` was here until R2.4 acceptance (2026-08-18), held at
@@ -187,6 +192,10 @@ const TOOL_SCOPES = {
   delete_multiple_nodes: "requested_nodes",
   set_multiple_text_contents: "node_subtree",
   set_multiple_annotations: "node_subtree",
+  // Written out rather than left to the "node" fallback. The value is the same either
+  // way, so this costs nothing — but the fallback is what made get_available_fonts
+  // silently wrong in Phase 2, and a write tool is the wrong place to rely on it.
+  set_text_style: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -213,6 +222,11 @@ const SPECIAL_PROGRESS = {
   // an in-memory sort, with no point between them to report from. Declaring progress
   // there would mint Finding 4 a third time.
   check_fonts: "per_font",
+  // ⛔ set_text_style is deliberately absent, per CC2 and for the same reason as
+  // get_available_fonts. It touches ONE node: a short validation pass, at most a
+  // handful of font loads, then a synchronous write loop. There is no point between
+  // them worth reporting from, and declaring progress a tool does not emit is
+  // Finding 4 — which this release has already declined to mint twice.
 };
 
 function sha256(value) {

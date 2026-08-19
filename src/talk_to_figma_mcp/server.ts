@@ -1538,6 +1538,107 @@ server.tool(
   }
 );
 
+// Set Text Style Tool
+server.tool(
+  "set_text_style",
+  "[Node scoped] Set typography properties on one existing TEXT node — font, size, line height, letter spacing, case, decoration, alignment, paragraph spacing/indent and auto-resize. Every parameter is optional but at least one is required. ⛔ Validate-all-then-write: every parameter is checked and every font loaded BEFORE the first property is assigned, so a refusal leaves the node completely untouched rather than half-written. ⛔ An unloadable font is REFUSED, never substituted — unlike a text-content write, this tool will not silently retype the node to Inter, so preflight with check_fonts and expect an error rather than a fallback. Properties are node-level; character ranges are not addressable. Supplying fontFamily/fontStyle on a mixed-font node unifies it, which discards its per-character font runs and is reported in limitations.",
+  {
+    nodeId: z.string().describe("The ID of the TEXT node to restyle"),
+    fontFamily: z
+      .string()
+      .optional()
+      .describe(
+        "Font family, e.g. Inter. Must be supplied together with fontStyle — a family without a style has no single answer on a mixed-font node. Case-sensitive and exact; a near miss is refused, not approximated."
+      ),
+    fontStyle: z
+      .string()
+      .optional()
+      .describe(
+        "Font style, e.g. Regular or Semi Bold. Must be supplied together with fontFamily."
+      ),
+    fontSize: z
+      .number()
+      .min(1)
+      .max(65535)
+      .optional()
+      .describe("Font size in pixels."),
+    lineHeight: z
+      .object({
+        value: z
+          .number()
+          .nonnegative()
+          .optional()
+          .describe("Omit when unit is AUTO; supplying it there is refused rather than discarded."),
+        unit: z.enum(["PIXELS", "PERCENT", "AUTO"]),
+      })
+      .optional()
+      .describe(
+        "Line height as {value, unit} — never a bare number, because a number cannot say whether it means pixels or percent. Use {unit: 'AUTO'} for Figma's automatic line height."
+      ),
+    letterSpacing: z
+      .object({
+        value: z.number().describe("May be negative; tracking-in is legitimate."),
+        unit: z.enum(["PIXELS", "PERCENT"]),
+      })
+      .optional()
+      .describe("Letter spacing as {value, unit}. AUTO is not a letter-spacing unit."),
+    textCase: z
+      .enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"])
+      .optional()
+      .describe("Letter case transform applied for display; the underlying characters are unchanged."),
+    textDecoration: z
+      .enum(["NONE", "UNDERLINE", "STRIKETHROUGH"])
+      .optional()
+      .describe("Text decoration."),
+    textAlignHorizontal: z
+      .enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"])
+      .optional()
+      .describe("Horizontal alignment within the text box."),
+    textAlignVertical: z
+      .enum(["TOP", "CENTER", "BOTTOM"])
+      .optional()
+      .describe("Vertical alignment within the text box."),
+    paragraphSpacing: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe("Space between paragraphs, in pixels."),
+    paragraphIndent: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe("First-line indent, in pixels."),
+    textAutoResize: z
+      .enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"])
+      .optional()
+      .describe(
+        "How the text box resizes to its content. ⚠️ This and an auto-layout parent's layoutSizing describe the same behaviour from two sides; inside auto-layout the parent wins, and the fork's child-layout tools land in R2.6."
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_text_style", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting text style: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Styles Tool
 server.tool(
   "get_styles",
@@ -3440,6 +3541,7 @@ type FigmaCommand =
   | "set_corner_radius"
   | "clone_node"
   | "set_text_content"
+  | "set_text_style"
   | "scan_text_nodes"
   | "set_multiple_text_contents"
   | "get_annotations"
@@ -3627,6 +3729,27 @@ type CommandParams = {
   set_text_content: {
     nodeId: string;
     text: string;
+  };
+  set_text_style: {
+    nodeId: string;
+    fontFamily?: string;
+    fontStyle?: string;
+    fontSize?: number;
+    lineHeight?: { value?: number; unit: "PIXELS" | "PERCENT" | "AUTO" };
+    letterSpacing?: { value: number; unit: "PIXELS" | "PERCENT" };
+    textCase?:
+      | "ORIGINAL"
+      | "UPPER"
+      | "LOWER"
+      | "TITLE"
+      | "SMALL_CAPS"
+      | "SMALL_CAPS_FORCED";
+    textDecoration?: "NONE" | "UNDERLINE" | "STRIKETHROUGH";
+    textAlignHorizontal?: "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED";
+    textAlignVertical?: "TOP" | "CENTER" | "BOTTOM";
+    paragraphSpacing?: number;
+    paragraphIndent?: number;
+    textAutoResize?: "NONE" | "HEIGHT" | "WIDTH_AND_HEIGHT" | "TRUNCATE";
   };
   scan_text_nodes: {
     nodeId: string;

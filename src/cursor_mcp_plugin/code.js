@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-10787ea0bdd5",
+  "buildId": "r2-plugin-0bc82334ff83",
   "apiVersion": "1.7.0",
   "serverSchemaVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
+  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -42,6 +42,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "export_node_as_image",
     "set_corner_radius",
     "set_text_content",
+    "set_text_style",
     "clone_node",
     "scan_text_nodes",
     "set_multiple_text_contents",
@@ -121,6 +122,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
+    "figma.command.set_text_style@1",
     "relay.channel@1"
   ]
 });
@@ -328,6 +330,8 @@ async function handleCommand(command, params) {
       return await setCornerRadius(params);
     case "set_text_content":
       return await setTextContent(params);
+    case "set_text_style":
+      return await setTextStyle(params);
     case "clone_node":
       return await cloneNode(params);
     case "scan_text_nodes":
@@ -4211,6 +4215,363 @@ async function setTextContent(params) {
   } catch (error) {
     throw new Error(`Error setting text content: ${error.message}`);
   }
+}
+// ── R2.5 Phase 3 — the typography write surface ────────────────────────────────────
+//
+// ⛔ VALIDATE-ALL-THEN-WRITE, FROM BIRTH (plan 3.2, non-negotiable). This is a
+// twelve-field write, which is exactly the shape F4 proves broken in three ops that
+// ship today: `setAxisAlign`, `setLayoutSizing` and `setItemSpacing` each validate
+// their first field, WRITE it, then validate the second and throw — leaving a failed
+// result sitting on top of a changed document. Building this tool the same way would
+// mint a fourth instance in the release that pays the first three off.
+//
+// ⛔ It REFUSES an unloadable font; it never substitutes. `setCharacters` answers a
+// refused load by silently retyping the node to Inter — F2, the defect Phase 2's
+// `check_fonts` exists to let a caller avoid. A style write that repeated it would
+// change the document's font as a side effect of a call that asked for something else.
+const TEXT_STYLE_ENUMS = {
+  textCase: [
+    "ORIGINAL",
+    "UPPER",
+    "LOWER",
+    "TITLE",
+    "SMALL_CAPS",
+    "SMALL_CAPS_FORCED",
+  ],
+  textDecoration: ["NONE", "UNDERLINE", "STRIKETHROUGH"],
+  textAlignHorizontal: ["LEFT", "CENTER", "RIGHT", "JUSTIFIED"],
+  textAlignVertical: ["TOP", "CENTER", "BOTTOM"],
+  textAutoResize: ["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"],
+};
+
+// Bounds Figma enforces itself. Checking them here is not duplication: Figma enforces
+// them at ASSIGNMENT time, which on field seven means six fields are already written.
+const TEXT_STYLE_NUMERIC = {
+  fontSize: { min: 1, max: 65535 },
+  paragraphSpacing: { min: 0 },
+  paragraphIndent: { min: 0 },
+};
+
+// The node properties this tool can write, in write order. `fontName` leads so the
+// per-range properties that follow land on whatever font the node ends up carrying,
+// which makes the result independent of the order the caller happened to supply.
+const TEXT_STYLE_PROPERTIES = [
+  "fontName",
+  "fontSize",
+  "lineHeight",
+  "letterSpacing",
+  "textCase",
+  "textDecoration",
+  "textAlignHorizontal",
+  "textAlignVertical",
+  "paragraphSpacing",
+  "paragraphIndent",
+  "textAutoResize",
+];
+
+// The twelve caller-facing parameters, for the "supply at least one" refusal.
+const TEXT_STYLE_PARAMETERS = [
+  "fontFamily",
+  "fontStyle",
+  "fontSize",
+  "lineHeight",
+  "letterSpacing",
+  "textCase",
+  "textDecoration",
+  "textAlignHorizontal",
+  "textAlignVertical",
+  "paragraphSpacing",
+  "paragraphIndent",
+  "textAutoResize",
+];
+
+// ⛔ `figma.mixed` is a unique symbol and `JSON.stringify` renders a symbol as
+// `undefined` — which DROPS THE KEY. A mixed field would therefore vanish from the
+// reply entirely and read as "not reported" rather than "this node holds more than one
+// value". Every read-back goes through here so an absence is never mistaken for a fact.
+function textStyleReadable(value) {
+  return typeof value === "symbol" ? "MIXED" : value;
+}
+
+function textStyleSnapshot(node) {
+  const snapshot = {};
+  for (const property of TEXT_STYLE_PROPERTIES) {
+    snapshot[property] = textStyleReadable(node[property]);
+  }
+  return snapshot;
+}
+
+// ⭐ `getRangeAllFontNames`, not `fontName`: on a mixed node `fontName` is `figma.mixed`
+// and names no face at all, so "load the node's font" would load nothing and Figma
+// would then refuse the write for a font we never saw.
+function textStyleExistingFonts(node) {
+  const fonts = [];
+  const seen = new Set();
+  const push = (font) => {
+    if (!font || typeof font === "symbol") return;
+    if (typeof font.family !== "string" || typeof font.style !== "string") return;
+    const key = `${font.family}::${font.style}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    fonts.push({ family: font.family, style: font.style });
+  };
+  const length = typeof node.characters === "string" ? node.characters.length : 0;
+  if (length > 0 && typeof node.getRangeAllFontNames === "function") {
+    try {
+      for (const font of node.getRangeAllFontNames(0, length)) push(font);
+    } catch (rangeError) {
+      // Fall through to fontName below rather than failing the call: an older host
+      // that lacks the range API can still write a single-font node.
+    }
+  }
+  if (fonts.length === 0) push(node.fontName);
+  return fonts;
+}
+
+// `{value, unit}` per plan 3.4 — never a bare number, because a number-typed schema
+// here would be a breaking correction later.
+function textStyleUnitValue(field, raw, allowedUnits, errors, options) {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    errors.push(
+      `${field} must be an object {value, unit}, not ${Array.isArray(raw) ? "an array" : typeof raw}. A bare number cannot say whether it means pixels or percent.`,
+    );
+    return undefined;
+  }
+  if (!allowedUnits.includes(raw.unit)) {
+    errors.push(
+      `${field}.unit must be one of ${allowedUnits.join(", ")}; received ${JSON.stringify(raw.unit)}`,
+    );
+    return undefined;
+  }
+  if (raw.unit === "AUTO") {
+    // ⛔ Refuse rather than ignore. Accepting a value here and dropping it would let a
+    // caller believe a number took effect that never did.
+    if (raw.value !== undefined) {
+      errors.push(
+        `${field}.value must be omitted when unit is AUTO; it would be silently discarded, and a discarded value reads as an applied one.`,
+      );
+      return undefined;
+    }
+    return { unit: "AUTO" };
+  }
+  if (typeof raw.value !== "number" || !isFinite(raw.value)) {
+    errors.push(
+      `${field}.value must be a finite number when unit is ${raw.unit}; received ${JSON.stringify(raw.value)}`,
+    );
+    return undefined;
+  }
+  if (options && options.nonNegative && raw.value < 0) {
+    errors.push(`${field}.value must not be negative; received ${raw.value}`);
+    return undefined;
+  }
+  return { value: raw.value, unit: raw.unit };
+}
+
+async function setTextStyle(params) {
+  const input = params || {};
+  const { nodeId } = input;
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+  if (node.type !== "TEXT") {
+    throw new Error(
+      `Node is not a text node: ${nodeId} (type ${node.type}); set_text_style writes TEXT properties only`,
+    );
+  }
+
+  // ══ VALIDATION PHASE ══════════════════════════════════════════════════════════════
+  // ⛔ Nothing below this line assigns to the node until the write phase is reached.
+  const errors = [];
+  const writes = [];
+  const appliedFields = [];
+  const supplied = (name) => input[name] !== undefined && input[name] !== null;
+
+  // fontFamily and fontStyle are one decision, not two. Supplying a family without a
+  // style has no single answer on a mixed-font node, and inventing the missing half is
+  // the silent substitution this tool exists to refuse.
+  const hasFamily = supplied("fontFamily");
+  const hasStyle = supplied("fontStyle");
+  let requestedFont = null;
+  if (hasFamily !== hasStyle) {
+    errors.push(
+      `fontFamily and fontStyle must be supplied together or not at all; received only ${hasFamily ? "fontFamily" : "fontStyle"}. Deriving the missing half from the node is impossible when the node is mixed and a guess elsewhere.`,
+    );
+  } else if (hasFamily && hasStyle) {
+    const familyOk = typeof input.fontFamily === "string" && input.fontFamily.length > 0;
+    const styleOk = typeof input.fontStyle === "string" && input.fontStyle.length > 0;
+    if (!familyOk) errors.push("fontFamily must be a non-empty string");
+    if (!styleOk) errors.push("fontStyle must be a non-empty string");
+    if (familyOk && styleOk) {
+      requestedFont = { family: input.fontFamily, style: input.fontStyle };
+      writes.push(["fontName", requestedFont]);
+      appliedFields.push("fontFamily", "fontStyle");
+    }
+  }
+
+  for (const field of ["fontSize", "paragraphSpacing", "paragraphIndent"]) {
+    if (!supplied(field)) continue;
+    const value = input[field];
+    const bounds = TEXT_STYLE_NUMERIC[field];
+    if (typeof value !== "number" || !isFinite(value)) {
+      errors.push(
+        `${field} must be a finite number; received ${JSON.stringify(value)}`,
+      );
+      continue;
+    }
+    if (bounds.min !== undefined && value < bounds.min) {
+      errors.push(`${field} must be at least ${bounds.min}; received ${value}`);
+      continue;
+    }
+    if (bounds.max !== undefined && value > bounds.max) {
+      errors.push(`${field} must be at most ${bounds.max}; received ${value}`);
+      continue;
+    }
+    writes.push([field, value]);
+    appliedFields.push(field);
+  }
+
+  if (supplied("lineHeight")) {
+    const value = textStyleUnitValue(
+      "lineHeight",
+      input.lineHeight,
+      ["PIXELS", "PERCENT", "AUTO"],
+      errors,
+      { nonNegative: true },
+    );
+    if (value !== undefined) {
+      writes.push(["lineHeight", value]);
+      appliedFields.push("lineHeight");
+    }
+  }
+
+  if (supplied("letterSpacing")) {
+    // Negative letter spacing is legitimate tracking, so no non-negative bound here.
+    const value = textStyleUnitValue(
+      "letterSpacing",
+      input.letterSpacing,
+      ["PIXELS", "PERCENT"],
+      errors,
+    );
+    if (value !== undefined) {
+      writes.push(["letterSpacing", value]);
+      appliedFields.push("letterSpacing");
+    }
+  }
+
+  for (const field of Object.keys(TEXT_STYLE_ENUMS)) {
+    if (!supplied(field)) continue;
+    const allowed = TEXT_STYLE_ENUMS[field];
+    if (!allowed.includes(input[field])) {
+      errors.push(
+        `${field} must be one of ${allowed.join(", ")}; received ${JSON.stringify(input[field])}`,
+      );
+      continue;
+    }
+    writes.push([field, input[field]]);
+    appliedFields.push(field);
+  }
+
+  if (appliedFields.length === 0 && errors.length === 0) {
+    throw new Error(
+      `set_text_style needs at least one property to write; supply one or more of ${TEXT_STYLE_PARAMETERS.join(", ")}. A call that changes nothing and reports success is the aggregate lying.`,
+    );
+  }
+
+  if (errors.length > 0) {
+    // ⛔ EVERY error, not the first. A caller fixing a twelve-field payload one refusal
+    // per round trip is being charged for the tool's convenience.
+    throw new Error(
+      `set_text_style refused ${errors.length} invalid ${errors.length === 1 ? "parameter" : "parameters"} and wrote nothing: ${errors.join("; ")}`,
+    );
+  }
+
+  // Figma refuses to modify ANY property of a text node whose current fonts are not
+  // loaded — not only the font itself — so the node's existing faces are loaded here,
+  // in the validation phase, even for a call that only moves textAlignHorizontal.
+  // ⭐ Loading a font mutates the plugin session's font cache and nothing in the
+  // document, which is why `check_fonts` is classified a read; this is still not a write.
+  const existingFonts = textStyleExistingFonts(node);
+  const pending = requestedFont ? existingFonts.concat([requestedFont]) : existingFonts;
+  const loadFailures = [];
+  for (const font of pending) {
+    try {
+      await figma.loadFontAsync(font);
+    } catch (loadError) {
+      loadFailures.push({
+        font,
+        error: loadError instanceof Error ? loadError.message : String(loadError),
+      });
+    }
+  }
+  if (loadFailures.length > 0) {
+    // ⛔ REFUSE, never substitute. This is the last gate before the write phase and it
+    // is why `fontSubstituted` can be a permanent `false` in the reply below.
+    const detail = loadFailures
+      .map((failure) => `${failure.font.family} ${failure.font.style} (${failure.error})`)
+      .join("; ");
+    throw new Error(
+      `set_text_style could not load ${loadFailures.length} font${loadFailures.length === 1 ? "" : "s"} and wrote nothing: ${detail}. This tool refuses rather than substituting Inter, because a substitution would change the document's font as a side effect. Preflight with check_fonts.`,
+    );
+  }
+
+  // ══ WRITE PHASE ═══════════════════════════════════════════════════════════════════
+  // ⛔ Every value here is validated and every font is loaded, so this loop cannot
+  // reject. Do NOT add a check to it: the guarantee is that the document is never left
+  // half-written, and that guarantee lives in this loop being unable to fail — not in
+  // this comment. Moving a validation down here is the F4 defect, exactly.
+  const wasMixed = typeof node.fontName === "symbol";
+  const before = textStyleSnapshot(node);
+  for (const [property, value] of writes) {
+    node[property] = value;
+  }
+  const after = textStyleSnapshot(node);
+
+  const limitations = [];
+  if (wasMixed && requestedFont) {
+    limitations.push(
+      "The node carried more than one font before this call, and supplying fontFamily/fontStyle unified it — the per-character font runs are gone. That is a document change wider than the property named, so it is reported rather than left to be discovered.",
+    );
+  }
+  if (wasMixed && !requestedFont) {
+    limitations.push(
+      'The node carries more than one font and no fontFamily/fontStyle was supplied, so its font was left mixed; after.fontName is the string "MIXED" rather than a face.',
+    );
+  }
+  if (existingFonts.length === 0) {
+    limitations.push(
+      "The node's existing faces could not be enumerated (no getRangeAllFontNames and a mixed fontName), so only the requested font was loaded before writing.",
+    );
+  }
+
+  return {
+    scope: "node",
+    id: node.id,
+    name: node.name,
+    // ⭐ Reported whether or not the font was unified: when it was not, this is what
+    // explains an after.fontName of "MIXED".
+    wasMixed,
+    fontUnified: requestedFont !== null,
+    requestedFont,
+    appliedFont: requestedFont ? textStyleReadable(node.fontName) : null,
+    // ⭐ A PERMANENT declaration, never a state — the same shape as
+    // coverage.budgetCancelsFetch. This tool refuses an unloadable font in its
+    // validation phase, so a substitution cannot occur; `false` says the question was
+    // considered and answered, where an absent field would leave a reader unable to
+    // tell "no" from "not reported".
+    fontSubstituted: false,
+    appliedFields,
+    appliedFieldCount: appliedFields.length,
+    fontsLoaded: pending,
+    before,
+    after,
+    limitations,
+  };
 }
 
 // Initialize settings on load

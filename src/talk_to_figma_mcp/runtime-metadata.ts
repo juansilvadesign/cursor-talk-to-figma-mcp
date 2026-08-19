@@ -2,12 +2,12 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-1a74a40ba8b2",
-  "pluginBuildId": "r2-plugin-10787ea0bdd5",
+  "serverBuildId": "r2-server-a30e91f4f88e",
+  "pluginBuildId": "r2-plugin-0bc82334ff83",
   "serverSchemaVersion": "1.7.0",
   "pluginApiVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
+  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -40,6 +40,7 @@ export const RUNTIME_METADATA = {
     "export_node_as_image",
     "set_corner_radius",
     "set_text_content",
+    "set_text_style",
     "clone_node",
     "scan_text_nodes",
     "set_multiple_text_contents",
@@ -119,6 +120,7 @@ export const RUNTIME_METADATA = {
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
+    "figma.command.set_text_style@1",
     "relay.channel@1"
   ],
   "supportedTools": [
@@ -176,7 +178,8 @@ export const RUNTIME_METADATA = {
     "set_plugin_data",
     "set_selections",
     "set_stroke_color",
-    "set_text_content"
+    "set_text_content",
+    "set_text_style"
   ],
   "supportedPrompts": [
     "annotation_conversion_strategy",

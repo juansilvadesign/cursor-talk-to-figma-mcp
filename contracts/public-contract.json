@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.7.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
+  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -60,6 +60,7 @@
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
+    "figma.command.set_text_style@1",
     "relay.channel@1"
   ],
   "connectionPlumbing": {
@@ -110,6 +111,7 @@
       "set_corner_radius",
       "clone_node",
       "set_text_content",
+      "set_text_style",
       "scan_text_nodes",
       "set_multiple_text_contents",
       "get_annotations",
@@ -167,6 +169,7 @@
       "set_corner_radius",
       "clone_node",
       "set_text_content",
+      "set_text_style",
       "scan_text_nodes",
       "set_multiple_text_contents",
       "get_annotations",
@@ -220,6 +223,7 @@
       "export_node_as_image",
       "set_corner_radius",
       "set_text_content",
+      "set_text_style",
       "clone_node",
       "scan_text_nodes",
       "set_multiple_text_contents",
@@ -2643,6 +2647,152 @@
       },
       "pluginCommand": "set_text_content",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_text_style",
+      "description": "[Node scoped] Set typography properties on one existing TEXT node — font, size, line height, letter spacing, case, decoration, alignment, paragraph spacing/indent and auto-resize. Every parameter is optional but at least one is required. ⛔ Validate-all-then-write: every parameter is checked and every font loaded BEFORE the first property is assigned, so a refusal leaves the node completely untouched rather than half-written. ⛔ An unloadable font is REFUSED, never substituted — unlike a text-content write, this tool will not silently retype the node to Inter, so preflight with check_fonts and expect an error rather than a fallback. Properties are node-level; character ranges are not addressable. Supplying fontFamily/fontStyle on a mixed-font node unifies it, which discards its per-character font runs and is reported in limitations.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the TEXT node to restyle"
+          },
+          "fontFamily": {
+            "type": "string",
+            "description": "Font family, e.g. Inter. Must be supplied together with fontStyle — a family without a style has no single answer on a mixed-font node. Case-sensitive and exact; a near miss is refused, not approximated."
+          },
+          "fontStyle": {
+            "type": "string",
+            "description": "Font style, e.g. Regular or Semi Bold. Must be supplied together with fontFamily."
+          },
+          "fontSize": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Font size in pixels."
+          },
+          "lineHeight": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Omit when unit is AUTO; supplying it there is refused rather than discarded."
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "PIXELS",
+                  "PERCENT",
+                  "AUTO"
+                ]
+              }
+            },
+            "required": [
+              "unit"
+            ],
+            "additionalProperties": false,
+            "description": "Line height as {value, unit} — never a bare number, because a number cannot say whether it means pixels or percent. Use {unit: 'AUTO'} for Figma's automatic line height."
+          },
+          "letterSpacing": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "description": "May be negative; tracking-in is legitimate."
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "PIXELS",
+                  "PERCENT"
+                ]
+              }
+            },
+            "required": [
+              "value",
+              "unit"
+            ],
+            "additionalProperties": false,
+            "description": "Letter spacing as {value, unit}. AUTO is not a letter-spacing unit."
+          },
+          "textCase": {
+            "type": "string",
+            "enum": [
+              "ORIGINAL",
+              "UPPER",
+              "LOWER",
+              "TITLE",
+              "SMALL_CAPS",
+              "SMALL_CAPS_FORCED"
+            ],
+            "description": "Letter case transform applied for display; the underlying characters are unchanged."
+          },
+          "textDecoration": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "UNDERLINE",
+              "STRIKETHROUGH"
+            ],
+            "description": "Text decoration."
+          },
+          "textAlignHorizontal": {
+            "type": "string",
+            "enum": [
+              "LEFT",
+              "CENTER",
+              "RIGHT",
+              "JUSTIFIED"
+            ],
+            "description": "Horizontal alignment within the text box."
+          },
+          "textAlignVertical": {
+            "type": "string",
+            "enum": [
+              "TOP",
+              "CENTER",
+              "BOTTOM"
+            ],
+            "description": "Vertical alignment within the text box."
+          },
+          "paragraphSpacing": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Space between paragraphs, in pixels."
+          },
+          "paragraphIndent": {
+            "type": "number",
+            "minimum": 0,
+            "description": "First-line indent, in pixels."
+          },
+          "textAutoResize": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "HEIGHT",
+              "WIDTH_AND_HEIGHT",
+              "TRUNCATE"
+            ],
+            "description": "How the text box resizes to its content. ⚠️ This and an auto-layout parent's layoutSizing describe the same behaviour from two sides; inside auto-layout the parent wins, and the fork's child-layout tools land in R2.6."
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_text_style",
+      "resultStability": "additive-preview"
     }
   ],
   "prompts": [

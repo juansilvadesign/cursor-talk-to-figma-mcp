@@ -153,16 +153,60 @@ function createFixtureRuntime(fixture, options) {
     if (Array.isArray(node.fontRanges) && node.fontRanges.length > 0) {
       const ranges = node.fontRanges;
       const distinct = new Set(ranges.map(fontKey));
-      if (distinct.size > 1) node.fontName = MIXED;
-      else node.fontName = { family: ranges[0].family, style: ranges[0].style };
+      // ⛔ `fontName` is a GETTER/SETTER pair on a ranged node, not a data property.
+      // Assigning a font to a mixed node in Figma collapses its per-character runs; a
+      // plain data property would have let `fontName` report the new face while
+      // `getRangeFontName` went on describing the old mixed state, so a test asserting
+      // "the node is no longer mixed" would have passed without the node ever changing.
+      let fontNameValue =
+        distinct.size > 1
+          ? MIXED
+          : { family: ranges[0].family, style: ranges[0].style };
+      Object.defineProperty(node, "fontName", {
+        enumerable: true,
+        configurable: true,
+        get: () => fontNameValue,
+        set: (value) => {
+          fontNameValue = value;
+          if (value && value !== MIXED && typeof value !== "symbol") {
+            const end = ranges.length > 0 ? ranges[ranges.length - 1].end : 0;
+            ranges.length = 0;
+            ranges.push({
+              start: 0,
+              end,
+              family: value.family,
+              style: value.style,
+            });
+          }
+        },
+      });
       node.getRangeFontName = (start, end) => rangeFontFor(ranges, start, end);
       node.setRangeFontName = (start, end, font) => {
         ranges.length = 0;
         ranges.push({ start, end, family: font.family, style: font.style });
       };
+      // Figma's real range API answers with EVERY distinct face covering the range, so
+      // a caller can load them all before writing. `getRangeFontName` cannot substitute
+      // for it: on a mixed range it returns one symbol and names no face at all.
+      node.getRangeAllFontNames = (start, end) => {
+        const seen = new Set();
+        const faces = [];
+        for (const range of ranges) {
+          if (range.start >= end || range.end <= start) continue;
+          const key = fontKey(range);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          faces.push({ family: range.family, style: range.style });
+        }
+        return faces;
+      };
     } else {
       node.getRangeFontName = () => node.fontName;
       node.setRangeFontName = () => undefined;
+      node.getRangeAllFontNames = () =>
+        node.fontName && typeof node.fontName !== "symbol"
+          ? [{ family: node.fontName.family, style: node.fontName.style }]
+          : [];
     }
     // Figma refuses to write characters while the node's font is unloaded. Opt-in,
     // because turning it on globally would change the meaning of every existing text

@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-1a74a40ba8b2",
-  "pluginBuildId": "r2-plugin-10787ea0bdd5",
+  "serverBuildId": "r2-server-a30e91f4f88e",
+  "pluginBuildId": "r2-plugin-0bc82334ff83",
   "serverSchemaVersion": "1.7.0",
   "pluginApiVersion": "1.7.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:56ea2c941f6ff80647172729909d871b45249eb3c11d7e165d6f409409c959a2",
+  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -51,6 +51,7 @@ var RUNTIME_METADATA = {
     "export_node_as_image",
     "set_corner_radius",
     "set_text_content",
+    "set_text_style",
     "clone_node",
     "scan_text_nodes",
     "set_multiple_text_contents",
@@ -130,6 +131,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_selections@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
+    "figma.command.set_text_style@1",
     "relay.channel@1"
   ],
   "supportedTools": [
@@ -187,7 +189,8 @@ var RUNTIME_METADATA = {
     "set_plugin_data",
     "set_selections",
     "set_stroke_color",
-    "set_text_content"
+    "set_text_content",
+    "set_text_style"
   ],
   "supportedPrompts": [
     "annotation_conversion_strategy",
@@ -1600,6 +1603,61 @@ server.tool(
           {
             type: "text",
             text: `Error setting text content: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_text_style",
+  "[Node scoped] Set typography properties on one existing TEXT node \u2014 font, size, line height, letter spacing, case, decoration, alignment, paragraph spacing/indent and auto-resize. Every parameter is optional but at least one is required. \u26D4 Validate-all-then-write: every parameter is checked and every font loaded BEFORE the first property is assigned, so a refusal leaves the node completely untouched rather than half-written. \u26D4 An unloadable font is REFUSED, never substituted \u2014 unlike a text-content write, this tool will not silently retype the node to Inter, so preflight with check_fonts and expect an error rather than a fallback. Properties are node-level; character ranges are not addressable. Supplying fontFamily/fontStyle on a mixed-font node unifies it, which discards its per-character font runs and is reported in limitations.",
+  {
+    nodeId: z.string().describe("The ID of the TEXT node to restyle"),
+    fontFamily: z.string().optional().describe(
+      "Font family, e.g. Inter. Must be supplied together with fontStyle \u2014 a family without a style has no single answer on a mixed-font node. Case-sensitive and exact; a near miss is refused, not approximated."
+    ),
+    fontStyle: z.string().optional().describe(
+      "Font style, e.g. Regular or Semi Bold. Must be supplied together with fontFamily."
+    ),
+    fontSize: z.number().min(1).max(65535).optional().describe("Font size in pixels."),
+    lineHeight: z.object({
+      value: z.number().nonnegative().optional().describe("Omit when unit is AUTO; supplying it there is refused rather than discarded."),
+      unit: z.enum(["PIXELS", "PERCENT", "AUTO"])
+    }).optional().describe(
+      "Line height as {value, unit} \u2014 never a bare number, because a number cannot say whether it means pixels or percent. Use {unit: 'AUTO'} for Figma's automatic line height."
+    ),
+    letterSpacing: z.object({
+      value: z.number().describe("May be negative; tracking-in is legitimate."),
+      unit: z.enum(["PIXELS", "PERCENT"])
+    }).optional().describe("Letter spacing as {value, unit}. AUTO is not a letter-spacing unit."),
+    textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional().describe("Letter case transform applied for display; the underlying characters are unchanged."),
+    textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional().describe("Text decoration."),
+    textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional().describe("Horizontal alignment within the text box."),
+    textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional().describe("Vertical alignment within the text box."),
+    paragraphSpacing: z.number().nonnegative().optional().describe("Space between paragraphs, in pixels."),
+    paragraphIndent: z.number().nonnegative().optional().describe("First-line indent, in pixels."),
+    textAutoResize: z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional().describe(
+      "How the text box resizes to its content. \u26A0\uFE0F This and an auto-layout parent's layoutSizing describe the same behaviour from two sides; inside auto-layout the parent wins, and the fork's child-layout tools land in R2.6."
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_text_style", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting text style: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

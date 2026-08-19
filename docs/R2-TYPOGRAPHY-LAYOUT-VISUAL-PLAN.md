@@ -364,23 +364,49 @@ that fails on every stale build**, and CC4 still requires pinning it.
 
 ### Phase 3 — the typography write surface
 
-- [ ] **3.1 `set_text_style(nodeId, …)`** — `fontFamily`, `fontStyle`, `fontSize`,
+> **✅ DONE 2026-08-19 (offline), 3.1–3.4. ⏳ 3.5 DEFERRED to R2.6.** 169 tests green,
+> **56 tools / 55 plugin commands**, contract stays `1.7.0`, five source mutations all
+> killed, `dist/` byte-deterministic, `verify-release.mjs` passed. Record:
+> [`R2.5-TYPOGRAPHY.md`](R2.5-TYPOGRAPHY.md).
+>
+> ⛔ **3.5 could not ship here, and the collision is a contract fact rather than a
+> preference.** `create_text` is `stable` — it falls through `getResultStability` — and
+> `COMPATIBILITY-POLICY.md` grants free result fields only to `legacy` /
+> `additive-preview`. New reply fields therefore need a new `publicContractVersion`, and
+> **R2.5 already spent its bump in Phase 1** (which was not contract-neutral, contrary to
+> how this plan first described it). R2.6 owns `1.8.0`, so 3.5 moves there and can fix
+> the hardcoded Inter *and* the deferred un-awaited `setCharacters` at `code.js:1790` in
+> one change. ⭐ Shipping it here would have meant a `create_text` that accepts a font it
+> cannot report substituting — F2 on a brand-new surface.
+
+- [x] **3.1 `set_text_style(nodeId, …)`** — `fontFamily`, `fontStyle`, `fontSize`,
       `lineHeight`, `letterSpacing`, `textCase`, `textDecoration`, `textAlignHorizontal`,
       `textAlignVertical`, `paragraphSpacing`, `paragraphIndent`, `textAutoResize`. All
       optional; node-level per **D2**.
-- [ ] **3.2 Validate-all-then-write from birth.** ⛔ Non-negotiable. This tool is a
+- [x] **3.2 Validate-all-then-write from birth.** ✅ Two phases with a hard line between
+      them; the write loop cannot reject because every value is validated and every font
+      loaded first. ⭐ Mutation-tested: moving the refusal after the write loop kills
+      **5** tests. A throw-only assertion would have survived it, so every refusal case
+      asserts the node is byte-identical and puts the invalid parameter **last**. ⛔ Non-negotiable. This tool is a
       twelve-field write — the exact shape of the three ops F4 proves broken. Building it
       any other way is knowingly minting a fourth, in the same release that pays off the
       first three.
-- [ ] **3.3 Mixed-font semantics are declared, not implied.** Supplying `fontFamily` /
+- [x] **3.3 Mixed-font semantics are declared, not implied.** ✅ Plus two facts the plan
+      did not name: unification **discards the per-character runs** (stated in
+      `limitations`), and `fontFamily`/`fontStyle` are refused as **half a pair**.
+      ⛔ `figma.mixed` is a symbol and `JSON.stringify` drops the key, so every read-back
+      maps it to the string `"MIXED"` — otherwise a mixed field vanishes and reads as
+      "not reported". ⚠️ Live reachability is **not** guaranteed: the fork ships no
+      range-font setter, so a mixed node cannot be authored by these tools. Supplying `fontFamily` /
       `fontStyle` unifies the node's font and the reply reports `wasMixed: true`; omitting
       them applies the non-font properties without touching the font.
-- [ ] **3.4 `lineHeight` and `letterSpacing` are `{ value, unit }` objects**, not numbers —
+- [x] **3.4 `lineHeight` and `letterSpacing` are `{ value, unit }` objects**, not numbers —
       `PIXELS` / `PERCENT`, plus `AUTO` for line height. ⚠️ A number-typed schema here would
       be a breaking correction later.
-- [ ] **3.5 `create_text` gains the same parameters** (D4), defaulting to Inter **only when
-      nothing is supplied**, so every existing caller is unaffected. Replaces the hardcode
-      at `code.js:1781-1785`. Additive.
+- [ ] ⏳ **3.5 `create_text` gains the same parameters** (D4), defaulting to Inter **only
+      when nothing is supplied**, so every existing caller is unaffected. Replaces the
+      hardcode at `code.js:1781-1785`. ⛔ **MOVED TO R2.6** — the input widening is
+      additive, but the reply fields it needs are not, and `create_text` is `stable`.
 
 ⚠️ **Cross-release interaction, carried to R2.6:** `textAutoResize` and `layoutSizing`
 describe the same behaviour from two sides. A text node set `WIDTH_AND_HEIGHT` inside an
@@ -413,6 +439,13 @@ tools before asserting combined behaviour.
 
 ### Phase 2 — the child-side layout surface
 
+- [ ] **2.0 ⏳ Inherited from R2.5: `create_text` gains the `set_text_style` parameters**
+      (R2.5 item 3.5). It lands here because it needs reply fields and `create_text` is
+      `stable`, so it needs the `1.8.0` bump this release already owns. ⛔ Fix the
+      deferred **un-awaited `setCharacters` at `code.js:1790`** in the same change — it
+      lets `create_text` return before its text is set — and apply the same
+      refuse-never-substitute rule, or the hardcoded-Inter fix reintroduces F2 on a
+      brand-new surface.
 - [ ] **2.1 `set_layout_child(nodeId, layoutGrow?, layoutAlign?, layoutPositioning?)`** —
       auto-layout child sizing/alignment/grow and absolute positioning.
 - [ ] **2.2 `set_constraints(nodeId, horizontal, vertical)`.**

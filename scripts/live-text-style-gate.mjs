@@ -139,6 +139,25 @@ async function callEmbeddedJson(name, args = {}) {
   return { ...called, value: JSON.parse(called.text.slice(start, end + 1)) };
 }
 
+/**
+ * The create tools do NOT answer in one shape: `create_page` embeds JSON while
+ * `create_text` answers prose (`Created text "x" with ID: 1:2`). Accepting both here
+ * keeps the gate honest about what the tools actually return today rather than about
+ * what a consumer might wish they returned.
+ */
+async function callNodeId(name, args = {}) {
+  const called = await call(name, args);
+  const start = called.text.indexOf("{");
+  const end = called.text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const parsed = JSON.parse(called.text.slice(start, end + 1));
+    if (parsed?.id) return { ...called, id: parsed.id, value: parsed };
+  }
+  const match = called.text.match(/with ID:\s*([^.\s]+)/);
+  assert.ok(match, `${name} returned neither JSON nor a prose node id: ${called.text}`);
+  return { ...called, id: match[1], value: null };
+}
+
 /** A refusal is an expected outcome; `layer` records which half answered. */
 async function callExpectingRefusal(name, args = {}, timeout = 120_000) {
   let message;
@@ -195,29 +214,46 @@ function assertRuntime(runtime) {
 }
 
 /**
- * The eleven writable typography properties, read back off the LIVE node. The gate
- * compares this whole object across a refusal; anything that moved is a partial write.
+ * ⛔ An INDEPENDENT read of the node, and the trap it is shaped by.
+ *
+ * `get_node_info` exports `JSON_REST_V1` and `filterFigmaNode` keeps only a REST `style`
+ * subset — `fontFamily`, `fontStyle`, `fontSize`, `textAlignHorizontal`, `letterSpacing`,
+ * `lineHeightPx`. The plugin-API names this gate first reached for (`fontName`,
+ * `textCase`, `paragraphIndent`, …) are simply ABSENT from that shape.
+ *
+ * 🔴 Reading them anyway would have returned all-null, and comparing all-null before a
+ * refusal with all-null after it **passes vacuously** — a symmetric failure that reads
+ * exactly like agreement. So this returns only fields the channel really carries, and
+ * `assertReadChannelWorks` proves it reports real values before any equality is trusted.
  */
-const WRITABLE = [
-  "fontName",
+const REST_STYLE_FIELDS = [
+  "fontFamily",
+  "fontStyle",
   "fontSize",
-  "lineHeight",
-  "letterSpacing",
-  "textCase",
-  "textDecoration",
   "textAlignHorizontal",
-  "textAlignVertical",
-  "paragraphSpacing",
-  "paragraphIndent",
-  "textAutoResize",
+  "letterSpacing",
+  "lineHeightPx",
 ];
 
-async function typographyOf(nodeId) {
+async function restTypographyOf(nodeId) {
   const info = await callJson("get_node_info", { nodeId });
   const node = info.value?.document ?? info.value;
-  const out = {};
-  for (const key of WRITABLE) out[key] = node?.[key] ?? null;
+  const style = node?.style ?? {};
+  const out = { characters: node?.characters ?? null };
+  for (const key of REST_STYLE_FIELDS) out[key] = style[key] ?? null;
   return out;
+}
+
+/** ⛔ Proves the read channel is not answering null to everything. */
+function assertReadChannelWorks(snapshot, expected, context) {
+  const populated = Object.values(snapshot).filter((value) => value !== null).length;
+  assert.ok(
+    populated >= 4,
+    `${context}: the read channel returned ${populated} populated fields — an all-null snapshot would make every comparison below vacuous`,
+  );
+  for (const [key, value] of Object.entries(expected)) {
+    assert.equal(snapshot[key], value, `${context}: ${key} did not read back as written`);
+  }
 }
 
 const ALL_TWELVE = {
@@ -357,66 +393,87 @@ try {
     pageIds: (pagesBefore.pages ?? []).map((page) => page.id),
   };
 
-  // ⭐ Detect a mixed-font node WITHOUT writing to it. The fork ships no range-font
-  // setter, so a mixed node cannot be authored by these tools — if the document has
-  // none, the unification path stays fixture-only and is recorded as owed rather than
-  // faked. If one exists it is CLONED onto the scratch page and the clone is unified;
-  // the original is never touched.
-  let mixedSourceId = null;
-  try {
-    const scan = (await callJson("scan_text_nodes", {
-      nodeId: originalPageId,
-      useChunking: true,
-      chunkSize: 50,
-    })).value;
-    const candidates = (scan.textNodes ?? scan.nodes ?? []).filter(
-      (node) => node.fontName === "MIXED" || node.fontName === null,
-    );
-    mixedSourceId = candidates[0]?.id ?? null;
-    record.checks.mixedNodeSearch = {
-      scanned: (scan.textNodes ?? scan.nodes ?? []).length,
-      found: Boolean(mixedSourceId),
-    };
-  } catch (scanError) {
-    record.checks.mixedNodeSearch = { error: String(scanError.message ?? scanError) };
-  }
+  // ⛔ The mixed-font source is an EXPLICIT opt-in (`--mixed-node=<id>`), not a search.
+  // The first run scanned the current page for one and the request TIMED OUT on real
+  // content — `scan_text_nodes` over a production page is unbounded by nature, and a
+  // two-minute search for an opportunistic extra is the wrong trade. The fork ships no
+  // range-font setter, so a mixed node cannot be authored by these tools either; if none
+  // is named the case is recorded as owed rather than faked.
+  const mixedSourceId = options["mixed-node"] || null;
+  record.checks.mixedNodeSource = mixedSourceId ? { provided: mixedSourceId } : { provided: null };
 
   const page = (await callEmbeddedJson("create_page", { name: scratchPageName })).value;
   scratchPageId = page.id;
   await call("set_current_page", { pageId: scratchPageId });
 
-  const target = (
-    await callEmbeddedJson("create_text", {
+  const targetId = (
+    await callNodeId("create_text", {
       x: 0,
       y: 0,
       text: "R2.5 typography gate",
       name: "gate-target",
       parentId: scratchPageId,
     })
-  ).value;
-  const targetId = target.id;
+  ).id;
 
-  // ── 1. The happy path: all twelve fields, read back off the document ─────────────
+  // ── 1. The happy path: all twelve fields, read back through an INDEPENDENT channel ──
   const applied = (await callJson("set_text_style", { nodeId: targetId, ...ALL_TWELVE })).value;
-  const afterWrite = await typographyOf(targetId);
+  const restAfterWrite = await restTypographyOf(targetId);
+  // ⛔ Vacuity guard FIRST. Every comparison after this one is only meaningful because
+  // the channel is proven here to report real values rather than nulls.
+  assertReadChannelWorks(
+    restAfterWrite,
+    { fontFamily: "Inter", fontStyle: "Bold", fontSize: 32, textAlignHorizontal: "CENTER" },
+    "happy path",
+  );
   record.checks.appliedAllTwelve = {
     appliedFieldCount: applied.appliedFieldCount,
     fontSubstituted: applied.fontSubstituted,
     wasMixed: applied.wasMixed,
-    readBack: afterWrite,
+    pluginSnapshot: applied.after,
+    independentReadBack: restAfterWrite,
   };
   assert.equal(applied.appliedFieldCount, 12);
   assert.equal(applied.fontSubstituted, false, "fontSubstituted must be a present false");
-  assert.equal(afterWrite.fontSize, 32, "Figma did not take the size");
-  assert.equal(afterWrite.textCase, "UPPER");
-  assert.equal(afterWrite.textAlignHorizontal, "CENTER");
-  assert.deepEqual(afterWrite.fontName, { family: "Inter", style: "Bold" });
+  assert.equal(
+    Object.hasOwn(applied, "fontSubstituted"),
+    true,
+    "the declaration must be present, not merely falsy",
+  );
+  // The fields REST does not carry are still asserted, through the plugin's own snapshot.
+  assert.equal(applied.after.textCase, "UPPER");
+  assert.equal(applied.after.textAutoResize, "HEIGHT");
+  assert.equal(applied.after.paragraphIndent, 12);
+
+  /**
+   * ⭐ A witness for the SIX fields REST cannot see. A refusal must not move any of the
+   * eleven, but `get_node_info` only carries six of them — so after each refusal a
+   * trivially-valid call is made whose `before` snapshot is taken by the plugin AFTER
+   * the refusal. If the refusal wrote anything, that `before` diverges from the state
+   * the happy path left behind.
+   */
+  const baselineSnapshot = JSON.stringify(applied.after);
+  async function witnessUnchanged(label) {
+    const witness = (
+      await callJson("set_text_style", {
+        nodeId: targetId,
+        textAlignHorizontal: "CENTER", // already CENTER — a write that changes nothing
+      })
+    ).value;
+    const unchanged = JSON.stringify(witness.before) === baselineSnapshot;
+    if (!unchanged) {
+      record.findings.push(
+        `${label}: the plugin's own snapshot moved across a refusal — ${JSON.stringify(witness.before)}`,
+      );
+    }
+    return unchanged;
+  }
 
   // ── 2. ⛔ VALIDATE-ALL-THEN-WRITE, with Figma as the judge ───────────────────────
   // Eleven valid parameters and one bad enum, the bad one LAST. A validate-as-you-go
   // implementation writes the eleven and then throws — which is F4, and which a
   // throw-only assertion could not tell apart from a clean refusal.
-  const beforeRefusal = await typographyOf(targetId);
+  const beforeRefusal = await restTypographyOf(targetId);
   const refusal = await callExpectingRefusal("set_text_style", {
     nodeId: targetId,
     ...ALL_TWELVE,
@@ -424,44 +481,55 @@ try {
     textCase: "LOWER",
     textAutoResize: "SOMETIMES",
   });
-  const afterRefusal = await typographyOf(targetId);
+  const afterRefusal = await restTypographyOf(targetId);
+  const refusalWitness = await witnessUnchanged("validate-all-then-write");
   record.checks.validateAllThenWrite = {
     layer: refusal.layer,
     message: refusal.message.slice(0, 300),
-    documentUnchanged: JSON.stringify(beforeRefusal) === JSON.stringify(afterRefusal),
+    independentReadUnchanged: JSON.stringify(beforeRefusal) === JSON.stringify(afterRefusal),
+    pluginSnapshotUnchanged: refusalWitness,
     before: beforeRefusal,
     after: afterRefusal,
   };
+  assert.equal(afterRefusal.fontSize, 32, "fontSize was written despite the refusal");
   assert.ok(
-    record.checks.validateAllThenWrite.documentUnchanged,
+    record.checks.validateAllThenWrite.independentReadUnchanged,
     "a refused call MUTATED the document — this is F4, live",
+  );
+  assert.ok(
+    record.checks.validateAllThenWrite.pluginSnapshotUnchanged,
+    "a refused call moved one of the six fields REST cannot see",
   );
 
   // ── 3. ⛔ REFUSE, NEVER SUBSTITUTE, with Figma as the judge ──────────────────────
-  const beforeFontRefusal = await typographyOf(targetId);
+  const beforeFontRefusal = await restTypographyOf(targetId);
   const fontRefusal = await callExpectingRefusal("set_text_style", {
     nodeId: targetId,
     fontFamily: "Ghostly Absent Family",
     fontStyle: "Regular",
     fontSize: 11,
   });
-  const afterFontRefusal = await typographyOf(targetId);
+  const afterFontRefusal = await restTypographyOf(targetId);
+  const fontWitness = await witnessUnchanged("refuse-never-substitute");
   record.checks.refuseNeverSubstitute = {
     layer: fontRefusal.layer,
     message: fontRefusal.message.slice(0, 300),
-    documentUnchanged:
+    independentReadUnchanged:
       JSON.stringify(beforeFontRefusal) === JSON.stringify(afterFontRefusal),
-    // ⭐ The distinguishing fact. `setCharacters` answers a refused load by loading Inter
-    // and retyping the node; if this tool ever grew that path the font would be
-    // Inter/Regular here rather than the Inter/Bold the happy path left behind.
-    fontAfter: afterFontRefusal.fontName,
+    pluginSnapshotUnchanged: fontWitness,
+    fontAfter: { family: afterFontRefusal.fontFamily, style: afterFontRefusal.fontStyle },
     sizeAfter: afterFontRefusal.fontSize,
   };
+  // ⭐ The distinguishing fact. `setCharacters` answers a refused load by loading Inter
+  // and retyping the node; had this tool grown that path the style would read Regular
+  // here rather than the Bold the happy path left behind.
+  assert.equal(afterFontRefusal.fontStyle, "Bold", "the font was substituted, not refused");
+  assert.equal(afterFontRefusal.fontSize, 32, "the size was written despite the refusal");
   assert.ok(
-    record.checks.refuseNeverSubstitute.documentUnchanged,
+    record.checks.refuseNeverSubstitute.independentReadUnchanged,
     "an unloadable font MUTATED the document",
   );
-  assert.equal(afterFontRefusal.fontSize, 32, "the size was written despite the refusal");
+  assert.ok(record.checks.refuseNeverSubstitute.pluginSnapshotUnchanged);
 
   // ── 4. Half a font pair, and a zero-field call ───────────────────────────────────
   const halfPair = await callExpectingRefusal("set_text_style", {
@@ -479,18 +547,18 @@ try {
 
   // ── 5. Mixed-font unification, on a CLONE, only if the document has one ──────────
   if (mixedSourceId) {
-    const clone = (await callEmbeddedJson("clone_node", { nodeId: mixedSourceId })).value;
-    await call("set_parent", { nodeId: clone.id, parentId: scratchPageId });
+    const cloneId = (await callNodeId("clone_node", { nodeId: mixedSourceId })).id;
+    await call("set_parent", { nodeId: cloneId, parentId: scratchPageId });
     const unified = (
       await callJson("set_text_style", {
-        nodeId: clone.id,
+        nodeId: cloneId,
         fontFamily: "Inter",
         fontStyle: "Regular",
       })
     ).value;
     record.checks.mixedUnification = {
       source: mixedSourceId,
-      clone: clone.id,
+      clone: cloneId,
       wasMixed: unified.wasMixed,
       fontUnified: unified.fontUnified,
       beforeFontName: unified.before.fontName,
@@ -502,7 +570,7 @@ try {
     assert.equal(unified.before.fontName, "MIXED");
   } else {
     record.stillOwed.push(
-      "Mixed-font unification (3.3) stays FIXTURE-ONLY. The fork ships no range-font setter, so a mixed node cannot be authored by these tools, and this document contains none to clone. `wasMixed: true` and the \"MIXED\" sentinel are proven offline and unproven live.",
+      "Mixed-font unification (3.3) stays FIXTURE-ONLY. The fork ships no range-font setter, so a mixed node cannot be authored by these tools, and none was named with --mixed-node. `wasMixed: true` and the \"MIXED\" sentinel are proven offline and unproven live.",
     );
   }
 

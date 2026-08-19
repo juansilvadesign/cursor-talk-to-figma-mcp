@@ -26,13 +26,23 @@ The server and plugin builds are a **matched PAIR**. Current pair:
 ```
 r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← R2.4 ACCEPTED
 r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← R2.5 Phase 1
-r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)         ← HEAD, 1.7.0, 55 tools
+r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)         ← R2.5 Phase 2
+r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← HEAD, 1.7.0, 56 tools
 ```
 
-⛔ **The tree is now R2.5 Phase 2, not R2.4.** Schema stayed `1.7.0` (R2.5 spent its bump in
-Phase 1) but **BOTH halves moved again**, and tools went 53 → **55** — so adopting HEAD needs
-a **DEV plugin re-run AND a server respawn**. ⭐ Re-derive it per release rather than carrying
-the answer forward; it flipped on three consecutive steps before Phase 1.
+⛔ **The tree is now R2.5 Phase 3, not Phase 2.** Schema stayed `1.7.0` (R2.5 spent its bump in
+Phase 1) but **BOTH halves moved a third consecutive time**, and tools went 55 → **56**.
+
+⭐ **Adopting HEAD needs a DEV plugin re-run — and the server answer SPLITS.** The live gate
+spawns its own server from `dist/server.js`, so **the gate never needs a respawn**; only an
+interactive MCP session does. Derived 2026-08-19, not carried forward.
+
+🔴 **The `compatible` trap was observed twice over in one session, 2026-08-19.** An
+interactive connection on the Phase 2 pair reported `compatibility: "compatible"` while the
+gate's *fresh* server refused that very plugin at `join_channel` — naming the plugin build,
+the fingerprint AND the missing `set_text_style`. **`compatible` means the two RUNNING halves
+match each other. It never means they match the tree.** ⭐ The only reliable read is to
+compare the live `get_runtime_info` pins against `runtime-metadata.ts` yourself.
 
 ⭐ **Observed 2026-08-18, not assumed:** with the tree at `1.7.0`, a session still open on
 channel `yba88v0x` answered `get_runtime_info` with the **old** pair and
@@ -191,6 +201,81 @@ errors, `dist/` byte-deterministic across two builds, `verify-release.mjs` passe
 offline these tests prove the window, filter, sort and the available-vs-loadable split —
 **not** what a real machine returns or how large it is. The 3.66 MB defect this phase is
 bounded against has never been reproduced here.
+
+### ✅ R2.5 Phase 3 — `set_text_style` is BUILT, 2026-08-19 (offline; live gate PENDING)
+
+**169 tests green** (was 153), **56 tools / 55 plugin commands**, contract **stays `1.7.0`**,
+six baselines replay at zero errors, `dist/` byte-deterministic, `verify-release.mjs` passed.
+Record → [`docs/R2.5-TYPOGRAPHY.md`](docs/R2.5-TYPOGRAPHY.md).
+
+- ✅ **3.2 held: validate-all-then-write from birth.** Two phases with a hard line between
+  them — every parameter checked, all errors collected (not the first), every font loaded —
+  then a write loop that **cannot reject**. ⛔ The guarantee lives in that loop being unable
+  to fail, not in a comment saying so.
+- ⭐ **Five source mutations, all killed. The one that matters is moving the refusal AFTER
+  the write loop** — the literal F4 shape — which kills **5** tests only because every
+  refusal case asserts the node is **byte-identical** afterwards and puts the invalid
+  parameter **LAST**. A throw-only assertion would have survived it, exactly as
+  [[feedback_asserting_it_threw_does_not_assert_when_it_threw]] predicts.
+- ⛔ **It REFUSES an unloadable font; it never substitutes** — the one deliberate divergence
+  from `set_text_content`. `setCharacters` answers a refused load by retyping the node to
+  Inter (F2); repeating that here would change the document's font as a side effect of a
+  call that asked for a size. The probe runs **inside the validation phase**, which is legal
+  because a font load mutates the plugin session's cache and nothing in the file — the same
+  reasoning that classifies `check_fonts` as a read.
+- ⭐ **`fontSubstituted: false` is a PERMANENT declaration, not a state** — same shape as
+  `coverage.budgetCancelsFetch`. The test asserts the key is *present*, not merely falsy,
+  because an absence must never read as an answer.
+- 🔴 **`figma.mixed` is a symbol and `JSON.stringify` renders a symbol as `undefined`, which
+  DROPS THE KEY.** A mixed `fontName`/`fontSize`/`textCase` would have *vanished* from the
+  reply and read as "not reported" rather than "this node holds more than one value". Every
+  read-back maps it to the string `"MIXED"`, asserted through the same JSON round trip an
+  MCP consumer receives.
+- ⭐ **Existing faces are read with `getRangeAllFontNames`, never `fontName`.** On a mixed
+  node `fontName` names **no face at all**, so "load the node's font" loads nothing and Figma
+  then refuses the write for a font we never saw. And Figma refuses to modify **any**
+  property of a text node whose fonts are unloaded — so even a bare alignment change loads
+  them first, which is why an absent *document* font refuses the call.
+- ⛔ **`fontFamily`/`fontStyle` are one decision** — half a pair is refused. `lineHeight`
+  `AUTO` **refuses** an accompanying `value` rather than discarding it: a discarded value
+  reads as an applied one.
+- ⏳ **3.5 was DEFERRED to R2.6, on a contract fact rather than a preference.** `create_text`
+  is `stable` (it falls through `getResultStability`) and `COMPATIBILITY-POLICY.md` grants
+  free result fields only to `legacy`/`additive-preview` — so its new reply fields need a new
+  `publicContractVersion`, and **R2.5 spent its bump in Phase 1**. R2.6 owns `1.8.0` and can
+  fix the hardcoded Inter *and* the un-awaited `setCharacters` at `code.js:1790` in one
+  change. ⭐ Shipping it here meant a `create_text` accepting a font it cannot report
+  substituting — F2 on a brand-new surface.
+
+⚠️ **CC6 debt, owed to the live gate:** the harness supplies the inventory and decides which
+faces refuse to load, so offline proves the **order of operations**, the refusal policy and
+the mixed-font semantics — not what real Figma refuses or when.
+
+🔴 **Mixed-font unification may never be provable live.** The fork ships **no range-font
+setter**, so a mixed node **cannot be authored by these tools**. `scripts/live-text-style-gate.mjs`
+looks for one in the document and, if found, **clones it onto the scratch page** and unifies
+the *clone* — the original is never written to. If the document has none, the case stays
+fixture-only and is recorded as owed rather than faked.
+
+### ✅ Phase 2's CC6 debt is HALF CLOSED, live, 2026-08-19
+
+Read-only, on channel `7tk4v5g7`, against the real machine:
+
+- ✅ **10 293 faces / 2 273 families** — the fixture supplies **8**. 🔴 And the inventory is
+  **above `get_available_fonts`'s own 5000 `limit` ceiling**, so the whole inventory cannot be
+  returned in one call on this host: paging is **mandatory**, and the deterministic
+  code-unit sort is load-bearing rather than theoretical.
+- ✅ **`familyAvailable` earns its keep off-fixture.** `Inter/Blond` → `familyAvailable: true,
+  available: false`; `Ghostly Absent Family` → `false/false`. Opposite fixes, as designed.
+- ⭐ **Case sensitivity is real and silent:** `inter/Regular` (lowercase) reads as an **absent
+  family**, identical to a font that does not exist. The documented near-miss trap, observed.
+- ⭐ **Font load cost spreads 140×** — Inter 2 ms vs 42dot Sans **284 ms**. A font-unifying
+  style write can cost ~300 ms in `loadFontAsync` alone, and `check_fonts`'s 50-pair cap is
+  ~14 s worst case, which is why it is `standard` and not something weaker.
+- 🔴 **NOT closed: the `available` ≠ `loadable` case did not reproduce.** Every *listed* face
+  loaded and every unlisted one refused. The split is **justified** (Inter/Blond vs Ghostly
+  prove the two fields answer different questions) but "listed yet unloadable" remains
+  **fixture-only**. ⛔ Do not record Phase 2's CC6 debt as discharged.
 
 ⛔ **BOTH halves moved again** → `r2-server-1a74a40ba8b2` ↔ `r2-plugin-10787ea0bdd5`,
 fingerprint `sha256:56ea2c94…`. Adopting HEAD needs a **DEV plugin re-run AND a server

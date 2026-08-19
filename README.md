@@ -234,6 +234,10 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_text_content` - Set the text content of a single text node
 - `set_multiple_text_contents` - Batch update multiple text nodes efficiently
 
+### Typography
+
+- `set_text_style` - Set typography on one TEXT node: font, size, line height, letter spacing, case, decoration, alignment, paragraph spacing/indent and auto-resize. Every parameter is optional, at least one is required, and the whole call is **validate-all-then-write** — every parameter is checked and every font loaded before the first property is assigned, so a refusal leaves the node untouched rather than half-written. ⛔ An unloadable font is **refused, never substituted**: unlike a text-content write it will not silently retype the node to Inter, so preflight with `check_fonts`. `lineHeight`/`letterSpacing` are `{value, unit}` objects, never bare numbers; properties are node-level and character ranges are not addressable. Supplying `fontFamily`/`fontStyle` on a mixed-font node unifies it, discarding its per-character runs, and says so in `limitations`
+
 ### Fonts
 
 - `get_available_fonts` - List the fonts installed on the machine running Figma, as a bounded window with a whole-inventory `fontCount`/`familyCount` that survive the window. Filter with `family` instead of paging thousands of faces; ordering is a deterministic family-then-style code-unit sort, so `offset` paging is repeatable

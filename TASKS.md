@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.5 typography, Phase 3
+## ▶ Next session — R2.5 live gate, then R2.6 layout
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
@@ -196,35 +196,68 @@ registers them, so neither shipped frozen. Five source mutations, all killed.
 **reply**, and the call is abandoned rather than stopped. `coverage.budgetCancelsFetch:
 false` is a permanent declaration in the reply, not a state.
 
-**Next = R2.5 Phase 3** — the typography write surface (`set_text_style` 3.1–3.5).
-⛔ **3.2 is non-negotiable: validate-all-then-write from birth.** It is a twelve-field
-write, the exact shape F4 proves broken in three shipped ops; building it any other way
-mints a fourth in the same release that pays off the first three. ⛔ CC1 again for
-`set_text_style`. ⚠️ 3.5 touches `create_text`, which still has the deferred un-awaited
-`setCharacters` at `code.js:1790`.
+**✅ R2.5 Phase 3 is DONE (2026-08-19, offline), 3.1–3.4.** `set_text_style` — twelve
+optional typography parameters, node-level per D2, `additive-preview` per CC1, no progress
+declaration per CC2. **169 tests green**, **56 tools / 55 plugin commands**, contract stays
+`1.7.0`, six baselines replaying, `dist/` byte-deterministic, `verify-release` passed.
+Record: [`docs/R2.5-TYPOGRAPHY.md`](docs/R2.5-TYPOGRAPHY.md).
 
-⛔ **Still offline.** The R2.5 live gate is owed at the end of the release and needs the
-**disposable-file permission** plus a channel and a foreground Figma tab (CC7). It carries
-two standing debts: **F3's reachability** (the harness injects the refused write) and
-**Phase 2's inventory shape and size** (the fixture supplies eight faces; a real machine
-returns thousands, and that is precisely what the bounding exists for).
+⭐ **3.2 held.** Two phases with a hard line between them; the write loop cannot reject
+because every value is validated and every font loaded first. **Five source mutations, all
+killed** — and the one that matters is moving the refusal *after* the write loop, which
+kills 5 tests only because every refusal case asserts the node is **byte-identical** and
+puts the invalid parameter **last**. A throw-only assertion would have survived it.
 
-⛔ **The current pair — BOTH halves moved, twice in a row now.**
+⛔ **`set_text_style` REFUSES an unloadable font; it never substitutes** — the one place it
+deliberately diverges from `set_text_content`. `fontSubstituted: false` is a permanent
+declaration, not a state. ⛔ And `figma.mixed` is a **symbol**: `JSON.stringify` drops the
+key, so every read-back maps it to the string `"MIXED"` or a mixed field vanishes and reads
+as "not reported".
 
-| | R2.4 ACCEPTED | R2.5 Phase 2 (HEAD) |
-| --- | --- | --- |
-| Contract / schema | `1.6.0` | **`1.7.0`** |
-| Tools / plugin commands | 53 / 52 | **55 / 54** |
-| Server | `r2-server-5ac4bcd1a2a5` | **`r2-server-1a74a40ba8b2`** |
-| Plugin | `r2-plugin-53a1fa676d6a` | **`r2-plugin-10787ea0bdd5`** |
-| Fingerprint | `sha256:d39aefef…` | **`sha256:56ea2c94…`** |
+⏳ **3.5 was DEFERRED to R2.6, and the collision is a contract fact.** `create_text` is
+`stable`; `COMPATIBILITY-POLICY.md` grants free result fields only to
+`legacy`/`additive-preview`, so new reply fields need a new `publicContractVersion` — and
+**R2.5 spent its bump in Phase 1**. R2.6 owns `1.8.0` and can fix the hardcoded Inter *and*
+the un-awaited `setCharacters` at `code.js:1790` in one change.
 
-⛔ **Adopting HEAD needs a DEV plugin re-run AND a server respawn.** ⭐ Re-derive this every
-release rather than carrying the last answer forward — it flipped on three consecutive
-steps before Phase 1. And note the fingerprint moved *this* time only because two
-capability IDs were added: R2.4 moved the server twice with fingerprint, schema and tool
-count all holding still, so **`serverBuildId` is still the only pin that fails on every
-stale build** (CC4).
+**Next = the R2.5 LIVE GATE.** ✅ Permission granted 2026-08-19 (disposable file).
+`scripts/live-text-style-gate.mjs` is written and **already refused once, correctly**, on a
+stale plugin — `join_channel` named all three signals (plugin build, fingerprint, missing
+`set_text_style`) and wrote nothing. ⛔ **It needs a DEV plugin re-run**; the gate spawns
+its own server from `dist/server.js`, so no server respawn is owed *to the gate* — only to
+an interactive session. Plus a channel and a foreground Figma tab (CC7).
+
+⛔ **Two standing debts the gate may not close:** **F3's reachability** (the harness
+*injects* the refused write; nothing can make real Figma refuse one on demand) and
+**mixed-font unification** — the fork ships **no range-font setter**, so a mixed node
+cannot be authored by these tools. The gate looks for one and, if found, clones it onto the
+scratch page and unifies the **clone**; if the document has none, the case stays
+fixture-only and is recorded as owed rather than faked.
+
+⛔ **The current pair — BOTH halves moved, three steps in a row now.**
+
+| | R2.4 ACCEPTED | R2.5 Phase 2 | **R2.5 Phase 3 (HEAD)** |
+| --- | --- | --- | --- |
+| Contract / schema | `1.6.0` | `1.7.0` | `1.7.0` |
+| Tools / plugin commands | 53 / 52 | 55 / 54 | **56 / 55** |
+| Server | `r2-server-5ac4bcd1a2a5` | `r2-server-1a74a40ba8b2` | **`r2-server-a30e91f4f88e`** |
+| Plugin | `r2-plugin-53a1fa676d6a` | `r2-plugin-10787ea0bdd5` | **`r2-plugin-0bc82334ff83`** |
+| Fingerprint | `sha256:d39aefef…` | `sha256:56ea2c94…` | **`sha256:05ac28c5…`** |
+
+⛔ **Adopting HEAD needs a DEV plugin re-run.** ⭐ **A server respawn is owed to an
+interactive session but NOT to the live gate** — the gate spawns its own server from
+`dist/server.js`, which is why it can refuse a stale *plugin* while running a fresh
+*server*. That distinction was derived this release, not carried forward.
+
+⭐ **Observed 2026-08-19, in one session:** an interactive connection holding the Phase 2
+pair answered `get_runtime_info` with `compatibility: "compatible"` while the gate's fresh
+server refused the very same plugin at `join_channel`. **`compatible` means the two RUNNING
+halves match each other — never that they match the tree.**
+
+⚠️ On this step every pin would catch a stale build, because a new tool moves the command
+list, the capability IDs and therefore the fingerprint. That is luck, not a property: R2.4
+moved the server twice with fingerprint, schema and tool count all holding still, so
+**`serverBuildId` is still the only pin that fails on every stale build** (CC4).
 | Fingerprint | `sha256:d39aefef…ca6289` | **`sha256:d39aefef…ca6289` — UNCHANGED** |
 
 ⭐ **Only the server moved, so this step needs a server respawn and NOT a DEV plugin
@@ -981,9 +1014,19 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             takes no cancellation signal, and `coverage.budgetCancelsFetch: false` says so
             permanently. ⛔ Reachability of the real inventory's shape/size is owed to the
             live gate — the fixture supplies eight faces.
-      - [ ] `set_text_style` — node-level, twelve optional fields, **validate-all-then-write
-            from birth**. ⚠️ `lineHeight`/`letterSpacing` are `{value, unit}`, not numbers.
-      - [ ] `create_text` takes the same params; Inter only when nothing is supplied.
+      - [x] ✅ **Phase 3 DONE 2026-08-19 (offline), 3.1–3.4.** `set_text_style` —
+            node-level, twelve optional fields, **validate-all-then-write from birth**,
+            `{value, unit}` for `lineHeight`/`letterSpacing` with `AUTO` refusing a value
+            rather than discarding it. ⛔ An unloadable font is **refused, never
+            substituted**; `fontSubstituted: false` is permanent. ⛔ `figma.mixed` maps to
+            the string `"MIXED"` — `JSON.stringify` drops a symbol key. Existing faces are
+            read with `getRangeAllFontNames`, because `fontName` on a mixed node names no
+            face at all. Five source mutations, all killed.
+      - [ ] ⏳ **MOVED TO R2.6** — `create_text` takes the same params; Inter only when
+            nothing is supplied. It needs reply fields, `create_text` is `stable`, and
+            R2.5's bump was spent in Phase 1.
+      - [ ] ⛔ **The R2.5 live gate** (`scripts/live-text-style-gate.mjs`). Permission
+            granted 2026-08-19. Needs a **DEV plugin re-run** + channel + foreground tab.
 - [ ] **R2.6 — layout.** Contract `1.7.0` → `1.8.0`.
       - [ ] Pay the atomicity debt. All three have one identical shape — validate first
             field, **write it**, then validate the second and throw: `setAxisAlign` writes
@@ -993,6 +1036,10 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             application of `set_item_spacing` as evidence, so fixing these makes the
             predecessor's own gate fail correctly. Restate the count: five of nine proven
             becomes **three of seven** (`move_node`/`set_stroke_color` stay declared).
+      - [ ] ⏳ **Inherited from R2.5 (3.5):** `create_text` gains the `set_text_style`
+            parameters, under the `1.8.0` bump this release already owns. ⛔ Fix the
+            un-awaited `setCharacters` at `code.js:1790` in the same change, and apply
+            refuse-never-substitute or the Inter fix reintroduces F2 on a new surface.
       - [ ] `set_layout_child`, `set_constraints`, `set_size_limits`, `set_clips_content`.
 - [ ] **R2.7 — visuals, assets, and R2 acceptance.** Contract `1.8.0` → `1.9.0`.
       - [ ] `set_fill` (solid + gradient), `set_effects`, `set_opacity`, `set_blend_mode`.

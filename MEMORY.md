@@ -10,6 +10,29 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
+## ▶ Resume (checkpoint 2026-08-19)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.5 typography
+- **Doing:** R2.5 Phase 3 (`set_text_style`) is BUILT and its **live gate PASSED**; the
+  release is complete but **not accepted**.
+- **Next step:** **R2.5 ACCEPTANCE** — promote `set_text_style`, `get_available_fonts` and
+  `check_fonts` from `additive-preview` to `stable` by removing them from
+  `ADDITIVE_PREVIEW_RESULTS` in `scripts/contract-lib.mjs`, then ⛔ **re-pin and RE-RUN
+  `scripts/live-text-style-gate.mjs` on the promoted build** — promotion moves the
+  contract and therefore the `serverBuildId`.
+- **Key paths / IDs:** `docs/R2.5-TYPOGRAPHY.md` (the record) · `scripts/live-text-style-gate.mjs`
+  (takes `--channel=`, optional `--mixed-node=<id>`) · `tests/text-style.test.mjs` ·
+  pair `r2-server-a30e91f4f88e` ↔ `r2-plugin-0bc82334ff83`, `1.7.0`, 56 tools/55 commands,
+  fingerprint `sha256:05ac28c5…`. Gate passed on channel `o247ecxs`.
+- **Open / blockers:** 🟡 **Everything is UNCOMMITTED** — 16 modified + 3 new files.
+  ⛔ Stage explicit paths, never `git add -A` (peer sessions write this repo).
+- **Don't forget:** ⛔ `getResultStability` falls through to `stable`, so a **leftover**
+  `ADDITIVE_PREVIEW_RESULTS` entry silently holds a tool back — remove, don't comment out.
+  ⛔ Two debts must NOT be recorded as discharged at acceptance: **F3 reachability** and
+  **mixed-font unification** (the fork ships no range-font setter), plus Phase 2's
+  `available` ≠ `loadable`, which did not reproduce live. ⚠️ `TASKS.md:261` has a
+  pre-existing orphaned table row from the R2.4 era — left alone deliberately.
+
 ## ▶ Live resume state
 
 ### ✅ Shipped and green
@@ -202,7 +225,48 @@ offline these tests prove the window, filter, sort and the available-vs-loadable
 **not** what a real machine returns or how large it is. The 3.66 MB defect this phase is
 bounded against has never been reproduced here.
 
-### ✅ R2.5 Phase 3 — `set_text_style` is BUILT, 2026-08-19 (offline; live gate PENDING)
+### ✅ R2.5 LIVE GATE PASSED — 2026-08-19, channel `o247ecxs`
+
+First run on the fixed script. Pair confirmed live: `r2-server-a30e91f4f88e` ↔
+`r2-plugin-0bc82334ff83`, schema `1.7.0`, fingerprint `sha256:05ac28c5…`, 56 tools,
+`compatible`, zero issues. Scratch page deleted in the `finally`, **baseline restored
+id-for-id** (6 pages, current page back). ⛔ SYD content never written to.
+
+- ✅ **Validate-all-then-write held with Figma as the judge** — eleven valid parameters and
+  a bad enum **last** → refused, node byte-identical on **two** channels: an independent
+  REST read *and* the plugin's own snapshot covering the six fields REST cannot see.
+- ✅ **Refuse-never-substitute held** — `fontStyle` reads **`Bold`** after the refusal.
+  ⭐ That is the whole discriminator: `Inter/Regular` is exactly what would be sitting
+  there had the tool grown `setCharacters`'s silent fallback.
+- ⭐ **The two refusals arrived at DIFFERENT LAYERS** — `schema` (Zod `-32602`, before
+  dispatch) for the bad enum, `handler` for the unloadable font. This is
+  [[feedback_a_gate_refusal_is_an_expected_outcome]] again; the gate records the
+  distinction rather than flattening it.
+
+🔴 **The first run failed on the GATE, not the tool — and hid something worse.**
+`create_text` answers **prose** while `create_page` embeds JSON. But the same run would
+have read plugin-API names (`fontName`, `textCase`) off a `JSON_REST_V1` export, whose
+`filterFigmaNode` keeps only a REST `style` subset — **every field would have read
+`null`, and null-before vs null-after PASSES VACUOUSLY.** ⭐ Same shape as
+[[feedback_a_failed_curl_reuses_the_previous_body]]: a symmetric failure reads exactly
+like agreement. ⛔ The fix is not correct field names — it is `assertReadChannelWorks`,
+which proves the channel reports real values **before** any equality is trusted, plus a
+separate plugin-snapshot witness for the six fields REST cannot carry.
+
+⭐ **CC5 held on the FAILED run too** — page deleted, baseline restored. The `finally` is
+the reason an aborted gate costs nothing.
+
+⚠️ **`letterSpacing: -2 PERCENT` reads back through REST as `-0.64` px.** REST resolves it
+to pixels; the plugin's own snapshot preserves `{unit: "PERCENT", value: -2}`, so the unit
+survives the write. The gate compares the *resolved* value on that channel.
+
+⏳ **NOT accepted.** Acceptance promotes `set_text_style`, `get_available_fonts` and
+`check_fonts` → `stable`. ⛔ **Promotion moves the contract and therefore the server build,
+so the gate must be RE-PINNED and RE-RUN on the promoted build** — R2.4 acceptance did
+exactly this, and accepting a build the gate never saw is the defect that release spent
+three phases closing.
+
+### ✅ R2.5 Phase 3 — `set_text_style` is BUILT, 2026-08-19 (offline)
 
 **169 tests green** (was 153), **56 tools / 55 plugin commands**, contract **stays `1.7.0`**,
 six baselines replay at zero errors, `dist/` byte-deterministic, `verify-release.mjs` passed.
@@ -251,11 +315,12 @@ Record → [`docs/R2.5-TYPOGRAPHY.md`](docs/R2.5-TYPOGRAPHY.md).
 faces refuse to load, so offline proves the **order of operations**, the refusal policy and
 the mixed-font semantics — not what real Figma refuses or when.
 
-🔴 **Mixed-font unification may never be provable live.** The fork ships **no range-font
-setter**, so a mixed node **cannot be authored by these tools**. `scripts/live-text-style-gate.mjs`
-looks for one in the document and, if found, **clones it onto the scratch page** and unifies
-the *clone* — the original is never written to. If the document has none, the case stays
-fixture-only and is recorded as owed rather than faked.
+🔴 **Mixed-font unification STAYS fixture-only after the live gate.** The fork ships **no
+range-font setter**, so a mixed node **cannot be authored by these tools**. The gate takes
+an explicit `--mixed-node=<id>` and clones it onto the scratch page, unifying the *clone*
+— the original is never written to. ⛔ It is an opt-in, not a search: the first run's
+automatic `scan_text_nodes` over a real page **timed out**. None was named, so `wasMixed:
+true` and the `"MIXED"` sentinel are proven offline and **unproven live**.
 
 ### ✅ Phase 2's CC6 debt is HALF CLOSED, live, 2026-08-19
 
@@ -272,7 +337,8 @@ Read-only, on channel `7tk4v5g7`, against the real machine:
 - ⭐ **Font load cost spreads 140×** — Inter 2 ms vs 42dot Sans **284 ms**. A font-unifying
   style write can cost ~300 ms in `loadFontAsync` alone, and `check_fonts`'s 50-pair cap is
   ~14 s worst case, which is why it is `standard` and not something weaker.
-- 🔴 **NOT closed: the `available` ≠ `loadable` case did not reproduce.** Every *listed* face
+- 🔴 **NOT closed, and the full live gate did not close it either: `available` ≠ `loadable`
+  did not reproduce.** Every *listed* face
   loaded and every unlisted one refused. The split is **justified** (Inter/Blond vs Ghostly
   prove the two fields answer different questions) but "listed yet unloadable" remains
   **fixture-only**. ⛔ Do not record Phase 2's CC6 debt as discharged.

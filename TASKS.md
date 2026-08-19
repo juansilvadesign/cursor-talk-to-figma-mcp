@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.5 live gate, then R2.6 layout
+## ▶ Next session — R2.5 ACCEPTANCE, then R2.6 layout
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
@@ -220,19 +220,43 @@ as "not reported".
 **R2.5 spent its bump in Phase 1**. R2.6 owns `1.8.0` and can fix the hardcoded Inter *and*
 the un-awaited `setCharacters` at `code.js:1790` in one change.
 
-**Next = the R2.5 LIVE GATE.** ✅ Permission granted 2026-08-19 (disposable file).
-`scripts/live-text-style-gate.mjs` is written and **already refused once, correctly**, on a
-stale plugin — `join_channel` named all three signals (plugin build, fingerprint, missing
-`set_text_style`) and wrote nothing. ⛔ **It needs a DEV plugin re-run**; the gate spawns
-its own server from `dist/server.js`, so no server respawn is owed *to the gate* — only to
-an interactive session. Plus a channel and a foreground Figma tab (CC7).
+**✅ THE R2.5 LIVE GATE PASSED 2026-08-19** — channel `o247ecxs`, first run on the fixed
+script. Pair confirmed live (`r2-server-a30e91f4f88e` ↔ `r2-plugin-0bc82334ff83`, 56 tools,
+`compatible`, zero issues), scratch page deleted in the `finally`, **baseline restored
+id-for-id**, SYD content never written to.
 
-⛔ **Two standing debts the gate may not close:** **F3's reachability** (the harness
-*injects* the refused write; nothing can make real Figma refuse one on demand) and
-**mixed-font unification** — the fork ships **no range-font setter**, so a mixed node
-cannot be authored by these tools. The gate looks for one and, if found, clones it onto the
-scratch page and unifies the **clone**; if the document has none, the case stays
-fixture-only and is recorded as owed rather than faked.
+- ✅ **Validate-all-then-write held with Figma as the judge** — bad enum last, refused, node
+  byte-identical on **two** channels: the independent REST read *and* the plugin's own
+  snapshot covering the six fields REST cannot see.
+- ✅ **Refuse-never-substitute held** — `fontStyle` reads **Bold** after the refusal, which
+  is exactly what would read `Inter/Regular` had the tool grown `setCharacters`'s fallback.
+- ⭐ **The two refusals arrived at DIFFERENT LAYERS** — `schema` (Zod, before dispatch) for
+  the enum, `handler` for the font. The trap that scored correct behaviour as FAIL three
+  times; recorded, not flattened.
+
+🔴 **The first run failed on the GATE, not the tool, and hid something worse.** `create_text`
+answers prose while `create_page` embeds JSON — but the same run would have read plugin-API
+field names off a `JSON_REST_V1` export and got **all-null**, and null-vs-null **passes
+vacuously**. ⛔ A vacuity guard now proves the read channel reports real values before any
+equality is trusted. ⭐ CC5 held on that failed run too: page deleted, baseline restored.
+
+⚠️ `letterSpacing: -2 PERCENT` reads back through REST as **`-0.64` px** — REST resolves it;
+the plugin's own snapshot preserves the unit. The gate compares the resolved value there.
+
+**Next = R2.5 ACCEPTANCE.** Promote `set_text_style`, `get_available_fonts` and `check_fonts`
+`additive-preview` → `stable` (remove from `ADDITIVE_PREVIEW_RESULTS`; `getResultStability`
+falls through to `stable`, so a leftover entry silently holds a tool back). ⛔ **Promotion
+moves the contract and therefore the server build — so the gate must be RE-PINNED and
+RE-RUN on the promoted build**, exactly as R2.4 acceptance did. ⛔ `stable` means frozen:
+a reply-shape change then needs a new `publicContractVersion` and the walk-back is breaking.
+
+⛔ **Two debts that acceptance must NOT paper over:** **F3's reachability** (the harness
+*injects* the refused write; nothing makes real Figma refuse one on demand) and **mixed-font
+unification** — the fork ships **no range-font setter**, so a mixed node cannot be authored
+by these tools. The gate takes `--mixed-node=<id>` and clones it onto the scratch page; none
+was named, so `wasMixed: true` and the `"MIXED"` sentinel stay **fixture-only**. ⛔ And
+Phase 2's `available` ≠ `loadable` case did **not** reproduce live — every listed face
+loaded. Do not record that debt as discharged either.
 
 ⛔ **The current pair — BOTH halves moved, three steps in a row now.**
 
@@ -1025,8 +1049,12 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
       - [ ] ⏳ **MOVED TO R2.6** — `create_text` takes the same params; Inter only when
             nothing is supplied. It needs reply fields, `create_text` is `stable`, and
             R2.5's bump was spent in Phase 1.
-      - [ ] ⛔ **The R2.5 live gate** (`scripts/live-text-style-gate.mjs`). Permission
-            granted 2026-08-19. Needs a **DEV plugin re-run** + channel + foreground tab.
+      - [x] ✅ **The R2.5 live gate PASSED 2026-08-19** (`scripts/live-text-style-gate.mjs`,
+            channel `o247ecxs`). Both refusal policies proved with Figma as the judge, on
+            two independent read channels. ⛔ First run failed on the GATE and exposed a
+            null-vs-null **vacuous** comparison; a vacuity guard now precedes every equality.
+      - [ ] ⛔ **R2.5 ACCEPTANCE** — promote the three tools to `stable`, then **re-pin and
+            RE-RUN the gate on the promoted build** (promotion moves the server build).
 - [ ] **R2.6 — layout.** Contract `1.7.0` → `1.8.0`.
       - [ ] Pay the atomicity debt. All three have one identical shape — validate first
             field, **write it**, then validate the second and throw: `setAxisAlign` writes

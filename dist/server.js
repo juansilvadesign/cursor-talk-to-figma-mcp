@@ -13,7 +13,7 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-a30e91f4f88e",
+  "serverBuildId": "r2-server-c45214d7420b",
   "pluginBuildId": "r2-plugin-0bc82334ff83",
   "serverSchemaVersion": "1.7.0",
   "pluginApiVersion": "1.7.0",

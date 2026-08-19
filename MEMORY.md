@@ -13,25 +13,25 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-19)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.5 typography
-- **Doing:** R2.5 Phase 3 (`set_text_style`) is BUILT and its **live gate PASSED**; the
-  release is complete but **not accepted**.
-- **Next step:** **R2.5 ACCEPTANCE** — promote `set_text_style`, `get_available_fonts` and
-  `check_fonts` from `additive-preview` to `stable` by removing them from
-  `ADDITIVE_PREVIEW_RESULTS` in `scripts/contract-lib.mjs`, then ⛔ **re-pin and RE-RUN
-  `scripts/live-text-style-gate.mjs` on the promoted build** — promotion moves the
-  contract and therefore the `serverBuildId`.
-- **Key paths / IDs:** `docs/R2.5-TYPOGRAPHY.md` (the record) · `scripts/live-text-style-gate.mjs`
-  (takes `--channel=`, optional `--mixed-node=<id>`) · `tests/text-style.test.mjs` ·
-  pair `r2-server-a30e91f4f88e` ↔ `r2-plugin-0bc82334ff83`, `1.7.0`, 56 tools/55 commands,
-  fingerprint `sha256:05ac28c5…`. Gate passed on channel `o247ecxs`.
-- **Open / blockers:** 🟡 **Everything is UNCOMMITTED** — 16 modified + 3 new files.
-  ⛔ Stage explicit paths, never `git add -A` (peer sessions write this repo).
-- **Don't forget:** ⛔ `getResultStability` falls through to `stable`, so a **leftover**
-  `ADDITIVE_PREVIEW_RESULTS` entry silently holds a tool back — remove, don't comment out.
-  ⛔ Two debts must NOT be recorded as discharged at acceptance: **F3 reachability** and
-  **mixed-font unification** (the fork ships no range-font setter), plus Phase 2's
-  `available` ≠ `loadable`, which did not reproduce live. ⚠️ `TASKS.md:261` has a
-  pre-existing orphaned table row from the R2.4 era — left alone deliberately.
+- **Doing:** ✅ **R2.5 is ACCEPTED 2026-08-19.** The three tools are `stable`, the gate was
+  re-pinned and **re-run green on the promoted build** (channel `ohipqdhg`).
+- **Next step:** **R2.6 — layout**, contract `1.7.0` → `1.8.0`. Pay the atomicity debt
+  (`setAxisAlign` / `setLayoutSizing` / `setItemSpacing` each write their first field then
+  throw — a pure reordering), ⛔ **update the R2.4 live gate in the same change** because it
+  *observes* `set_item_spacing`'s partial application as evidence, and take 3.5's inherited
+  `create_text` work under the `1.8.0` bump R2.6 owns.
+- **Key paths / IDs:** `docs/R2.5-TYPOGRAPHY.md` (the record, acceptance section at the end) ·
+  `scripts/live-text-style-gate.mjs` (takes `--channel=`, optional `--mixed-node=<id>`) ·
+  `tests/text-style.test.mjs` · ACCEPTED pair `r2-server-c45214d7420b` ↔
+  `r2-plugin-0bc82334ff83`, `1.7.0`, 56 tools/55 commands, fingerprint `sha256:05ac28c5…`.
+- **Open / blockers:** none blocking. 🟡 Commit the acceptance if not already done —
+  ⛔ stage explicit paths, never `git add -A` (peer sessions write this repo).
+- **Don't forget:** ⛔ Two debts are **NOT** discharged by acceptance: **F3 reachability**
+  (the harness injects the refused write) and Phase 2's **`available` ≠ `loadable`**, which
+  did not reproduce again — every listed face loaded. ⚠️ The gate's own `stillOwed` lists
+  only the first; the second is owed regardless. ✅ **Mixed-font unification IS closed live**
+  now (`--mixed-node=6030:9112`). ⚠️ `TASKS.md` has a pre-existing orphaned table row from
+  the R2.4 era — left alone deliberately.
 
 ## ▶ Live resume state
 
@@ -50,11 +50,16 @@ The server and plugin builds are a **matched PAIR**. Current pair:
 r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)   ← R2.4 ACCEPTED
 r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← R2.5 Phase 1
 r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)         ← R2.5 Phase 2
-r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← HEAD, 1.7.0, 56 tools
+r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 Phase 3
+r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← HEAD, R2.5 ACCEPTED
 ```
 
-⛔ **The tree is now R2.5 Phase 3, not Phase 2.** Schema stayed `1.7.0` (R2.5 spent its bump in
-Phase 1) but **BOTH halves moved a third consecutive time**, and tools went 55 → **56**.
+⛔ **The tree is now R2.5 ACCEPTED.** The promotion to `stable` moved the **SERVER ONLY** —
+the plugin half, the fingerprint, the schema and the 56-tool count all held still, so
+adopting HEAD needs a **server respawn and NOT a DEV plugin re-run**. That is the opposite
+of the three Phase steps before it; the answer has flipped on five consecutive steps now.
+⭐ **Against the pre-promotion build only `serverBuildId` fails** — the third time this
+release has proved why CC4 pins it.
 
 ⭐ **Adopting HEAD needs a DEV plugin re-run — and the server answer SPLITS.** The live gate
 spawns its own server from `dist/server.js`, so **the gate never needs a respawn**; only an
@@ -349,7 +354,7 @@ respawn**. ⭐ The fingerprint moved *this* time only because two capability IDs
 R2.4 moved the server twice with fingerprint, schema and tool count all holding still, so
 **`serverBuildId` is still the only pin that fails on every stale build**.
 
-**Next = R2.5 Phase 3** — `set_text_style` (3.1–3.5). ⛔ **3.2 is non-negotiable:
+**Phase 3 followed** — `set_text_style` (3.1–3.5), and this is the brief it was held to. ⛔ **3.2 is non-negotiable:
 validate-all-then-write from birth.** It is a twelve-field write, the exact shape F4 proves
 broken in three shipped ops; any other construction mints a fourth in the release that pays
 off the first three. ⛔ CC1 again. ⚠️ 3.5 touches `create_text`, which still has the deferred
@@ -360,6 +365,53 @@ un-awaited `setCharacters` at `code.js:1790`.
 `ADDITIVE_PREVIEW_RESULTS`, and `compatibilityErrors()` refuses to weaken a level. This plan
 adds ~10 tools — unlisted, they would be permanently frozen on day one, never having faced
 a live gate. ⛔ Every new tool ships `additive-preview`; promotion is an acceptance act.
+
+### ✅ R2.5 ACCEPTED — 2026-08-19, channel `ohipqdhg`
+
+`get_available_fonts`, `check_fonts` and `set_text_style` promoted `additive-preview` →
+`stable`, the entries **removed** from `ADDITIVE_PREVIEW_RESULTS` rather than commented
+out. Gate re-pinned to `r2-server-c45214d7420b` and **re-run green on the promoted build**.
+169/169 offline, six baselines at zero errors, `dist/` byte-deterministic across two
+builds, `verify-release.mjs` passed. Scratch page `6031:9116` deleted in the `finally`,
+baseline restored id-for-id (6 pages, current `0:1`).
+
+- ⭐ **The promotion moved `serverBuildId` and NOTHING ELSE** — and that is the whole
+  argument for CC4, now observed a third time. `serverBuildId` hashes
+  `serverSource + contractPayload`, so a stability change moves it; `pluginBuildId` hashes
+  plugin source and `capabilityFingerprint` hashes `{serverSchemaVersion, capabilityIds}`,
+  neither of which a stability change touches. Against the pre-promotion build the plugin
+  pin, fingerprint, schema and tool count **all four match**. ⛔ Re-derived by regenerating
+  and reading the diff, not carried forward from R2.4.
+- ✅ **Both judge-only assertions held again** on the accepted build: validate-all-then-write
+  (bad enum **last** → refused at the **schema** layer, node byte-identical on *both* read
+  channels) and refuse-never-substitute (`Ghostly Absent Family` → refused at the
+  **handler** layer, `fontName` still `Inter/Bold`, size still 32). The two refusal layers
+  stayed distinct rather than flattened.
+- ✅ **3.3 mixed-font unification is CLOSED LIVE**, first time in the release —
+  `--mixed-node=6030:9112`, cloned to `6031:9118` on the scratch page and unified *there*;
+  the source was never written to. `wasMixed: true`, `fontUnified: true`, and
+  `before.fontName` reads the string `"MIXED"` over the real transport. ⭐ `figma.mixed` is
+  a **symbol**, `JSON.stringify` renders a symbol as `undefined`, and undefined **drops the
+  key** — without the mapping the field would have vanished and read as "not reported"
+  rather than "this node holds more than one value". An absence would have looked like an
+  answer.
+- 🔴 **The first acceptance run FAILED on the GATE again, not the tool.** `clone_node`
+  answers `Cloned node "…" with **new** ID:` (`server.ts:1288`) while `create_text`,
+  `create_frame` and `create_section` answer `with ID:` — **three** reply shapes in this
+  surface counting `create_page`'s embedded JSON, and `callNodeId` was written against one.
+  ⭐ **CC5 held on the failed run too** (page `6031:9113` deleted, baseline restored) — an
+  aborted gate costs nothing, which is exactly why cleanup is not on the success path.
+  ⭐ The fix matches the qualifier **explicitly** (`/with (?:new )?ID:/`) rather than
+  loosening to `/ID:/`, so an unknown fourth shape fails **loudly** carrying the full reply
+  text instead of capturing a wrong token and failing three calls later. ⛔ Fixing the gate
+  does not move `serverBuildId` — the gate script is not hashed into it — so no second
+  re-pin was owed.
+- 🔴 **Two debts NOT discharged.** **F3 reachability** (the harness *injects* the refused
+  character write; nothing makes real Figma refuse one on demand) and Phase 2's
+  **`available` ≠ `loadable`**, which did not reproduce again — every listed face loaded,
+  every unlisted one refused. ⚠️ The gate's own `stillOwed` lists only F3; the second is
+  owed regardless and must not be read as discharged from a green run.
+- ⛔ **Accepting R2.5 does not accept R2.** R2 acceptance is the last act of R2.7.
 
 ### ⛔ R3 variable-write is still OPEN
 

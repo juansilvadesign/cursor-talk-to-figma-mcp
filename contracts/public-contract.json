@@ -405,7 +405,7 @@
         "pluginUpdates": "per_font"
       },
       "pluginCommand": "check_fonts",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -1136,7 +1136,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "get_available_fonts",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2792,7 +2792,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_text_style",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     }
   ],
   "prompts": [

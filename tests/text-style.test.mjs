@@ -337,16 +337,20 @@ test("⭐ a mixed node loads EVERY face it carries, not the symbol and not just 
   ]);
 });
 
-test("the published contract keeps set_text_style additive-preview, node-scoped and silent", async () => {
+test("the published contract carries set_text_style stable, node-scoped and silent", async () => {
   const { readFile } = await import("node:fs/promises");
   const contract = JSON.parse(
     await readFile(new URL("../contracts/public-contract.json", import.meta.url), "utf8"),
   );
   const tool = contract.tools.find((entry) => entry.name === "set_text_style");
   assert.ok(tool, "set_text_style must be in the published contract");
-  // CC1: a new tool that is not in ADDITIVE_PREVIEW_RESULTS falls through to `stable`
-  // and is frozen the day it ships, without ever having faced a live gate.
-  assert.equal(tool.resultStability, "additive-preview");
+  // CC1 shipped this `additive-preview` on purpose: a tool absent from
+  // ADDITIVE_PREVIEW_RESULTS falls through to `stable` and is frozen the day it ships,
+  // without ever having faced a live gate. R2.5 acceptance (2026-08-19) promoted it once
+  // the gate had earned it — promotion is an acceptance act, never a default.
+  // ⛔ From here the reply shape is frozen: growing it needs a new
+  // `publicContractVersion`, and compatibilityErrors() rejects the walk-back by name.
+  assert.equal(tool.resultStability, "stable");
   assert.equal(tool.direction, "write");
   assert.equal(tool.scope, "node");
   assert.equal(tool.timeoutClass, "standard");

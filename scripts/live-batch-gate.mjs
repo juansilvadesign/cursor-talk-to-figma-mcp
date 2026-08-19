@@ -79,12 +79,12 @@ if (!options.channel) {
 // place that has to act on it.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-5ac4bcd1a2a5",
-  pluginBuildId: "r2-plugin-53a1fa676d6a",
-  schemaVersion: "1.6.0",
+  serverBuildId: "r2-server-c45214d7420b",
+  pluginBuildId: "r2-plugin-0bc82334ff83",
+  schemaVersion: "1.7.0",
   fingerprint:
-    "sha256:d39aefef0dc14f5324c93a1da426ce20f868c59cb77b60b663835dd0bfca6289",
-  toolCount: 53,
+    "sha256:a6ca7f4a56a64db9f50686940fb98ef0cfb3f524c93540cc88ef5fde2a4604e3",
+  toolCount: 56,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

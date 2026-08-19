@@ -92,20 +92,26 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
-  // R2.5 Phase 2, per CC1 of R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md. Listed in the SAME
-  // change that registers them: getResultStability falls through to `stable`, and
-  // compatibilityErrors() refuses to weaken a level, so an unlisted new tool is frozen
-  // on the day it ships without ever having faced a live gate. Promotion is an
-  // acceptance act — these two stay here until R2.5's live gate has earned it.
-  "get_available_fonts",
-  "check_fonts",
-  // R2.5 Phase 3, same rule, same commit. `set_text_style` is a twelve-field write whose
-  // reply shape is expected to grow — R2.6 adds the child-layout tools that share its
-  // textAutoResize/layoutSizing boundary — so freezing it before a live gate has run
-  // would be freezing a shape nobody has exercised.
-  "set_text_style",
 ]);
 
+// ⭐ R2.5's three tools — `get_available_fonts`, `check_fonts` and `set_text_style` —
+// were here until R2.5 acceptance (2026-08-19), held at `additive-preview` on the stated
+// condition that their reply shapes had never been judged by real Figma. The typography
+// live gate earned it: validate-all-then-write held with Figma as the judge (eleven valid
+// parameters plus a bad enum LAST → refused, node byte-identical on two independent read
+// channels), and refuse-never-substitute held (`fontStyle` still `Bold` after an
+// unloadable font, where `setCharacters`'s fallback would have left `Inter/Regular`).
+// The entries are GONE rather than commented out — `getResultStability` falls through to
+// `stable`, so a leftover entry silently holds a tool back at the weaker level.
+//
+// ⛔ This promotion rewrites `contractPayload.tools`, which feeds `serverBuildId` — so
+// the gate is re-pinned and RE-RUN on the promoted build. Accepting a build the gate has
+// never seen is the defect R2.4 spent three phases closing.
+//
+// ⛔ `stable` means frozen, and `set_text_style` is the one to watch: R2.6 adds the
+// child-layout tools that share its textAutoResize/layoutSizing boundary, and from here
+// its reply shape cannot grow without a new `publicContractVersion`.
+//
 // ⭐ `apply_batch` was here until R2.4 acceptance (2026-08-18), held at
 // `additive-preview` on the stated condition that it had never run against a real Figma
 // file. It has now passed three live gates — 5.5 (2026-08-12), 5.6 (2026-08-18) and the

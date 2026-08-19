@@ -62,14 +62,23 @@ if (!options.channel) {
   process.exit(2);
 }
 
-// ⛔ Pinned for R2.5 Phase 3. BOTH halves moved — `set_text_style` is a new tool, so the
-// plugin's command list and the server's capability IDs both changed, which moves the
-// fingerprint too. On this step every pin would catch a stale build; that is luck, not a
-// property. R2.4 moved the server twice with schema, tool count AND fingerprint all
-// holding still, so `serverBuildId` remains the only pin that fails on every stale
-// build, and CC4 requires it regardless of what the others happen to catch this time.
+// ⛔ RE-PINNED for R2.5 ACCEPTANCE. Promoting the three tools to `stable` rewrites
+// `contractPayload.tools`, and `serverBuildId` hashes `serverSource + contractPayload` —
+// so the server build moved and **nothing else did**. Verified, not carried forward from
+// R2.4: `pluginBuildId` hashes plugin source only and the promotion never touches
+// `code.js`; `capabilityFingerprint` hashes `{serverSchemaVersion, capabilityIds}`, and a
+// stability change moves neither; schema stays 1.7.0 and the tool count stays 56.
+//
+// ⭐ This is the exact case CC4 exists for. Against the pre-promotion build, the plugin
+// pin, the fingerprint, the schema and the tool count would ALL match — only
+// `serverBuildId` fails. On the Phase 3 step every pin happened to catch a stale build;
+// that was luck. Here it is down to one, as it was twice in R2.4.
+//
+// ⭐ Consequence for the operator: the DEV plugin does NOT need re-running for this
+// gate — the plugin half is unchanged. The gate spawns its own server from
+// `dist/server.js`, so the promoted server is picked up automatically.
 const expectedRuntime = {
-  serverBuildId: "r2-server-a30e91f4f88e",
+  serverBuildId: "r2-server-c45214d7420b",
   pluginBuildId: "r2-plugin-0bc82334ff83",
   schemaVersion: "1.7.0",
   fingerprint:
@@ -153,7 +162,14 @@ async function callNodeId(name, args = {}) {
     const parsed = JSON.parse(called.text.slice(start, end + 1));
     if (parsed?.id) return { ...called, id: parsed.id, value: parsed };
   }
-  const match = called.text.match(/with ID:\s*([^.\s]+)/);
+  // ⛔ THREE reply shapes, not two. `create_page` embeds JSON; `create_text`,
+  // `create_frame` and `create_section` answer prose "with ID:"; `clone_node` alone
+  // answers "with **new** ID:" (server.ts:1288) and slipped through a matcher written
+  // against the first two. Same class as the Phase 3 first run, one tool further on.
+  // ⭐ The qualifier is matched explicitly rather than loosened to /ID:/ — an unknown
+  // fourth shape must fail LOUDLY on the assert below, carrying the full text, rather
+  // than silently capturing the wrong token and failing three calls later.
+  const match = called.text.match(/with (?:new )?ID:\s*([^.\s]+)/);
   assert.ok(match, `${name} returned neither JSON nor a prose node id: ${called.text}`);
   return { ...called, id: match[1], value: null };
 }

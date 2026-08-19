@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.5 ACCEPTANCE, then R2.6 layout
+## ▶ Next session — R2.6 layout (R2.5 is ACCEPTED)
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build
@@ -243,35 +243,46 @@ equality is trusted. ⭐ CC5 held on that failed run too: page deleted, baseline
 ⚠️ `letterSpacing: -2 PERCENT` reads back through REST as **`-0.64` px** — REST resolves it;
 the plugin's own snapshot preserves the unit. The gate compares the resolved value there.
 
-**Next = R2.5 ACCEPTANCE.** Promote `set_text_style`, `get_available_fonts` and `check_fonts`
-`additive-preview` → `stable` (remove from `ADDITIVE_PREVIEW_RESULTS`; `getResultStability`
-falls through to `stable`, so a leftover entry silently holds a tool back). ⛔ **Promotion
-moves the contract and therefore the server build — so the gate must be RE-PINNED and
-RE-RUN on the promoted build**, exactly as R2.4 acceptance did. ⛔ `stable` means frozen:
-a reply-shape change then needs a new `publicContractVersion` and the walk-back is breaking.
+**✅ R2.5 IS ACCEPTED 2026-08-19** — channel `ohipqdhg`. `set_text_style`,
+`get_available_fonts` and `check_fonts` are `stable`, **removed** from
+`ADDITIVE_PREVIEW_RESULTS` rather than commented out (`getResultStability` falls through to
+`stable`, so a leftover entry silently holds a tool back). The gate was re-pinned to
+`r2-server-c45214d7420b` and **re-run green on the promoted build**. ⛔ `stable` now means
+frozen: a reply-shape change needs a new `publicContractVersion` and the walk-back is
+breaking, rejected by `compatibilityErrors()` by name.
 
-⛔ **Two debts that acceptance must NOT paper over:** **F3's reachability** (the harness
-*injects* the refused write; nothing makes real Figma refuse one on demand) and **mixed-font
-unification** — the fork ships **no range-font setter**, so a mixed node cannot be authored
-by these tools. The gate takes `--mixed-node=<id>` and clones it onto the scratch page; none
-was named, so `wasMixed: true` and the `"MIXED"` sentinel stay **fixture-only**. ⛔ And
-Phase 2's `available` ≠ `loadable` case did **not** reproduce live — every listed face
-loaded. Do not record that debt as discharged either.
+✅ **3.3 mixed-font unification is CLOSED LIVE** — `--mixed-node=6030:9112`, cloned to
+`6031:9118` on the scratch page and unified there; the source was never written to.
+`wasMixed: true`, `fontUnified: true`, and `before.fontName` reads the string `"MIXED"`
+over the real transport. ⭐ That last one is the assertion worth having: `figma.mixed` is a
+**symbol**, `JSON.stringify` renders a symbol as `undefined`, and undefined **drops the
+key** — the field would have vanished and read as "not reported" rather than "this node
+holds more than one value".
 
-⛔ **The current pair — BOTH halves moved, three steps in a row now.**
+⛔ **Two debts acceptance did NOT discharge:** **F3's reachability** (the harness *injects*
+the refused write; nothing makes real Figma refuse one on demand — the gate says so in
+`stillOwed`), and Phase 2's **`available` ≠ `loadable`**, which did **not** reproduce again
+— every listed face loaded, every unlisted one refused. ⚠️ The gate's `stillOwed` does not
+list the second one; it is owed regardless.
 
-| | R2.4 ACCEPTED | R2.5 Phase 2 | **R2.5 Phase 3 (HEAD)** |
-| --- | --- | --- | --- |
-| Contract / schema | `1.6.0` | `1.7.0` | `1.7.0` |
-| Tools / plugin commands | 53 / 52 | 55 / 54 | **56 / 55** |
-| Server | `r2-server-5ac4bcd1a2a5` | `r2-server-1a74a40ba8b2` | **`r2-server-a30e91f4f88e`** |
-| Plugin | `r2-plugin-53a1fa676d6a` | `r2-plugin-10787ea0bdd5` | **`r2-plugin-0bc82334ff83`** |
-| Fingerprint | `sha256:d39aefef…` | `sha256:56ea2c94…` | **`sha256:05ac28c5…`** |
+⛔ **The current pair — the acceptance step moved the SERVER ONLY.**
 
-⛔ **Adopting HEAD needs a DEV plugin re-run.** ⭐ **A server respawn is owed to an
-interactive session but NOT to the live gate** — the gate spawns its own server from
+| | R2.4 ACCEPTED | R2.5 Phase 2 | R2.5 Phase 3 | **R2.5 ACCEPTED (HEAD)** |
+| --- | --- | --- | --- | --- |
+| Contract / schema | `1.6.0` | `1.7.0` | `1.7.0` | `1.7.0` |
+| Tools / plugin commands | 53 / 52 | 55 / 54 | 56 / 55 | **56 / 55** |
+| Server | `r2-server-5ac4bcd1a2a5` | `r2-server-1a74a40ba8b2` | `r2-server-a30e91f4f88e` | **`r2-server-c45214d7420b`** |
+| Plugin | `r2-plugin-53a1fa676d6a` | `r2-plugin-10787ea0bdd5` | `r2-plugin-0bc82334ff83` | `r2-plugin-0bc82334ff83` *(unmoved)* |
+| Fingerprint | `sha256:d39aefef…` | `sha256:56ea2c94…` | `sha256:05ac28c5…` | `sha256:05ac28c5…` *(unmoved)* |
+
+⛔ **Adopting HEAD needs a server respawn and NOT a DEV plugin re-run** — the promotion is
+server-side only. That is the **opposite** of the three Phase steps before it, so the
+answer has now flipped on five consecutive steps: ⛔ re-derive it, never carry it forward.
+⭐ **The live gate never owes the respawn** — it spawns its own server from
 `dist/server.js`, which is why it can refuse a stale *plugin* while running a fresh
-*server*. That distinction was derived this release, not carried forward.
+*server*. ⭐ **And against the pre-promotion build only `serverBuildId` would have failed**
+— plugin, fingerprint, schema and tool count all match across the promotion. That is the
+whole argument for CC4, observed for the third time.
 
 ⭐ **Observed 2026-08-19, in one session:** an interactive connection holding the Phase 2
 pair answered `get_runtime_info` with `compatibility: "compatible"` while the gate's fresh
@@ -1053,8 +1064,14 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             channel `o247ecxs`). Both refusal policies proved with Figma as the judge, on
             two independent read channels. ⛔ First run failed on the GATE and exposed a
             null-vs-null **vacuous** comparison; a vacuity guard now precedes every equality.
-      - [ ] ⛔ **R2.5 ACCEPTANCE** — promote the three tools to `stable`, then **re-pin and
-            RE-RUN the gate on the promoted build** (promotion moves the server build).
+      - [x] ✅ **R2.5 ACCEPTED 2026-08-19** — the three tools promoted to `stable`
+            (removed from `ADDITIVE_PREVIEW_RESULTS`, not commented out), gate re-pinned to
+            `r2-server-c45214d7420b` and **re-run green on the promoted build** (channel
+            `ohipqdhg`). ⭐ The promotion moved `serverBuildId` and **nothing else** —
+            plugin, fingerprint, schema and tool count all held still, which is the whole
+            argument for CC4. ✅ 3.3 mixed-font unification **closed live** via
+            `--mixed-node=6030:9112`. ⛔ First run failed on the GATE again: `clone_node`
+            answers `with **new** ID:` where the other three creators answer `with ID:`.
 - [ ] **R2.6 — layout.** Contract `1.7.0` → `1.8.0`.
       - [ ] Pay the atomicity debt. All three have one identical shape — validate first
             field, **write it**, then validate the second and throw: `setAxisAlign` writes

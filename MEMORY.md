@@ -13,24 +13,24 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-20)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout
-- **Doing:** ✅ **R2.5 ACCEPTED + COMMITTED 2026-08-19** (`e02d1b2`, tree clean). Now on
-  **R2.6 Phase 1 — the atomicity debt**, which the owner scoped to **land and gate on its
-  own BEFORE Phase 2 opens**. Groundwork done, no code edited yet.
-- **Next step:** apply the **Phase 1 change set** (5 items, agreed): ① reorder the three
-  handlers so every validation precedes the first assignment ② remove all three from
-  `NON_ATOMIC_BATCH_OPERATIONS` ③ mark `move_node` + `set_stroke_color` `proven:` and
-  restate the count as **two of six** ④ ⛔ update the R2.4 live gate **in the same commit**
-  ⑤ mutation-test the reorder against the SOURCE, invalid field **LAST**, asserting the
-  node is byte-identical. ⛔ **No contract bump** — strengthening `partialApplicationPossible`
-  to false is additive, so `1.7.0` holds and R2.6 spends `1.8.0` on Phase 2's new tools.
-- **Key paths / IDs:** `docs/R2.5-TYPOGRAPHY.md` (the record, acceptance section at the end) ·
-  `scripts/live-text-style-gate.mjs` (takes `--channel=`, optional `--mixed-node=<id>`) ·
-  `tests/text-style.test.mjs` · ACCEPTED pair `r2-server-c45214d7420b` ↔
-  `r2-plugin-0bc82334ff83`, `1.7.0`, 56 tools/55 commands, fingerprint `sha256:05ac28c5…`.
-- **Open / blockers:** ⚠️ **One count to reconcile before building:** the owner approved
-  "the **6** corrections" but the agreed change set has **5** numbered items — most likely
-  counting the *two-of-six* restatement as its own. Confirm which, don't guess.
-  ⛔ Stage explicit paths, never `git add -A` (peer sessions write this repo).
+- **Doing:** ✅ **R2.6 Phase 1 is BUILT + COMMITTED 2026-08-20** (offline) — all five
+  change-set items landed. ⏳ **NOT gated.** The live run is the only thing standing between
+  Phase 1 and Phase 2, and the owner scoped Phase 1 to **land and gate ALONE**.
+- **Next step:** run the **re-pinned R2.4 live gate** — `node scripts/live-batch-gate.mjs
+  --channel=<name>`. Needs a foreground Figma tab and owner permission on a disposable file.
+  ⛔ Phase 2 stays closed until it passes. ⛔ **No contract bump happened and none is owed** —
+  strengthening `partialApplicationPossible` to false is additive, so `1.7.0` held and R2.6
+  still has `1.8.0` to spend on Phase 2's five new tools.
+- **Key paths / IDs:** `scripts/live-batch-gate.mjs` (the R2.4 gate, now INVERTED — see
+  below) · `tests/batch-receipt.test.mjs` (the reorder is pinned here) ·
+  `tests/helpers/plugin-harness.mjs` (new `refusePropertyWrite` option) · current pair
+  `r2-server-c45214d7420b` ↔ **`r2-plugin-65d716d57dbb`**, `1.7.0`, 56 tools/55 commands,
+  fingerprint `sha256:05ac28c5…` (both unmoved).
+- **Open / blockers:** 🔴 **Adopting this build needs a DEV plugin re-run AND a server
+  respawn — and the pins actively LIE about the second.** `pluginBuildId` moved;
+  `serverBuildId` did **not**, yet `dist/server.js` changed anyway because `batch-receipt.mjs`
+  is in the bundle and is hashed by nothing. ⛔ Stage explicit paths, never `git add -A`
+  (peer sessions write this repo).
 - **Don't forget:** ⛔ Two debts are **NOT** discharged by acceptance: **F3 reachability**
   (the harness injects the refused write) and Phase 2's **`available` ≠ `loadable`**, which
   did not reproduce again — every listed face loaded. ⚠️ The gate's own `stillOwed` lists
@@ -465,6 +465,79 @@ its `1.8.0` on Phase 2's five new tools.
 it *observes* `set_item_spacing`'s partial application **as evidence**, so fixing these
 makes the predecessor's own gate fail correctly. ⭐ A release that breaks the gate which
 accepted the release before it is not a regression; failing to notice would be.
+
+### ✅ R2.6 Phase 1 — the atomicity debt is PAID, 2026-08-20 (offline)
+
+**169 tests green**, contract **held at `1.7.0`** (no bump, by design), six baselines
+replaying, `dist/` byte-deterministic across two builds, `verify-release.mjs` passed.
+⏳ **NOT gated** — offline only.
+
+✅ **The 6-vs-5 count is RECONCILED, not guessed.** The owner confirmed: **③ carries two
+corrections** (mark `move_node`/`set_stroke_color` `proven:`, *and* restate the count), so
+6 corrections = the 5 agreed items, nothing added or dropped. ⭐ The plan's Phase 1 only
+ever had **four** numbered items; the fifth change-set item is CC6's mutation test, which
+has no plan item at all.
+
+- ✅ **The reorder is a reordering, and that was ASSERTED rather than assumed.** Every
+  second-field validation reads *node* state (`layoutMode`, `type`, `parent.layoutMode`,
+  `layoutWrap`) and never the sibling parameter, and no first write can change what those
+  reads return. Validation **order** was preserved exactly, so every error message and every
+  verdict is unchanged — only the write is suppressed.
+- ✅ **`NON_ATOMIC_BATCH_OPERATIONS` is now six entries, two `proven:`** — in **both** copies
+  (`src/talk_to_figma_mcp/batch-receipt.mjs` and `src/cursor_mcp_plugin/code.js`), plus the
+  count prose in all four sites. ⭐ `tests/apply-batch.test.mjs`'s mirror test already
+  enforced parity, so a half-landed edit could not have shipped quietly.
+- ⭐ **The two survivors are a DIFFERENT SHAPE, and the map now says so.** The three that were
+  fixed validated field 2 themselves and threw; `move_node` and `set_stroke_color` write both
+  fields and the **Figma property setter** refuses the second. There is no validation to
+  hoist — closing them means adding type checks to two `stable` tools, which is why 1.4
+  keeps them declared and out of scope.
+- ✅ **Five source mutations, all killed** (⛔ the SOURCE, never `dist/`): hoisting the write
+  back above the validation in each of the three handlers (1 test each), re-adding a fixed op
+  to the map (2 tests), and a one-sided edit to the mirrored map (2 tests). ⭐ **The control
+  matters as much:** swapping two writes *inside* the write phase **survived** — correctly,
+  because it is a genuine no-op. A suite that killed that one would have been over-fitted.
+- ⭐ **The invalid field goes LAST and the node is asserted UNCHANGED.** A throw-only
+  assertion survives moving the write back above the validation — it still throws, just
+  after dirtying the document — which is exactly
+  [[feedback_asserting_it_threw_does_not_assert_when_it_threw]].
+- ⚠️ **The offline harness gained `refusePropertyWrite`.** After Phase 1 **no remaining
+  declared op can demonstrate a real partial write offline**: the three that could are now
+  atomic, and the two that stay proven are platform refusals the fake would happily accept.
+  Without modelling that refusal the receipt test would have degraded into asserting the map
+  says what the map says — a consistency check standing in for a correctness one.
+
+### 🔴 R2.6 Phase 1's two findings — both bigger than the change set
+
+🔴 **`serverBuildId` does NOT cover `batch-receipt.mjs`, and this was MEASURED.** It is
+`sha256(server.ts + contractPayload)` — `SERVER_PATH` in `scripts/contract-lib.mjs:11` is
+`server.ts` **alone**. A whole semantic change to `batch-receipt.mjs`, regenerated on its
+own, produced **byte-identical** runtime metadata: server build ID, plugin build ID,
+fingerprint, schema and tool count **all four held still**.
+
+- ⛔ **This contradicts CC4 as written.** "`serverBuildId` is the only pin that fails on every
+  stale build" is true only for changes that reach `server.ts` or the contract. A server
+  change outside those two is invisible to *every* pin simultaneously.
+- ⛔ Phase 1 is caught only **by accident**, because it also moved `code.js` and therefore
+  `pluginBuildId`. A Phase that touched only server modules would ship a stale
+  `dist/server.js` past a fully green preflight.
+- ⭐ Same shape as [[feedback_a_fingerprint_only_covers_what_it_hashes]], one layer out: read
+  the hash's **inputs** before trusting it, and never infer freshness from a green pin.
+
+🔴 **The R2.4 gate was ALREADY unrunnable, and had been since `e02d1b2`.** It carried
+fingerprint `sha256:a6ca7f4a…` against a tree at `sha256:05ac28c5…`, so it would have failed
+at `assertRuntime` **before reaching a single check**. Nothing noticed because the gate was
+*edited* in that commit and never *re-run* on it. ⭐ Editing a gate is not exercising it —
+the same class as the finding that filed a defect fixed two commits earlier.
+
+⛔ **The inverted assertion could not be a bare equality.** `partialApplicationReason` is only
+written when the possibility is declared, so comparing it to the removed map entry leaves
+`undefined === undefined` — a **vacuous pass**, with `assert.equal` reporting green over an
+assertion that had stopped asking anything. The gate now asserts the **absence** of the field
+and the absence of the map key. ⭐ Same shape as
+[[feedback_a_failed_curl_reuses_the_previous_body]]: a symmetric absence reads exactly like
+agreement. ⚠️ And the surviving partial-application OR now **names** `move_node` /
+`set_stroke_color` rather than silently narrowing from three probes to two.
 
 ### ⛔ R3 variable-write is still OPEN
 

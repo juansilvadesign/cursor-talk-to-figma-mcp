@@ -169,7 +169,29 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 layout (R2.5 is ACCEPTED)
+## ▶ Next session — R2.6 layout (Phase 1 is BUILT, NOT gated)
+
+**✅ R2.6 PHASE 1 IS DONE 2026-08-20 (offline) and COMMITTED** — the atomicity debt is paid.
+`setAxisAlign` / `setLayoutSizing` / `setItemSpacing` reordered to validate-all-then-write,
+all three **removed** from `NON_ATOMIC_BATCH_OPERATIONS` (now **six entries, two `proven:`**
+— `move_node` + `set_stroke_color`), the R2.4 live gate inverted and re-pinned. **169 tests
+green**, contract **held at `1.7.0`** (no bump owed), six baselines replaying, `dist/`
+byte-deterministic, `verify-release` passed. Five source mutations killed; the control
+survived correctly. Record: `MEMORY.md`, and the plan's Phase 1 items are checked off.
+
+⏳ **NEXT = run the re-pinned R2.4 live gate** — `node scripts/live-batch-gate.mjs
+--channel=<name>`, foreground Figma tab, owner permission on a disposable file.
+⛔ **Phase 2 stays closed until it passes** — the owner scoped Phase 1 to land and gate alone.
+
+🔴 **Adopting this build needs a DEV plugin re-run AND a server respawn, and the pins lie
+about the second.** `pluginBuildId` moved (`0bc82334ff83` → `65d716d57dbb`); `serverBuildId`
+did **not** — yet `dist/server.js` changed anyway, because `batch-receipt.mjs` is in the
+bundle and is hashed by nothing. ⛔ CC4's "serverBuildId is the only pin that fails on a
+stale build" is FALSE for any server change outside `server.ts`.
+
+---
+
+### (historical, below) R2.4 → R2.5 acceptance
 
 **R2.4 ACCEPTED 2026-08-18.** 125 tests green, five baselines replaying, `dist/`
 deterministic, the live gate PASSED on channel `qvtz3fwr` — twice, once on the 4.1 build

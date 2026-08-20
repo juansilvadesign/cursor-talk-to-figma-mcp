@@ -13,14 +13,15 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-20)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout
-- **Doing:** ✅ **R2.6 Phase 1 is BUILT + COMMITTED 2026-08-20** (offline) — all five
-  change-set items landed. ⏳ **NOT gated.** The live run is the only thing standing between
-  Phase 1 and Phase 2, and the owner scoped Phase 1 to **land and gate ALONE**.
-- **Next step:** run the **re-pinned R2.4 live gate** — `node scripts/live-batch-gate.mjs
-  --channel=<name>`. Needs a foreground Figma tab and owner permission on a disposable file.
-  ⛔ Phase 2 stays closed until it passes. ⛔ **No contract bump happened and none is owed** —
-  strengthening `partialApplicationPossible` to false is additive, so `1.7.0` held and R2.6
-  still has `1.8.0` to spend on Phase 2's five new tools.
+- **Doing:** ✅✅ **R2.6 Phase 1 is BUILT + COMMITTED + GATED 2026-08-20** — all five
+  change-set items landed, and the **re-pinned R2.4 live gate PASSED on channel `kw7qggwv`**,
+  one run, green on the first try. The three layout ops are **atomic against a real document**;
+  `move_node` / `set_stroke_color` stay proven-partial and named. ⛔ **Phase 2 is UNBLOCKED.**
+- **Next step:** **Phase 2** — its five new tools, spending the `1.8.0` the contract still has.
+  ⛔ **No contract bump happened in Phase 1 and none was owed** — strengthening
+  `partialApplicationPossible` to false is additive, so `1.7.0` held.
+  ⚠️ Phase 1 is **not committed as gated yet**: the MEMORY/TASKS updates recording the pass are
+  uncommitted, and a peer session committed this repo mid-run (`d75c7df`) — stage explicit paths.
 - **Key paths / IDs:** `scripts/live-batch-gate.mjs` (the R2.4 gate, now INVERTED — see
   below) · `tests/batch-receipt.test.mjs` (the reorder is pinned here) ·
   `tests/helpers/plugin-harness.mjs` (new `refusePropertyWrite` option) · current pair
@@ -29,8 +30,11 @@ type: project
 - **Open / blockers:** 🔴 **Adopting this build needs a DEV plugin re-run AND a server
   respawn — and the pins actively LIE about the second.** `pluginBuildId` moved;
   `serverBuildId` did **not**, yet `dist/server.js` changed anyway because `batch-receipt.mjs`
-  is in the bundle and is hashed by nothing. ⛔ Stage explicit paths, never `git add -A`
-  (peer sessions write this repo).
+  is in the bundle and is hashed by nothing. ✅ The **DEV re-run is DONE** in the live Figma
+  session — it reported `r2-plugin-65d716d57dbb` itself on `kw7qggwv`. ⚠️ An **interactive MCP
+  session still needs its own server respawn**; the gate never did, because it spawns its own
+  from `dist/server.js`. ⛔ Stage explicit paths, never `git add -A`
+  (peer sessions write this repo — one committed `d75c7df` mid-run).
 - **Don't forget:** ⛔ Two debts are **NOT** discharged by acceptance: **F3 reachability**
   (the harness injects the refused write) and Phase 2's **`available` ≠ `loadable`**, which
   did not reproduce again — every listed face loaded. ⚠️ The gate's own `stillOwed` lists
@@ -506,6 +510,58 @@ has no plan item at all.
   atomic, and the two that stay proven are platform refusals the fake would happily accept.
   Without modelling that refusal the receipt test would have degraded into asserting the map
   says what the map says — a consistency check standing in for a correctness one.
+
+### ✅ R2.6 PHASE 1 LIVE GATE PASSED — 2026-08-20, channel `kw7qggwv`
+
+**One run, green on the first try.** `success: true`, `failure: null`, on the SYD copy.
+⛔ **Phase 2 is now UNBLOCKED** — Phase 1 landed and gated alone, as the owner scoped it.
+
+- ✅ **The pairing held live, checked against the TREE and not against `compatible`:** the
+  Figma session reported `r2-plugin-65d716d57dbb` itself — the DEV re-run took. Server
+  `r2-server-c45214d7420b`, both `1.7.0`, both fingerprint `sha256:05ac28c5…34d42`, 56 tools.
+- ⭐ **The stale-`dist/` finding was closed by MEASUREMENT, not by a pin.** `dist/` was
+  rebuilt before the run and came back **byte-identical**, and the gate's own
+  `artifactHashes.server` (`c4019a01…`) equals that verified file — so the artifact exercised
+  is provably the artifact checked. This is the only way past the Phase 1 finding that
+  `serverBuildId` covers neither `batch-receipt.mjs` nor anything else outside `server.ts`.
+- ✅ **THE INVERTED ASSERTION IS LIVE-PROVEN — the three layout ops are ATOMIC.**
+  `set_item_spacing` failed (`layoutWrap` must be `WRAP`) and left the document **unchanged**:
+  `gapBefore: 16` → `gapAfter: 16`, `partiallyApplied: false`, `atomic: true`. The receipt
+  carries `partialApplicationPossible: false` and **no `partialApplicationReason` field at
+  all** — the absence the gate now asserts, instead of the `undefined === undefined` vacuous
+  pass a bare equality would have scored green.
+- ⭐ **Read back by GEOMETRY, not by self-report:** no read tool surfaces `itemSpacing`, so the
+  gate measures the gap between the two auto-layout children from `absoluteBoundingBox`.
+- ✅ **The two survivors stayed proven AND named** — no silent narrowing from three probes to
+  two: `move_node` x `0 → 120` then the platform refused a non-numeric `y`;
+  `set_stroke_color` `strokes null → red SOLID` then it refused a non-numeric `strokeWeight`.
+  Both `partiallyApplied: true`. ⭐ **This is what makes the gate a correctness check** — it
+  fails the fix and confirms the untouched pair in the same batch, so "two of six" is observed
+  rather than restated.
+- ✅ **Refusals arrived in BOTH shapes again:** duplicate `id` → `layer: "handler"` (error
+  result); disallowed `op` → `layer: "schema"`, thrown `-32602`. The trap that scored correct
+  behaviour as FAIL three times stayed closed.
+- ✅ **`prevalidateOnly` wrote nothing to real SYD content** — the dry run resolved a
+  `delete_node` against the real TEXT node `6030:9112` ("testeteste") on page `0:1` *1-Capa*
+  and skipped it; `realNodesUnchangedAfterDryRun: true`. Destructive scope observed at zero
+  risk, which is the whole reason that batch exists.
+- ✅ `onError:"stop"` → `refused_prevalidation`, **wrote nothing**; `onError:"continue"`
+  applied the other two. Chunked progress 0→33→67→100, reached complete.
+- ✅ **Clamp regression still closed:** `chunkPauseMs=5000` + `timeBudgetMs=1000` → unclamped
+  would be 10 000 ms, actual **1011 ms**, `partial`, 5 done / 10 skipped, **and** 4 progress
+  frames. Both halves true at once.
+- ✅ **3.2 re-measured on real content:** 2136 ms observed vs 2000 ms predicted over 2 gaps.
+  Every op succeeded at `chunkPauseMs=0`, so the pause bought nothing here — the `0` default
+  stays earned.
+- ✅ **Cleanup discharged in the `finally`:** scratch page `6035:2` deleted, 6 pages → 6,
+  current page `0:1` restored, `cleanupError: null`.
+- ⚠️ **`pagesAfterCleanup` records only `pageCount` + `currentPageId`, no `pages` array** — a
+  set-difference against it reports *every* page as lost. A symmetric absence reading as a
+  result, [[feedback_a_failed_curl_reuses_the_previous_body]]. Read the shape before alarming.
+- ⛔ **Two debts remain UNDISCHARGED by this pass:** F3 reachability (the harness still injects
+  the refused write) and Phase 2's `available` ≠ `loadable`. ⚠️ `operation_not_allowed` is
+  confirmed **unreachable through this transport** — the tool's inline `z.enum` rejects first,
+  so the plugin's own allowlist never answers a live consumer.
 
 ### 🔴 R2.6 Phase 1's two findings — both bigger than the change set
 

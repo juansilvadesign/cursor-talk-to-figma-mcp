@@ -1095,14 +1095,24 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             `--mixed-node=6030:9112`. ⛔ First run failed on the GATE again: `clone_node`
             answers `with **new** ID:` where the other three creators answer `with ID:`.
 - [ ] **R2.6 — layout.** Contract `1.7.0` → `1.8.0`.
-      - [ ] Pay the atomicity debt. All three have one identical shape — validate first
-            field, **write it**, then validate the second and throw: `setAxisAlign` writes
-            `:5816` throws `:5835`; `setLayoutSizing` writes `:5896` throws `:5922`;
-            `setItemSpacing` writes `:5970` throws `:5984`. ⭐ The fix is a pure reordering.
-      - [ ] ⛔ **Update the R2.4 live gate in the same change** — it *observes* the partial
-            application of `set_item_spacing` as evidence, so fixing these makes the
-            predecessor's own gate fail correctly. Restate the count: five of nine proven
-            becomes **three of seven** (`move_node`/`set_stroke_color` stay declared).
+      - [x] ✅ **Atomicity debt PAID + GATED 2026-08-20.** All three had one identical shape —
+            validate first field, **write it**, then validate the second and throw. 🔴 The
+            line numbers above were **stale by ~700 lines** (R2.5 shifted `code.js`); the real
+            handlers were `setAxisAlign` **6522–6585**, `setLayoutSizing` **6588–6672**,
+            `setItemSpacing` **6675–6735**. ⭐ The fix was a pure reordering, and that was
+            **asserted, not assumed**: every second-field validation reads *node* state
+            (`layoutMode`, `type`, `parent.layoutMode`, `layoutWrap`), never the sibling
+            parameter, so hoisting yields identical verdicts.
+      - [x] ✅ **R2.4 live gate updated in the same change AND re-run green** — channel
+            `kw7qggwv`, one run. It *observed* `set_item_spacing`'s partial application as
+            evidence, so the fix correctly broke the predecessor's own gate; inverted, it now
+            proves atomicity (`gapBefore: 16` → `gapAfter: 16`, `atomic: true`).
+            🔴 **The plan's restatement failed arithmetic:** "five of nine becomes three of
+            seven" only holds if *two* ops are fixed. Fixing three leaves **two of six** —
+            `move_node` + `set_stroke_color`, both still proven live, both staying declared.
+            ⛔ The inverted assertion could **not** be a bare equality: `partialApplicationReason`
+            is absent when the possibility is undeclared, so `undefined === undefined` would
+            have passed vacuously. It asserts the **absence** of the field and the map key.
       - [ ] ⏳ **Inherited from R2.5 (3.5):** `create_text` gains the `set_text_style`
             parameters, under the `1.8.0` bump this release already owns. ⛔ Fix the
             un-awaited `setCharacters` at `code.js:1790` in the same change, and apply

@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-0bc82334ff83",
+  "buildId": "r2-plugin-65d716d57dbb",
   "apiVersion": "1.7.0",
   "serverSchemaVersion": "1.7.0",
   "relayProtocolVersion": "1",
@@ -7299,18 +7299,13 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
 });
 
 const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({
-  set_item_spacing:
-    "proven: writes itemSpacing, then throws if counterAxisSpacing is given on a non-WRAP frame",
-  set_axis_align:
-    "proven: writes primaryAxisAlignItems, then throws on an invalid or BASELINE counterAxisAlignItems",
-  set_layout_sizing:
-    "proven: writes layoutSizingHorizontal, then throws on an invalid HUG/FILL layoutSizingVertical",
+  set_stroke_color:
+    "proven: writes strokes, then the platform rejects a non-numeric strokeWeight",
+  move_node: "proven: writes x, then the platform rejects a non-numeric y",
   set_layout_mode: "writes layoutMode, then layoutWrap, with no rollback",
   set_padding: "writes up to four padding fields in sequence, with no rollback",
   set_corner_radius: "writes up to four corner radii in sequence, with no rollback",
-  set_stroke_color: "writes strokes, then strokeWeight, with no rollback",
   set_parent: "reparents the node, then writes its position, with no rollback",
-  move_node: "writes x, then y, with no rollback",
 });
 
 function partialApplicationPossible(op) {
@@ -7758,8 +7753,8 @@ async function applyBatch(params) {
           code: BATCH_ERROR_CODES.OPERATION_FAILED,
           message: (error && error.message) || String(error),
         };
-        // ⛔ Per-operation atomicity is FALSE for the nine ops listed in the mirror above,
-        // three of them proven. A failed receipt does NOT imply an unchanged document, so
+        // ⛔ Per-operation atomicity is FALSE for the six ops listed in the mirror above,
+        // two of them proven. A failed receipt does NOT imply an unchanged document, so
         // say which case this is rather than let a caller assume its request was a no-op.
         receipt.partialApplicationPossible = partialApplicationPossible(operation.op);
         if (receipt.partialApplicationPossible) {

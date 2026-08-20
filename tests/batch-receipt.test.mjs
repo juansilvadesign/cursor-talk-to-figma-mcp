@@ -208,9 +208,25 @@ test("every non-atomic op is allowlisted, and every error code declares its deli
       `${name} is flagged non-atomic but is not a v1 operation`,
     );
   }
-  assert.equal(partialApplicationPossible("set_item_spacing"), true);
+  // ⛔ R2.6 Phase 1 made these three atomic and REMOVED them from the map. If one comes
+  // back, a caller is being told to re-read a node that cannot have changed.
+  assert.equal(partialApplicationPossible("set_item_spacing"), false);
+  assert.equal(partialApplicationPossible("set_axis_align"), false);
+  assert.equal(partialApplicationPossible("set_layout_sizing"), false);
+  // The two the reordering does not reach stay declared, and stay proven.
+  assert.equal(partialApplicationPossible("move_node"), true);
+  assert.equal(partialApplicationPossible("set_stroke_color"), true);
   assert.equal(partialApplicationPossible("rename_node"), false);
   assert.equal(partialApplicationPossible("delete_node"), false);
+
+  // ⭐ Restate the count rather than leave the old one to rot: SIX declared, TWO proven.
+  // Pinned as an assertion so the next edit to the map has to face the number.
+  const declared = Object.keys(NON_ATOMIC_BATCH_OPERATIONS);
+  const proven = declared.filter((op) =>
+    NON_ATOMIC_BATCH_OPERATIONS[op].startsWith("proven:"),
+  );
+  assert.equal(declared.length, 6, "six operations stay declared non-atomic");
+  assert.deepEqual(proven.sort(), ["move_node", "set_stroke_color"]);
 
   // Every code has to say which half of the contract it arrives in, because a consumer
   // writes different handling for a thrown refusal than for a receipt entry.
@@ -223,35 +239,38 @@ test("every non-atomic op is allowlisted, and every error code declares its deli
   }
 });
 
-test("the three proven non-atomic ops really do write before they throw", async () => {
-  // ⛔ Trap #4 of the plan: verify a platform assumption before designing around it.
-  // The contract ASSUMED per-operation atomicity. These three handlers write their first
-  // field, then validate the second and throw — so a `failed` receipt can sit on top of a
-  // changed document. Reproduced here so the finding cannot rot: if a handler is ever
-  // made transactional, this test fails and the declaration gets revisited deliberately.
+test("the three fixed layout ops validate every field before the first write", async () => {
+  // ⛔ Trap #4 of the plan: verify a platform assumption before designing around it. The
+  // contract ASSUMED per-operation atomicity; the probe found these three writing field 1,
+  // then validating field 2 and throwing. R2.6 Phase 1 reordered all three into
+  // validate-all-then-write, and this test is the thing that holds them there.
+  //
+  // ⭐ The invalid parameter goes LAST and the assertion is that the node is UNCHANGED
+  // afterwards. That pairing is the whole point: a throw-only assertion would survive
+  // moving the write back above the validation — it would still throw, just after
+  // dirtying the document — which is the exact mutation this test exists to kill.
   const cases = [
     {
       op: "set_item_spacing",
       params: { itemSpacing: 20, counterAxisSpacing: 10 },
-      field: "itemSpacing",
-      applied: 20,
       throws: /layoutWrap set to WRAP/,
     },
     {
       op: "set_axis_align",
       params: { primaryAxisAlignItems: "CENTER", counterAxisAlignItems: "BASELINE" },
-      field: "primaryAxisAlignItems",
-      applied: "CENTER",
       throws: /BASELINE alignment is only valid/,
     },
     {
       op: "set_layout_sizing",
       params: { layoutSizingHorizontal: "HUG", layoutSizingVertical: "FILL" },
-      field: "layoutSizingHorizontal",
-      applied: "HUG",
       throws: /FILL sizing is only valid/,
     },
   ];
+
+  // `parent` is dropped at every depth because the fixture's back-references make the
+  // tree cyclic; everything these three handlers can write survives the round trip.
+  const snapshot = (node) =>
+    JSON.stringify(node, (key, value) => (key === "parent" ? undefined : value));
 
   for (const testCase of cases) {
     const harness = await loadPluginHarness();
@@ -260,6 +279,7 @@ test("the three proven non-atomic ops really do write before they throw", async 
       layoutMode: "VERTICAL",
       layoutWrap: "NO_WRAP",
     });
+    const before = snapshot(harness.getNode("10:1"));
 
     await assert.rejects(
       () => harness.command(testCase.op, { nodeId: "10:1", ...testCase.params }),
@@ -267,13 +287,14 @@ test("the three proven non-atomic ops really do write before they throw", async 
       `${testCase.op} was expected to throw`,
     );
     assert.equal(
-      harness.getNode("10:1")[testCase.field],
-      testCase.applied,
-      `${testCase.op} threw but its first write still landed — this is the finding`,
+      snapshot(harness.getNode("10:1")),
+      before,
+      `${testCase.op} threw but left the node changed — the reordering regressed`,
     );
-    assert.ok(
+    assert.equal(
       partialApplicationPossible(testCase.op),
-      `${testCase.op} is observably non-atomic and must be declared as such`,
+      false,
+      `${testCase.op} is atomic now, so the contract must not declare it non-atomic`,
     );
   }
 });

@@ -13,6 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // A frame with two children in tests/fixtures/small-document.json.
 const FRAME = "10:1";
+const RECT = "10:3";
 const MISSING = "9:9";
 
 function operation(id, op, nodeId, params) {
@@ -203,15 +204,21 @@ test("a first-operation failure under stop is all_failed, not partial", async ()
 test("a failed non-atomic operation declares that the document may have changed", async () => {
   // ⛔ The contract assumed per-operation atomicity and it is false. This is the receipt
   // half of the finding: the caller is told to re-read rather than assume a no-op.
-  const harness = await autoLayoutHarness();
+  //
+  // ⭐ The witness MOVED in R2.6 Phase 1. `set_item_spacing` used to carry this test, and
+  // it is atomic now. The three ops that could demonstrate a partial write offline are
+  // exactly the three that were fixed — the two that remain proven are refused by Figma's
+  // own property setter, which this fake would happily accept. So the harness is asked to
+  // refuse the second write the way the platform does; without that the test could only
+  // have asserted that the map says what the map says, which is a consistency check
+  // standing in for a correctness one.
+  const harness = await loadPluginHarness({
+    refusePropertyWrite: [{ nodeId: RECT, property: "y" }],
+  });
+  const xBefore = harness.getNode(RECT).x;
 
   const receipt = await harness.command("apply_batch", {
-    operations: [
-      operation("op-1", "set_item_spacing", FRAME, {
-        itemSpacing: 20,
-        counterAxisSpacing: 10,
-      }),
-    ],
+    operations: [operation("op-1", "move_node", RECT, { x: xBefore + 120, y: 40 })],
     onError: "continue",
   });
 
@@ -220,8 +227,8 @@ test("a failed non-atomic operation declares that the document may have changed"
   assert.equal(entry.partialApplicationPossible, true);
   assert.match(entry.partialApplicationReason, /proven/);
   assert.equal(
-    harness.getNode(FRAME).itemSpacing,
-    20,
+    harness.getNode(RECT).x,
+    xBefore + 120,
     "the write really did land under a failed receipt",
   );
 });

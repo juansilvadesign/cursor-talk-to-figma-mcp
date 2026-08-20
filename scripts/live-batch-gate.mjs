@@ -77,13 +77,28 @@ if (!options.channel) {
 // `serverBuildId` is the only pin that fails on it — which is the whole reason a
 // fingerprint is a PAIRING check and not a contract hash, stated once more in the one
 // place that has to act on it.
+//
+// 🔴 **R2.6 Phase 1 found the limit of that claim, by measuring it.** `serverBuildId` is
+// `sha256(server.ts + contractPayload)` — `SERVER_PATH` in `scripts/contract-lib.mjs` is
+// `server.ts` ALONE. `batch-receipt.mjs` ships inside `dist/server.js` and is hashed by
+// NOTHING. Mutating it alone and regenerating produced byte-identical runtime metadata:
+// every pin here held still. So "serverBuildId is the only pin that fails on a stale
+// build" is true only for changes that reach `server.ts` or the contract; a server change
+// outside those two is invisible to all four pins at once. ⛔ Phase 1 is caught only
+// because it also moved `code.js`, and therefore `pluginBuildId`. Do not read a green
+// preflight as proof the server half is fresh.
+//
+// ⚠️ The fingerprint below was STALE from `e02d1b2` until R2.6 Phase 1 — it read
+// `sha256:a6ca7f4a…` against a tree whose fingerprint was `sha256:05ac28c5…`, so this gate
+// would have failed at `assertRuntime` before reaching a single check. It went unnoticed
+// because the gate was edited in that commit and never re-run on it.
 const expectedRuntime = {
   release: "R2",
   serverBuildId: "r2-server-c45214d7420b",
-  pluginBuildId: "r2-plugin-0bc82334ff83",
+  pluginBuildId: "r2-plugin-65d716d57dbb",
   schemaVersion: "1.7.0",
   fingerprint:
-    "sha256:a6ca7f4a56a64db9f50686940fb98ef0cfb3f524c93540cc88ef5fde2a4604e3",
+    "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
   toolCount: 56,
 };
 
@@ -684,13 +699,30 @@ try {
   assert.equal(atomicById.get("ok").resultTruncated, true);
   assert.ok(atomicById.get("ok").resultBytes > 8);
 
+  // ⛔ R2.6 Phase 1 INVERTED this probe, deliberately. This gate accepted R2.4 by
+  // OBSERVING set_item_spacing's partial application as evidence; the reorder makes that
+  // observation false, so the gate that accepted the previous release must fail here —
+  // and a release that breaks its predecessor's gate is not a regression. Failing to
+  // notice would be.
   const spacing = atomicById.get("spacing");
   assert.equal(spacing.status, "failed", "counterAxisSpacing on a non-WRAP frame must throw");
-  assert.equal(spacing.partialApplicationPossible, true);
   assert.equal(
-    spacing.partialApplicationReason,
+    spacing.partialApplicationPossible,
+    false,
+    "set_item_spacing validates before it writes now, so nothing may be declared possible",
+  );
+  // ⛔ The reason field is only written when the possibility is declared, so BOTH sides of
+  // the old equality now read `undefined` and `assert.equal` would pass VACUOUSLY — a
+  // symmetric absence reading exactly like agreement. Assert the absence explicitly, and
+  // assert the map no longer carries the key, so the two facts cannot drift apart.
+  assert.ok(
+    !Object.hasOwn(spacing, "partialApplicationReason"),
+    "an atomic operation must not carry a partial-application reason",
+  );
+  assert.equal(
     NON_ATOMIC_BATCH_OPERATIONS.set_item_spacing,
-    "the declared reason must be the shipped one",
+    undefined,
+    "set_item_spacing must be gone from the shipped non-atomic map",
   );
 
   const layoutAfter = await callJson("get_node_info", { nodeId: layoutFrame.id });
@@ -722,20 +754,35 @@ try {
       // The fixture is built at itemSpacing 16 and the failed op asks for 24.
       gapBefore,
       gapAfter,
+      // ⭐ This probe changed SIDES in R2.6 Phase 1. It is now the atomicity witness:
+      // the op still fails, and the gap must be untouched.
       partiallyApplied: spacing.status === "failed" && gapBefore === 16 && gapAfter === 24,
+      atomic: spacing.status === "failed" && gapAfter === gapBefore,
       readBackMethod:
         "gap between the two auto-layout children, from absoluteBoundingBox — no read tool surfaces itemSpacing directly",
       error: spacing.error?.message ?? null,
     },
   };
-  // The contract's claim is that a `failed` receipt can sit on a CHANGED document. At
-  // least one probe has to demonstrate it live, or the declaration is unsupported and
-  // that is a finding, not a pass.
+  // ⛔ Figma is the judge of the reorder, not the fixture. The offline suite proves the
+  // ORDER of operations against a fake; this proves the document did not move.
+  assert.equal(
+    record.checks.observedPartialApplication.itemSpacing.atomic,
+    true,
+    "set_item_spacing failed and still changed the gap — the reorder does not hold live",
+  );
+  assert.equal(
+    record.checks.observedPartialApplication.itemSpacing.partiallyApplied,
+    false,
+    "set_item_spacing must no longer reproduce a partial application",
+  );
+  // The contract's claim is that a `failed` receipt can sit on a CHANGED document, and it
+  // is still true of the six ops that stay declared. ⛔ Name the two survivors instead of
+  // leaving an OR that silently narrowed from three probes to two: if both stop
+  // reproducing, that is a finding about the declaration, not a quieter pass.
   assert.ok(
-    record.checks.observedPartialApplication.itemSpacing.partiallyApplied ||
-      record.checks.observedPartialApplication.move.partiallyApplied ||
+    record.checks.observedPartialApplication.move.partiallyApplied ||
       record.checks.observedPartialApplication.stroke.partiallyApplied,
-    "no probe reproduced a partial application live — re-examine the claim",
+    "neither move_node nor set_stroke_color reproduced a partial application — re-examine the claim",
   );
 
   // ---- check 6 — a destructive op reports its scope, checked before and after ----

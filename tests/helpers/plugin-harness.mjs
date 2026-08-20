@@ -237,6 +237,26 @@ function createFixtureRuntime(fixture, options) {
         },
       });
     }
+    // ⭐ Figma's own property setters refuse writes this fake would happily accept — a
+    // non-numeric `y`, a non-numeric `strokeWeight`. That gap is the reason `move_node`
+    // and `set_stroke_color` could only ever be PROVEN by a live gate: the harness could
+    // not express the defect, exactly as with the mixed-font case. Opt-in, so a test can
+    // ask what a handler leaves behind when the platform refuses its second write,
+    // without pretending to know how often Figma actually refuses.
+    for (const refusal of options.refusePropertyWrite || []) {
+      if (refusal.nodeId !== node.id) continue;
+      const held = node[refusal.property];
+      Object.defineProperty(node, refusal.property, {
+        enumerable: true,
+        configurable: true,
+        get: () => held,
+        set: () => {
+          throw new Error(
+            `Cannot write ${refusal.property} on ${node.id}: refused by the platform`,
+          );
+        },
+      });
+    }
     node.setRangeFills = () => undefined;
     node.findAll = (predicate) => descendants(node).filter(predicate);
     node.findAllWithCriteria = ({ types }) =>

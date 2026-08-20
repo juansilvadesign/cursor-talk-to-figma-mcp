@@ -140,15 +140,27 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
  *
  * ⛔ **Per-operation atomicity was assumed by this contract and is FALSE.** The plan's
  * trap #4 said to verify the platform assumption before designing around it — the R2.3
- * `""` lesson — and the probe found three handlers that write their first field, then
- * validate the second and throw. All three were reproduced offline against the fixture
- * document before any of this shipped:
+ * `""` lesson — and the probe found three handlers that wrote their first field, then
+ * validated the second and threw.
  *
- *   set_item_spacing    itemSpacing 16 -> 20 lands, then the layoutWrap check throws
- *   set_axis_align      primaryAxisAlignItems MIN -> CENTER lands, then BASELINE throws
- *   set_layout_sizing   layoutSizingHorizontal FIXED -> HUG lands, then FILL throws
+ * ✅ **Those three are FIXED and REMOVED from this map.** R2.6 Phase 1 reordered
+ * `set_item_spacing`, `set_axis_align` and `set_layout_sizing` into validate-all-then-
+ * write, so each now leaves the node untouched when it throws. ⛔ Do not re-add one
+ * without re-proving a partial write: an entry here tells a caller to re-read the node,
+ * so a stale entry makes an atomic operation look dangerous.
  *
- * The remaining six perform several writes in sequence with no interleaved throw and no
+ * **Two of the remaining six are proven**, and by R2.4's LIVE gate rather than offline:
+ *
+ *   move_node          x 0 -> 120 lands, then the non-numeric y is refused
+ *   set_stroke_color   strokes null -> red lands, then the non-numeric weight is refused
+ *
+ * ⭐ These two are a DIFFERENT shape from the three that were fixed, which is why the
+ * reordering does not reach them and 1.4 keeps them declared. The three validated the
+ * second field themselves and threw; these two write both fields and the *Figma property
+ * setter* refuses the second. There is no validation here to hoist — closing them means
+ * adding type checks these handlers never had, a behaviour change to two `stable` tools.
+ *
+ * The other four perform several writes in sequence with no interleaved throw and no
  * rollback, so a platform-level rejection on a later field leaves the earlier ones
  * applied. That path is unproven, which is precisely why it is listed rather than
  * assumed away: a caller cannot tell the two classes apart from the outside.
@@ -156,22 +168,17 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
  * ⭐ The honest consequence is that the contract *declares* non-atomicity instead of
  * promising something the handlers do not deliver. A `failed` receipt for one of these
  * carries `partialApplicationPossible: true`, which tells a caller to re-read the node
- * rather than assume its own request was a no-op. Making these handlers transactional is
- * a separate change to nine shipped tools, out of scope for the batch envelope.
+ * rather than assume its own request was a no-op. Making the remaining six transactional
+ * is a separate change, out of scope for the batch envelope.
  */
 export const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({
-  set_item_spacing:
-    "proven: writes itemSpacing, then throws if counterAxisSpacing is given on a non-WRAP frame",
-  set_axis_align:
-    "proven: writes primaryAxisAlignItems, then throws on an invalid or BASELINE counterAxisAlignItems",
-  set_layout_sizing:
-    "proven: writes layoutSizingHorizontal, then throws on an invalid HUG/FILL layoutSizingVertical",
+  set_stroke_color:
+    "proven: writes strokes, then the platform rejects a non-numeric strokeWeight",
+  move_node: "proven: writes x, then the platform rejects a non-numeric y",
   set_layout_mode: "writes layoutMode, then layoutWrap, with no rollback",
   set_padding: "writes up to four padding fields in sequence, with no rollback",
   set_corner_radius: "writes up to four corner radii in sequence, with no rollback",
-  set_stroke_color: "writes strokes, then strokeWeight, with no rollback",
   set_parent: "reparents the node, then writes its position, with no rollback",
-  move_node: "writes x, then y, with no rollback",
 });
 
 /**

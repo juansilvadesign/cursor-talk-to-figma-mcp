@@ -10,28 +10,35 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-19)
+## ▶ Resume (checkpoint 2026-08-20)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.5 typography
-- **Doing:** ✅ **R2.5 is ACCEPTED 2026-08-19.** The three tools are `stable`, the gate was
-  re-pinned and **re-run green on the promoted build** (channel `ohipqdhg`).
-- **Next step:** **R2.6 — layout**, contract `1.7.0` → `1.8.0`. Pay the atomicity debt
-  (`setAxisAlign` / `setLayoutSizing` / `setItemSpacing` each write their first field then
-  throw — a pure reordering), ⛔ **update the R2.4 live gate in the same change** because it
-  *observes* `set_item_spacing`'s partial application as evidence, and take 3.5's inherited
-  `create_text` work under the `1.8.0` bump R2.6 owns.
+- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout
+- **Doing:** ✅ **R2.5 ACCEPTED + COMMITTED 2026-08-19** (`e02d1b2`, tree clean). Now on
+  **R2.6 Phase 1 — the atomicity debt**, which the owner scoped to **land and gate on its
+  own BEFORE Phase 2 opens**. Groundwork done, no code edited yet.
+- **Next step:** apply the **Phase 1 change set** (5 items, agreed): ① reorder the three
+  handlers so every validation precedes the first assignment ② remove all three from
+  `NON_ATOMIC_BATCH_OPERATIONS` ③ mark `move_node` + `set_stroke_color` `proven:` and
+  restate the count as **two of six** ④ ⛔ update the R2.4 live gate **in the same commit**
+  ⑤ mutation-test the reorder against the SOURCE, invalid field **LAST**, asserting the
+  node is byte-identical. ⛔ **No contract bump** — strengthening `partialApplicationPossible`
+  to false is additive, so `1.7.0` holds and R2.6 spends `1.8.0` on Phase 2's new tools.
 - **Key paths / IDs:** `docs/R2.5-TYPOGRAPHY.md` (the record, acceptance section at the end) ·
   `scripts/live-text-style-gate.mjs` (takes `--channel=`, optional `--mixed-node=<id>`) ·
   `tests/text-style.test.mjs` · ACCEPTED pair `r2-server-c45214d7420b` ↔
   `r2-plugin-0bc82334ff83`, `1.7.0`, 56 tools/55 commands, fingerprint `sha256:05ac28c5…`.
-- **Open / blockers:** none blocking. 🟡 Commit the acceptance if not already done —
-  ⛔ stage explicit paths, never `git add -A` (peer sessions write this repo).
+- **Open / blockers:** ⚠️ **One count to reconcile before building:** the owner approved
+  "the **6** corrections" but the agreed change set has **5** numbered items — most likely
+  counting the *two-of-six* restatement as its own. Confirm which, don't guess.
+  ⛔ Stage explicit paths, never `git add -A` (peer sessions write this repo).
 - **Don't forget:** ⛔ Two debts are **NOT** discharged by acceptance: **F3 reachability**
   (the harness injects the refused write) and Phase 2's **`available` ≠ `loadable`**, which
   did not reproduce again — every listed face loaded. ⚠️ The gate's own `stillOwed` lists
   only the first; the second is owed regardless. ✅ **Mixed-font unification IS closed live**
   now (`--mixed-node=6030:9112`). ⚠️ `TASKS.md` has a pre-existing orphaned table row from
-  the R2.4 era — left alone deliberately.
+  the R2.4 era — left alone deliberately. 🔴 **Line numbers in the plans and TASKS.md are
+  NOT trustworthy** — R2.5 shifted `code.js` by ~700 lines and every cited offset for the
+  layout handlers pointed at unrelated code. Re-locate by NAME before acting on any of them.
 
 ## ▶ Live resume state
 
@@ -412,6 +419,52 @@ baseline restored id-for-id (6 pages, current `0:1`).
   every unlisted one refused. ⚠️ The gate's own `stillOwed` lists only F3; the second is
   owed regardless and must not be read as discharged from a green run.
 - ⛔ **Accepting R2.5 does not accept R2.** R2 acceptance is the last act of R2.7.
+
+### ▶ R2.6 Phase 1 groundwork — 2026-08-20 (read before editing `code.js`)
+
+⛔ **Scoped by the owner: Phase 1 lands and is gated ON ITS OWN, before Phase 2 opens.**
+Nothing has been edited yet — this is the verified map, replacing the plan's stale offsets.
+
+🔴 **The plan's line numbers were STALE by ~700 lines.** R2.5 inserted `set_text_style`,
+`get_available_fonts` and `check_fonts` into `code.js` (now **7 781** lines), so every
+offset in `TASKS.md` and the R2 plan pointed at unrelated code. Re-located by name:
+
+| handler | plan said | **actual** | first write | second field throws |
+| --- | --- | --- | --- | --- |
+| `setAxisAlign` | 5816/5835 | **6522–6585** | **6556** `primaryAxisAlignItems` | 6563 enum · 6573 BASELINE×`layoutMode` |
+| `setLayoutSizing` | 5896/5922 | **6588–6672** | **6636** `layoutSizingHorizontal` | 6642 enum · 6651 HUG×`type` · 6659 FILL×`parent.layoutMode` |
+| `setItemSpacing` | 5970/5984 | **6675–6735** | **6710** `itemSpacing` | 6716 type · 6721 `layoutWrap`≠WRAP |
+
+Dispatcher cases at `:396` / `:398` / `:400`. The F4 shape is **confirmed present** in all
+three: validate field 1 → **write field 1** → validate field 2 → throw.
+
+⭐ **Why the reorder is genuinely "pure" — assert this, don't assume it.** Every
+second-field validation reads *node* state (`layoutMode`, `type`, `parent.layoutMode`,
+`layoutWrap`), never the first field; and no first write can change what those reads
+return. So hoisting the validations yields identical verdicts. ⛔ That property is the
+whole licence for calling 1.1 a reordering rather than a rewrite — a test should pin it.
+
+🔴 **Two count defects found, both live in the source/plan today:**
+
+1. **`NON_ATOMIC_BATCH_OPERATIONS` under-reports what is proven.** It holds **9** entries
+   and only **3** carry the `proven:` prefix — the three layout ops. But R2.4's live gate
+   proved partial writes on `move_node` and `set_stroke_color` too ("the proven list grew
+   3 → 5"); their reason strings were never updated. The map's prose is a release stale.
+2. **The plan's restatement does not survive arithmetic.** It says *"five of nine proven
+   becomes three of seven"*. Fixing all **three** layout ops leaves **9 − 3 = 6** declared
+   and **5 − 3 = 2** proven. "Three of seven" only holds if *two* ops are fixed. ⛔ The
+   correct restatement is **two of six** — `move_node` + `set_stroke_color`, both proven,
+   both staying declared per 1.4. ⭐ This is the plan's own "restate the count rather than
+   leaving the old one to rot" rule failing on the plan itself.
+
+⛔ **No contract bump for Phase 1.** Strengthening `partialApplicationPossible` to false is
+additive under `COMPATIBILITY-POLICY.md`, so the contract holds at `1.7.0` and R2.6 spends
+its `1.8.0` on Phase 2's five new tools.
+
+⛔ **The R2.4 live gate must change in the SAME commit** (`scripts/live-batch-gate.mjs`) —
+it *observes* `set_item_spacing`'s partial application **as evidence**, so fixing these
+makes the predecessor's own gate fail correctly. ⭐ A release that breaks the gate which
+accepted the release before it is not a regression; failing to notice would be.
 
 ### ⛔ R3 variable-write is still OPEN
 

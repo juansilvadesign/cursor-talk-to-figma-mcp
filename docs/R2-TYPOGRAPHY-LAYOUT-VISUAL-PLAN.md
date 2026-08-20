@@ -421,21 +421,52 @@ tools before asserting combined behaviour.
 
 ### Phase 1 — pay the atomicity debt (no new tools)
 
-- [ ] **1.1 Reorder all three handlers** per F4 so every validation, including the
+> **✅ DONE 2026-08-20 (offline), 1.1–1.4.** 169 tests green, `dist/` byte-deterministic
+> across two builds, `verify-release.mjs` passed, six baselines replaying. ⛔ **No contract
+> bump:** strengthening `partialApplicationPossible` to false is additive, so the contract
+> holds at `1.7.0` and R2.6 spends `1.8.0` on Phase 2. ⏳ **NOT gated** — the R2.4 live gate
+> is re-pinned and inverted but has not been re-run.
+>
+> 🔴 **Two arithmetic errors in this section were corrected before building** — see 1.3 and
+> 1.4. ⭐ Both are this plan's own "restate the count rather than leaving the old one to
+> rot" rule failing on the plan itself.
+
+- [x] **1.1 Reorder all three handlers** per F4 so every validation, including the
       cross-field ones, runs before the first assignment.
-- [ ] **1.2 Move the contract declaration with the code.** `partialApplicationPossible`
+- [x] **1.2 Move the contract declaration with the code.** `partialApplicationPossible`
       becomes false for these three. Strengthening a guarantee is additive under
       `COMPATIBILITY-POLICY.md`, but the receipt's recorded reason list must move in the
       same change or the contract describes a document that no longer exists.
-- [ ] **1.3 ⛔ Update the R2.4 live gate in the same change.** All three are in
+- [x] **1.3 ⛔ Update the R2.4 live gate in the same change.** All three are in
       `apply_batch`'s allowlist, and the R2.4 gate **observes their partial application as
       evidence** — it proved non-atomicity on `set_item_spacing`, `move_node` and
-      `set_stroke_color`. Fixing two of those three makes the predecessor's own gate fail
+      `set_stroke_color`. Fixing **one of those three** (`set_item_spacing` — the other two
+      are not layout ops and stay non-atomic per 1.4) makes the predecessor's own gate fail
       correctly. ⭐ A release that breaks the gate that accepted the release before it is
       not a regression; failing to notice would be.
-- [ ] **1.4 `move_node` and `set_stroke_color` stay non-atomic and stay declared.** They are
-      not layout ops and are out of scope here. Five of nine proven becomes **three of
-      seven** — restate the count rather than leaving the old one to rot.
+      🔴 **Corrected 2026-08-20: this item said "two of those three".** Only
+      `set_item_spacing` is in Phase 1's scope, so the count was wrong in the same section
+      as 1.4's.
+      🔴 **And the gate was already broken.** It carried a fingerprint pin
+      (`sha256:a6ca7f4a…`) stale since `e02d1b2` against a tree at `sha256:05ac28c5…`, so it
+      would have failed at `assertRuntime` before reaching a check. Re-pinned here.
+      ⛔ **The inverted assertion cannot be a bare equality.** `partialApplicationReason` is
+      only written when the possibility is declared, so comparing it to the removed map
+      entry leaves `undefined === undefined` — a vacuous pass. Assert the absence.
+- [x] **1.4 `move_node` and `set_stroke_color` stay non-atomic and stay declared.** They are
+      not layout ops and are out of scope here. Five of nine proven becomes **two of six** —
+      restate the count rather than leaving the old one to rot.
+      🔴 **Corrected 2026-08-20: this item said "three of seven", which does not survive
+      arithmetic.** Fixing three of nine declared leaves **six** declared and **two** proven;
+      "three of seven" would only hold if *two* ops were fixed.
+      ⚠️ **Their `proven:` markers were also missing from the source.** R2.4's live gate
+      proved both (`docs/R2.4-BATCH-CONTRACT.md:141-145` already said so) but the map's
+      reason strings were never updated — a release stale, fixed here.
+      ⭐ **They are a different SHAPE from the three that were fixed**, which is why the
+      reordering does not reach them: the three validated field 2 themselves and threw;
+      these two write both fields and the *Figma property setter* refuses the second. There
+      is no validation to hoist — closing them means adding type checks to two `stable`
+      tools.
 
 ### Phase 2 — the child-side layout surface
 

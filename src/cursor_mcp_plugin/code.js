@@ -6545,7 +6545,13 @@ async function setAxisAlign(params) {
     );
   }
 
-  // Validate and set primaryAxisAlignItems if provided
+  // ---- Validation phase: nothing below this block writes ----
+  // ⛔ F4. Every check, including the cross-field one, runs before the first
+  // assignment, so a throw from this handler means the node is untouched.
+  // ⭐ This is a pure REORDERING, not a rewrite: the cross-field check reads
+  // `node.layoutMode` — node state, never `primaryAxisAlignItems` — and no write
+  // below can change what it reads. Hoisting therefore yields identical verdicts
+  // and identical messages, which is the whole licence for calling it a reorder.
   if (primaryAxisAlignItems !== undefined) {
     if (
       !["MIN", "MAX", "CENTER", "SPACE_BETWEEN"].includes(primaryAxisAlignItems)
@@ -6554,10 +6560,8 @@ async function setAxisAlign(params) {
         "Invalid primaryAxisAlignItems value. Must be one of: MIN, MAX, CENTER, SPACE_BETWEEN"
       );
     }
-    node.primaryAxisAlignItems = primaryAxisAlignItems;
   }
 
-  // Validate and set counterAxisAlignItems if provided
   if (counterAxisAlignItems !== undefined) {
     if (!["MIN", "MAX", "CENTER", "BASELINE"].includes(counterAxisAlignItems)) {
       throw new Error(
@@ -6573,6 +6577,13 @@ async function setAxisAlign(params) {
         "BASELINE alignment is only valid for horizontal auto-layout frames"
       );
     }
+  }
+
+  // ---- Write phase: this block cannot reject ----
+  if (primaryAxisAlignItems !== undefined) {
+    node.primaryAxisAlignItems = primaryAxisAlignItems;
+  }
+  if (counterAxisAlignItems !== undefined) {
     node.counterAxisAlignItems = counterAxisAlignItems;
   }
 
@@ -6611,7 +6622,11 @@ async function setLayoutSizing(params) {
     );
   }
 
-  // Validate and set layoutSizingHorizontal if provided
+  // ---- Validation phase: nothing below this block writes ----
+  // ⛔ F4. ⭐ Pure REORDERING: both cross-field checks read node state
+  // (`node.type`, `node.parent.layoutMode`) and never the sibling parameter, and
+  // writing a node's own layoutSizing cannot retype it or re-parent it — so the
+  // hoisted checks return exactly the verdicts the interleaved ones did.
   if (layoutSizingHorizontal !== undefined) {
     if (!["FIXED", "HUG", "FILL"].includes(layoutSizingHorizontal)) {
       throw new Error(
@@ -6634,10 +6649,8 @@ async function setLayoutSizing(params) {
     ) {
       throw new Error("FILL sizing is only valid on auto-layout children");
     }
-    node.layoutSizingHorizontal = layoutSizingHorizontal;
   }
 
-  // Validate and set layoutSizingVertical if provided
   if (layoutSizingVertical !== undefined) {
     if (!["FIXED", "HUG", "FILL"].includes(layoutSizingVertical)) {
       throw new Error(
@@ -6660,6 +6673,13 @@ async function setLayoutSizing(params) {
     ) {
       throw new Error("FILL sizing is only valid on auto-layout children");
     }
+  }
+
+  // ---- Write phase: this block cannot reject ----
+  if (layoutSizingHorizontal !== undefined) {
+    node.layoutSizingHorizontal = layoutSizingHorizontal;
+  }
+  if (layoutSizingVertical !== undefined) {
     node.layoutSizingVertical = layoutSizingVertical;
   }
 
@@ -6703,15 +6723,15 @@ async function setItemSpacing(params) {
     );
   }
 
-  // Set item spacing if provided
+  // ---- Validation phase: nothing below this block writes ----
+  // ⛔ F4. ⭐ Pure REORDERING: the cross-field check reads `node.layoutWrap` —
+  // node state, never `itemSpacing` — and writing itemSpacing cannot change it.
   if (itemSpacing !== undefined) {
     if (typeof itemSpacing !== "number") {
       throw new Error("Item spacing must be a number");
     }
-    node.itemSpacing = itemSpacing;
   }
 
-  // Set counter axis spacing if provided
   if (counterAxisSpacing !== undefined) {
     if (typeof counterAxisSpacing !== "number") {
       throw new Error("Counter axis spacing must be a number");
@@ -6722,6 +6742,13 @@ async function setItemSpacing(params) {
         "Counter axis spacing can only be set on frames with layoutWrap set to WRAP"
       );
     }
+  }
+
+  // ---- Write phase: this block cannot reject ----
+  if (itemSpacing !== undefined) {
+    node.itemSpacing = itemSpacing;
+  }
+  if (counterAxisSpacing !== undefined) {
     node.counterAxisSpacing = counterAxisSpacing;
   }
 

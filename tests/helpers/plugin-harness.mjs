@@ -335,7 +335,18 @@ function createFixtureRuntime(fixture, options) {
     if (type === "TEXT") {
       raw.characters = "";
       raw.fontName = { family: "Inter", style: "Regular" };
-      raw.fontSize = 14;
+      // ⛔ 12, which is what a real `figma.createText()` hands back — NOT 14, which is
+      // what `create_text` writes when the caller omits fontSize. They were the same
+      // number here, so the fixture could not tell "the tool wrote the default" from
+      // "the tool wrote nothing and the platform's default happened to match". A
+      // deleted default write scored green against it.
+      raw.fontSize = 12;
+      // ⛔ Geometry, because EVERY real Figma node has it. Without these the fields are
+      // `undefined`, `JSON.stringify` drops them, and a reply that lost `width`/`height`
+      // would read as green offline while shipping a hole a live consumer sees. The
+      // harness lays out no text, so these are the empty-node values, not measurements.
+      raw.width = 0;
+      raw.height = 0;
     }
     const node = makeNode(raw);
     appendChild(currentPage, node);

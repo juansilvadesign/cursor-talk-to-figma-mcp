@@ -403,10 +403,14 @@ that fails on every stale build**, and CC4 still requires pinning it.
 - [x] **3.4 `lineHeight` and `letterSpacing` are `{ value, unit }` objects**, not numbers —
       `PIXELS` / `PERCENT`, plus `AUTO` for line height. ⚠️ A number-typed schema here would
       be a breaking correction later.
-- [ ] ⏳ **3.5 `create_text` gains the same parameters** (D4), defaulting to Inter **only
+- [x] ✅ **3.5 `create_text` gains the same parameters** (D4), defaulting to Inter **only
       when nothing is supplied**, so every existing caller is unaffected. Replaces the
       hardcode at `code.js:1781-1785`. ⛔ **MOVED TO R2.6** — the input widening is
       additive, but the reply fields it needs are not, and `create_text` is `stable`.
+      ✅ **DONE 2026-08-21 as R2.6 item 2.0.** ⚠️ "Every existing caller is unaffected" did
+      **not** survive contact: refusing an unloadable font, and refusing `fontSize: 0`
+      instead of rewriting it to 14, are behaviour changes for callers who never touch the
+      new parameters. They ride on the `1.8.0` bump as migrations rather than additions.
 
 ⚠️ **Cross-release interaction, carried to R2.6:** `textAutoResize` and `layoutSizing`
 describe the same behaviour from two sides. A text node set `WIDTH_AND_HEIGHT` inside an
@@ -470,13 +474,64 @@ tools before asserting combined behaviour.
 
 ### Phase 2 — the child-side layout surface
 
-- [ ] **2.0 ⏳ Inherited from R2.5: `create_text` gains the `set_text_style` parameters**
-      (R2.5 item 3.5). It lands here because it needs reply fields and `create_text` is
-      `stable`, so it needs the `1.8.0` bump this release already owns. ⛔ Fix the
-      deferred **un-awaited `setCharacters` at `code.js:1790`** in the same change — it
-      lets `create_text` return before its text is set — and apply the same
-      refuse-never-substitute rule, or the hardcoded-Inter fix reintroduces F2 on a
-      brand-new surface.
+> **✅ 2.0 DONE 2026-08-21 (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`.**
+> 187 tests green (was 169), `dist/` byte-identical across three builds,
+> `verify-release.mjs` passed, six baselines replaying. ⏳ **NOT gated** — the typography
+> live gate grew four new sections and has **not been run**.
+>
+> ⛔ **Every pin moved this time** — server, plugin, fingerprint and schema — which is the
+> opposite of the step before it. Adopting needs a **DEV plugin re-run AND a server
+> respawn**; the gate spawns its own server, so only an interactive session needs the
+> second.
+>
+> 🔴 **The bump was NOT mechanically enforced.** Regenerating the contract at `1.7.0`
+> produced **zero** `compatibilityErrors` — the snapshot records input schemas and
+> stability levels, never result shapes, so new fields on a `stable` result are invisible
+> to every check in `bun run verify`. The policy says this in one line
+> (`COMPATIBILITY-POLICY.md:47`) and it was true here: nothing but review would have
+> caught it.
+>
+> ⚠️ **Two behaviour changes ride on the bump, and both are migrations, not additions:**
+> an unloadable font is now **refused** where the old handler swallowed the error and
+> created the node in whatever face Figma supplied; and `fontSize: 0` is refused where it
+> used to be silently rewritten to 14.
+>
+> ⛔ **The four new tools' batch decision is DECIDED, not open** — see 2.6 below, so it is
+> not re-litigated when they land.
+
+- [x] **2.0 ✅ Inherited from R2.5: `create_text` gains the `set_text_style` parameters**
+      (R2.5 item 3.5), plus the deferred **un-awaited `setCharacters`**.
+      🔴 **The line number in this item was stale** — the call was at `code.js:1802`, not
+      `:1790`, and the surrounding handler had moved too. Re-locate by NAME.
+      🔴 **The un-awaited write was worse than "returns early".** The reply read
+      `textNode.characters` while the write was still a pending microtask and reported
+      `""` for text it had in fact written — **and only on the path without `parentId`**,
+      whose own `await` let the write land first. The same tool told the truth or lied
+      depending on an unrelated parameter. ⭐ Offline, the *parented* case passed before
+      the fix, so a suite that had only tested that path would have reported green.
+      ⭐ A font failure inside the un-awaited call surfaced as an **unhandledRejection
+      after the command had already answered**, where no caller can catch it — the test
+      runner reported it as "asynchronous activity after the test ended".
+      ⛔ **Validate-all-then-CREATE, not -then-write.** On a create tool the F4 shape is
+      not a half-written node, it is a node that exists at all: a refusal raised after
+      `figma.createText()` leaves an orphan on the page. So the parent is resolved and the
+      font loaded **before** anything is created, and every refusal test counts the page's
+      children rather than asserting only that the call threw.
+      ⭐ **The twelve-parameter validator is now ONE implementation, shared** by
+      `set_text_style` and `create_text` (`textStyleRequestedFont` +
+      `textStyleCollectWrites`). A second copy is how two surfaces start disagreeing about
+      what is valid — the `set_fill_color` divergence R2.4's gate caught.
+      ⛔ **`fontWeight` × `fontFamily`/`fontStyle` is a refusal**, because honouring
+      either means discarding the other, and a discarded value reads as an applied one.
+      ⚠️ This required the SERVER to stop defaulting `fontWeight` to 400: a default
+      applied server-side reaches the handler indistinguishable from a caller's own value,
+      so "was it supplied?" could not be answered. Behaviour is unchanged — the plugin
+      applies the same 400.
+      ⚠️ **Two defects found in the same handler and fixed here:** `parseFloat(a) || 1`
+      turned a legitimate `alpha: 0` into a fully opaque fill, and an omitted `fontSize`
+      wrote the R1-era 14 that the offline fixture could not distinguish from the
+      platform's own default — the harness now creates text at **12**, which is what real
+      Figma does, so the default write is observable at all.
 - [ ] **2.1 `set_layout_child(nodeId, layoutGrow?, layoutAlign?, layoutPositioning?)`** —
       auto-layout child sizing/alignment/grow and absolute positioning.
 - [ ] **2.2 `set_constraints(nodeId, horizontal, vertical)`.**
@@ -486,6 +541,15 @@ tools before asserting combined behaviour.
 - [ ] **2.4 `set_clips_content(nodeId, clipsContent)`.**
 - [ ] **2.5 Every one validate-all-then-write**, per 3.2 above. The rule is now the house
       rule, not a per-tool decision.
+- [ ] **2.6 ⛔ DECIDED 2026-08-21, before the tools exist: the four are NOT added to
+      `apply_batch`'s allowlist.** Each gets an `EXCLUDED_BATCH_OPERATIONS` entry naming
+      the reason, per the R2.2 pin-the-absence pattern — an absence on the record is a
+      decision, an absence in silence is an oversight someone quietly reverses later.
+      ⭐ Recorded here so it is not re-litigated when 2.1–2.4 land; revisiting it is a
+      choice someone makes on purpose, not a gap they fall into.
+      ⚠️ They are mutate-only ops on existing nodes, so they would *fit* the batch — the
+      cost of adding them is allowlist parity across both copies, batch receipt tests, and
+      a longer live gate, and none of that is owed until a consumer asks.
 
 ---
 

@@ -169,7 +169,32 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 layout (Phase 1 is BUILT, NOT gated)
+## ▶ Next session — R2.6 Phase 2 (item 2.0 is BUILT, NOT gated)
+
+**✅ R2.6 ITEM 2.0 IS DONE 2026-08-21 (offline)** — `create_text` now carries the twelve
+`set_text_style` parameters, awaits `setCharacters`, and **refuses** an unloadable font
+instead of creating a node in a face nobody asked for. Contract **`1.7.0` → `1.8.0`**
+(spent here, by `create_text`'s new reply fields — it is `stable`), **187 tests green**,
+five source mutations killed with the control surviving, `dist/` byte-identical across
+three builds, six baselines replaying, `verify-release` passed.
+
+⏳ **NEXT = run the typography live gate** — `node scripts/live-text-style-gate.mjs
+--channel=<name> [--mixed-node=<id>]`, foreground Figma tab, owner permission on a
+disposable file. ⛔ **The DEV plugin MUST be re-run first**: `code.js` moved, so
+`pluginBuildId` moved, and the gate fails at `assertRuntime` otherwise.
+
+⛔ **This time EVERY pin moved** — server `c45214d7420b` → `2fa65a5749e2`, plugin
+`65d716d57dbb` → `045a95955905`, fingerprint `05ac28c5…` → `b5cbf7b1…`, schema `1.7.0` →
+`1.8.0`. Adopting needs **both** a DEV plugin re-run and a server respawn; the gate spawns
+its own server, so only an interactive MCP session needs the second. ⚠️ That answer has
+now flipped on six consecutive steps — re-derive it, never carry it forward.
+
+🔴 **`live-batch-gate.mjs` is now STALE** and would fail at `assertRuntime`. It is
+deliberately **not** re-pinned: re-pinning a gate without re-running it is the `e02d1b2`
+defect. Its staleness is declared by name in `tests/live-gate-pins.test.mjs`, which fails
+if an undeclared gate drifts **or** if a declared one silently starts matching again.
+
+---
 
 **✅ R2.6 PHASE 1 IS DONE 2026-08-20 (offline) and COMMITTED** — the atomicity debt is paid.
 `setAxisAlign` / `setLayoutSizing` / `setItemSpacing` reordered to validate-all-then-write,
@@ -1113,11 +1138,30 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             ⛔ The inverted assertion could **not** be a bare equality: `partialApplicationReason`
             is absent when the possibility is undeclared, so `undefined === undefined` would
             have passed vacuously. It asserts the **absence** of the field and the map key.
-      - [ ] ⏳ **Inherited from R2.5 (3.5):** `create_text` gains the `set_text_style`
-            parameters, under the `1.8.0` bump this release already owns. ⛔ Fix the
-            un-awaited `setCharacters` at `code.js:1790` in the same change, and apply
-            refuse-never-substitute or the Inter fix reintroduces F2 on a new surface.
+      - [x] ✅ **Item 2.0 DONE + BUMP SPENT 2026-08-21 (offline), inherited from R2.5
+            (3.5).** `create_text` carries the twelve `set_text_style` parameters, the
+            un-awaited `setCharacters` is awaited, and an unloadable font is REFUSED.
+            Contract `1.7.0` → **`1.8.0`**, 187 tests green, `dist/` byte-identical across
+            three builds, six baselines replaying, `verify-release` passed.
+            🔴 The cited line was **stale** (`:1802`, not `:1790`) — re-locate by name.
+            🔴 The un-awaited write did not merely "return early": the reply reported
+            `characters: ""` for text it HAD written, **only on the path without
+            `parentId`**, and a font failure inside it became an **unhandledRejection
+            after the command answered**. The parented path passed before the fix.
+            ⛔ Validate-all-then-**CREATE**: the F4 shape here is an orphan node, so the
+            parent is resolved and the font loaded before `figma.createText()`, and every
+            refusal test counts the page's children instead of only asserting a throw.
+            🔴 **The bump is not mechanically enforced** — regenerating at `1.7.0` gave
+            **zero** compatibility errors, because the snapshot records input schemas and
+            stability, never result shapes.
+            ⛔ **Every pin moved** (server, plugin, fingerprint, schema) — a DEV plugin
+            re-run AND a server respawn, the opposite of the step before it.
+            ⏳ **NOT gated.** `scripts/live-text-style-gate.mjs` grew four sections
+            (6–9) and was re-pinned, but has not been run.
       - [ ] `set_layout_child`, `set_constraints`, `set_size_limits`, `set_clips_content`.
+            ⛔ **DECIDED before they exist: none of the four joins `apply_batch`'s
+            allowlist** — each gets an `EXCLUDED_BATCH_OPERATIONS` entry with its reason,
+            per the R2.2 pin-the-absence pattern. Not open for re-litigation on landing.
 - [ ] **R2.7 — visuals, assets, and R2 acceptance.** Contract `1.8.0` → `1.9.0`.
       - [ ] `set_fill` (solid + gradient), `set_effects`, `set_opacity`, `set_blend_mode`.
             ⭐ `set_fill` ships **one** param shape, ending the batch-vs-standalone

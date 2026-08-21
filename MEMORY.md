@@ -10,39 +10,47 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-20)
+## ▶ Resume (checkpoint 2026-08-21)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout
-- **Doing:** ✅✅ **R2.6 Phase 1 is BUILT + COMMITTED + GATED 2026-08-20** — all five
-  change-set items landed, and the **re-pinned R2.4 live gate PASSED on channel `kw7qggwv`**,
-  one run, green on the first try. The three layout ops are **atomic against a real document**;
-  `move_node` / `set_stroke_color` stay proven-partial and named. ⛔ **Phase 2 is UNBLOCKED.**
-- **Next step:** **Phase 2** — its five new tools, spending the `1.8.0` the contract still has.
-  ⛔ **No contract bump happened in Phase 1 and none was owed** — strengthening
-  `partialApplicationPossible` to false is additive, so `1.7.0` held.
-  ⚠️ Phase 1 is **not committed as gated yet**: the MEMORY/TASKS updates recording the pass are
-  uncommitted, and a peer session committed this repo mid-run (`d75c7df`) — stage explicit paths.
-- **Key paths / IDs:** `scripts/live-batch-gate.mjs` (the R2.4 gate, now INVERTED — see
-  below) · `tests/batch-receipt.test.mjs` (the reorder is pinned here) ·
-  `tests/helpers/plugin-harness.mjs` (new `refusePropertyWrite` option) · current pair
-  `r2-server-c45214d7420b` ↔ **`r2-plugin-65d716d57dbb`**, `1.7.0`, 56 tools/55 commands,
-  fingerprint `sha256:05ac28c5…` (both unmoved).
-- **Open / blockers:** 🔴 **Adopting this build needs a DEV plugin re-run AND a server
-  respawn — and the pins actively LIE about the second.** `pluginBuildId` moved;
-  `serverBuildId` did **not**, yet `dist/server.js` changed anyway because `batch-receipt.mjs`
-  is in the bundle and is hashed by nothing. ✅ The **DEV re-run is DONE** in the live Figma
-  session — it reported `r2-plugin-65d716d57dbb` itself on `kw7qggwv`. ⚠️ An **interactive MCP
-  session still needs its own server respawn**; the gate never did, because it spawns its own
-  from `dist/server.js`. ⛔ Stage explicit paths, never `git add -A`
-  (peer sessions write this repo — one committed `d75c7df` mid-run).
-- **Don't forget:** ⛔ Two debts are **NOT** discharged by acceptance: **F3 reachability**
-  (the harness injects the refused write) and Phase 2's **`available` ≠ `loadable`**, which
-  did not reproduce again — every listed face loaded. ⚠️ The gate's own `stillOwed` lists
-  only the first; the second is owed regardless. ✅ **Mixed-font unification IS closed live**
-  now (`--mixed-node=6030:9112`). ⚠️ `TASKS.md` has a pre-existing orphaned table row from
-  the R2.4 era — left alone deliberately. 🔴 **Line numbers in the plans and TASKS.md are
-  NOT trustworthy** — R2.5 shifted `code.js` by ~700 lines and every cited offset for the
-  layout handlers pointed at unrelated code. Re-locate by NAME before acting on any of them.
+- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
+- **Doing:** ✅ **R2.6 Phase 2 item 2.0 is BUILT 2026-08-21 (offline), and it SPENT the
+  bump: contract `1.7.0` → `1.8.0`.** `create_text` carries the twelve `set_text_style`
+  parameters, `setCharacters` is **awaited**, and an unloadable font is **REFUSED** rather
+  than substituted. **187 tests green**, five source mutations killed + the control
+  survived, `dist/` byte-identical across three builds, six baselines replaying,
+  `verify-release` passed. ⏳ **NOT gated, NOT committed.**
+- **Next step:** **run the typography live gate** —
+  `node scripts/live-text-style-gate.mjs --channel=<name> [--mixed-node=<id>]`. It grew
+  **four new sections (6–9)** for `create_text` and was re-pinned. ⛔ **Re-run the DEV
+  plugin first** or it fails at `assertRuntime`. Then: **2.1–2.4**, the four actual layout
+  tools — which need **no further bump** (a new tool is additive) and are **already
+  decided out of `apply_batch`'s allowlist**, declared by name per the R2.2 pattern.
+- **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `createText` +
+  `textStyleRequestedFont` / `textStyleCollectWrites` (the shared validator, ⛔ **one**
+  implementation for both write surfaces) · `tests/create-text.test.mjs` (17 cases) ·
+  `tests/live-gate-pins.test.mjs` (new) · `scripts/live-text-style-gate.mjs` §6–9 ·
+  new pair **`r2-server-2fa65a5749e2` ↔ `r2-plugin-045a95955905`**, `1.8.0`, 56 tools/55
+  commands, fingerprint **`sha256:b5cbf7b1…6241f2f0`**.
+- **Open / blockers:** ⛔ **EVERY pin moved this time** — server, plugin, fingerprint AND
+  schema — so adopting needs **a DEV plugin re-run AND a server respawn**. That is the
+  opposite of the step before it, and the answer has now flipped on **six consecutive
+  steps**: ⛔ re-derive it from `runtime-metadata.ts`, never carry it forward. ⚠️ The gate
+  spawns its own server from `dist/server.js`, so only an **interactive** MCP session needs
+  the respawn. 🔴 **`live-batch-gate.mjs` is now stale** and deliberately **not re-pinned**
+  — re-pinning a gate without re-running it is the `e02d1b2` defect; its staleness is
+  declared by name in `tests/live-gate-pins.test.mjs`. ⛔ Stage explicit paths, never
+  `git add -A` (peer sessions write this repo — one committed `d75c7df` mid-run).
+- **Don't forget:** 🔴 **The `1.8.0` bump was NOT mechanically enforced** — regenerating at
+  `1.7.0` produced **zero** `compatibilityErrors`, because the snapshot records input
+  schemas and stability, **never result shapes**. ⚠️ **Two migrations ride on the bump**:
+  an unloadable font now refuses (it used to create the node in whatever face Figma gave),
+  and `fontSize: 0` now refuses (it used to become 14 silently). ⛔ Three debts stay open:
+  **F3 reachability**, **`available` ≠ `loadable`**, and now `create_text`'s
+  **rollback-on-refused-write**, which sits on the same unreachable branch as F3.
+  ⚠️ `TASKS.md` has a pre-existing orphaned table row from the R2.4 era — left alone
+  deliberately. 🔴 **Line numbers in the plans and TASKS.md are NOT trustworthy** — 2.0's
+  own cited offset (`code.js:1790`) was wrong again; the call was at `:1802`. Re-locate by
+  NAME before acting on any of them.
 
 ## ▶ Live resume state
 
@@ -62,15 +70,26 @@ r2-server-5ac4bcd1a2a5  ↔  r2-plugin-53a1fa676d6a   (sha256:d39aefef…ca6289)
 r2-server-194bc059487c  ↔  r2-plugin-75048983ede3   (sha256:09175c89…)         ← R2.5 Phase 1
 r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)         ← R2.5 Phase 2
 r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 Phase 3
-r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← HEAD, R2.5 ACCEPTED
+r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 ACCEPTED
+r2-server-c45214d7420b  ↔  r2-plugin-65d716d57dbb   (sha256:05ac28c5…)         ← R2.6 Phase 1, GATED
+r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← HEAD, R2.6 item 2.0
 ```
 
-⛔ **The tree is now R2.5 ACCEPTED.** The promotion to `stable` moved the **SERVER ONLY** —
-the plugin half, the fingerprint, the schema and the 56-tool count all held still, so
-adopting HEAD needs a **server respawn and NOT a DEV plugin re-run**. That is the opposite
-of the three Phase steps before it; the answer has flipped on five consecutive steps now.
-⭐ **Against the pre-promotion build only `serverBuildId` fails** — the third time this
-release has proved why CC4 pins it.
+⛔ **HEAD moved BOTH halves, the fingerprint AND the schema** — item 2.0 edited `server.ts`
+and `code.js`, and its `1.8.0` bump put a new `serverSchemaVersion` inside the fingerprint.
+So adopting HEAD needs **a DEV plugin re-run AND a server respawn**, and the only pin that
+holds still is the 56-tool count, because 2.0 is a widening and adds no tool.
+
+⚠️ **That answer has now flipped on SIX consecutive steps.** R2.5 Phase 1/2/3 moved both;
+R2.5 acceptance moved the server only; R2.6 Phase 1 moved the plugin only (and `dist/`
+changed with `serverBuildId` standing still); item 2.0 moves everything. ⛔ Re-derive it
+from `runtime-metadata.ts` on every release — a carried-forward answer has been wrong more
+often than right.
+
+⭐ **Against the R2.5-accepted build only `serverBuildId` failed** — the third time that
+release proved why CC4 pins it. ⛔ But Phase 1 then proved the converse:
+`serverBuildId` covers `server.ts` + the contract payload and **nothing else in the
+bundle**, so it is not a freshness oracle either.
 
 ⭐ **Adopting HEAD needs a DEV plugin re-run — and the server answer SPLITS.** The live gate
 spawns its own server from `dist/server.js`, so **the gate never needs a respawn**; only an
@@ -562,6 +581,84 @@ has no plan item at all.
   the refused write) and Phase 2's `available` ≠ `loadable`. ⚠️ `operation_not_allowed` is
   confirmed **unreachable through this transport** — the tool's inline `z.enum` rejects first,
   so the plugin's own allowlist never answers a live consumer.
+
+### ✅ R2.6 Phase 2 item 2.0 — `create_text` joins the typography surface, 2026-08-21 (offline)
+
+**187 tests green** (was 169), contract **`1.7.0` → `1.8.0`** — the bump R2.5 deferred this
+item for. `dist/` byte-identical across three builds, six baselines replaying,
+`verify-release` passed. ⏳ **NOT gated.**
+
+- 🔴 **The un-awaited `setCharacters` was worse than "returns before the text is set", and
+  the fixture proved it.** The reply read `textNode.characters` while the write was still a
+  pending microtask and reported **`""` for text it had in fact written** — and *only on
+  the path without `parentId`*, because that path's own `await figma.getNodeByIdAsync`
+  let the microtask land first. **The same tool told the truth or lied depending on an
+  unrelated parameter.** ⭐ The parented case **passed before the fix** — a suite that had
+  only tested the obvious path would have reported green over it.
+- ⭐ **And the failure escaped the request entirely.** With an unloadable font, the
+  un-awaited call surfaced as an **unhandledRejection after the command had already
+  answered** — the test runner reported "asynchronous activity after the test ended". No
+  caller can catch that; it is not a wrong field, it is an error with nowhere to go.
+- ⛔ **Validate-all-then-CREATE, which is a different shape from validate-all-then-write.**
+  On a mutation tool F4 leaves a half-written node; on a create tool it leaves **a node
+  that exists at all**. So the parent is resolved and the font loaded **before**
+  `figma.createText()`, and every refusal test counts the page's children — a `rejects`
+  assertion alone passes happily over an orphaned empty text node.
+- ⭐ **The twelve-parameter validator is now ONE implementation** (`textStyleRequestedFont`
+  + `textStyleCollectWrites`), shared by `set_text_style` and `create_text`. A second copy
+  is how two surfaces start disagreeing about what is valid — the `set_fill_color`
+  divergence R2.4's gate caught. `set_text_style`'s 16 tests stayed green across the
+  extraction, which is what makes it a refactor rather than a rewrite.
+- ⛔ **`fontWeight` × `fontFamily`/`fontStyle` is a REFUSAL** — two ways to name one face,
+  so honouring either discards the other, and a discarded value reads as an applied one.
+  ⚠️ **This forced a server change**: `create_text` used to send `fontWeight: fontWeight || 400`,
+  so a default applied server-side reached the handler **indistinguishable from a caller's
+  own value** and "was it supplied?" had no answer. Behaviour is unchanged; the plugin
+  applies the same 400.
+- 🔴 **Two more defects found in the same handler, both silent-substitution shaped:**
+  `parseFloat(fontColor.a) || 1` turned a legitimate **`alpha: 0`** into a fully opaque
+  fill, and `fontSize: 0` became 14. Both are now refused or preserved.
+- 🔴 **The offline fixture could not see the `fontSize` default at all.** The harness
+  created text at **14** — the same number `create_text` writes when the caller omits
+  `fontSize` — so deleting the default write scored **green**. Real Figma hands back
+  **12**; the harness now does too, and the mutation dies.
+- ✅ **Five source mutations, all killed, plus a control that survived** (⛔ the SOURCE,
+  never `dist/`): create-before-validate, the un-awaited write, the collision check
+  removed, substitute-instead-of-refuse, and the `fontSize` default deleted. ⭐ The
+  control — swapping the `x` and `y` writes inside the write phase — **survived
+  correctly**; a suite that killed it would be over-fitted to write order.
+- ⚠️ **The reply keeps its prose first line byte-identical** (`Created text "…" with ID: …`)
+  and appends the JSON receipt on the next line. Three gates parse that line, and
+  `clone_node`'s `with new ID:` already cost this project a gate run.
+
+### 🔴 Item 2.0's finding — the bump this change owed is NOT mechanically enforced
+
+Regenerating the contract with the widened `create_text` **at `1.7.0`** produced **zero**
+`compatibilityErrors`. The snapshot records input schemas, `direction`, `scope`,
+`timeoutClass` and `resultStability` — **never result shapes** — so *new fields on a
+`stable` result* are invisible to every check in `bun run verify`.
+
+- ⛔ `COMPATIBILITY-POLICY.md:47` says this in one line ("Changing a field's meaning …
+  passes every mechanical check, so it must be caught in review"). It was true here in the
+  additive direction too: only review stood between this and a silent ship at `1.7.0`.
+- ⭐ Same family as [[feedback_a_fingerprint_only_covers_what_it_hashes]] and
+  [[feedback_consistency_gate_is_not_a_correctness_gate]] — a green gate is evidence about
+  **its inputs**, and this gate's inputs never included a reply.
+
+### ⛔ Editing a gate is not exercising it — now a test, 2026-08-21
+
+`tests/live-gate-pins.test.mjs` asserts every `scripts/live-*.mjs` either pins **this**
+build or is **declared** as belonging to an earlier release. It exists because the R2.4
+gate was unrunnable from `e02d1b2` and nothing noticed for two commits.
+
+- ⭐ **Both directions are enforced, and that was mutation-proven rather than asserted:**
+  an undeclared gate whose pins drift fails, **and** a declared gate whose pins start
+  matching again fails. The second mutation only died once **all four** pins were moved —
+  a three-of-four re-pin correctly survived, because the gate genuinely still did not
+  match the tree.
+- 🔴 **`live-batch-gate.mjs` is declared stale on purpose.** It PASSED on `kw7qggwv` at
+  `1.7.0`; item 2.0 moved every pin. ⛔ It is **not** re-pinned here — a gate re-pinned
+  without being re-run is exactly the defect this test exists to catch.
 
 ### 🔴 R2.6 Phase 1's two findings — both bigger than the change set
 

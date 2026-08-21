@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-c45214d7420b",
-  "pluginBuildId": "r2-plugin-65d716d57dbb",
-  "serverSchemaVersion": "1.7.0",
-  "pluginApiVersion": "1.7.0",
+  "serverBuildId": "r2-server-2fa65a5749e2",
+  "pluginBuildId": "r2-plugin-045a95955905",
+  "serverSchemaVersion": "1.8.0",
+  "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
+  "capabilityFingerprint": "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -1224,13 +1224,40 @@ server.tool(
 );
 server.tool(
   "create_text",
-  "Create a new text element in Figma",
+  "Create a new text element in Figma, with the same typography parameters set_text_style writes onto an existing node. \u26D4 Validate-all-then-create: every parameter is checked, the parent resolved and the font loaded BEFORE the node is created, so a refusal leaves no orphan node on the page. \u26D4 An unloadable font is REFUSED, never substituted \u2014 this tool will not create a node in a face nobody asked for, so preflight with check_fonts and expect an error rather than a fallback. fontWeight reaches Inter's styles only and cannot be combined with fontFamily/fontStyle; supply the pair to name any installed face exactly.",
   {
     x: z.number().describe("X position"),
     y: z.number().describe("Y position"),
     text: z.string().describe("Text content"),
     fontSize: z.number().optional().describe("Font size (default: 14)"),
-    fontWeight: z.number().optional().describe("Font weight (e.g., 400 for Regular, 700 for Bold)"),
+    fontWeight: z.number().optional().describe(
+      "Font weight (e.g., 400 for Regular, 700 for Bold). Legacy shortcut: it maps onto Inter's styles and nothing else. Refused when fontFamily/fontStyle is also supplied, because one of the two would be silently discarded."
+    ),
+    fontFamily: z.string().optional().describe(
+      "Font family, e.g. Inter. Must be supplied together with fontStyle. Case-sensitive and exact; a near miss is refused, not approximated."
+    ),
+    fontStyle: z.string().optional().describe(
+      "Font style, e.g. Regular or Semi Bold. Must be supplied together with fontFamily."
+    ),
+    lineHeight: z.object({
+      value: z.number().nonnegative().optional().describe("Omit when unit is AUTO; supplying it there is refused rather than discarded."),
+      unit: z.enum(["PIXELS", "PERCENT", "AUTO"])
+    }).optional().describe(
+      "Line height as {value, unit} \u2014 never a bare number, because a number cannot say whether it means pixels or percent."
+    ),
+    letterSpacing: z.object({
+      value: z.number().describe("May be negative; tracking-in is legitimate."),
+      unit: z.enum(["PIXELS", "PERCENT"])
+    }).optional().describe("Letter spacing as {value, unit}. AUTO is not a letter-spacing unit."),
+    textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional().describe("Letter case transform applied for display; the underlying characters are unchanged."),
+    textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional().describe("Text decoration."),
+    textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional().describe("Horizontal alignment within the text box."),
+    textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional().describe("Vertical alignment within the text box."),
+    paragraphSpacing: z.number().nonnegative().optional().describe("Space between paragraphs, in pixels."),
+    paragraphIndent: z.number().nonnegative().optional().describe("First-line indent, in pixels."),
+    textAutoResize: z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional().describe(
+      "How the text box resizes to its content. \u26A0\uFE0F Inside an auto-layout parent this and the parent's layoutSizing describe the same behaviour from two sides, and the parent wins; the reply reports that in limitations."
+    ),
     fontColor: z.object({
       r: z.number().min(0).max(1).describe("Red component (0-1)"),
       g: z.number().min(0).max(1).describe("Green component (0-1)"),
@@ -1240,14 +1267,17 @@ server.tool(
     name: z.string().optional().describe("Semantic layer name for the text node"),
     parentId: z.string().optional().describe("Optional parent node ID to append the text to")
   },
-  async ({ x, y, text, fontSize, fontWeight, fontColor, name, parentId }) => {
+  async ({ x, y, text, fontColor, name, parentId, ...style }) => {
     try {
       const result = await sendCommandToFigma("create_text", {
         x,
         y,
         text,
-        fontSize: fontSize || 14,
-        fontWeight: fontWeight || 400,
+        // ⛔ fontSize and fontWeight are NOT defaulted here any more. The plugin applies
+        // the same 14 and 400, so no behaviour moves — but a default applied on this side
+        // reaches the handler indistinguishable from a caller's own value, and the
+        // fontWeight-versus-fontFamily refusal has to know which of the two it is.
+        ...style,
         fontColor: fontColor || { r: 0, g: 0, b: 0, a: 1 },
         name: name || "Text",
         parentId
@@ -1257,7 +1287,12 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `Created text "${typedResult.name}" with ID: ${typedResult.id}`
+            // ⛔ The first line is byte-identical to what this tool has always answered —
+            // `create_frame`, `create_section` and the live gates all parse "with ID:",
+            // and `clone_node`'s "with new ID:" already proved how expensive a reworded
+            // creator reply is. The receipt is appended, never substituted.
+            text: `Created text "${typedResult.name}" with ID: ${typedResult.id}
+${JSON.stringify(result)}`
           }
         ]
       };

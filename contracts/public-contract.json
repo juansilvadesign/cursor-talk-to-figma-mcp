@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.7.0",
-  "serverSchemaVersion": "1.7.0",
+  "publicContractVersion": "1.8.0",
+  "serverSchemaVersion": "1.8.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
+  "capabilityFingerprint": "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -875,7 +875,7 @@
     {
       "kind": "tool",
       "name": "create_text",
-      "description": "Create a new text element in Figma",
+      "description": "Create a new text element in Figma, with the same typography parameters set_text_style writes onto an existing node. ⛔ Validate-all-then-create: every parameter is checked, the parent resolved and the font loaded BEFORE the node is created, so a refusal leaves no orphan node on the page. ⛔ An unloadable font is REFUSED, never substituted — this tool will not create a node in a face nobody asked for, so preflight with check_fonts and expect an error rather than a fallback. fontWeight reaches Inter's styles only and cannot be combined with fontFamily/fontStyle; supply the pair to name any installed face exactly.",
       "direction": "write",
       "scope": "current_page_or_parent",
       "inputSchema": {
@@ -899,7 +899,120 @@
           },
           "fontWeight": {
             "type": "number",
-            "description": "Font weight (e.g., 400 for Regular, 700 for Bold)"
+            "description": "Font weight (e.g., 400 for Regular, 700 for Bold). Legacy shortcut: it maps onto Inter's styles and nothing else. Refused when fontFamily/fontStyle is also supplied, because one of the two would be silently discarded."
+          },
+          "fontFamily": {
+            "type": "string",
+            "description": "Font family, e.g. Inter. Must be supplied together with fontStyle. Case-sensitive and exact; a near miss is refused, not approximated."
+          },
+          "fontStyle": {
+            "type": "string",
+            "description": "Font style, e.g. Regular or Semi Bold. Must be supplied together with fontFamily."
+          },
+          "lineHeight": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Omit when unit is AUTO; supplying it there is refused rather than discarded."
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "PIXELS",
+                  "PERCENT",
+                  "AUTO"
+                ]
+              }
+            },
+            "required": [
+              "unit"
+            ],
+            "additionalProperties": false,
+            "description": "Line height as {value, unit} — never a bare number, because a number cannot say whether it means pixels or percent."
+          },
+          "letterSpacing": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "number",
+                "description": "May be negative; tracking-in is legitimate."
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "PIXELS",
+                  "PERCENT"
+                ]
+              }
+            },
+            "required": [
+              "value",
+              "unit"
+            ],
+            "additionalProperties": false,
+            "description": "Letter spacing as {value, unit}. AUTO is not a letter-spacing unit."
+          },
+          "textCase": {
+            "type": "string",
+            "enum": [
+              "ORIGINAL",
+              "UPPER",
+              "LOWER",
+              "TITLE",
+              "SMALL_CAPS",
+              "SMALL_CAPS_FORCED"
+            ],
+            "description": "Letter case transform applied for display; the underlying characters are unchanged."
+          },
+          "textDecoration": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "UNDERLINE",
+              "STRIKETHROUGH"
+            ],
+            "description": "Text decoration."
+          },
+          "textAlignHorizontal": {
+            "type": "string",
+            "enum": [
+              "LEFT",
+              "CENTER",
+              "RIGHT",
+              "JUSTIFIED"
+            ],
+            "description": "Horizontal alignment within the text box."
+          },
+          "textAlignVertical": {
+            "type": "string",
+            "enum": [
+              "TOP",
+              "CENTER",
+              "BOTTOM"
+            ],
+            "description": "Vertical alignment within the text box."
+          },
+          "paragraphSpacing": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Space between paragraphs, in pixels."
+          },
+          "paragraphIndent": {
+            "type": "number",
+            "minimum": 0,
+            "description": "First-line indent, in pixels."
+          },
+          "textAutoResize": {
+            "type": "string",
+            "enum": [
+              "NONE",
+              "HEIGHT",
+              "WIDTH_AND_HEIGHT",
+              "TRUNCATE"
+            ],
+            "description": "How the text box resizes to its content. ⚠️ Inside an auto-layout parent this and the parent's layoutSizing describe the same behaviour from two sides, and the parent wins; the reply reports that in limitations."
           },
           "fontColor": {
             "type": "object",

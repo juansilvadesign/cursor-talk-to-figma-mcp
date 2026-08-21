@@ -1,13 +1,20 @@
 #!/usr/bin/env node
 
 /**
- * R2.5 — the typography live gate.
+ * R2.5 + R2.6 item 2.0 — the typography live gate.
  *
- * What this proves that the 169 offline tests cannot: that `set_text_style`'s
+ * What this proves that the 186 offline tests cannot: that `set_text_style`'s
  * validate-all-then-write guarantee holds when the judge is **real Figma** rather than a
  * fixture. Offline, the harness decides which fonts refuse to load and which assignments
  * throw; here Figma decides, and the question is whether the document is still untouched
  * afterwards.
+ *
+ * ⭐ Sections 6–9 extend that question to `create_text`, which R2.6 item 2.0 put on the
+ * same twelve-parameter surface. The guarantee has a different SHAPE there: a create tool
+ * cannot leave a node byte-identical, it can only leave the page's child list unchanged —
+ * so every refusal is scored by counting children through `get_document_info`, a
+ * different channel from the one that creates. A `rejects` assertion alone would pass
+ * happily over an orphaned empty text node, which is what F4 looks like on this tool.
  *
  * ⛔ Three traps inherited from the R2.4 gate, each already paid for once:
  *
@@ -62,27 +69,25 @@ if (!options.channel) {
   process.exit(2);
 }
 
-// ⛔ RE-PINNED for R2.5 ACCEPTANCE. Promoting the three tools to `stable` rewrites
-// `contractPayload.tools`, and `serverBuildId` hashes `serverSource + contractPayload` —
-// so the server build moved and **nothing else did**. Verified, not carried forward from
-// R2.4: `pluginBuildId` hashes plugin source only and the promotion never touches
-// `code.js`; `capabilityFingerprint` hashes `{serverSchemaVersion, capabilityIds}`, and a
-// stability change moves neither; schema stays 1.7.0 and the tool count stays 56.
+// ⛔ RE-PINNED for R2.6 item 2.0 — and this time EVERY pin moved, which is the opposite
+// of the step before it. `create_text` grew twelve parameters (server + plugin), and the
+// contract bump to 1.8.0 put a new `serverSchemaVersion` inside `capabilityFingerprint`.
+// So: server build moved, plugin build moved, fingerprint moved, schema moved. Only the
+// tool count held still, because 2.0 is a WIDENING and adds no tool.
 //
-// ⭐ This is the exact case CC4 exists for. Against the pre-promotion build, the plugin
-// pin, the fingerprint, the schema and the tool count would ALL match — only
-// `serverBuildId` fails. On the Phase 3 step every pin happened to catch a stale build;
-// that was luck. Here it is down to one, as it was twice in R2.4.
+// ⭐ Read that as an operator instruction, not trivia: the DEV plugin **must** be re-run
+// before this gate, because `code.js` changed. The gate spawns its own server from
+// `dist/server.js`, so the server half needs no respawn *here* — an interactive MCP
+// session is a different story and needs one.
 //
-// ⭐ Consequence for the operator: the DEV plugin does NOT need re-running for this
-// gate — the plugin half is unchanged. The gate spawns its own server from
-// `dist/server.js`, so the promoted server is picked up automatically.
+// ⚠️ The last five releases have each flipped this answer. ⛔ Do not carry it forward —
+// re-derive which halves moved from `runtime-metadata.ts` every time.
 const expectedRuntime = {
-  serverBuildId: "r2-server-c45214d7420b",
-  pluginBuildId: "r2-plugin-0bc82334ff83",
-  schemaVersion: "1.7.0",
+  serverBuildId: "r2-server-2fa65a5749e2",
+  pluginBuildId: "r2-plugin-045a95955905",
+  schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
+    "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
   toolCount: 56,
 };
 
@@ -90,10 +95,10 @@ const serverPath = options.server
   ? path.resolve(options.server)
   : path.join(root, "dist/server.js");
 const pluginPath = path.join(root, "src/cursor_mcp_plugin/code.js");
-const scratchPageName = `R2.5 typography gate ${new Date().toISOString()}`;
+const scratchPageName = `R2.5+2.6 typography gate ${new Date().toISOString()}`;
 const artifactDirectory = options["output-dir"]
   ? path.resolve(options["output-dir"])
-  : await mkdtemp(path.join(os.tmpdir(), "talk-to-figma-r2.5-live-"));
+  : await mkdtemp(path.join(os.tmpdir(), "talk-to-figma-r2.5-2.6-live-"));
 await mkdir(artifactDirectory, { recursive: true });
 const reportPath = path.join(artifactDirectory, "report.json");
 
@@ -102,7 +107,7 @@ async function sha256OfFile(filePath) {
 }
 
 const client = new Client({
-  name: "talk-to-figma-r2.5-text-style-gate",
+  name: "talk-to-figma-r2.5-2.6-text-style-gate",
   version: "1.0.0",
 });
 const transport = new StdioClientTransport({
@@ -149,10 +154,13 @@ async function callEmbeddedJson(name, args = {}) {
 }
 
 /**
- * The create tools do NOT answer in one shape: `create_page` embeds JSON while
- * `create_text` answers prose (`Created text "x" with ID: 1:2`). Accepting both here
- * keeps the gate honest about what the tools actually return today rather than about
- * what a consumer might wish they returned.
+ * The create tools do NOT answer in one shape, and R2.6 added a fourth: `create_page`
+ * embeds JSON; `create_frame` and `create_section` answer prose (`… with ID: 1:2`);
+ * `clone_node` answers `with new ID:`; and `create_text` now answers **both** — the
+ * historical prose line, then its receipt on the next line, because three gates parse
+ * that first line and `clone_node` already proved what rewording one costs.
+ * Accepting every shape here keeps the gate honest about what the tools actually return
+ * today rather than about what a consumer might wish they returned.
  */
 async function callNodeId(name, args = {}) {
   const called = await call(name, args);
@@ -258,6 +266,28 @@ async function restTypographyOf(nodeId) {
   const out = { characters: node?.characters ?? null };
   for (const key of REST_STYLE_FIELDS) out[key] = style[key] ?? null;
   return out;
+}
+
+/**
+ * The scratch page's child count, read through `get_document_info` — a DIFFERENT channel
+ * from the one that creates. ⛔ This is `create_text`'s side-effect channel: on a create
+ * tool, "the refusal wrote nothing" can only mean "no node appeared", and a `rejects`
+ * assertion on its own passes happily over an orphaned empty text node.
+ */
+async function scratchChildCount() {
+  const info = (await callJson("get_document_info", { summary: true, limit: 1 })).value;
+  assert.equal(
+    info.currentPage?.id,
+    scratchPageId,
+    "the child count was read against the wrong page — the gate is not on its scratch page",
+  );
+  const count = info.currentPage?.childCount;
+  assert.equal(
+    typeof count,
+    "number",
+    `childCount must be a number, or every comparison against it is vacuous; got ${JSON.stringify(count)}`,
+  );
+  return count;
 }
 
 /** ⛔ Proves the read channel is not answering null to everything. */
@@ -590,8 +620,200 @@ try {
     );
   }
 
+  // ── 6. R2.6 item 2.0 — `create_text` on the same surface ────────────────────────
+  // ⛔ The F4 shape on a create tool is not a half-written node, it is a node that
+  // exists at all. Every refusal below is scored by counting the scratch page's
+  // children through `get_document_info` — a DIFFERENT channel from the one that
+  // creates — because a `rejects` on its own passes happily over an orphan.
+  const beforeStyledCreate = await scratchChildCount();
+  const styledCreate = await callEmbeddedJson("create_text", {
+    x: 0,
+    y: 120,
+    text: "R2.6 create_text gate",
+    name: "gate-created",
+    parentId: scratchPageId,
+    ...ALL_TWELVE,
+  });
+  const createdRest = await restTypographyOf(styledCreate.value.id);
+  assertReadChannelWorks(
+    createdRest,
+    { fontFamily: "Inter", fontStyle: "Bold", fontSize: 32, textAlignHorizontal: "CENTER" },
+    "styled create",
+  );
+  record.checks.styledCreate = {
+    id: styledCreate.value.id,
+    // ⭐ The un-awaited `setCharacters`, live. Offline this reply carried `""` for text
+    // it had in fact written, and ONLY on the path without `parentId` — an unrelated
+    // parameter decided whether the tool told the truth.
+    charactersInReply: styledCreate.value.characters,
+    fontSource: styledCreate.value.fontSource,
+    fontSubstituted: styledCreate.value.fontSubstituted,
+    appliedFieldCount: styledCreate.value.appliedFieldCount,
+    pluginSnapshot: styledCreate.value.style,
+    independentReadBack: createdRest,
+    // ⛔ The prose first line must survive verbatim — three gates parse "with ID:".
+    proseFirstLine: styledCreate.text.split("\n")[0],
+  };
+  assert.equal(styledCreate.value.characters, "R2.6 create_text gate");
+  assert.equal(createdRest.characters, "R2.6 create_text gate", "the document disagrees with the reply");
+  assert.equal(styledCreate.value.appliedFieldCount, 12);
+  assert.equal(styledCreate.value.fontSource, "explicit");
+  assert.equal(
+    Object.hasOwn(styledCreate.value, "fontSubstituted"),
+    true,
+    "the declaration must be present, not merely falsy",
+  );
+  assert.equal(styledCreate.value.fontSubstituted, false);
+  assert.match(
+    record.checks.styledCreate.proseFirstLine,
+    /^Created text ".*" with ID: \S+$/,
+    "the R1-era prose line changed shape — every gate that parses creators breaks on this",
+  );
+  assert.equal(await scratchChildCount(), beforeStyledCreate + 1);
+
+  // ── 7. ⛔ VALIDATE-ALL-THEN-CREATE, with Figma as the judge ──────────────────────
+  //
+  // 🔴 The invalid value has to be one the SCHEMA accepts. A bad enum (`textAutoResize:
+  // "SOMETIMES"`) never reaches the plugin — Zod rejects it before dispatch — so "the
+  // page is unchanged" would be trivially true and this check would pass vacuously while
+  // asking nothing, the same shape as `undefined === undefined`. `{value, unit: "AUTO"}`
+  // is a CROSS-FIELD rule: every field is individually well-typed, so it clears the
+  // schema and is refused by the handler, which is the thing under test.
+  //
+  // ⭐ In the plugin's own validation order it lands THIRD — after the font pair and the
+  // three numerics — so a validate-as-you-go implementation would already have written
+  // `fontName`, `fontSize`, `paragraphSpacing` and `paragraphIndent` onto a node it had
+  // already created.
+  const beforeCreateRefusal = await scratchChildCount();
+  const createRefusal = await callExpectingRefusal("create_text", {
+    x: 0,
+    y: 240,
+    text: "never created",
+    parentId: scratchPageId,
+    ...ALL_TWELVE,
+    lineHeight: { value: 20, unit: "AUTO" },
+  });
+  const afterCreateRefusal = await scratchChildCount();
+  // ⛔ A schema-layer refusal here would mean the handler never ran. Assert the layer, or
+  // a future tightening of the Zod schema silently turns this check vacuous.
+  assert.equal(
+    createRefusal.layer,
+    "handler",
+    "the schema refused before dispatch, so this proves NOTHING about the handler's validation order",
+  );
+  record.checks.validateAllThenCreate = {
+    layer: createRefusal.layer,
+    message: createRefusal.message.slice(0, 300),
+    childCountBefore: beforeCreateRefusal,
+    childCountAfter: afterCreateRefusal,
+    orphanCreated: afterCreateRefusal !== beforeCreateRefusal,
+  };
+  assert.equal(
+    afterCreateRefusal,
+    beforeCreateRefusal,
+    "a refused create_text left a node on the page — F4 on the create surface",
+  );
+
+  // The schema layer, recorded as its own fact rather than folded into the one above:
+  // both refusal shapes must keep arriving, and this one is evidence about Zod only.
+  const schemaRefusal = await callExpectingRefusal("create_text", {
+    x: 0,
+    y: 240,
+    text: "never created",
+    parentId: scratchPageId,
+    textAutoResize: "SOMETIMES",
+  });
+  record.checks.createSchemaRefusal = {
+    layer: schemaRefusal.layer,
+    message: schemaRefusal.message.slice(0, 200),
+    childCountUnchanged: (await scratchChildCount()) === beforeCreateRefusal,
+    provesAboutHandler: "nothing — the call never reached the plugin",
+  };
+  assert.equal(schemaRefusal.layer, "schema");
+  assert.ok(record.checks.createSchemaRefusal.childCountUnchanged);
+
+  // ── 8. ⛔ REFUSE, NEVER SUBSTITUTE, on the create surface ────────────────────────
+  // Before this change the load failure was swallowed and the node was created in
+  // whatever face Figma supplied — F2, on a tool nobody was watching.
+  const beforeFontCreate = await scratchChildCount();
+  const createFontRefusal = await callExpectingRefusal("create_text", {
+    x: 0,
+    y: 240,
+    text: "never created",
+    parentId: scratchPageId,
+    fontFamily: "Ghostly Absent Family",
+    fontStyle: "Regular",
+  });
+  const afterFontCreate = await scratchChildCount();
+  assert.equal(
+    createFontRefusal.layer,
+    "handler",
+    "an absent font must be refused by the plugin, not by the schema — the schema cannot know what this machine has installed",
+  );
+  record.checks.createRefusesUnloadableFont = {
+    layer: createFontRefusal.layer,
+    message: createFontRefusal.message.slice(0, 300),
+    refusedRatherThanSubstituted: /refuses rather than substituting/.test(
+      createFontRefusal.message,
+    ),
+    childCountBefore: beforeFontCreate,
+    childCountAfter: afterFontCreate,
+  };
+  assert.equal(
+    afterFontCreate,
+    beforeFontCreate,
+    "an unloadable font created a node anyway — the substitution path is back",
+  );
+
+  // ── 9. The two-ways-to-name-one-face refusal, and the default path ──────────────
+  const collision = await callExpectingRefusal("create_text", {
+    x: 0,
+    y: 240,
+    text: "never created",
+    parentId: scratchPageId,
+    fontWeight: 700,
+    fontFamily: "Inter",
+    fontStyle: "Bold",
+  });
+  const beforeDefaultCreate = await scratchChildCount();
+  // ⛔ NO parentId — the path the un-awaited write hid on. It lands on the scratch page
+  // because the scratch page is current, so cleanup still reaches it.
+  const defaultCreate = await callEmbeddedJson("create_text", {
+    x: 200,
+    y: 120,
+    text: "R2.6 default font",
+    name: "gate-default",
+  });
+  const defaultRest = await restTypographyOf(defaultCreate.value.id);
+  record.checks.legacyAndCollision = {
+    collisionLayer: collision.layer,
+    collisionRefused: /cannot be combined with fontFamily\/fontStyle/.test(collision.message),
+    defaultFontSource: defaultCreate.value.fontSource,
+    // ⭐ 14 is this tool's own R1-era default; a fresh Figma text node is 12. Reading 12
+    // here would mean the default write had been quietly dropped.
+    defaultFontSize: defaultRest.fontSize,
+    defaultCharactersInReply: defaultCreate.value.characters,
+    defaultCharactersInDocument: defaultRest.characters,
+    limitations: defaultCreate.value.limitations,
+    childCountAfter: await scratchChildCount(),
+  };
+  assert.equal(collision.layer, "handler", "the collision rule lives in the plugin, not the schema");
+  assert.ok(record.checks.legacyAndCollision.collisionRefused);
+  assert.equal(defaultCreate.value.fontSource, "default");
+  assert.equal(defaultRest.fontSize, 14, "the R1-era fontSize default was not written");
+  assert.equal(
+    defaultCreate.value.characters,
+    "R2.6 default font",
+    "the reply reported characters the document does not have — the un-awaited write is back",
+  );
+  assert.equal(defaultRest.characters, "R2.6 default font");
+  assert.equal(record.checks.legacyAndCollision.childCountAfter, beforeDefaultCreate + 1);
+
   record.stillOwed.push(
-    "F3 reachability (Phase 1) is unchanged by this gate. The offline harness INJECTS a refused character write; nothing here can make real Figma refuse one on demand, so whether that branch is reachable in production is still unestablished.",
+    "F3 reachability (Phase 1) is unchanged by this gate. The offline harness INJECTS a refused character write; nothing here can make real Figma refuse one on demand, so whether that branch is reachable in production is still unestablished. ⛔ `create_text`'s rollback-on-refused-write sits on the SAME branch and is equally unproven live.",
+  );
+  record.stillOwed.push(
+    "`available` ≠ `loadable` (R2.5 Phase 2) did not reproduce on this machine and is not discharged by a green run here: every listed face loaded and every unlisted one refused.",
   );
 
   record.success = true;
@@ -623,7 +845,7 @@ try {
 }
 
 if (failure) {
-  process.stderr.write(`R2.5 typography live gate FAILED: ${failure.message}\n`);
+  process.stderr.write(`R2.5+2.6 typography live gate FAILED: ${failure.message}\n`);
   process.exit(1);
 }
-process.stdout.write("R2.5 typography live gate PASSED\n");
+process.stdout.write("R2.5+2.6 typography live gate PASSED\n");

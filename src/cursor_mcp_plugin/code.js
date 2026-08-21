@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-65d716d57dbb",
-  "apiVersion": "1.7.0",
-  "serverSchemaVersion": "1.7.0",
+  "buildId": "r2-plugin-045a95955905",
+  "apiVersion": "1.8.0",
+  "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
+  "capabilityFingerprint": "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -1747,17 +1747,35 @@ async function createFrame(params) {
   };
 }
 
+/**
+ * R2.6 item 2.0 — `create_text` carries `set_text_style`'s twelve typography parameters.
+ *
+ * ⛔ **Validate-all-then-CREATE.** On a mutation tool the F4 defect is a half-written
+ * node; on a create tool it is a node that exists at all. A refusal raised after
+ * `figma.createText()` leaves an orphan empty text node on the page, which is a partial
+ * application wearing a different hat — so nothing is created until every parameter has
+ * validated, the parent has resolved, and the font has loaded.
+ *
+ * ⛔ **It REFUSES an unloadable font; it never substitutes.** This tool used to swallow
+ * the load failure in a `try/catch` and create the node anyway in whatever face Figma
+ * happened to supply — F2 on the create surface. `create_text` is `stable`, which is why
+ * ending that behaviour spends this release's contract bump rather than shipping quietly.
+ *
+ * ⚠️ The two legacy parameters are unchanged for every existing caller: `fontWeight`
+ * still maps onto Inter's styles, and an omitted `fontSize` still writes 14. What is no
+ * longer possible is supplying `fontWeight` *and* a named face — one of them would be
+ * discarded, and a discarded value reads as an applied one.
+ */
 async function createText(params) {
+  const input = params || {};
   const {
     x = 0,
     y = 0,
     text = "Text",
-    fontSize = 14,
-    fontWeight = 400,
     fontColor = { r: 0, g: 0, b: 0, a: 1 }, // Default to black
     name = "",
     parentId,
-  } = params || {};
+  } = input;
 
   // Map common font weights to Figma font styles
   const getFontStyle = (weight) => {
@@ -1785,21 +1803,96 @@ async function createText(params) {
     }
   };
 
+  // ══ VALIDATION PHASE ══════════════════════════════════════════════════════════════
+  // ⛔ Nothing below this line creates a node or writes a property until the write phase
+  // is reached. Moving a check down there is the F4 defect, on the one tool where it
+  // leaves litter behind instead of a half-written node.
+  const errors = [];
+  const writes = [];
+  const appliedFields = [];
+  const supplied = (field) => input[field] !== undefined && input[field] !== null;
+
+  // A direct plugin caller could always send `fontSize` as a string — `parseInt` was the
+  // legacy coercion. Coercing before validation keeps every input that used to work,
+  // while ending the `NaN` that used to reach the node unchallenged.
+  const styleInput =
+    typeof input.fontSize === "string"
+      ? { ...input, fontSize: parseInt(input.fontSize, 10) }
+      : input;
+
+  const explicitFont = textStyleRequestedFont(styleInput, errors);
+  const namedFace = supplied("fontFamily") || supplied("fontStyle");
+
+  // ⛔ `fontWeight` and `fontFamily`/`fontStyle` are two ways to name one face, so
+  // honouring either means discarding the other — and a discarded value reads as an
+  // applied one. Same rule as `lineHeight: {value, unit: "AUTO"}`, which refuses the
+  // value it would have to throw away.
+  if (namedFace && supplied("fontWeight")) {
+    errors.push(
+      "fontWeight cannot be combined with fontFamily/fontStyle; they name the same face two ways and one of them would be silently discarded. fontWeight reaches Inter's styles only — drop it and name the face exactly.",
+    );
+  }
+
+  const fontSource = namedFace
+    ? "explicit"
+    : supplied("fontWeight")
+      ? "fontWeight"
+      : "default";
+  const requestedFont = explicitFont || {
+    family: "Inter",
+    style: getFontStyle(supplied("fontWeight") ? input.fontWeight : 400),
+  };
+  writes.push(["fontName", requestedFont]);
+  if (explicitFont) appliedFields.push("fontFamily", "fontStyle");
+
+  // ⚠️ The R1-era default, preserved deliberately: an omitted `fontSize` wrote 14, and a
+  // fresh Figma text node does NOT default to 14. Dropping this write would silently
+  // change the size of every text node created by a caller that never asked for one.
+  // It is not an `appliedField` — the caller did not supply it.
+  if (!supplied("fontSize")) writes.push(["fontSize", 14]);
+
+  textStyleCollectWrites(styleInput, errors, writes, appliedFields);
+
+  // Resolved BEFORE anything is created, so an unusable parent refuses the call instead
+  // of stranding a node on the current page. Reading a node mutates nothing.
+  let parentNode = null;
+  if (parentId) {
+    parentNode = await figma.getNodeByIdAsync(parentId);
+    if (!parentNode) {
+      errors.push(`Parent node not found with ID: ${parentId}`);
+    } else if (!("appendChild" in parentNode)) {
+      errors.push(`Parent node does not support children: ${parentId}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    // ⛔ EVERY error, not the first — the same round-trip economics as `set_text_style`.
+    throw new Error(
+      `create_text refused ${errors.length} invalid ${errors.length === 1 ? "parameter" : "parameters"} and created nothing: ${errors.join("; ")}`,
+    );
+  }
+
+  try {
+    await figma.loadFontAsync(requestedFont);
+  } catch (loadError) {
+    // ⛔ REFUSE, never substitute — and refuse BEFORE creating the node, so the page is
+    // untouched. This is the gate that lets `fontSubstituted: false` below be a
+    // permanent declaration rather than a state.
+    throw new Error(
+      `create_text could not load ${requestedFont.family} ${requestedFont.style} (${loadError instanceof Error ? loadError.message : String(loadError)}) and created nothing. This tool refuses rather than substituting Inter, because a node in a font nobody asked for is harder to notice than an error. Preflight with check_fonts.`,
+    );
+  }
+
+  // ══ WRITE PHASE ═══════════════════════════════════════════════════════════════════
+  // ⛔ Every value here is validated and the font is loaded, so this phase cannot reject
+  // on a caller's input. Do NOT add a check to it.
   const textNode = figma.createText();
   textNode.x = x;
   textNode.y = y;
   textNode.name = name || text;
-  try {
-    await figma.loadFontAsync({
-      family: "Inter",
-      style: getFontStyle(fontWeight),
-    });
-    textNode.fontName = { family: "Inter", style: getFontStyle(fontWeight) };
-    textNode.fontSize = parseInt(fontSize);
-  } catch (error) {
-    console.error("Error setting font size", error);
+  for (const [property, value] of writes) {
+    textNode[property] = value;
   }
-  setCharacters(textNode, text);
 
   // Set text color
   const paintStyle = {
@@ -1809,22 +1902,54 @@ async function createText(params) {
       g: parseFloat(fontColor.g) || 0,
       b: parseFloat(fontColor.b) || 0,
     },
-    opacity: parseFloat(fontColor.a) || 1,
+    // ⛔ `parseFloat(a) || 1` read a legitimate 0 as absent and wrote 1 — a fully
+    // transparent fill silently became a fully opaque one, which is the F2 shape in
+    // another channel: a supplied value replaced by a default.
+    opacity: fontColor.a === undefined || fontColor.a === null ? 1 : parseFloat(fontColor.a),
   };
   textNode.fills = [paintStyle];
 
-  // If parentId is provided, append to that node, otherwise append to current page
-  if (parentId) {
-    const parentNode = await figma.getNodeByIdAsync(parentId);
-    if (!parentNode) {
-      throw new Error(`Parent node not found with ID: ${parentId}`);
-    }
-    if (!("appendChild" in parentNode)) {
-      throw new Error(`Parent node does not support children: ${parentId}`);
-    }
+  // ⛔ AWAITED. Un-awaited, this was still a pending microtask when the reply was built,
+  // so the reply reported `characters: ""` for text it had in fact written — and only on
+  // the path WITHOUT `parentId`, whose own `await` let the write land first. The same
+  // tool told the truth or lied depending on an unrelated parameter.
+  // ⭐ Worse than a wrong field: a font failure inside it surfaced as an
+  // unhandledRejection AFTER the command had already answered, where no caller can catch
+  // it. The offline suite observed exactly that before this line grew its `await`.
+  const characterReport = {};
+  const written = await setCharacters(textNode, text, { report: characterReport });
+  if (!written || characterReport.fontSubstituted) {
+    // Roll back the node we just created. Rollback is available HERE and nowhere else in
+    // this contract precisely because the node is ours — nothing existed to preserve.
+    textNode.remove();
+    throw new Error(
+      characterReport.fontSubstituted
+        ? `create_text loaded ${requestedFont.family} ${requestedFont.style} and the character write substituted ${characterReport.appliedFont} anyway; the node was removed rather than left in a font nobody asked for.`
+        : `create_text could not write its characters and the node was removed, so nothing was left behind. The font loaded, so this is Figma refusing the write itself.`,
+    );
+  }
+
+  if (parentNode) {
     parentNode.appendChild(textNode);
   } else {
     figma.currentPage.appendChild(textNode);
+  }
+
+  const limitations = [];
+  if (fontSource !== "explicit") {
+    limitations.push(
+      `No face was named, so this call chose one for you: ${requestedFont.family} ${requestedFont.style}. fontWeight reaches Inter's styles only — supply fontFamily/fontStyle to use any installed face.`,
+    );
+  }
+  if (
+    parentNode &&
+    parentNode.layoutMode &&
+    parentNode.layoutMode !== "NONE" &&
+    supplied("textAutoResize")
+  ) {
+    limitations.push(
+      "The parent is an auto-layout frame, and textAutoResize and the parent's layoutSizing describe the same behaviour from two sides. Inside auto-layout the parent wins, so the node may not resize the way textAutoResize claims.",
+    );
   }
 
   return {
@@ -1836,11 +1961,36 @@ async function createText(params) {
     height: textNode.height,
     characters: textNode.characters,
     fontSize: textNode.fontSize,
-    fontWeight: fontWeight,
+    // ⭐ `null`, never absent, when the face was named explicitly: `JSON.stringify`
+    // drops an undefined key and a dropped key reads as "not reported" rather than
+    // "this call did not go through the weight map".
+    fontWeight:
+      fontSource === "explicit"
+        ? null
+        : supplied("fontWeight")
+          ? input.fontWeight
+          : 400,
     fontColor: fontColor,
-    fontName: textNode.fontName,
+    fontName: textStyleReadable(textNode.fontName),
     fills: textNode.fills,
     parentId: textNode.parent ? textNode.parent.id : undefined,
+    // ── R2.6 item 2.0 ───────────────────────────────────────────────────────────────
+    // Which of the three ways the face was chosen — named, mapped from a weight, or
+    // defaulted. A caller cannot otherwise tell an Inter it asked for from an Inter it
+    // was given.
+    fontSource,
+    requestedFont,
+    appliedFont: textStyleReadable(textNode.fontName),
+    // ⭐ A PERMANENT declaration, not a state — the same shape as `set_text_style`'s.
+    // The load is gated above and a substitution rolls the node back, so this cannot be
+    // true; `false` says the question was asked and answered, where an absent field
+    // would leave a reader unable to tell "no" from "not reported".
+    fontSubstituted: false,
+    appliedFields,
+    appliedFieldCount: appliedFields.length,
+    fontsLoaded: [requestedFont],
+    style: textStyleSnapshot(textNode),
+    limitations,
   };
 }
 
@@ -4367,52 +4517,50 @@ function textStyleUnitValue(field, raw, allowedUnits, errors, options) {
   return { value: raw.value, unit: raw.unit };
 }
 
-async function setTextStyle(params) {
-  const input = params || {};
-  const { nodeId } = input;
-
-  if (!nodeId) {
-    throw new Error("Missing nodeId parameter");
-  }
-
-  const node = await figma.getNodeByIdAsync(nodeId);
-  if (!node) {
-    throw new Error(`Node not found with ID: ${nodeId}`);
-  }
-  if (node.type !== "TEXT") {
-    throw new Error(
-      `Node is not a text node: ${nodeId} (type ${node.type}); set_text_style writes TEXT properties only`,
-    );
-  }
-
-  // ══ VALIDATION PHASE ══════════════════════════════════════════════════════════════
-  // ⛔ Nothing below this line assigns to the node until the write phase is reached.
-  const errors = [];
-  const writes = [];
-  const appliedFields = [];
+/**
+ * The `fontFamily` / `fontStyle` pair rule, shared by `set_text_style` and `create_text`.
+ *
+ * ⛔ Half a pair is refused on both surfaces. Supplying a family without a style has no
+ * single answer on a mixed-font node and is a guess everywhere else, and inventing the
+ * missing half is the silent substitution these tools exist to refuse.
+ *
+ * Returns the requested face, or `null` when none was supplied AND when one was supplied
+ * invalidly — the caller distinguishes those two by asking whether the field was present,
+ * which is why this never throws on its own.
+ */
+function textStyleRequestedFont(input, errors) {
   const supplied = (name) => input[name] !== undefined && input[name] !== null;
-
-  // fontFamily and fontStyle are one decision, not two. Supplying a family without a
-  // style has no single answer on a mixed-font node, and inventing the missing half is
-  // the silent substitution this tool exists to refuse.
   const hasFamily = supplied("fontFamily");
   const hasStyle = supplied("fontStyle");
-  let requestedFont = null;
   if (hasFamily !== hasStyle) {
     errors.push(
       `fontFamily and fontStyle must be supplied together or not at all; received only ${hasFamily ? "fontFamily" : "fontStyle"}. Deriving the missing half from the node is impossible when the node is mixed and a guess elsewhere.`,
     );
-  } else if (hasFamily && hasStyle) {
-    const familyOk = typeof input.fontFamily === "string" && input.fontFamily.length > 0;
-    const styleOk = typeof input.fontStyle === "string" && input.fontStyle.length > 0;
-    if (!familyOk) errors.push("fontFamily must be a non-empty string");
-    if (!styleOk) errors.push("fontStyle must be a non-empty string");
-    if (familyOk && styleOk) {
-      requestedFont = { family: input.fontFamily, style: input.fontStyle };
-      writes.push(["fontName", requestedFont]);
-      appliedFields.push("fontFamily", "fontStyle");
-    }
+    return null;
   }
+  if (!hasFamily) return null;
+  const familyOk = typeof input.fontFamily === "string" && input.fontFamily.length > 0;
+  const styleOk = typeof input.fontStyle === "string" && input.fontStyle.length > 0;
+  if (!familyOk) errors.push("fontFamily must be a non-empty string");
+  if (!styleOk) errors.push("fontStyle must be a non-empty string");
+  if (!familyOk || !styleOk) return null;
+  return { family: input.fontFamily, style: input.fontStyle };
+}
+
+/**
+ * The ten non-font typography parameters, validated once for both write surfaces.
+ *
+ * ⭐ `set_text_style` and `create_text` take the SAME twelve parameters, and a second
+ * copy of a ten-field validator is how two surfaces start disagreeing about what is
+ * valid — the divergence R2.4's live gate caught between `set_fill_color`'s batch shape
+ * and its standalone shape. One implementation, two callers, one answer.
+ *
+ * ⛔ Appends to `errors` rather than throwing: EVERY invalid parameter is reported, not
+ * the first. A caller fixing a twelve-field payload one refusal per round trip is being
+ * charged for the tool's convenience.
+ */
+function textStyleCollectWrites(input, errors, writes, appliedFields) {
+  const supplied = (name) => input[name] !== undefined && input[name] !== null;
 
   for (const field of ["fontSize", "paragraphSpacing", "paragraphIndent"]) {
     if (!supplied(field)) continue;
@@ -4476,6 +4624,42 @@ async function setTextStyle(params) {
     writes.push([field, input[field]]);
     appliedFields.push(field);
   }
+}
+
+async function setTextStyle(params) {
+  const input = params || {};
+  const { nodeId } = input;
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+  if (node.type !== "TEXT") {
+    throw new Error(
+      `Node is not a text node: ${nodeId} (type ${node.type}); set_text_style writes TEXT properties only`,
+    );
+  }
+
+  // ══ VALIDATION PHASE ══════════════════════════════════════════════════════════════
+  // ⛔ Nothing below this line assigns to the node until the write phase is reached.
+  const errors = [];
+  const writes = [];
+  const appliedFields = [];
+  const supplied = (name) => input[name] !== undefined && input[name] !== null;
+
+  // fontFamily and fontStyle are one decision, not two — the pair rule is shared with
+  // `create_text` so the two write surfaces cannot drift apart on what is valid.
+  const requestedFont = textStyleRequestedFont(input, errors);
+  if (requestedFont) {
+    writes.push(["fontName", requestedFont]);
+    appliedFields.push("fontFamily", "fontStyle");
+  }
+
+  textStyleCollectWrites(input, errors, writes, appliedFields);
 
   if (appliedFields.length === 0 && errors.length === 0) {
     throw new Error(

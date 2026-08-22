@@ -643,6 +643,9 @@ two running halves agree with **each other**, never that they agree with this tr
       `layoutMode` property at all** had to be reached by `delete`ing it in the test. Real
       Figma's `PageNode` has no such property, and the live gate is the first thing to
       execute that arm for real.
+      ✅ **LIVE GATE PASSED 2026-08-22, channel `mzg3tlfl`** — and the PageNode arm did
+      execute for real (`reportsUnsetNotNone: true`). ⛔ **The tool needed no changes; the
+      GATE did** — three defects, one of them a false green. See the section below.
 - [ ] **2.2 `set_constraints(nodeId, horizontal, vertical)`.**
 - [ ] **2.3 `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
       ⚠️ Figma rejects a min above a max; validate the **pair**, not each field, before
@@ -659,6 +662,64 @@ two running halves agree with **each other**, never that they agree with this tr
       ⚠️ They are mutate-only ops on existing nodes, so they would *fit* the batch — the
       cost of adding them is allowlist parity across both copies, batch receipt tests, and
       a longer live gate, and none of that is owed until a consumer asks.
+
+#### ✅ The layout live gate PASSED — 2026-08-22, channel `mzg3tlfl`
+
+`scripts/live-layout-gate.mjs`, **run twice, both green**, exit 0. **Pair confirmed live:**
+`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`, schema `1.8.0`, fingerprint
+`sha256:1865d817…6b7ebb09`, **57 tools**, compatibility `compatible`. Scratch page deleted in
+the `finally`, baseline restored (6 pages, current page back to `0:1`) on every run. Across
+the two passes every check was identical except the scratch-page timestamp and node IDs.
+
+⭐ **The DEV plugin re-run was VERIFIED, not performed** — `assertRuntime` read the live
+`pluginBuildId` and it already matched HEAD, same as item 2.0.
+
+⛔ **`set_layout_child` itself needed NO changes. All three defects were in the GATE**, which
+had never been run. This is what a first run buys, and one of the three was a false green.
+
+- 🔴 **A FALSE GREEN, on the gate's headline claim.** §4's validate-all-then-write (F4) check
+  refused `{layoutGrow: 0, layoutAlign: "STRETCH"}` and scored a partial write by asserting
+  the height **held**. But writing `layoutGrow: 0` changes **no height at all**, so a clean
+  refusal and a partial write read *identically* — the check could not fail, in either
+  direction, ever. It now moves the **parent** instead: a child that wrote nothing still
+  tracks it (measured `550 → 850`), a partially-written one holds still. ⚠️ Note the
+  polarity is **inverted** from §3 — here *following* is the PASS.
+- 🔴 **The platform claim underneath both was false.** `layoutGrow: 0` does **not** shrink the
+  child back: Figma keeps the stretched height as the node's **own** size. Measured on a real
+  file — grow-1 tracked the parent `600→900→500`; grow-0 **held at 900** while the parent
+  shrank to 500. The report now records `shrankBack: false` as data so the premise cannot
+  quietly return. ⛔ This is precisely what §7 exists to avoid for STRETCH — *measure the
+  platform claim, don't assert it* — never applied to the grow-zero revert.
+- 🔴 **A false RED that blocked the run.** `growIsPlainNumber` regexed the **serialized**
+  schema for `/"layoutGrow":\{"type":"number"\}/`, which demands the object hold exactly one
+  key — so any `.describe()` failed it. It red-flagged a correct implementation. Now reads
+  the **parsed** schema: `type === "number"` with no constraint keys, letting documentation
+  be documentation. ⭐ Repaired under a **known-bad rerun** — `enum [0,1]`, `minimum/maximum`,
+  `const`, `multipleOf`, `integer`, a wrong type and an absent field all still fail it, so
+  this was a fix and not a threshold quietly lowered.
+- ⚠️ **§7 died on its helper's precondition.** `set_layout_sizing` refuses `RECTANGLE` — it
+  accepts only FRAME/COMPONENT/COMPONENT_SET/INSTANCE **and** requires the target's *own*
+  `layoutMode !== "NONE"`. §7 pointed it at the rectangle sibling. Worked around with a
+  nested auto-layout frame; the restriction itself pre-dates 2.1 and was **left untouched**.
+
+##### What the gate proved, and what it did NOT
+
+- ✅ **The write does something.** `layoutGrow: 1` grew the child `50 → 550` inside a fixed
+  600-tall VERTICAL parent, measured through `get_node_info` — a different channel from the
+  one that wrote. Offline this number cannot move.
+- ✅ **`layoutGrow: 0` lands**, proven three ways: `appliedFields: ["layoutGrow"]`, the
+  node's own read-back `layoutGrow: 0`, and `heldWhileParentMoved: true`.
+- ✅ **The PageNode arm ran for real** — `layoutMode` **unset**, not `"NONE"`, which the
+  offline fixture can only reach by `delete`ing the property.
+- ✅ **ABSOLUTE leaves the flow** — `x` went `0 → 250` and honoured its own coordinate.
+- ✅ Every refusal answered at the **handler**, and `apply_batch` still refuses
+  `set_layout_child` at the **schema** layer (2.6's pinned absence, live).
+- 🔴 **The STRETCH premise is STILL UNMEASURED.** `get_node_info` does not carry
+  `layoutAlign` on this build (`restReportsAlign: null`), so §7 reached its designed **third**
+  outcome — `verdict: "unmeasured"`, routed to `stillOwed`, correctly **not** scored as a
+  pass. ⛔ `set_layout_child`'s narrowed enum still rests on an untested platform claim.
+- ⏳ **`set_layout_sizing`'s type guard is stricter than the Figma API** — the UI *can* set a
+  rectangle child to Fill. Recorded in `stillOwed`; confirm before 2.2–2.4 lean on that tool.
 
 ---
 

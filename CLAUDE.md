@@ -22,7 +22,7 @@ bun setup                # Full setup (install + write .cursor/mcp.json + .mcp.j
 ```
 
 ```bash
-node --test              # the offline suite (187 tests as of R2.6 item 2.0)
+node --test              # the offline suite (204 tests as of R2.6 item 2.1)
 bun run verify           # the offline release gate: contract + tests + build + identity
 bun run contract:generate  # regenerate the contract, runtime metadata and both pins
 ```

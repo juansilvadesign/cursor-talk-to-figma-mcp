@@ -31,10 +31,25 @@ type: project
   ⚠️ **Pins moved differently from 2.0:** both builds moved, fingerprint moved, tool count
   **56 → 57**, **schema held**. New pair **`r2-server-92dc135f665b` ↔
   `r2-plugin-3f7c7cd69133`**, `sha256:1865d817…6b7ebb09`.
-- **Next step:** ▶ **run `scripts/live-layout-gate.mjs --channel=<name>`** — new, pins THIS
-  build, never run. ⛔ DEV plugin re-run first. **Then 2.2–2.4** one at a time
-  (`set_constraints`, `set_size_limits`, `set_clips_content`), per the owner's split-scope
-  call. ⚠️ 2.3: Figma rejects a min above a max — validate the **pair**, not each field.
+- **Also done 2026-08-22:** ✅✅ **item 2.1 is GATED.** `live-layout-gate.mjs` PASSED on
+  channel `mzg3tlfl`, **run twice, both green**, pair `r2-server-92dc135f665b` ↔
+  `r2-plugin-3f7c7cd69133` confirmed live, scratch page deleted and baseline restored each
+  run. ⭐ DEV plugin re-run **VERIFIED, not performed** — `assertRuntime` read the live
+  `pluginBuildId` and it already matched HEAD. ⛔ **`set_layout_child` needed NO changes —
+  all three defects were in the GATE**, which had never been run. Full record in
+  `docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md` § "The layout live gate PASSED — 2026-08-22".
+  🔴 **One was a FALSE GREEN on the gate's headline claim:** §4's F4 validate-all-then-write
+  check scored a partial write by asserting the height *held* — but writing `layoutGrow: 0`
+  changes **no height at all**, so a clean refusal and a partial write read identically and
+  the check could never fail. 🔴 **The platform claim underneath it was false:** `0` does
+  **not** shrink the child back — Figma keeps the stretched height as the node's **own**
+  size (measured: grow-1 tracked `600→900→500`, grow-0 **held at 900** while the parent went
+  to 500). Both checks now move the **PARENT** and read who follows; ⚠️ the polarity is
+  **inverted** between them — in §3 holding is the pass, in §4 following is. 🟡 **1 file
+  uncommitted:** `scripts/live-layout-gate.mjs` (+107/−14), no source/plugin/contract change.
+- **Next step:** ▶ **2.2–2.4** one at a time (`set_constraints`, `set_size_limits`,
+  `set_clips_content`), per the owner's split-scope call. ⚠️ 2.3: Figma rejects a min above
+  a max — validate the **pair**, not each field.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·
@@ -91,13 +106,18 @@ r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)      
 r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 ACCEPTED
 r2-server-c45214d7420b  ↔  r2-plugin-65d716d57dbb   (sha256:05ac28c5…)         ← R2.6 Phase 1, GATED
 r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← R2.6 2.0, GATED 08-22
-r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← HEAD, R2.6 2.1, ⏳ NOT gated
+r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← HEAD, R2.6 2.1, GATED 08-22
 ```
 
-⛔ **HEAD moved BOTH halves, the fingerprint AND the schema** — item 2.0 edited `server.ts`
-and `code.js`, and its `1.8.0` bump put a new `serverSchemaVersion` inside the fingerprint.
-So adopting HEAD needs **a DEV plugin re-run AND a server respawn**, and the only pin that
-holds still is the 56-tool count, because 2.0 is a widening and adds no tool.
+⛔ **HEAD is now item 2.1, and which pins moved is DIFFERENT from 2.0** — ⚠️ this paragraph
+described 2.0 as HEAD until 2026-08-22; re-derive it every release rather than reading it.
+2.1 moved **both build IDs**, the **fingerprint** and the **tool count (56 → 57)**, but the
+**schema HELD at `1.8.0`** because a new tool is additive. (2.0, by contrast, moved the
+schema and held the tool count — it was a widening that added none.) Adopting HEAD still
+needs **a DEV plugin re-run AND a server respawn**. ⭐ The gates spawn their own server from
+`dist/server.js`, so only an **interactive** MCP session needs the respawn — and the plugin
+half is what `assertRuntime` pins, which is how 2.0's and 2.1's re-runs were *verified*
+rather than assumed.
 
 ⚠️ **That answer has now flipped on SIX consecutive steps.** R2.5 Phase 1/2/3 moved both;
 R2.5 acceptance moved the server only; R2.6 Phase 1 moved the plugin only (and `dist/`

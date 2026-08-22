@@ -309,7 +309,21 @@ try {
     // semantic decision with a generic enum error and make the handler rule unreachable.
     publishesStretch: /"STRETCH"/.test(publishedSchema),
     // layoutGrow stays a bare number for the same reason: the 0|1 pin is the plugin's.
-    growIsPlainNumber: /"layoutGrow":\{"type":"number"\}/.test(publishedSchema),
+    // 🔴 This was a regex over the SERIALIZED schema — `/"layoutGrow":\{"type":"number"\}/`
+    // — which demanded the object hold exactly one key, so any `.describe()` failed it.
+    // It red-flagged the correct implementation on this gate's first run: the field is a
+    // bare number and always was, it just carries a description like every other
+    // parameter here. The claim is about the TYPE, so read the parsed schema and let
+    // documentation be documentation. Verified by a known-bad rerun: enum [0,1],
+    // minimum/maximum, const, multipleOf, `integer`, a wrong type and an absent field
+    // all still fail this — the pin cannot move into the schema unnoticed.
+    growIsPlainNumber: (() => {
+      const grow = layoutTool.inputSchema?.properties?.layoutGrow ?? {};
+      const constraints = Object.keys(grow).filter(
+        (key) => !["type", "description"].includes(key),
+      );
+      return grow.type === "number" && constraints.length === 0;
+    })(),
     // No x/y — placement stays move_node's job (one stage, one job).
     declaresNoPlacement: !/"x"|"y"/.test(publishedSchema),
     describesRefusalNotSilentDiscard:
@@ -415,16 +429,47 @@ try {
     `layoutGrow: 1 did not grow the child — height went ${before.height} → ${after.height}. Offline this is unobservable: the fixture stores the number and no layout engine runs.`,
   );
 
-  // And 0 puts it back, which is the falsy-guard bug measured rather than argued.
-  await call("set_layout_child", { nodeId: childId, layoutGrow: 0 });
+  // ⭐ And 0 must actually LAND — a falsy `if (layoutGrow)` guard would skip that write
+  // and report success. 🔴 This gate first scored it by asserting the child SHRANK BACK,
+  // and that premise was false about Figma. Measured 2026-08-22 on a real file: writing
+  // layoutGrow: 0 leaves the height exactly where the fill put it, because the stretched
+  // height BECOMES the node's own size. Height therefore reads identically whether the
+  // write landed or was skipped — the "a before/after comparison over fields that are
+  // absent reads exactly like agreement" trap named at the top of this file, one level
+  // down, and the same untested-platform-claim mistake §7 exists to avoid for STRETCH.
+  //
+  // So measure in a currency the two states cannot share: write 0, then MOVE THE PARENT.
+  // A child still on grow:1 tracks the parent; a child truly on 0 holds its own height.
+  // ⛔ Both legs were measured before this was written — grow:1 followed 600→900→500,
+  // grow:0 held at 900 while the parent shrank to 500. The check discriminates.
+  const zeroReceipt = (
+    await callJson("set_layout_child", { nodeId: childId, layoutGrow: 0 })
+  ).value;
   const afterZero = await geometryOf(childId);
-  record.checks.growZeroReverts = {
+  await call("resize_node", { nodeId: frameId, width: 400, height: 900 });
+  const afterParentGrew = await geometryOf(childId);
+  await call("resize_node", { nodeId: frameId, width: 400, height: 600 });
+
+  record.checks.growZeroLands = {
+    appliedFields: zeroReceipt.appliedFields,
+    readBack: zeroReceipt.layoutGrow,
     heightAfterZero: afterZero.height,
-    reverted: afterZero.height < after.height,
+    heightAfterParentGrewTo900: afterParentGrew.height,
+    heldWhileParentMoved: afterParentGrew.height === afterZero.height,
+    // ⛔ Recorded, not asserted, so the false premise cannot quietly come back: writing
+    // 0 does NOT shrink the child. A future reader seeing `false` here is seeing Figma.
+    shrankBack: afterZero.height < after.height,
   };
-  assert.ok(
-    afterZero.height < after.height,
-    `layoutGrow: 0 did not shrink the child back — an \`if (layoutGrow)\` guard would skip this write entirely and report success`,
+  assert.deepEqual(
+    zeroReceipt.appliedFields,
+    ["layoutGrow"],
+    "layoutGrow: 0 was not reported as applied — an `if (layoutGrow)` guard skips exactly this",
+  );
+  assert.equal(zeroReceipt.layoutGrow, 0, "the node read back a layoutGrow that is not 0");
+  assert.equal(
+    afterParentGrew.height,
+    afterZero.height,
+    `layoutGrow: 0 did not land — the child followed the parent from 600 to 900 (${afterZero.height} → ${afterParentGrew.height}), and only a child still on layoutGrow: 1 does that. A falsy \`if (layoutGrow)\` guard skips the write and reports success in exactly this shape.`,
   );
 
   // ── 4. Refusals, measured through GEOMETRY against a KNOWN seeded state ─────────
@@ -462,24 +507,48 @@ try {
   );
 
   // ⛔ The valid field arrives FIRST and the refused one LAST, so a validate-as-you-go
-  // implementation would have written layoutGrow: 0 before reaching STRETCH — and the
-  // height would collapse. This is F4, measured by a layout engine rather than a fixture.
+  // implementation would have written layoutGrow: 0 before reaching STRETCH. This is F4,
+  // measured by a layout engine rather than a fixture.
+  //
+  // 🔴 This check used to read "the height did not collapse from ~550 back to 50", and it
+  // could not fail: writing layoutGrow: 0 changes no height at all (see §3), so it scored
+  // a clean refusal and a partial write identically. It was a VACUOUS green sitting on
+  // the gate's headline claim — worse than the false red in §3, because nothing reports it.
+  //
+  // The parent-move instrument is what separates them. After a refusal that wrote
+  // NOTHING the child is still on layoutGrow: 1 and must TRACK the parent; had grow been
+  // partially written to 0 it would hold still. Note the polarity is inverted from §3 —
+  // here following is the PASS. The parent is restored immediately, and the restoration
+  // is asserted, so every comparison below keeps `seeded` as its baseline.
   const growThenStretch = await callExpectingRefusal("set_layout_child", {
     nodeId: childId,
     layoutGrow: 0,
     layoutAlign: "STRETCH",
   });
   const afterGrowThenStretch = await geometryOf(childId);
+  await call("resize_node", { nodeId: frameId, width: 400, height: 900 });
+  const f4ParentMoved = await geometryOf(childId);
+  await call("resize_node", { nodeId: frameId, width: 400, height: 600 });
+  const f4ParentRestored = await geometryOf(childId);
+
   record.checks.validateAllThenWrite = {
     layer: growThenStretch.layer,
     heightBefore: seeded.height,
     heightAfter: afterGrowThenStretch.height,
     heightHeld: afterGrowThenStretch.height === seeded.height,
+    // ⭐ The check that can actually fail.
+    heightWhenParentGrewTo900: f4ParentMoved.height,
+    stillTracksParent: f4ParentMoved.height > afterGrowThenStretch.height + 100,
+    heightAfterParentRestored: f4ParentRestored.height,
   };
+  assert.ok(
+    record.checks.validateAllThenWrite.stillTracksParent,
+    `layoutGrow: 0 was written before the STRETCH refusal — F4 live. The child stopped tracking its parent (${afterGrowThenStretch.height} → ${f4ParentMoved.height} while the parent went 600 → 900), which is what a child silently moved to layoutGrow: 0 does. ⛔ Height alone cannot see this: writing 0 collapses nothing.`,
+  );
   assert.equal(
-    afterGrowThenStretch.height,
+    f4ParentRestored.height,
     seeded.height,
-    "layoutGrow: 0 was written before the STRETCH refusal — the child collapsed, which is F4 live",
+    "restoring the parent did not restore the seeded state — every refusal check below would be comparing against a stale baseline",
   );
 
   const outOfRange = await callExpectingRefusal("set_layout_child", {
@@ -610,11 +679,35 @@ try {
   // that instead of asserting it, and records the answer either way — including "could
   // not be measured", which is a third outcome and not a pass.
   await call("set_layout_child", { nodeId: siblingId, layoutPositioning: "AUTO" });
+
+  // ⛔ This section used to point set_layout_sizing at `siblingId`, which is a RECTANGLE,
+  // and died on the helper's own precondition before measuring anything: set_layout_sizing
+  // accepts only FRAME/COMPONENT/COMPONENT_SET/INSTANCE **and** additionally requires the
+  // node's OWN layoutMode to not be NONE. That restriction is stricter than the Figma API
+  // (a rectangle child of an auto-layout frame can be set to Fill in the UI), but it lives
+  // in a tool that shipped releases ago — ⛔ not this item's to widen, and not this gate's
+  // to route around silently. Recorded in `stillOwed` below instead.
+  //
+  // The premise needs a node the helper accepts, so use a nested auto-layout FRAME: it is
+  // an allowed type, it carries its own layoutMode, and inside a VERTICAL parent its
+  // HORIZONTAL sizing is exactly the counter-axis FILL the claim is about.
+  const fillProbeId = await callNodeId("create_frame", {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    name: "gate-fill-probe",
+    parentId: frameId,
+  });
+  await call("set_layout_mode", { nodeId: fillProbeId, layoutMode: "VERTICAL" });
   await call("set_layout_sizing", {
-    nodeId: siblingId,
+    nodeId: fillProbeId,
     layoutSizingHorizontal: "FILL",
   });
-  const afterFill = await geometryOf(siblingId);
+  const afterFill = await geometryOf(fillProbeId);
+  record.stillOwed.push(
+    "set_layout_sizing refuses every node type outside FRAME/COMPONENT/COMPONENT_SET/INSTANCE and also requires the target's own layoutMode to not be NONE, so it cannot set a plain rectangle child to FILL even though the Figma UI can. Pre-dates R2.6 item 2.1 and is untouched here; §7 works around it with a nested auto-layout frame. Worth confirming against the API before 2.2–2.4 lean on this tool.",
+  );
   const reportedAlign = afterFill.restLayoutAlign;
   record.checks.stretchPremise = {
     claim:

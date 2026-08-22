@@ -169,7 +169,48 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 Phase 2 (item 2.0 is BUILT + GATED; 2.1–2.4 next)
+## ▶ Next session — R2.6 Phase 2 (2.0 GATED; **2.1 BUILT, needs its live gate run**)
+
+**▶ START HERE.** `node scripts/live-layout-gate.mjs --channel=<name>` — item 2.1's gate,
+new this session, pins THIS build, never run. ⛔ **Re-run the DEV plugin first**: `code.js`
+moved, so `pluginBuildId` moved, and it fails at `assertRuntime` otherwise. The gate spawns
+its own server, so only an interactive MCP session needs a respawn.
+
+**✅ R2.6 ITEM 2.1 IS BUILT 2026-08-22 (offline)** — `set_layout_child`, the child side of
+auto-layout. **204 tests green** (was 187), six source mutations killed with the control
+surviving, `dist/` byte-identical across three builds, `verify-release` passed.
+⛔ **NO contract bump**: a new tool is additive, schema **HELD at `1.8.0`**, regeneration
+reported zero `compatibilityErrors`.
+
+⚠️ **Which pins moved is DIFFERENT from 2.0** — both build IDs moved, the fingerprint
+moved, the tool count moved **56 → 57**, and the **schema HELD**. 2.0 moved the schema too;
+this one does not. New pair **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**,
+fingerprint **`sha256:1865d817…6b7ebb09`**. ⛔ Re-derive from `runtime-metadata.ts` — that
+answer has now taken a different shape on seven consecutive steps.
+
+**Three decisions were taken with the owner BEFORE building:** ① a non-auto-layout parent
+refuses the **whole call**; ② `layoutAlign: "STRETCH"` is published then **refused**, naming
+`set_layout_sizing` FILL; ③ **no x/y** — placement stays `move_node`'s. ⭐ Both narrow rules
+live in the **plugin**, not Zod, so they are reachable through the transport and provable
+live — the precedent 2.0 set with its handler-layer collision refusal.
+
+🔴 **The gate carries a premise test, and it can return THREE answers.** §7 measures whether
+`set_layout_sizing` counter-axis FILL really reports `layoutAlign: "STRETCH"` — the claim
+the whole STRETCH refusal rests on. If REST does not carry `layoutAlign`, the verdict is
+**`unmeasured`**, which lands in `stillOwed` and ⛔ must **not** be read as confirmation.
+
+🔴 **TWO gates are declared stale now**, both by name in `tests/live-gate-pins.test.mjs`:
+`live-batch-gate.mjs` (Phase 1, passed `kw7qggwv`) and `live-text-style-gate.mjs` (item 2.0,
+passed `7l9ymck4`). ⛔ Neither is re-pinned, because this change cannot re-run them.
+**Owner's call 2026-08-22: re-pin and re-run both ONCE, after the layout tools land.**
+
+⏳ **THEN = 2.2–2.4** — `set_constraints`, `set_size_limits`, `set_clips_content`, one at a
+time. ⚠️ 2.3 has a known trap on the record: Figma rejects a min above a max, so validate
+the **pair**, not each field, before writing either.
+
+---
+
+## ▶ Previous — item 2.0 (BUILT + GATED)
 
 **✅ R2.6 ITEM 2.0 IS DONE 2026-08-21 (offline)** — `create_text` now carries the twelve
 `set_text_style` parameters, awaits `setCharacters`, and **refuses** an unloadable font

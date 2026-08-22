@@ -24,11 +24,17 @@ type: project
   in `docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md` § "The live gate PASSED — 2026-08-22".
   ⭐ **The DEV plugin re-run was VERIFIED, not performed** — `assertRuntime` read the live
   `pluginBuildId` and it already matched HEAD.
-- **Next step:** **2.1–2.4, the four actual layout tools** (`set_layout_child`,
-  `set_constraints`, `set_size_limits`, `set_clips_content`) — which need **no further
-  bump** (a new tool is additive, and `1.8.0` is already spent) and are **already decided
-  out of `apply_batch`'s allowlist**, declared by name per the R2.2 pin-the-absence
-  pattern. ⛔ Not open for re-litigation on landing.
+- **Also done 2026-08-22:** ✅ **item 2.1 `set_layout_child` is BUILT (offline)** — the
+  child side of auto-layout. **204 tests** (was 187), six mutations killed + control
+  survived, `dist/` byte-identical ×3, `verify-release` passed. ⛔ **No bump** — a new tool
+  is additive, schema **HELD at `1.8.0`**, zero `compatibilityErrors`.
+  ⚠️ **Pins moved differently from 2.0:** both builds moved, fingerprint moved, tool count
+  **56 → 57**, **schema held**. New pair **`r2-server-92dc135f665b` ↔
+  `r2-plugin-3f7c7cd69133`**, `sha256:1865d817…6b7ebb09`.
+- **Next step:** ▶ **run `scripts/live-layout-gate.mjs --channel=<name>`** — new, pins THIS
+  build, never run. ⛔ DEV plugin re-run first. **Then 2.2–2.4** one at a time
+  (`set_constraints`, `set_size_limits`, `set_clips_content`), per the owner's split-scope
+  call. ⚠️ 2.3: Figma rejects a min above a max — validate the **pair**, not each field.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `createText` +
   `textStyleRequestedFont` / `textStyleCollectWrites` (the shared validator, ⛔ **one**
   implementation for both write surfaces) · `tests/create-text.test.mjs` (17 cases) ·
@@ -76,7 +82,8 @@ r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)      
 r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 Phase 3
 r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 ACCEPTED
 r2-server-c45214d7420b  ↔  r2-plugin-65d716d57dbb   (sha256:05ac28c5…)         ← R2.6 Phase 1, GATED
-r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← HEAD, R2.6 2.0, GATED 08-22
+r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← R2.6 2.0, GATED 08-22
+r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← HEAD, R2.6 2.1, ⏳ NOT gated
 ```
 
 ⛔ **HEAD moved BOTH halves, the fingerprint AND the schema** — item 2.0 edited `server.ts`

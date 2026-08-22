@@ -504,7 +504,20 @@ tools before asserting combined behaviour.
 > used to be silently rewritten to 14.
 >
 > ⛔ **The four new tools' batch decision is DECIDED, not open** — see 2.6 below, so it is
-> not re-litigated when they land.
+> not re-litigated when they land. ✅ **Honoured by 2.1**: `set_layout_child` landed with
+> an `EXCLUDED_BATCH_OPERATIONS` entry in **both** copies and a test that pins the absence,
+> rather than a silent omission.
+>
+> ▶ **2.1 is BUILT 2026-08-22 and ⏳ NOT gated** — `scripts/live-layout-gate.mjs` is new,
+> pins THIS build, and has not been run. Items 2.2–2.4 are not started: the owner scoped
+> Phase 2 to land **one tool at a time**, as Phase 1 and item 2.0 each did.
+>
+> 🔴 **TWO gates are now declared stale**, both by name in `tests/live-gate-pins.test.mjs`:
+> `live-batch-gate.mjs` (R2.6 Phase 1, passed on `kw7qggwv`) and now
+> `live-text-style-gate.mjs` (item 2.0, passed on `7l9ymck4` 2026-08-22). ⛔ Neither is
+> re-pinned here, because this change cannot re-run them — re-pinning and re-running have
+> to travel together or the pin is a claim nobody tested. Owner's call, recorded
+> 2026-08-22: re-pin and re-run them **once**, after the layout tools land.
 
 #### ✅ The live gate PASSED — 2026-08-22, channel `7l9ymck4`
 
@@ -604,8 +617,32 @@ two running halves agree with **each other**, never that they agree with this tr
       wrote the R1-era 14 that the offline fixture could not distinguish from the
       platform's own default — the harness now creates text at **12**, which is what real
       Figma does, so the default write is observable at all.
-- [ ] **2.1 `set_layout_child(nodeId, layoutGrow?, layoutAlign?, layoutPositioning?)`** —
-      auto-layout child sizing/alignment/grow and absolute positioning.
+- [x] **2.1 ✅ `set_layout_child(nodeId, layoutGrow?, layoutAlign?, layoutPositioning?)`**
+      — auto-layout child sizing/alignment/grow and absolute positioning.
+      **BUILT 2026-08-22 (offline).** 204 tests green (was 187), six source mutations
+      killed with the control surviving, `dist/` byte-identical across three builds,
+      `verify-release` passed. ⛔ **NO contract bump** — a new tool is additive, so the
+      schema HELD at `1.8.0` and regeneration reported zero `compatibilityErrors`.
+      ⚠️ **Which pins moved is DIFFERENT again:** both build IDs moved, the fingerprint
+      moved, the tool count moved **56 → 57**, and the schema **held**. Item 2.0 moved the
+      schema too; this one does not. ⛔ Re-derive, never carry forward.
+      **Three decisions taken with the owner before building, not after:**
+      ① a non-auto-layout parent refuses the **whole call**, not per-field — Figma accepts
+      all three assignments outside auto-layout and silently applies none, which is the
+      "a discarded value reads as an applied one" failure item 2.0 refused;
+      ② `layoutAlign: "STRETCH"` is **published and then refused**, pointing at
+      `set_layout_sizing` FILL, so one behaviour keeps one spelling;
+      ③ **no x/y** — placement stays `move_node`'s job.
+      ⭐ **The narrow rules live in the PLUGIN, not in Zod, deliberately.** `layoutAlign`
+      publishes all five Figma values and `layoutGrow` publishes a bare `number`; the
+      handler refuses STRETCH and pins 0|1. Item 2.0 set that precedent — a schema that
+      rejected these first would answer a semantic decision with a generic enum error and
+      make the handler rule unreachable through this transport.
+      🔴 **The offline fixture cannot reach one branch honestly.** It gives every node a
+      `layoutMode: "NONE"` default — pages included — so the arm for a parent with **no
+      `layoutMode` property at all** had to be reached by `delete`ing it in the test. Real
+      Figma's `PageNode` has no such property, and the live gate is the first thing to
+      execute that arm for real.
 - [ ] **2.2 `set_constraints(nodeId, horizontal, vertical)`.**
 - [ ] **2.3 `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
       ⚠️ Figma rejects a min above a max; validate the **pair**, not each field, before

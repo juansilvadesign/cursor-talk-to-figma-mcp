@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-92dc135f665b",
-  "pluginBuildId": "r2-plugin-3f7c7cd69133",
+  "serverBuildId": "r2-server-06f75969aa1d",
+  "pluginBuildId": "r2-plugin-e82230c1bbb1",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
+  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -67,6 +67,7 @@ var RUNTIME_METADATA = {
     "set_layout_sizing",
     "set_item_spacing",
     "set_layout_child",
+    "set_constraints",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -114,6 +115,7 @@ var RUNTIME_METADATA = {
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
@@ -174,6 +176,7 @@ var RUNTIME_METADATA = {
     "scan_text_nodes",
     "set_annotation",
     "set_axis_align",
+    "set_constraints",
     "set_corner_radius",
     "set_current_page",
     "set_default_connector",
@@ -3024,6 +3027,41 @@ server.tool(
           {
             type: "text",
             text: `Error setting layout child: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_constraints",
+  `Set how a node resizes with its parent frame: horizontal and vertical constraints (MIN, CENTER, MAX, STRETCH, SCALE). Either axis may be omitted and is carried over from the node's current value, because Figma writes both axes as one object. Requires a node that has constraints and a container parent: a top-level node on a PAGE is refused, and so is a child in the flow of an auto-layout frame \u2014 auto-layout owns that child's position, so Figma would store the constraint and never apply it. Take the child out of the flow with set_layout_child({ layoutPositioning: "ABSOLUTE" }) first. Validate-all-then-write \u2014 a rejected parameter leaves the node untouched.`,
+  {
+    nodeId: z.string().describe("The ID of the node to constrain (the CHILD, not the parent frame)"),
+    horizontal: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).optional().describe(
+      "Horizontal constraint: MIN pins to the left, MAX to the right, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current horizontal constraint"
+    ),
+    vertical: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).optional().describe(
+      "Vertical constraint: MIN pins to the top, MAX to the bottom, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current vertical constraint"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_constraints", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting constraints: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

@@ -250,6 +250,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_axis_align` - Set primary and counter axis alignment for auto-layout frames
 - `set_layout_sizing` - Set horizontal and vertical sizing modes for auto-layout frames (FIXED, HUG, FILL)
 - `set_item_spacing` - Set distance between children in an auto-layout frame
+- `set_layout_child` - Set how a node participates in its parent's auto-layout (layoutGrow, layoutAlign, layoutPositioning). Requires an auto-layout parent and refuses otherwise; `layoutAlign: "STRETCH"` is refused in favour of `set_layout_sizing` FILL
 
 ### Styling
 

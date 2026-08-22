@@ -3267,6 +3267,70 @@ server.tool(
   }
 );
 
+// Set Layout Child Tool (R2.6 item 2.1) — the child side of auto-layout.
+//
+// ⭐ The reply is pure JSON, not the prose-plus-receipt shape `create_text` carries. That
+// shape exists only because existing callers parse `create_text`'s historical first line;
+// a tool with no history owes no prose, and a gate reading it needs no embedded-JSON
+// helper.
+//
+// ⛔ The narrow parts of this surface live in the PLUGIN, not in Zod, and deliberately:
+// `layoutAlign` publishes all five values Figma defines and the handler refuses STRETCH
+// with a message naming its replacement, and `layoutGrow` publishes `number` and the
+// handler pins 0|1. Item 2.0 set that precedent — its fontWeight × fontFamily collision
+// is a handler refusal, and the live gate asserts `layer === "handler"` on it. A schema
+// that rejected these first would answer a semantic decision with a generic enum error
+// and make the handler rule unreachable through this transport.
+server.tool(
+  "set_layout_child",
+  "Set how a node participates in its parent's auto-layout: layoutGrow, layoutAlign and layoutPositioning. Requires an auto-layout parent — outside one Figma stores these properties and never applies them, so the whole call is REFUSED rather than silently discarded. layoutAlign does not accept STRETCH: that is the legacy spelling of set_layout_sizing's counter-axis FILL, and one behaviour keeps one spelling. Validate-all-then-write — a rejected parameter leaves the node untouched.",
+  {
+    nodeId: z
+      .string()
+      .describe("The ID of the auto-layout CHILD to modify (not the parent frame)"),
+    layoutGrow: z
+      .number()
+      .optional()
+      .describe(
+        "0 keeps the child's own size along the parent's primary axis; 1 fills it. Only 0 and 1 are accepted, and the refusal comes from the plugin"
+      ),
+    layoutAlign: z
+      .enum(["MIN", "CENTER", "MAX", "STRETCH", "INHERIT"])
+      .optional()
+      .describe(
+        "Counter-axis alignment. STRETCH is published but REFUSED — use set_layout_sizing FILL, so one behaviour keeps one spelling"
+      ),
+    layoutPositioning: z
+      .enum(["AUTO", "ABSOLUTE"])
+      .optional()
+      .describe(
+        "AUTO keeps the child in the parent's flow; ABSOLUTE takes it out. ABSOLUTE cannot be combined with layoutGrow or layoutAlign — position it with move_node instead"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_layout_child", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting layout child: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -3626,6 +3690,7 @@ type FigmaCommand =
   | "set_axis_align"
   | "set_layout_sizing"
   | "set_item_spacing"
+  | "set_layout_child"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -3893,6 +3958,12 @@ type CommandParams = {
     nodeId: string;
     itemSpacing?: number;
     counterAxisSpacing?: number;
+  };
+  set_layout_child: {
+    nodeId: string;
+    layoutGrow?: number;
+    layoutAlign?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "INHERIT";
+    layoutPositioning?: "AUTO" | "ABSOLUTE";
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

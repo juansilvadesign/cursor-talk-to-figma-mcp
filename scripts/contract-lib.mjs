@@ -202,6 +202,10 @@ const TOOL_SCOPES = {
   // way, so this costs nothing — but the fallback is what made get_available_fonts
   // silently wrong in Phase 2, and a write tool is the wrong place to rely on it.
   set_text_style: "node",
+  // R2.6 2.1, same reasoning. ⭐ Worth a second look here because the tool READS its
+  // parent to decide whether to refuse — but scope describes what a call can CHANGE,
+  // and this one changes exactly one node. The parent read is a precondition, not scope.
+  set_layout_child: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -233,6 +237,9 @@ const SPECIAL_PROGRESS = {
   // handful of font loads, then a synchronous write loop. There is no point between
   // them worth reporting from, and declaring progress a tool does not emit is
   // Finding 4 — which this release has already declined to mint twice.
+  // ⛔ set_layout_child is deliberately absent for the same reason, and it is the
+  // clearest case yet: one parent read, three synchronous property assignments, no
+  // await in the write phase at all. A third declined declaration, not an oversight.
 };
 
 function sha256(value) {

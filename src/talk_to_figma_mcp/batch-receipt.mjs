@@ -133,6 +133,13 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   set_multiple_text_contents: "a batch of batches has no defined receipt",
   set_multiple_annotations: "a batch of batches has no defined receipt",
   delete_multiple_nodes: "a batch of batches has no defined receipt",
+  // ⛔ R2.6 item 2.6 decided this BEFORE the tool existed, so landing it is not the
+  // moment the question reopens. It would fit — mutate-only over an existing nodeId —
+  // and that is exactly why the absence needs a reason on the record: allowlist parity
+  // across both copies, receipt tests and a longer live gate are not owed until a
+  // consumer asks for them.
+  set_layout_child:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 
 /**

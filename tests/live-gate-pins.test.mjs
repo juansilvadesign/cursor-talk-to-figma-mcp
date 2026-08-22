@@ -33,6 +33,15 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-batch-gate.mjs":
     "R2.6 Phase 1, schema 1.7.0 — PASSED on channel kw7qggwv, 2026-08-20. Item 2.0 moved every pin, so this needs re-pinning before its next run; it is NOT re-pinned here, because a gate re-pinned without being re-run is exactly the e02d1b2 defect.",
+  // ⛔ Added by item 2.1, and it is the SECOND gate to land here for the same reason.
+  // This one PASSED two days ago — 2026-08-22, channel 7l9ymck4, first run — against the
+  // build 2.1 has just replaced. Its result stands for the build it ran on; what it can
+  // no longer do is start. ⛔ It is deliberately NOT re-pinned in this change, because
+  // this change cannot re-run it: re-pinning and re-running have to travel together, or
+  // the pin becomes a claim nobody tested. Re-pin + re-run it in the same live session as
+  // live-layout-gate.mjs, then delete this entry.
+  "live-text-style-gate.mjs":
+    "R2.6 item 2.0, schema 1.8.0 — PASSED on channel 7l9ymck4, 2026-08-22. Item 2.1 moved both build IDs, the fingerprint and the tool count (56 → 57); the schema HELD at 1.8.0, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
 });
 
 function readPins(source) {

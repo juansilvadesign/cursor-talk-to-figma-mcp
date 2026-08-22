@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-2fa65a5749e2",
-  "pluginBuildId": "r2-plugin-045a95955905",
+  "serverBuildId": "r2-server-92dc135f665b",
+  "pluginBuildId": "r2-plugin-3f7c7cd69133",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
+  "capabilityFingerprint": "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -88,6 +88,7 @@ var RUNTIME_METADATA = {
     "set_axis_align",
     "set_layout_sizing",
     "set_item_spacing",
+    "set_layout_child",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -143,6 +144,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
     "figma.command.set_item_spacing@1",
+    "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
     "figma.command.set_layout_sizing@1",
     "figma.command.set_multiple_annotations@1",
@@ -202,6 +204,7 @@ var RUNTIME_METADATA = {
     "set_image_fill",
     "set_instance_overrides",
     "set_item_spacing",
+    "set_layout_child",
     "set_layout_mode",
     "set_layout_sizing",
     "set_multiple_annotations",
@@ -3005,6 +3008,44 @@ server.tool(
           {
             type: "text",
             text: `Error setting layout sizing: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_layout_child",
+  "Set how a node participates in its parent's auto-layout: layoutGrow, layoutAlign and layoutPositioning. Requires an auto-layout parent \u2014 outside one Figma stores these properties and never applies them, so the whole call is REFUSED rather than silently discarded. layoutAlign does not accept STRETCH: that is the legacy spelling of set_layout_sizing's counter-axis FILL, and one behaviour keeps one spelling. Validate-all-then-write \u2014 a rejected parameter leaves the node untouched.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the auto-layout CHILD to modify (not the parent frame)"),
+    layoutGrow: import_zod.z.number().optional().describe(
+      "0 keeps the child's own size along the parent's primary axis; 1 fills it. Only 0 and 1 are accepted, and the refusal comes from the plugin"
+    ),
+    layoutAlign: import_zod.z.enum(["MIN", "CENTER", "MAX", "STRETCH", "INHERIT"]).optional().describe(
+      "Counter-axis alignment. STRETCH is published but REFUSED \u2014 use set_layout_sizing FILL, so one behaviour keeps one spelling"
+    ),
+    layoutPositioning: import_zod.z.enum(["AUTO", "ABSOLUTE"]).optional().describe(
+      "AUTO keeps the child in the parent's flow; ABSOLUTE takes it out. ABSOLUTE cannot be combined with layoutGrow or layoutAlign \u2014 position it with move_node instead"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_layout_child", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting layout child: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

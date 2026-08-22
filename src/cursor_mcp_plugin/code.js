@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-045a95955905",
+  "buildId": "r2-plugin-3f7c7cd69133",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
+  "capabilityFingerprint": "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -57,6 +57,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_axis_align",
     "set_layout_sizing",
     "set_item_spacing",
+    "set_layout_child",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -112,6 +113,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
     "figma.command.set_item_spacing@1",
+    "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
     "figma.command.set_layout_sizing@1",
     "figma.command.set_multiple_annotations@1",
@@ -399,6 +401,8 @@ async function handleCommand(command, params) {
       return await setLayoutSizing(params);
     case "set_item_spacing":
       return await setItemSpacing(params);
+    case "set_layout_child":
+      return await setLayoutChild(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -6946,6 +6950,154 @@ async function setItemSpacing(params) {
   };
 }
 
+// R2.6 item 2.1 — the child side of auto-layout.
+//
+// ⛔ VALIDATE-ALL-THEN-WRITE FROM BIRTH (plan 2.5, now the house rule rather than a
+// per-tool decision). Phase 1 paid this debt off in three shipped ops; a fourth
+// instance minted in the release that fixed them would be indefensible.
+//
+// ⛔ All three properties describe how a node participates in ITS PARENT's auto-layout.
+// Assigned to a child of a non-auto-layout parent, Figma accepts every one of them and
+// they change nothing — the silent discard item 2.0 refused for `fontWeight`. So the
+// parent is a precondition on the WHOLE call, not a per-field one: a per-field rule
+// would make the same tool refuse or succeed depending on which fields were sent, which
+// is a worse contract than either answer.
+const LAYOUT_CHILD_ALIGN = ["MIN", "CENTER", "MAX", "INHERIT"];
+const LAYOUT_CHILD_POSITIONING = ["AUTO", "ABSOLUTE"];
+
+async function setLayoutChild(params) {
+  const { nodeId, layoutGrow, layoutAlign, layoutPositioning } = params || {};
+
+  // ⛔ A zero-property call is REFUSED, not answered "done". `setItemSpacing` and
+  // `set_text_style` both refuse it: replying success to a call that changed nothing
+  // teaches a caller their write landed.
+  if (
+    layoutGrow === undefined &&
+    layoutAlign === undefined &&
+    layoutPositioning === undefined
+  ) {
+    throw new Error(
+      "set_layout_child requires at least one of layoutGrow, layoutAlign or layoutPositioning, and wrote nothing"
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+
+  const parent = node.parent;
+  if (!parent) {
+    throw new Error(
+      `Node ${nodeId} has no parent, so it participates in no auto-layout; wrote nothing`
+    );
+  }
+  // A PAGE has no `layoutMode` at all; a plain FRAME reports "NONE". Both mean the same
+  // thing here, and both are named in the message so the caller knows which one they hit.
+  if (parent.layoutMode === undefined || parent.layoutMode === "NONE") {
+    throw new Error(
+      `set_layout_child requires an auto-layout parent and wrote nothing: node ${nodeId}'s parent "${parent.name}" (${parent.type}) has layoutMode ${
+        parent.layoutMode === undefined ? "unset" : parent.layoutMode
+      }. These three properties only take effect inside auto-layout — set it with set_layout_mode first.`
+    );
+  }
+
+  if (layoutGrow !== undefined) {
+    if (typeof layoutGrow !== "number" || Number.isNaN(layoutGrow)) {
+      throw new Error("layoutGrow must be a number; wrote nothing");
+    }
+    if (layoutGrow !== 0 && layoutGrow !== 1) {
+      throw new Error(
+        `layoutGrow accepts 0 (keep its own size) or 1 (fill the parent's primary axis); received ${layoutGrow} and wrote nothing`
+      );
+    }
+  }
+
+  if (layoutAlign !== undefined) {
+    // ⛔ STRETCH is REFUSED, and this is the point of the tool's narrow enum. It is the
+    // legacy spelling of the counter-axis fill `set_layout_sizing` writes as FILL — one
+    // document change reachable under two names. R2.4's live gate already caught a
+    // divergence of exactly this shape (set_fill vs set_fill_color shipping different
+    // param shapes for one behaviour), so the second spelling is refused rather than
+    // quietly supported and left to drift.
+    if (layoutAlign === "STRETCH") {
+      throw new Error(
+        'layoutAlign: "STRETCH" is refused and nothing was written. STRETCH is the legacy spelling of the counter-axis fill that set_layout_sizing writes as FILL — the same document change under two names. Use set_layout_sizing({ layoutSizingHorizontal | layoutSizingVertical: "FILL" }) so one behaviour keeps one spelling.'
+      );
+    }
+    if (!LAYOUT_CHILD_ALIGN.includes(layoutAlign)) {
+      throw new Error(
+        `layoutAlign must be one of: ${LAYOUT_CHILD_ALIGN.join(
+          ", "
+        )} (STRETCH is refused — use set_layout_sizing FILL); received ${JSON.stringify(
+          layoutAlign
+        )} and wrote nothing`
+      );
+    }
+  }
+
+  if (layoutPositioning !== undefined) {
+    if (!LAYOUT_CHILD_POSITIONING.includes(layoutPositioning)) {
+      throw new Error(
+        `layoutPositioning must be one of: ${LAYOUT_CHILD_POSITIONING.join(
+          ", "
+        )}; received ${JSON.stringify(layoutPositioning)} and wrote nothing`
+      );
+    }
+  }
+
+  // ⛔ Cross-field, and the same collision item 2.0 refused: an ABSOLUTE child sits
+  // OUTSIDE the parent's flow, so `layoutGrow` and `layoutAlign` have nothing left to
+  // act on. Figma stores them and they do nothing. Accepting both in one call would
+  // discard one silently, and a discarded value reads as an applied one.
+  if (layoutPositioning === "ABSOLUTE") {
+    const ignored = [];
+    if (layoutGrow !== undefined) ignored.push("layoutGrow");
+    if (layoutAlign !== undefined) ignored.push("layoutAlign");
+    if (ignored.length > 0) {
+      throw new Error(
+        `layoutPositioning: "ABSOLUTE" cannot be combined with ${ignored.join(
+          " or "
+        )}, and nothing was written: an absolutely-positioned child is outside the parent's auto-layout flow, so ${
+          ignored.length === 1 ? "that value" : "those values"
+        } would be stored and never applied. Position it with move_node instead.`
+      );
+    }
+  }
+
+  // ---- Write phase: this block cannot reject ----
+  // ⭐ Positioning goes FIRST. Returning a child from ABSOLUTE to AUTO in the same call
+  // that sets its grow/align has to re-enter the flow before those two mean anything;
+  // the reverse order would write them against the outgoing state.
+  const appliedFields = [];
+  if (layoutPositioning !== undefined) {
+    node.layoutPositioning = layoutPositioning;
+    appliedFields.push("layoutPositioning");
+  }
+  if (layoutGrow !== undefined) {
+    node.layoutGrow = layoutGrow;
+    appliedFields.push("layoutGrow");
+  }
+  if (layoutAlign !== undefined) {
+    node.layoutAlign = layoutAlign;
+    appliedFields.push("layoutAlign");
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    appliedFields,
+    appliedFieldCount: appliedFields.length,
+    layoutGrow: node.layoutGrow,
+    layoutAlign: node.layoutAlign,
+    layoutPositioning: node.layoutPositioning,
+    parentId: parent.id,
+    parentLayoutMode: parent.layoutMode,
+  };
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -7480,6 +7632,13 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   set_multiple_text_contents: "a batch of batches has no defined receipt",
   set_multiple_annotations: "a batch of batches has no defined receipt",
   delete_multiple_nodes: "a batch of batches has no defined receipt",
+  // ⛔ R2.6 item 2.6 decided this BEFORE the tool existed, so landing it is not the
+  // moment the question reopens. It would fit — mutate-only over an existing nodeId —
+  // and that is exactly why the absence needs a reason on the record: allowlist parity
+  // across both copies, receipt tests and a longer live gate are not owed until a
+  // consumer asks for them.
+  set_layout_child:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 
 const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({

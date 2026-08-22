@@ -162,6 +162,7 @@ mapping, and generated-code acceptance.
 | **R0 — Independently verifiable tool** | Clean install/build/tests, command parity, runtime identity, and a small live read/write smoke | The fork can be changed safely without relying on session memory or a sibling project |
 | **R1 — Consumer-stable read release** | A pinned, documented local release exposes the existing read layer and compact exports through a stable contract | `figma-to-code` and other clients can depend on the fork without coupling to its source tree |
 | **R2 — Safe authoring release** | Generic page/metadata/batch plus complete typography/layout/visual operations | Real authoring clients can compose the tool without a domain-specific compiler inside this repo |
+| **R3-A — Variable write slice** *(pulled ahead of R2.7, 2026-08-22)* | `set_variable_value`, `create_variable`, `delete_variable` — values, aliases and removal against existing collections and modes | A real design-system reconciliation can be executed through the plugin surface alone, with no REST access and no plan dependency |
 | **R3 — Design-system authoring release** | Generic variable/style/component creation and binding | Higher-level clients can create reusable Figma systems without making the fork OpenDesign-specific |
 
 After each release: record the fork acceptance, classify additive/breaking changes,
@@ -173,7 +174,18 @@ let consumers update their pins independently, and re-cut the next release.
 
 **▶ START HERE = item 2.4, `set_clips_content(nodeId, clipsContent)`** — the LAST of the
 four layout tools. After it lands, the owner's standing call comes due: re-pin and re-run
-all four stale gates ONCE.
+all four stale gates ONCE. **R2.6 closes there.**
+
+⭐ **THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS — re-prioritized 2026-08-22.**
+Three tools (`set_variable_value`, `create_variable`, `delete_variable`), one bump
+`1.8.0` → `1.9.0`, one live gate. Plan →
+[`docs/VARIABLE-SLICE-PRIORITIZATION.md`](docs/VARIABLE-SLICE-PRIORITIZATION.md).
+**What changed is not the gap — it is that the only alternative route was eliminated.** The
+Figma REST Variables API is Enterprise-gated on **reads as well as writes**, and the
+consumer's account is Education/Professional, so the fork is now the sole path rather than
+the convenient one. ⛔ **The missing `fileKey` was never the blocker** — it was captured
+2026-08-07 to unblock exactly this route, and the route was already closed; do not re-open
+the question on the grounds that a fileKey exists.
 
 **✅✅ R2.6 ITEM 2.3 IS BUILT AND GATED 2026-08-22** — `set_size_limits`, a node's min/max
 width and height. **260 tests green** (was 224), **twelve** source mutations killed with the

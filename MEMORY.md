@@ -10,21 +10,25 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-21)
+## ▶ Resume (checkpoint 2026-08-22)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
-- **Doing:** ✅ **R2.6 Phase 2 item 2.0 is BUILT 2026-08-21 (offline), and it SPENT the
-  bump: contract `1.7.0` → `1.8.0`.** `create_text` carries the twelve `set_text_style`
-  parameters, `setCharacters` is **awaited**, and an unloadable font is **REFUSED** rather
-  than substituted. **187 tests green**, five source mutations killed + the control
-  survived, `dist/` byte-identical across three builds, six baselines replaying,
-  `verify-release` passed. ⏳ **NOT gated, NOT committed.**
-- **Next step:** **run the typography live gate** —
-  `node scripts/live-text-style-gate.mjs --channel=<name> [--mixed-node=<id>]`. It grew
-  **four new sections (6–9)** for `create_text` and was re-pinned. ⛔ **Re-run the DEV
-  plugin first** or it fails at `assertRuntime`. Then: **2.1–2.4**, the four actual layout
-  tools — which need **no further bump** (a new tool is additive) and are **already
-  decided out of `apply_batch`'s allowlist**, declared by name per the R2.2 pattern.
+- **Doing:** ✅✅ **R2.6 Phase 2 item 2.0 is BUILT, COMMITTED and GATED.** Built 2026-08-21
+  (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`. `create_text` carries the
+  twelve `set_text_style` parameters, `setCharacters` is **awaited**, and an unloadable
+  font is **REFUSED** rather than substituted. **187 tests green**, five source mutations
+  killed + the control survived, `dist/` byte-identical across three builds, six baselines
+  replaying, `verify-release` passed. ✅ **COMMITTED `e3e794d`** (tree clean).
+  ✅ **LIVE GATE PASSED 2026-08-22, channel `7l9ymck4`** — first run, exit 0, no retries;
+  scratch page `6043:2` deleted in the `finally`, baseline restored id-for-id. Full record
+  in `docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md` § "The live gate PASSED — 2026-08-22".
+  ⭐ **The DEV plugin re-run was VERIFIED, not performed** — `assertRuntime` read the live
+  `pluginBuildId` and it already matched HEAD.
+- **Next step:** **2.1–2.4, the four actual layout tools** (`set_layout_child`,
+  `set_constraints`, `set_size_limits`, `set_clips_content`) — which need **no further
+  bump** (a new tool is additive, and `1.8.0` is already spent) and are **already decided
+  out of `apply_batch`'s allowlist**, declared by name per the R2.2 pin-the-absence
+  pattern. ⛔ Not open for re-litigation on landing.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `createText` +
   `textStyleRequestedFont` / `textStyleCollectWrites` (the shared validator, ⛔ **one**
   implementation for both write surfaces) · `tests/create-text.test.mjs` (17 cases) ·
@@ -72,7 +76,7 @@ r2-server-1a74a40ba8b2  ↔  r2-plugin-10787ea0bdd5   (sha256:56ea2c94…)      
 r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 Phase 3
 r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 ACCEPTED
 r2-server-c45214d7420b  ↔  r2-plugin-65d716d57dbb   (sha256:05ac28c5…)         ← R2.6 Phase 1, GATED
-r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← HEAD, R2.6 item 2.0
+r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← HEAD, R2.6 2.0, GATED 08-22
 ```
 
 ⛔ **HEAD moved BOTH halves, the fingerprint AND the schema** — item 2.0 edited `server.ts`
@@ -586,7 +590,10 @@ has no plan item at all.
 
 **187 tests green** (was 169), contract **`1.7.0` → `1.8.0`** — the bump R2.5 deferred this
 item for. `dist/` byte-identical across three builds, six baselines replaying,
-`verify-release` passed. ⏳ **NOT gated.**
+`verify-release` passed. ✅ **GATED 2026-08-22, channel `7l9ymck4`** — the typography live
+gate PASSED on the first run, exit 0; §6–9 proved the create path against real Figma, every
+refusal leaving the page's child count unchanged. ⛔ This does **not** gate Phase 1 — that
+is `live-batch-gate.mjs`, still deliberately stale.
 
 - 🔴 **The un-awaited `setCharacters` was worse than "returns before the text is set", and
   the fixture proved it.** The reply read `textNode.characters` while the write was still a

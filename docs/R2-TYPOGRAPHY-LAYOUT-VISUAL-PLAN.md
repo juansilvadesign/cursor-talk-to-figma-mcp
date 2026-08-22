@@ -476,8 +476,9 @@ tools before asserting combined behaviour.
 
 > **✅ 2.0 DONE 2026-08-21 (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`.**
 > 187 tests green (was 169), `dist/` byte-identical across three builds,
-> `verify-release.mjs` passed, six baselines replaying. ⏳ **NOT gated** — the typography
-> live gate grew four new sections and has **not been run**.
+> `verify-release.mjs` passed, six baselines replaying.
+> ✅ **GATED 2026-08-22 — the typography live gate PASSED on the first run**, channel
+> `7l9ymck4`, exit 0, no retries. Record below.
 >
 > ⛔ **Every pin moved this time** — server, plugin, fingerprint and schema — which is the
 > opposite of the step before it. Adopting needs a **DEV plugin re-run AND a server
@@ -498,6 +499,71 @@ tools before asserting combined behaviour.
 >
 > ⛔ **The four new tools' batch decision is DECIDED, not open** — see 2.6 below, so it is
 > not re-litigated when they land.
+
+#### ✅ The live gate PASSED — 2026-08-22, channel `7l9ymck4`
+
+`scripts/live-text-style-gate.mjs`, first run, exit 0. **Pair confirmed live:**
+`r2-server-2fa65a5749e2` ↔ `r2-plugin-045a95955905`, schema `1.8.0`, fingerprint
+`sha256:b5cbf7b1…6241f2f0`, 56 tools, compatibility `compatible`, zero issues. Scratch page
+`6043:2` deleted in the `finally`, **baseline restored id-for-id** (6 pages, current page
+back to `0:1`). ⛔ Existing content was never written to.
+
+⭐ **The DEV plugin re-run was VERIFIED, not performed.** `assertRuntime` read
+`pluginBuildId` off the running plugin and it already matched HEAD — so the precondition
+held before the run. That is the only reliable read: `compatibility: "compatible"` says the
+two running halves agree with **each other**, never that they agree with this tree.
+
+##### The four new sections (6–9) — `create_text`
+
+- ✅ **§6 the styled create.** Node `6043:4`, `fontSource: "explicit"`,
+  `fontSubstituted: false`, `appliedFieldCount: 12`, and the plugin snapshot carries all
+  twelve while the independent REST read-back agrees on the six it can see. ⭐ The
+  historical prose line survived the widening — `Created text "gate-created" with ID:
+  6043:4` — which several gates parse.
+- ✅ **§7 validate-all-then-CREATE held live, at the handler.** `lineHeight.value` with
+  `unit: "AUTO"` → refused, and the scratch page's child count is **2 → 2** with
+  `orphanCreated: false`. ⛔ That count is the whole point: a `rejects` assertion alone
+  passes happily over an orphaned empty text node, which is what F4 looks like on a create
+  tool.
+- ⭐ **§7b records what it does NOT prove.** The bad-enum refusal arrives at the **schema**
+  layer (Zod, MCP `-32602`), and the report says so in its own words:
+  `provesAboutHandler: "nothing — the call never reached the plugin"`. A gate that flattened
+  the two layers into "it refused" would have banked a handler guarantee it never tested.
+- ✅ **§8 refuse-never-substitute held on the create path.** `Ghostly Absent Family` →
+  handler refusal, child count **2 → 2**. Had the old swallow-and-substitute path survived,
+  a node in whatever face Figma supplied is exactly what would be sitting there.
+- ✅ **§9 the collision rule lives in the plugin, not the schema** — `fontWeight` together
+  with `fontFamily`/`fontStyle` refused at the **handler** layer. And the default path
+  (⛔ no `parentId`, the path the un-awaited write hid on) reports `fontSource: "default"`,
+  `fontSize: **14**` — this tool's own R1-era default, where a fresh Figma text node is 12,
+  so the default write was not quietly dropped — and the reply's `characters` **match the
+  document's**. 🔴 That equality is the un-awaited-write regression test: it is the exact
+  pair that disagreed before 2.0.
+
+##### The R2.5 sections still hold against the new build
+
+- ✅ Twelve fields applied, `fontSubstituted: false`, `letterSpacing` reading back `-0.64`
+  resolved px for `{-2, PERCENT}` (the REST channel resolves the unit; the plugin snapshot
+  preserves it).
+- ✅ Validate-all-then-write unchanged on **both** channels after a refusal; the unloadable
+  font still leaves `Inter/Bold` at size 32; half a font pair and a zero-property call both
+  refused at the handler.
+- ✅ **10 293 faces / 2 273 families** — paging repeatable, advancing, totals surviving the
+  window; lowercase `inter` still reads as an absent **family**.
+
+##### Findings and what stays owed
+
+- 🔴 **1 finding:** the host reports **10 293** faces, above `get_available_fonts`'s own
+  5000 `limit` ceiling — the whole inventory cannot be returned in one call here, so paging
+  is **mandatory** and the deterministic code-unit sort is load-bearing.
+- ⏳ **Mixed-font unification (3.3) stays FIXTURE-ONLY.** No `--mixed-node` was named, and
+  the fork ships no range-font setter, so a mixed node cannot be authored by these tools.
+  `wasMixed: true` and the `MIXED` sentinel remain proven offline and unproven live.
+- ⏳ **F3 reachability is untouched**, and ⛔ `create_text`'s **rollback-on-refused-write
+  sits on the SAME branch** — the offline harness *injects* a refused character write and
+  nothing here can make real Figma refuse one on demand.
+- ⏳ **`available` ≠ `loadable` did not reproduce** on this machine: every listed face
+  loaded and every unlisted one refused. A green run does not discharge it.
 
 - [x] **2.0 ✅ Inherited from R2.5: `create_text` gains the `set_text_style` parameters**
       (R2.5 item 3.5), plus the deferred **un-awaited `setCharacters`**.

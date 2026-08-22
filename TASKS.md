@@ -169,7 +169,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 Phase 2 (item 2.0 is BUILT, NOT gated)
+## ▶ Next session — R2.6 Phase 2 (item 2.0 is BUILT + GATED; 2.1–2.4 next)
 
 **✅ R2.6 ITEM 2.0 IS DONE 2026-08-21 (offline)** — `create_text` now carries the twelve
 `set_text_style` parameters, awaits `setCharacters`, and **refuses** an unloadable font
@@ -178,21 +178,39 @@ instead of creating a node in a face nobody asked for. Contract **`1.7.0` → `1
 five source mutations killed with the control surviving, `dist/` byte-identical across
 three builds, six baselines replaying, `verify-release` passed.
 
-⏳ **NEXT = run the typography live gate** — `node scripts/live-text-style-gate.mjs
---channel=<name> [--mixed-node=<id>]`, foreground Figma tab, owner permission on a
-disposable file. ⛔ **The DEV plugin MUST be re-run first**: `code.js` moved, so
-`pluginBuildId` moved, and the gate fails at `assertRuntime` otherwise.
+✅ **GATED 2026-08-22, channel `7l9ymck4`** — `scripts/live-text-style-gate.mjs` PASSED on
+the **first run**, exit 0, no retries. Pair confirmed live `r2-server-2fa65a5749e2` ↔
+`r2-plugin-045a95955905`, schema `1.8.0`, fingerprint `sha256:b5cbf7b1…`, 56 tools, zero
+compatibility issues; scratch page `6043:2` deleted in the `finally` and the baseline
+restored id-for-id (6 pages, current page back to `0:1`). ⭐ **The DEV plugin re-run was
+VERIFIED, not performed** — `assertRuntime` read the live `pluginBuildId` and it already
+matched HEAD. Full record: `docs/R2-TYPOGRAPHY-LAYOUT-VISUAL-PLAN.md` § "The live gate
+PASSED — 2026-08-22".
 
-⛔ **This time EVERY pin moved** — server `c45214d7420b` → `2fa65a5749e2`, plugin
-`65d716d57dbb` → `045a95955905`, fingerprint `05ac28c5…` → `b5cbf7b1…`, schema `1.7.0` →
-`1.8.0`. Adopting needs **both** a DEV plugin re-run and a server respawn; the gate spawns
-its own server, so only an interactive MCP session needs the second. ⚠️ That answer has
-now flipped on six consecutive steps — re-derive it, never carry it forward.
+⏳ **NEXT = 2.1–2.4, the four layout tools** — `set_layout_child`, `set_constraints`,
+`set_size_limits`, `set_clips_content`. ⛔ **No further contract bump**: a new tool is
+additive and `1.8.0` is already spent on 2.0. ⛔ **Their batch decision is DECIDED** — none
+joins `apply_batch`'s allowlist; each gets an `EXCLUDED_BATCH_OPERATIONS` entry declared by
+name, per the R2.2 pin-the-absence pattern. Not open for re-litigation on landing.
 
-🔴 **`live-batch-gate.mjs` is now STALE** and would fail at `assertRuntime`. It is
+⚠️ **An interactive MCP session still needs a server respawn to reach HEAD.** Every pin
+moved at 2.0 — server `c45214d7420b` → `2fa65a5749e2`, plugin `65d716d57dbb` →
+`045a95955905`, fingerprint `05ac28c5…` → `b5cbf7b1…`, schema `1.7.0` → `1.8.0`. The gate
+spawns its own server from `dist/server.js` and so needed neither respawn nor a re-run;
+Cursor/Claude Code sessions are a different story. ⛔ That answer has now flipped on six
+consecutive steps — re-derive it from `runtime-metadata.ts`, never carry it forward.
+
+⚠️ **Three debts stay open and NONE is discharged by the green run** — mixed-font
+unification (3.3) is still fixture-only (no `--mixed-node` was named, and the fork ships no
+range-font setter, so a mixed node cannot be authored by these tools); F3 reachability is
+untouched; and ⛔ `create_text`'s **rollback-on-refused-write sits on the SAME unreachable
+branch as F3**. `available` ≠ `loadable` also did not reproduce on this host.
+
+🔴 **`live-batch-gate.mjs` is STILL STALE** and would fail at `assertRuntime`. It is
 deliberately **not** re-pinned: re-pinning a gate without re-running it is the `e02d1b2`
 defect. Its staleness is declared by name in `tests/live-gate-pins.test.mjs`, which fails
 if an undeclared gate drifts **or** if a declared one silently starts matching again.
+⛔ The typography gate passing does **not** touch it — different gate, different pin set.
 
 ---
 
@@ -1156,8 +1174,16 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             stability, never result shapes.
             ⛔ **Every pin moved** (server, plugin, fingerprint, schema) — a DEV plugin
             re-run AND a server respawn, the opposite of the step before it.
-            ⏳ **NOT gated.** `scripts/live-text-style-gate.mjs` grew four sections
-            (6–9) and was re-pinned, but has not been run.
+            ✅ **GATED 2026-08-22, channel `7l9ymck4`** — `live-text-style-gate.mjs`
+            PASSED on the first run, exit 0. §6–9 proved the create path live: every
+            refusal leaves the scratch page's child count unchanged
+            (`orphanCreated: false`), the unloadable font is refused rather than
+            substituted, the `fontWeight` × `fontFamily` collision refuses at the
+            **handler**, and the default path's reply `characters` match the document's —
+            the un-awaited write has not returned. ⭐ §7b records that the schema-layer
+            refusal `proves nothing about the handler`, instead of banking it.
+            ⏳ Mixed-font 3.3 stays fixture-only; F3 and `create_text`'s
+            rollback-on-refused-write are untouched, on the same unreachable branch.
       - [ ] `set_layout_child`, `set_constraints`, `set_size_limits`, `set_clips_content`.
             ⛔ **DECIDED before they exist: none of the four joins `apply_batch`'s
             allowlist** — each gets an `EXCLUDED_BATCH_OPERATIONS` entry with its reason,

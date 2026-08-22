@@ -497,7 +497,14 @@ accepted the release before it is not a regression; failing to notice would be.
 
 **169 tests green**, contract **held at `1.7.0`** (no bump, by design), six baselines
 replaying, `dist/` byte-deterministic across two builds, `verify-release.mjs` passed.
-⏳ **NOT gated** — offline only.
+⏳ NOT gated *at the time this paragraph was written* — ✅ **SUPERSEDED the same day: the
+Phase 1 live gate PASSED on channel `kw7qggwv`**, recorded below under "R2.6 PHASE 1 LIVE
+GATE PASSED".
+🔴 **Corrected 2026-08-22 rather than deleted.** The bare "⏳ NOT gated" sat 40 lines above
+its own contradiction, and it **misled a reader on 2026-08-22** who grepped `NOT gated`,
+found this line, and concluded Phase 1 was ungated. ⭐ A status marker that was true when
+written is indistinguishable from one that is still true — date them, or supersede them in
+place.
 
 ✅ **The 6-vs-5 count is RECONCILED, not guessed.** The owner confirmed: **③ carries two
 corrections** (mark `move_node`/`set_stroke_color` `proven:`, *and* restate the count), so
@@ -592,8 +599,9 @@ has no plan item at all.
 item for. `dist/` byte-identical across three builds, six baselines replaying,
 `verify-release` passed. ✅ **GATED 2026-08-22, channel `7l9ymck4`** — the typography live
 gate PASSED on the first run, exit 0; §6–9 proved the create path against real Figma, every
-refusal leaving the page's child count unchanged. ⛔ This does **not** gate Phase 1 — that
-is `live-batch-gate.mjs`, still deliberately stale.
+refusal leaving the page's child count unchanged. ⛔ This does **not** RE-gate Phase 1's
+atomicity work — that is `live-batch-gate.mjs`, which **PASSED on `kw7qggwv` 2026-08-20**
+and is stale only *now*, deliberately not re-pinned after 2.0 moved every pin.
 
 - 🔴 **The un-awaited `setCharacters` was worse than "returns before the text is set", and
   the fixture proved it.** The reply read `textNode.characters` while the write was still a

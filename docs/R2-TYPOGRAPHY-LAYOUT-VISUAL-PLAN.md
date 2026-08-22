@@ -428,8 +428,14 @@ tools before asserting combined behaviour.
 > **✅ DONE 2026-08-20 (offline), 1.1–1.4.** 169 tests green, `dist/` byte-deterministic
 > across two builds, `verify-release.mjs` passed, six baselines replaying. ⛔ **No contract
 > bump:** strengthening `partialApplicationPossible` to false is additive, so the contract
-> holds at `1.7.0` and R2.6 spends `1.8.0` on Phase 2. ⏳ **NOT gated** — the R2.4 live gate
-> is re-pinned and inverted but has not been re-run.
+> holds at `1.7.0` and R2.6 spends `1.8.0` on Phase 2.
+> ✅ **GATED the same day — `live-batch-gate.mjs` PASSED on channel `kw7qggwv`, 2026-08-20,
+> first try.** 🔴 This line used to read "⏳ NOT gated — the R2.4 live gate is re-pinned and
+> inverted but has not been re-run", which was true for a few hours and then rotted.
+> **Corrected 2026-08-22**, after it misled a reader into calling Phase 1 ungated. ⚠️ The
+> batch gate is stale *now* — 2.0 moved every pin and it is deliberately **not** re-pinned,
+> because re-pinning without re-running is the `e02d1b2` defect. Stale-for-the-next-run is
+> not the same fact as never-gated.
 >
 > 🔴 **Two arithmetic errors in this section were corrected before building** — see 1.3 and
 > 1.4. ⭐ Both are this plan's own "restate the count rather than leaving the old one to

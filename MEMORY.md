@@ -163,8 +163,74 @@ type: project
   reports 13 where the echo reports 12.5. ⭐ **Mutation testing caught what review did not**,
   and the surviving mutant was the one defending the receipt's honesty. Same family as
   [[feedback_a_zero_valued_write_reads_as_no_write]].
-- **Next step:** ▶ **2.4 `set_clips_content`** — the last of the four layout tools, after
-  which the owner's standing call is to re-pin and re-run all four stale gates ONCE.
+- **Also done 2026-08-22:** ✅ **item 2.4 `set_clips_content` is BUILT AND COMMITTED, ⏳ NOT
+  GATED** — the last of the four layout tools. **287 tests** (was 260), **nine** source
+  mutations killed + control survived, `dist/` byte-identical ×3, `verify-release` passed.
+  Commits `eef4e15` · `4c4988c` · `d0d2de1`. ⛔ **No bump** — additive, schema **HELD at
+  `1.8.0`**, zero `compatibilityErrors`. ⚠️ Pin shape = 2.1/2.2's, **not** 2.3's second move:
+  both builds + fingerprint moved, tools **59 → 60**, schema held. New pair
+  **`r2-server-fb30663ee0f1` ↔ `r2-plugin-1eee5a6f3bd9`**, **`sha256:f229f6ec…2453ebd`**.
+  ⭐ **TWO independent changes moved `serverBuildId`** — the new tool AND the CC1 repair; a
+  stability level lives in `contractPayload`.
+  ⛔ **THE GATE REFUSED AT `join_channel`** on channel `nple8zt6` — plugin still serving
+  `r2-plugin-1fb9729971a3`, `set_clips_content` named as missing. **Nothing in the document
+  was touched**; only §1 (published schema) ran. **Fourth time `assertRuntime` has fired.**
+  **Three decisions taken with the owner before building:** ① eligibility is a **PRESENCE
+  probe** (`typeof node.clipsContent !== "boolean"`), defensible **only** because a boolean
+  has no unset value for a `null` to hide in — the exact ambiguity that defeated 2.3's
+  identical-looking probe; the gate measures a ten-context matrix anyway and asserts every
+  refusal came from the **handler**, not Figma mid-write; ② the receipt carries
+  `absoluteRenderBounds`/`absoluteBoundingBox` + per-edge overflow as a **second currency**;
+  ③ **no `appliedFields`** — one field written every call is a constant that could never
+  fail (2.2's reasoning, 2.1's false green).
+  🔴 **THE DESIGN PROBLEM: A BOOLEAN CANNOT FALSIFY ITSELF.** Write `false`, read back
+  `false` — a tool that applied the change and one that **echoed its own argument** print
+  identically. Killed offline by an **opt-in `ignoreClipsContentWrites`** harness node that
+  accepts the write and keeps its old value (2.3's `roundSizeLimits` pattern for a value
+  that cannot be rounded). ⛔ That discrimination stays **FIXTURE-ONLY** — live, every
+  accepted context stored what it was handed, so both implementations would print the same
+  receipt. Same family as [[feedback_a_zero_valued_write_reads_as_no_write]].
+  ⛔ **`absoluteRenderBounds` DEFAULTS TO NULL in the harness, opt-in only** — whether Figma
+  recomputes it synchronously is **unmeasured**, and computing it unconditionally would turn
+  every offline test green against a platform behaviour nobody checked. `renderBoundsChanged`
+  is `null`, never `false`, when a reading is missing.
+- 🔴 **A CC1 DEFECT HAD BEEN LIVE FOR THREE CONSECUTIVE ITEMS, and 2.4 repaired it.**
+  `getResultStability` falls through to `stable` for anything unlisted, so
+  `set_layout_child`, `set_constraints` and `set_size_limits` all shipped **FROZEN from
+  birth** on reply shapes no live gate had judged — F6, the cut's self-declared
+  highest-leverage finding. Only 2.2's deviation was ever written down, and even there as
+  *owed* rather than chosen. ⭐ **Nothing in `bun run verify` could have caught it: a
+  silently-wrong default and a deliberately-right decision produce BYTE-IDENTICAL
+  contracts.** ✅ **The repair was free, and verified rather than assumed** — zero
+  `compatibilityErrors` across all six baselines, because `compatibilityErrors()` iterates
+  the BASELINE's tools (`contract-lib.mjs:673`) and none of the three appears in any frozen
+  contract. ⛔ **CC3 freezes R2.6 as the 7th baseline and the walk-back becomes breaking** —
+  this was the last release in which it cost nothing. `tests/contract.test.mjs` now
+  mechanises the rule and is **observed FAILING** against a contract mutated into the shape
+  it catches. See [[feedback_a_silent_default_is_byte_identical_to_a_decision]].
+- 🔴 **The new CC1 guard's FIRST RUN found a second gap — in CC3.** R2.5's three tools are
+  `stable` by a real acceptance act (2026-08-19, `ohipqdhg`) but **R2.5 was never frozen as
+  a baseline** — `contracts/baselines/` still stops at R2.4, so nothing vouches for them.
+  Parked in `ACCEPTED_SINCE_LAST_BASELINE` with the reason. ⛔ **Not fixed** — adding a
+  baseline changes the replay set every release is checked against, which is its own
+  decision with its own verification.
+- 🔴 **THE READ LAYER CANNOT WITNESS THIS TOOL'S OWN PROPERTY.** `filterFigmaNode` keeps a
+  `JSON_REST_V1` subset carrying `absoluteBoundingBox` and **neither `clipsContent` NOR
+  `absoluteRenderBounds`** — so through `get_node_info` both read `undefined` before AND
+  after, and undefined-before-vs-undefined-after **passes vacuously**. The trap that burned
+  the typography gate. ⭐ The gate measures through **`export_node_as_image`'s preflight**
+  instead, which reports `boundsWidth`/`boundsHeight` off `absoluteRenderBounds` and
+  declares its **`boundsSource`** — a built-in instrument check, on a different tool, on a
+  different code path, with no stake in the answer. ⏳ Fixing the read layer is a
+  result-shape change to a `stable` tool → needs **R2.7's `1.9.0`**.
+- ⚠️ **A PEER SESSION WAS ACTIVE IN THIS REPO DURING THE BUILD, and it was visible:** it
+  committed my README line on its own as `b64ab2e`, and wrote `TASKS.md` + `ROADMAP.md`
+  (the R3-A / Variables-API planning block). Both left untouched. ⛔ `dist/` is gitignored
+  but TRACKED — it needs `git add -f`, which is not a red flag here.
+- **Next step:** ▶ **Owner re-runs the DEV plugin in Figma** (it holds `code.js` from
+  launch), rejoins a channel, then **re-run `node scripts/live-clips-content-gate.mjs
+  --channel=<ch> --output-dir=docs/evidence/r2.6-2.4`**. After it passes: re-pin and re-run
+  the **five** stale gates ONCE.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·
@@ -176,6 +242,15 @@ type: project
   `docs/evidence/r2.6-2.2/report.json` · fixture gained `30:1` (plain FRAME + 2 children)
   and `40:1` (GROUP + 1) on page `2:1`; harness gained type-gated `CONSTRAINT_CARRIERS` and
   `AUTO_LAYOUT_CARRIERS` ·
+  **2.4:** `setClipsContent` + `CLIPS_CONTENT_TYPES` / `readClipsContent` /
+  `readRenderGeometry` / `sameRenderBounds` in `code.js` · `tests/set-clips-content.test.mjs`
+  (25 cases) · **`scripts/live-clips-content-gate.mjs` (NEW, pins HEAD, REFUSED at
+  `join_channel` — never completed a run)** · `docs/evidence/r2.6-2.4/report.json` (the
+  refused run) · fixture gained `60:1` (FRAME 200×200 + a child at 150,150 that overflows
+  two edges), `60:3` INSTANCE, `60:4` COMPONENT_SET on page `2:1`; harness gained
+  `CLIPS_CONTENT_CARRIERS` (⛔ **SECTION deliberately OMITTED as unmeasured**, not guessed),
+  opt-in `ignoreClipsContentWrites` + `clipRenderBounds`; `tests/contract.test.mjs` gained
+  the **CC1 guard** + `ACCEPTED_SINCE_LAST_BASELINE` ·
   `src/talk_to_figma_mcp/batch-receipt.mjs` + its `code.js` mirror (the
   `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · HEAD pair
   **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**, `1.8.0`, **57 tools/56

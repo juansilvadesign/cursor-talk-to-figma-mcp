@@ -169,44 +169,69 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 Phase 2 (2.0 GATED; **2.1 BUILT, needs its live gate run**)
+## ▶ Next session — R2.6 Phase 2 (2.0 · 2.1 · **2.2 all GATED**; next = 2.3)
 
-**▶ START HERE.** `node scripts/live-layout-gate.mjs --channel=<name>` — item 2.1's gate,
-new this session, pins THIS build, never run. ⛔ **Re-run the DEV plugin first**: `code.js`
-moved, so `pluginBuildId` moved, and it fails at `assertRuntime` otherwise. The gate spawns
-its own server, so only an interactive MCP session needs a respawn.
+**▶ START HERE = item 2.3, `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
+⚠️ Its trap is on the record already: **Figma rejects a min above a max, so validate the
+PAIR, not each field, before writing either.** ⛔ Note this is the first layout tool where
+partial application is genuinely possible again — 2.2 was one object assignment, 2.3 writes
+up to four independent fields.
 
-**✅ R2.6 ITEM 2.1 IS BUILT 2026-08-22 (offline)** — `set_layout_child`, the child side of
-auto-layout. **204 tests green** (was 187), six source mutations killed with the control
-surviving, `dist/` byte-identical across three builds, `verify-release` passed.
-⛔ **NO contract bump**: a new tool is additive, schema **HELD at `1.8.0`**, regeneration
-reported zero `compatibilityErrors`.
+**✅✅ R2.6 ITEM 2.2 IS BUILT AND GATED 2026-08-22** — `set_constraints`, how a node resizes
+with its parent frame. **224 tests green** (was 204), seven source mutations killed with the
+control surviving, `dist/` byte-identical across three builds, `verify-release` passed, then
+`scripts/live-constraints-gate.mjs` PASSED on channel **`2bcdtr5b`**.
+⛔ **NO contract bump**: a new tool is additive, schema **HELD at `1.8.0`**, zero
+`compatibilityErrors`.
 
-⚠️ **Which pins moved is DIFFERENT from 2.0** — both build IDs moved, the fingerprint
-moved, the tool count moved **56 → 57**, and the **schema HELD**. 2.0 moved the schema too;
-this one does not. New pair **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**,
-fingerprint **`sha256:1865d817…6b7ebb09`**. ⛔ Re-derive from `runtime-metadata.ts` — that
-answer has now taken a different shape on seven consecutive steps.
+⚠️ **Pin shape is the SAME as 2.1 and NOT 2.0** — both build IDs moved, the fingerprint
+moved, the tool count moved **57 → 58**, the schema **held**. New pair
+**`r2-server-06f75969aa1d` ↔ `r2-plugin-e82230c1bbb1`**, fingerprint
+**`sha256:8ceaf9d2…93b236f`**. ⛔ Re-derive from `runtime-metadata.ts` — eight steps, and
+this answer keeps changing shape.
 
-**Three decisions were taken with the owner BEFORE building:** ① a non-auto-layout parent
-refuses the **whole call**; ② `layoutAlign: "STRETCH"` is published then **refused**, naming
-`set_layout_sizing` FILL; ③ **no x/y** — placement stays `move_node`'s. ⭐ Both narrow rules
-live in the **plugin**, not Zod, so they are reachable through the transport and provable
-live — the precedent 2.0 set with its handler-layer collision refusal.
+⛔ **The DEV plugin re-run was REQUIRED this time, not just verified.** The first gate
+attempt refused at `join_channel` with the plugin still on `r2-plugin-3f7c7cd69133`, and the
+preflight named the missing command. **Nothing in the document was touched.** That is the
+first time `assertRuntime` has actually fired for real — 2.0 and 2.1 both found the plugin
+already current.
 
-🔴 **The gate carries a premise test, and it can return THREE answers.** §7 measures whether
-`set_layout_sizing` counter-axis FILL really reports `layoutAlign: "STRETCH"` — the claim
-the whole STRETCH refusal rests on. If REST does not carry `layoutAlign`, the verdict is
-**`unmeasured`**, which lands in `stillOwed` and ⛔ must **not** be read as confirmation.
+**Four decisions taken with the owner BEFORE building:** ① an in-flow auto-layout child
+refuses the **whole call** — the exact INVERSE of 2.1 ①, because auto-layout and constraints
+are mutually exclusive answers to the same question; ② **both axes optional, ≥1 required**,
+overriding the plan's required pair — the merge is a **platform requirement** (`constraints`
+is one object property; Figma refuses a half-object); ③ **PAGE** parent refused, **GROUP**
+allowed and measured rather than refused on an unverified claim; ④ the enum lives in **Zod**,
+deliberately opposite to 2.1, because all five values are legal.
 
-🔴 **TWO gates are declared stale now**, both by name in `tests/live-gate-pins.test.mjs`:
-`live-batch-gate.mjs` (Phase 1, passed `kw7qggwv`) and `live-text-style-gate.mjs` (item 2.0,
-passed `7l9ymck4`). ⛔ Neither is re-pinned, because this change cannot re-run them.
-**Owner's call 2026-08-22: re-pin and re-run both ONCE, after the layout tools land.**
+✅ **Both platform premises MEASURED, both HOLD.** The auto-layout claim: the *same stored*
+MAX was honoured while ABSOLUTE (left `0 → 200`) and ignored back in flow (left held `0`).
+The GROUP claim: a group child's constraint **does** resolve, against the enclosing frame.
 
-⏳ **THEN = 2.2–2.4** — `set_constraints`, `set_size_limits`, `set_clips_content`, one at a
-time. ⚠️ 2.3 has a known trap on the record: Figma rejects a min above a max, so validate
-the **pair**, not each field, before writing either.
+🔴 **A real shipped defect was found in a NEIGHBOUR and fixed** — `set_layout_sizing`'s FILL
+guard tested `parent.layoutMode === "NONE"` but not `undefined`, and a PAGE or GROUP has no
+`layoutMode` at all, so FILL on any top-level frame passed and wrote a value Figma ignores.
+Masked for six releases by the harness's blanket `layoutMode: "NONE"`; type-gating that
+default (which also **retires the dishonest-fixture debt 2.1's gate recorded**) surfaced it.
+
+🔴 **The gate scored a FALSE RED on its own first run, and its own numbers gave it away**
+(*"the cloned group did change (137 → 137)"*). §6 measured the child's offsets **within its
+group** and read `0 → 0` — arithmetic, not a result: a single-child group's bounding box IS
+its child's box. ⛔ I built an instrument check for the confound I anticipated and it passed,
+while the reading under it was structurally fixed. Repaired by measuring against the FRAME
+and adding an untouched CONTROL clone. See [[feedback_a_zero_valued_write_reads_as_no_write]].
+
+🔴 **THREE gates are now declared stale** by name in `tests/live-gate-pins.test.mjs`:
+`live-batch-gate.mjs`, `live-text-style-gate.mjs` and now `live-layout-gate.mjs`, which
+passed hours earlier on `mzg3tlfl`. ⛔ None re-pinned — this change cannot re-run them.
+**Owner's standing call: re-pin and re-run the set ONCE, after 2.3 and 2.4 land.**
+
+⚠️ `set_constraints` ships **`stable` from birth** (2.1's precedent, not R2.5's
+hold-at-`additive-preview`). A reply-shape defect found later needs a
+`publicContractVersion` bump, and `1.9.0` is reserved for R2.7.
+
+⏳ **SCALE is the one published value whose live behaviour is unmeasured** — it round-trips
+offline, but no geometry check distinguishes it from STRETCH on a single-axis resize.
 
 ---
 
@@ -1225,7 +1250,8 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             refusal `proves nothing about the handler`, instead of banking it.
             ⏳ Mixed-font 3.3 stays fixture-only; F3 and `create_text`'s
             rollback-on-refused-write are untouched, on the same unreachable branch.
-      - [ ] `set_layout_child`, `set_constraints`, `set_size_limits`, `set_clips_content`.
+      - [x] `set_layout_child` ✅ (2.1, gated `mzg3tlfl`) and `set_constraints` ✅ (2.2,
+        gated `2bcdtr5b`); ⏳ `set_size_limits`, `set_clips_content` remain.
             ⛔ **DECIDED before they exist: none of the four joins `apply_batch`'s
             allowlist** — each gets an `EXCLUDED_BATCH_OPERATIONS` entry with its reason,
             per the R2.2 pin-the-absence pattern. Not open for re-litigation on landing.

@@ -646,7 +646,42 @@ two running halves agree with **each other**, never that they agree with this tr
       ✅ **LIVE GATE PASSED 2026-08-22, channel `mzg3tlfl`** — and the PageNode arm did
       execute for real (`reportsUnsetNotNone: true`). ⛔ **The tool needed no changes; the
       GATE did** — three defects, one of them a false green. See the section below.
-- [ ] **2.2 `set_constraints(nodeId, horizontal, vertical)`.**
+- [x] **2.2 ✅ `set_constraints(nodeId, horizontal?, vertical?)`** — how a node resizes with
+      its parent frame. **BUILT + GATED 2026-08-22.** 224 tests green (was 204), seven
+      source mutations killed with the control surviving, `dist/` byte-identical across
+      three builds, `verify-release` passed, then `scripts/live-constraints-gate.mjs`
+      PASSED on channel `2bcdtr5b`. ⛔ **NO contract bump** — a new tool is additive, so the
+      schema HELD at `1.8.0` and regeneration reported zero `compatibilityErrors`.
+      ⚠️ **Same pin shape as 2.1, not 2.0:** both build IDs moved, the fingerprint moved,
+      the tool count moved **57 → 58**, and the schema **held**. New pair
+      **`r2-server-06f75969aa1d` ↔ `r2-plugin-e82230c1bbb1`**, fingerprint
+      **`sha256:8ceaf9d2…93b236f`**. ⛔ Re-derive from `runtime-metadata.ts`.
+      **Four decisions taken with the owner before building, not after:**
+      ① an in-flow auto-layout child refuses the **whole call**, naming
+      `set_layout_child({ layoutPositioning: "ABSOLUTE" })` as the way in — the exact
+      INVERSE of 2.1 ①, because auto-layout and constraints are two mutually exclusive
+      answers to "where does this child go";
+      ② **both axes optional, ≥1 required**, against the plan's original required pair.
+      The merge turned out to be a **platform requirement**, not a preference: `constraints`
+      is one object property and Figma refuses a half-object, so the axis a caller omits
+      MUST be carried over. A required pair would have made every call a two-axis overwrite;
+      ③ a **PAGE** parent is refused (nothing to resize against), a **GROUP** is not;
+      ④ the enum lives in **Zod**, deliberately the opposite of 2.1 — all five values are
+      legal, so there is no semantic decision hiding behind a type error. The three context
+      refusals stay in the plugin. The gate asserts `layer: "schema"` for the enum and
+      `layer: "handler"` for each context rule, which is the only place the split is visible.
+      ⭐ **Partial application is structurally impossible here**, not merely avoided: the
+      write is ONE object assignment.
+      ⭐ **The receipt deliberately has no `appliedFields`.** Both axes are written on every
+      call, so a list of what was WRITTEN would be the constant `["horizontal","vertical"]`
+      and could never fail in either direction — 2.1's false-green lesson applied at design
+      time. `previous` / `preservedFields` / `changedFields` / `unchanged` can all fail.
+      🔴 **A real shipped defect was found and fixed in a NEIGHBOUR:** `set_layout_sizing`'s
+      FILL guard tested `parent.layoutMode === "NONE"` but not `undefined`, and a PAGE or
+      GROUP has no `layoutMode` at all — so FILL on any top-level frame passed the guard and
+      wrote a value Figma ignores. It was masked by the harness's blanket
+      `layoutMode: "NONE"` default; type-gating that default (which also retires the
+      dishonest-fixture debt 2.1's gate recorded) surfaced it immediately.
 - [ ] **2.3 `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
       ⚠️ Figma rejects a min above a max; validate the **pair**, not each field, before
       writing either.
@@ -662,6 +697,93 @@ two running halves agree with **each other**, never that they agree with this tr
       ⚠️ They are mutate-only ops on existing nodes, so they would *fit* the batch — the
       cost of adding them is allowlist parity across both copies, batch receipt tests, and
       a longer live gate, and none of that is owed until a consumer asks.
+
+#### ✅ The constraints live gate PASSED — 2026-08-22, channel `2bcdtr5b`
+
+`scripts/live-constraints-gate.mjs`, exit 0. **Pair confirmed live:**
+`r2-server-06f75969aa1d` ↔ `r2-plugin-e82230c1bbb1`, schema `1.8.0`, fingerprint
+`sha256:8ceaf9d2…93b236f`, **58 tools**, compatibility `compatible`. Scratch page deleted in
+the `finally`, baseline restored, and both operator-node CLONES deleted on their own
+independent cleanup path.
+
+⛔ **The DEV plugin re-run was REQUIRED here, not merely verified** — unlike 2.0 and 2.1.
+The first attempt refused at `join_channel`: the plugin was still serving
+`r2-plugin-3f7c7cd69133` and the preflight named the missing command by name. **Nothing in
+the document was touched.** ⭐ That is the failure mode `assertRuntime` exists for, finally
+firing for real.
+
+##### What the gate proved
+
+- ✅ **Constraints RESOLVE.** One parent resize (400 → 600), three children, three different
+  geometries: MIN held left at `20`, MAX held right at `300` and moved to left `220`,
+  STRETCH grew `80 → 280`. ⭐ No two of those readings agree, so a tool that stored the
+  strings and applied nothing fails in three places at once. Offline none of these numbers
+  can move.
+- ✅ **The un-named axis genuinely survives the merge** — and this is the one the receipt
+  alone could not prove. After writing only `horizontal`, the child moved **150px** when the
+  parent grew 300px, which is CENTER behaviour; a read-modify-write that reset the axis to
+  MIN would have moved **0**, while its receipt said `CENTER` either way.
+- ✅ **The layering split is real through the transport.** The bad enum arrived at
+  `layer: "schema"`; the in-flow refusal, the PAGE-parent refusal and the zero-field refusal
+  all arrived at `layer: "handler"`. Offline these are indistinguishable.
+- ✅ **A real PageNode has no `constraints`** — refused for *having no constraints property*,
+  not for the parent rule, which confirms the offline harness's type-gated model against
+  Figma rather than against itself.
+- ✅ **No refusal moved the document**, measured in the same currency as the writes.
+- ✅ `apply_batch` still refuses `set_constraints` (2.6's pinned absence, live).
+
+##### The two platform premises, MEASURED
+
+- ✅ **The auto-layout premise HOLDS**, and it is measured rather than asserted: the *same
+  stored* MAX constraint was honoured while the child was ABSOLUTE (left `0 → 200`, right
+  held at `300`) and ignored once it returned to the flow (left held at `0`, right slid
+  `300 → 500`). Refusing the in-flow case removes a write Figma genuinely discards. ⭐ The
+  ABSOLUTE leg doubles as the instrument check — had it not been honoured either, the
+  verdict would have been `unmeasured`, not confirmation.
+- ✅ **The GROUP premise HOLDS.** A group child's constraint DOES resolve, against the
+  **enclosing frame**. Allowing a GROUP parent rather than refusing on an unverified claim
+  was the right call.
+
+##### 🔴 The gate's own defect — a false RED, caught by its own numbers
+
+§6 scored **`inert`** on its first run and pushed a finding telling a future reader to
+revisit the allow decision. It was wrong, and the finding's own text gave it away: *"The
+cloned group did change (137 → 137)"*.
+
+- 🔴 **The measurement was VACUOUS.** It measured the child's offsets **within its group**
+  and read `0 → 0`. That is not a result, it is arithmetic — a single-child group's bounding
+  box **is** its child's box, so those offsets are pinned at zero and the check could not
+  have come out any other way, in either direction, ever. Exactly the family of 2.1's false
+  green, one level down: **I built an instrument check for the confound I anticipated (does
+  the group move?) and it passed, while the reading underneath it was structurally fixed.**
+- ⭐ **The repair is the shape §3 already used**: measure against the **FRAME** — the
+  reference a constraint actually resolves against — and DISCRIMINATE between two objects
+  under one resize. Two identical cloned groups, one written to MAX, one left untouched as
+  a CONTROL. Result: tested moved left `20 → 220` holding right `243`; control held left
+  `20` while its right slid `243 → 443`. `separated: true`.
+- ⭐ **The instrument check was rebuilt to ask the question that can actually invalidate the
+  comparison** — did the tested and control children end up in the same place? — rather than
+  a question that a move for any unrelated reason could satisfy.
+- ⭐ **The operator's own node was never written to, resized or reparented.** §6 works on
+  CLONES placed inside the scratch page, tracked separately and deleted on their own path,
+  because `clone_node` lands a clone beside its original — on a real document, not ours.
+
+##### What stays owed
+
+- ⏳ **THREE gates now pin builds this tree no longer produces** — `live-batch-gate.mjs`,
+  `live-text-style-gate.mjs` and now `live-layout-gate.mjs`, which passed hours earlier.
+  All declared by name in `tests/live-gate-pins.test.mjs`; none re-pinned, because this
+  change cannot re-run them. Owner's standing call: re-pin and re-run once, after the
+  layout tools land — 2.3 and 2.4 are still outstanding.
+- ⚠️ **`set_constraints` ships `stable` from birth**, following 2.1 rather than R2.5's
+  hold-at-`additive-preview`. A reply-shape defect found later needs a
+  `publicContractVersion` bump, and `1.9.0` is reserved for R2.7.
+- ⏳ **SCALE is the one published value whose live behaviour is unmeasured.** It round-trips
+  offline, but no geometry check here distinguishes it from STRETCH on a single-axis resize.
+- ⏳ `set_layout_sizing`'s type guard is still stricter than the Figma API (2.1's debt);
+  the FILL `undefined` hole next to it is fixed, that one is not.
+
+---
 
 #### ✅ The layout live gate PASSED — 2026-08-22, channel `mzg3tlfl`
 

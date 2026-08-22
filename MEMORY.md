@@ -47,13 +47,61 @@ type: project
   to 500). Both checks now move the **PARENT** and read who follows; ⚠️ the polarity is
   **inverted** between them — in §3 holding is the pass, in §4 following is. 🟡 **1 file
   uncommitted:** `scripts/live-layout-gate.mjs` (+107/−14), no source/plugin/contract change.
-- **Next step:** ▶ **2.2–2.4** one at a time (`set_constraints`, `set_size_limits`,
-  `set_clips_content`), per the owner's split-scope call. ⚠️ 2.3: Figma rejects a min above
-  a max — validate the **pair**, not each field.
+- **Also done 2026-08-22:** ✅✅ **item 2.2 `set_constraints` is BUILT AND GATED** — how a
+  node resizes with its parent frame. **224 tests** (was 204), **seven** mutations killed +
+  control survived, `dist/` byte-identical ×3, `verify-release` passed, then
+  `scripts/live-constraints-gate.mjs` PASSED on channel **`2bcdtr5b`**. ⛔ **No bump** —
+  additive, schema **HELD at `1.8.0`**, zero `compatibilityErrors`. ⚠️ Pin shape **same as
+  2.1, not 2.0**: both builds moved, fingerprint moved, tools **57 → 58**, schema held. New
+  pair **`r2-server-06f75969aa1d` ↔ `r2-plugin-e82230c1bbb1`**,
+  **`sha256:8ceaf9d2…93b236f`**.
+  ⛔ **The DEV plugin re-run was REQUIRED, not merely verified** — the FIRST time
+  `assertRuntime` has actually fired. Attempt 1 refused at `join_channel` with the plugin
+  still on `r2-plugin-3f7c7cd69133`; **nothing in the document was touched**.
+  **Four decisions taken with the owner before building:** ① an in-flow auto-layout child
+  refuses the **whole call** — the exact **INVERSE** of 2.1 ①, since auto-layout and
+  constraints are mutually exclusive answers to one question; ② **both axes optional, ≥1
+  required**, overriding the plan's required pair — the merge is a **platform requirement**
+  (`constraints` is ONE object property; Figma refuses a half-object); ③ **PAGE** refused,
+  **GROUP** allowed-and-measured rather than refused on an unverified claim; ④ the enum
+  lives in **Zod**, deliberately opposite to 2.1, because all five values are legal.
+  ⭐ **Partial application is structurally impossible** — one object assignment. ⭐ The
+  receipt has **no `appliedFields`** on purpose: both axes write every time, so that list
+  could never fail.
+  ✅ **Both platform premises MEASURED, both HOLD** — the auto-layout claim (same stored MAX
+  honoured while ABSOLUTE `0 → 200`, ignored back in flow) and the GROUP claim (a group
+  child's constraint **does** resolve, against the enclosing frame).
+- 🔴 **A real shipped defect was found in a NEIGHBOUR and fixed:** `set_layout_sizing`'s FILL
+  guard tested `parent.layoutMode === "NONE"` but **not `undefined`** — and a PAGE or GROUP
+  has no `layoutMode` at all, so `FILL` on any top-level frame passed the guard and wrote a
+  value Figma ignores. Masked for six releases by the test harness giving **every** node a
+  blanket `layoutMode: "NONE"`; type-gating that default — which also **retires the
+  dishonest-fixture debt 2.1's gate recorded** — surfaced it immediately.
+- 🔴 **The gate scored a FALSE RED on its own first run**, and its own text gave it away
+  (*"the cloned group did change (137 → 137)"*). §6 measured the child's offsets **within
+  its group** and read `0 → 0` — arithmetic, not a result: a single-child group's bounding
+  box **is** its child's box, so the check could not come out any other way. ⛔ I built an
+  instrument check for the confound I anticipated (did the group move?) and it **passed**,
+  while the reading underneath it was structurally fixed. Repaired by measuring against the
+  **FRAME** and adding an untouched **CONTROL** clone → verdict flipped to `holds`.
+- 🔴 **My first mutation run was worthless and the CONTROL caught it** — 7 "killed", but a
+  comment-only control died too, because any `code.js` edit moves the plugin fingerprint and
+  `contract.test.mjs` was killing everything regardless of behaviour. Re-run against the
+  behavioural files only: **7 killed, control survived**.
+- **Next step:** ▶ **2.3 `set_size_limits`**, then 2.4. ⚠️ Figma rejects a min above a max —
+  validate the **pair**, not each field. ⛔ First layout tool since Phase 1 where partial
+  application is genuinely possible again: 2.2 was one assignment, 2.3 writes four fields.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·
-  `tests/live-gate-pins.test.mjs` (now declares **two** stale gates) ·
+  `tests/live-gate-pins.test.mjs` (now declares **THREE** stale gates — `live-batch-gate`,
+  `live-text-style-gate` and `live-layout-gate`; ⛔ none re-pinned, owner's call is to
+  re-pin + re-run the set ONCE after 2.4) ·
+  **2.2:** `setConstraints` + `CONSTRAINT_VALUES` in `code.js` · `tests/set-constraints.test.mjs`
+  (20 cases) · **`scripts/live-constraints-gate.mjs` (NEW, pins HEAD, PASSED `2bcdtr5b`)** ·
+  `docs/evidence/r2.6-2.2/report.json` · fixture gained `30:1` (plain FRAME + 2 children)
+  and `40:1` (GROUP + 1) on page `2:1`; harness gained type-gated `CONSTRAINT_CARRIERS` and
+  `AUTO_LAYOUT_CARRIERS` ·
   `src/talk_to_figma_mcp/batch-receipt.mjs` + its `code.js` mirror (the
   `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · HEAD pair
   **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**, `1.8.0`, **57 tools/56

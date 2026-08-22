@@ -3,7 +3,7 @@
 /**
  * R2.6 item 2.3 — the size-limits live gate.
  *
- * What this proves that the 256 offline tests cannot:
+ * What this proves that the 260 offline tests cannot:
  *
  *  ⭐ **That a limit CLAMPS rather than merely storing a number.** Offline, `node.maxWidth
  *     = 250` writes to a harness that clamps because this author told it to; every
@@ -32,19 +32,26 @@
  *     a check whose two outcomes read identically is the item 2.1 false green, and this one
  *     would read identically whether the ordering mattered or not.
  *
- *  🔴 **That the ALLOW decision was right, or that it was not.** Decision ③ refused to
- *     encode the documented claim that min/max are an auto-layout feature, because an
- *     unverified refusal looks authoritative — 2.2's GROUP question, same shape. §6
- *     measures whether a limit resolves on a node outside ANY auto-layout context and
- *     returns THREE answers. `inert` is a finding telling a future reader to revisit the
- *     decision; `unmeasured` is a gap and must never be read as support for it.
+ *  🔴 **The eligibility rule itself — MEASURED, and it cost this gate its first run.**
+ *     Decision ③ refused to encode the documented claim that min/max are an auto-layout
+ *     feature, because an unverified refusal looks authoritative — 2.2's GROUP question,
+ *     same shape. §6 was written expecting one of two answers, RESOLVES or INERT. Figma
+ *     gave a third: it THROWS. So §6 is now a MATRIX of eight contexts, and what it
+ *     established is that the rule is purely CONTEXTUAL — writable on auto-layout nodes and
+ *     their children, and node TYPE is irrelevant. A RECTANGLE inside an auto-layout frame
+ *     is accepted; a TEXT inside a plain frame is refused.
+ *     ⛔ Two defects came out of that run, both in the tool and not the platform: the
+ *     handler's eligibility probe read a property that is READABLE ON EVERY NODE (only the
+ *     WRITE is gated, so it never once refused for the right reason), and the offline
+ *     harness modelled a TYPE rule Figma does not have. §6 now asserts that every
+ *     ineligible context is refused by THIS TOOL rather than by Figma mid-write — the
+ *     acceptance test for that fix.
  *
- *  🔴 **That the harness's carrier model matches Figma.** The offline fixture models these
- *     four properties as present on frame-likes and text and absent on a RECTANGLE, a GROUP
- *     and a PAGE — which is what makes the "no surface" refusal reachable offline without
- *     surgery. That is a MODEL of Figma's documentation, not a measurement. §7 puts it
- *     against the real platform, and if Figma disagrees the harness is what changes, since
- *     the handler asks the node rather than consulting a list.
+ *  ⛔ **That an ineligible call leaves NOTHING behind.** §6b, and the reason it exists is
+ *     the first run: with no context rule, Figma threw during the write phase, and the call
+ *     stayed atomic only because the platform happened to reject the FIRST field. That is
+ *     the platform's ordering, not this tool's guarantee, and on a tool that writes four
+ *     independent fields it is the whole partial-application risk in one sentence.
  *
  *  ⭐ **That `null` genuinely REMOVES the limit.** Offline the clear is read back as a
  *     stored `null`. Live, reading it back is the trap: `get_node_info` answers
@@ -771,10 +778,13 @@ try {
   });
   const partialAfter = await boxOf(partialProbeId);
 
-  const ineligibleRefused = eligibility.some(
-    (row) => !row.accepted && row.platformRefusal,
-  );
-  record.checks.platformThrowIsAtomic = {
+  // ⛔ The instrument asks whether an ineligible context EXISTS, not which layer answers
+  // it. Its first version tested for a PLATFORM refusal, which was true when the platform
+  // owned the rule and became false the moment the handler took it over — so a correct fix
+  // made the gate report that its own probe proved nothing. ⭐ An instrument pinned to the
+  // implementation it is measuring fails on exactly the change it was built to verify.
+  const ineligibleRefused = eligibility.some((row) => !row.accepted);
+  record.checks.ineligibleCallIsAtomic = {
     refusalMessage: partialRefusal.message.slice(0, 250),
     layer: partialRefusal.layer,
     width: { before: partialBefore.width, after: partialAfter.width },
@@ -791,11 +801,11 @@ try {
     partialBefore.width,
     "🔴 A TWO-FIELD CALL ON AN INELIGIBLE NODE LEFT A PARTIAL WRITE: the first field landed before the second was rejected, and the node changed size on a call that reported failure. This is exactly the partial application item 2.3 was built to prevent.",
   );
-  record.checks.platformThrowIsAtomic.refusedBeforeTheWritePhase = /auto-layout nodes and their children/.test(
+  record.checks.ineligibleCallIsAtomic.refusedBeforeTheWritePhase = /auto-layout nodes and their children/.test(
     partialRefusal.message,
   );
   assert.ok(
-    record.checks.platformThrowIsAtomic.refusedBeforeTheWritePhase,
+    record.checks.ineligibleCallIsAtomic.refusedBeforeTheWritePhase,
     "the two-field ineligible call must be refused by the handler's context rule, not by Figma during the write phase",
   );
   record.findings.push(
@@ -807,25 +817,45 @@ try {
   // The offline fixture models these four properties as absent on a RECTANGLE, which is
   // what makes the "no surface" refusal reachable offline without surgery. §6's matrix
   // already probed a RECTANGLE in both contexts; this reads the verdict out of it.
+  // ⛔ This section READS the harness rather than asserting a belief about it. Its first
+  // version hardcoded `harnessModelsItAsAbsent: true` and pushed a red finding telling a
+  // future reader to go fix `SIZE_LIMIT_CARRIERS` — which was true when written and became
+  // false the moment the harness was corrected in the same session. A gate that reports an
+  // already-repaired defect in alarming red is the status-marker trap, and it costs someone
+  // an afternoon "fixing" correct code.
+  const harnessSource = await readFile(
+    path.join(root, "tests/helpers/plugin-harness.mjs"),
+    "utf8",
+  );
   const rectInAutoLayout = eligibility.find((row) =>
     row.context.startsWith("RECTANGLE, child of an auto-layout"),
   );
-  record.checks.carrierModel = {
-    rectangleInAutoLayoutAccepted: rectInAutoLayout?.accepted ?? null,
-    // ⭐ Recorded either way. A RECTANGLE that ACCEPTS the write means the harness is
-    // over-refusing offline and the carrier Set is what changes — never the handler, which
-    // asks the node.
-    harnessModelsItAsAbsent: true,
+  const textInPlain = eligibility.find((row) =>
+    row.context.startsWith("TEXT, child of a plain"),
+  );
+  const harnessModelsContext = /takesSizeLimits/.test(harnessSource);
+  const harnessModelsType = /SIZE_LIMIT_CARRIERS/.test(harnessSource);
+
+  record.checks.harnessModel = {
+    liveSaysContextual:
+      rectInAutoLayout?.accepted === true && textInPlain?.accepted === false,
+    harnessModelsContext,
+    harnessModelsType,
+    agrees: harnessModelsContext && !harnessModelsType,
   };
-  if (rectInAutoLayout?.accepted) {
-    record.findings.push(
-      "🔴 A RECTANGLE inside an auto-layout frame ACCEPTED a size limit. The offline harness models these four properties as ABSENT on a RECTANGLE, so the fixture is stricter than Figma and the \"no surface\" refusal is reached offline for a case that does not exist. ⛔ Fix the harness's SIZE_LIMIT_CARRIERS, not the handler — the handler reads the node and was right.",
-    );
-  } else {
-    record.findings.push(
-      "The offline harness's carrier model matches Figma on the case it was built to reach: a RECTANGLE does not take a size limit.",
-    );
-  }
+  // ⭐ The discrimination: a RECTANGLE accepted inside auto-layout AND a TEXT refused
+  // outside it. Either reading alone is consistent with a type rule; together they are not.
+  assert.ok(
+    record.checks.harnessModel.liveSaysContextual,
+    "the matrix did not separate context from type, so nothing can be concluded about the harness's model",
+  );
+  assert.ok(
+    record.checks.harnessModel.agrees,
+    "Figma's rule is contextual but the offline harness still gates these properties by node TYPE — its eligibility tests are green against a fiction",
+  );
+  record.findings.push(
+    "The offline harness models the same rule Figma enforces, and this is READ from the harness rather than assumed: a RECTANGLE inside an auto-layout frame was ACCEPTED live and a TEXT inside a plain frame was REFUSED, which no type-based rule can produce, and the harness gates the setter on context (`takesSizeLimits`) with no type allowlist left.",
+  );
 
   // ── 8. ⭐ The clear, measured behaviourally rather than by reading back a null ────
   //

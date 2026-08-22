@@ -35,20 +35,28 @@ type: project
   build, never run. ⛔ DEV plugin re-run first. **Then 2.2–2.4** one at a time
   (`set_constraints`, `set_size_limits`, `set_clips_content`), per the owner's split-scope
   call. ⚠️ 2.3: Figma rejects a min above a max — validate the **pair**, not each field.
-- **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `createText` +
-  `textStyleRequestedFont` / `textStyleCollectWrites` (the shared validator, ⛔ **one**
-  implementation for both write surfaces) · `tests/create-text.test.mjs` (17 cases) ·
-  `tests/live-gate-pins.test.mjs` (new) · `scripts/live-text-style-gate.mjs` §6–9 ·
-  new pair **`r2-server-2fa65a5749e2` ↔ `r2-plugin-045a95955905`**, `1.8.0`, 56 tools/55
-  commands, fingerprint **`sha256:b5cbf7b1…6241f2f0`**.
-- **Open / blockers:** ⛔ **EVERY pin moved this time** — server, plugin, fingerprint AND
-  schema — so adopting needs **a DEV plugin re-run AND a server respawn**. That is the
-  opposite of the step before it, and the answer has now flipped on **six consecutive
-  steps**: ⛔ re-derive it from `runtime-metadata.ts`, never carry it forward. ⚠️ The gate
-  spawns its own server from `dist/server.js`, so only an **interactive** MCP session needs
-  the respawn. 🔴 **`live-batch-gate.mjs` is now stale** and deliberately **not re-pinned**
-  — re-pinning a gate without re-running it is the `e02d1b2` defect; its staleness is
-  declared by name in `tests/live-gate-pins.test.mjs`. ⛔ Stage explicit paths, never
+- **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
+  `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
+  (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·
+  `tests/live-gate-pins.test.mjs` (now declares **two** stale gates) ·
+  `src/talk_to_figma_mcp/batch-receipt.mjs` + its `code.js` mirror (the
+  `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · HEAD pair
+  **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**, `1.8.0`, **57 tools/56
+  commands**, fingerprint **`sha256:1865d817…6b7ebb09`**. Prior (2.0, gated):
+  `r2-server-2fa65a5749e2` ↔ `r2-plugin-045a95955905`, `sha256:b5cbf7b1…6241f2f0`.
+- **Open / blockers:** ⛔ **2.1 moved both builds, the fingerprint and the tool count
+  (56 → 57) — but the SCHEMA HELD at `1.8.0`**, because a new tool is additive. That is a
+  different shape from 2.0, which moved the schema too; the answer has now differed on
+  **seven consecutive steps**. ⛔ Re-derive from `runtime-metadata.ts`, never carry it
+  forward. Adopting HEAD needs a **DEV plugin re-run AND a server respawn**. ⚠️ The gates
+  spawn their own server from `dist/server.js`, so only an **interactive** MCP session
+  needs the respawn. 🔴 **TWO gates are now declared stale** — `live-batch-gate.mjs` AND
+  `live-text-style-gate.mjs` (which passed on `7l9ymck4` only two days ago) — both
+  deliberately **not re-pinned**, because re-pinning a gate without re-running it is the
+  `e02d1b2` defect. Their staleness is declared by name in
+  `tests/live-gate-pins.test.mjs`. ⭐ **Their results still stand for the builds they ran
+  on** — what they can no longer do is *start*. Owner's call 2026-08-22: re-pin and re-run
+  both **once**, after the layout tools land. ⛔ Stage explicit paths, never
   `git add -A` (peer sessions write this repo — one committed `d75c7df` mid-run).
 - **Don't forget:** 🔴 **The `1.8.0` bump was NOT mechanically enforced** — regenerating at
   `1.7.0` produced **zero** `compatibilityErrors`, because the snapshot records input

@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.8.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
+  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -60,6 +60,7 @@
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
+    "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
@@ -127,6 +128,7 @@
       "set_item_spacing",
       "set_layout_child",
       "set_constraints",
+      "set_size_limits",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -187,6 +189,7 @@
       "set_item_spacing",
       "set_layout_child",
       "set_constraints",
+      "set_size_limits",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -246,6 +249,7 @@
       "set_item_spacing",
       "set_layout_child",
       "set_constraints",
+      "set_size_limits",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -2775,6 +2779,61 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_selections",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_size_limits",
+      "description": "Set a node's minimum and maximum width and height. Each of the four limits is independent: omit one to leave it as it is, pass a positive number to set it, or pass null to remove it. Figma rejects a minimum above a maximum, so the two fields of an axis are validated as a PAIR against the values the node already holds — a call naming only minWidth is still checked against the stored maxWidth, and refused before anything is written. Setting a limit that conflicts with the node's current size makes Figma resize the node to fit; the reply reports the size before and after and a `resized` flag. Validate-all-then-write: a rejected parameter leaves all four fields untouched.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to limit"
+          },
+          "minWidth": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Minimum width in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+          },
+          "maxWidth": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Maximum width in pixels, greater than 0 and not below minWidth. Pass null to remove the limit; omit to keep the node's current value"
+          },
+          "minHeight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Minimum height in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+          },
+          "maxHeight": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Maximum height in pixels, greater than 0 and not below minHeight. Pass null to remove the limit; omit to keep the node's current value"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_size_limits",
       "resultStability": "stable"
     },
     {

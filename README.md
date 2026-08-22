@@ -252,6 +252,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_item_spacing` - Set distance between children in an auto-layout frame
 - `set_layout_child` - Set how a node participates in its parent's auto-layout (layoutGrow, layoutAlign, layoutPositioning). Requires an auto-layout parent and refuses otherwise; `layoutAlign: "STRETCH"` is refused in favour of `set_layout_sizing` FILL
 - `set_constraints` - Set how a node resizes with its parent frame (horizontal/vertical: MIN, CENTER, MAX, STRETCH, SCALE). Either axis may be omitted and is carried over. The mirror of `set_layout_child`: it refuses a child in the flow of an auto-layout parent, and a top-level node on a PAGE
+- `set_size_limits` - Set a node's `minWidth`/`maxWidth`/`minHeight`/`maxHeight`. Each limit is independent: omit to keep it, pass a positive number to set it, or pass `null` to remove it. The two fields of an axis are validated as a PAIR against the values the node already holds, so a call naming only `minWidth` is still checked against the stored `maxWidth`; a limit that conflicts with the node's current size makes Figma resize it, and the reply reports the size before and after
 
 ### Styling
 

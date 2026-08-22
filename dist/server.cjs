@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-06f75969aa1d",
-  "pluginBuildId": "r2-plugin-e82230c1bbb1",
+  "serverBuildId": "r2-server-de9d03651f55",
+  "pluginBuildId": "r2-plugin-81dba60db9dd",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
+  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -90,6 +90,7 @@ var RUNTIME_METADATA = {
     "set_item_spacing",
     "set_layout_child",
     "set_constraints",
+    "set_size_limits",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -155,6 +156,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
+    "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
@@ -216,6 +218,7 @@ var RUNTIME_METADATA = {
     "set_parent",
     "set_plugin_data",
     "set_selections",
+    "set_size_limits",
     "set_stroke_color",
     "set_text_content",
     "set_text_style"
@@ -3084,6 +3087,47 @@ server.tool(
           {
             type: "text",
             text: `Error setting constraints: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_size_limits",
+  "Set a node's minimum and maximum width and height. Each of the four limits is independent: omit one to leave it as it is, pass a positive number to set it, or pass null to remove it. Figma rejects a minimum above a maximum, so the two fields of an axis are validated as a PAIR against the values the node already holds \u2014 a call naming only minWidth is still checked against the stored maxWidth, and refused before anything is written. Setting a limit that conflicts with the node's current size makes Figma resize the node to fit; the reply reports the size before and after and a `resized` flag. Validate-all-then-write: a rejected parameter leaves all four fields untouched.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node to limit"),
+    minWidth: import_zod.z.number().nullable().optional().describe(
+      "Minimum width in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+    ),
+    maxWidth: import_zod.z.number().nullable().optional().describe(
+      "Maximum width in pixels, greater than 0 and not below minWidth. Pass null to remove the limit; omit to keep the node's current value"
+    ),
+    minHeight: import_zod.z.number().nullable().optional().describe(
+      "Minimum height in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+    ),
+    maxHeight: import_zod.z.number().nullable().optional().describe(
+      "Maximum height in pixels, greater than 0 and not below minHeight. Pass null to remove the limit; omit to keep the node's current value"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_size_limits", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting size limits: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

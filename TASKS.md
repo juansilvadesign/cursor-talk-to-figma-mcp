@@ -169,13 +169,68 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 Phase 2 (2.0 · 2.1 · **2.2 all GATED**; next = 2.3)
+## ▶ Next session — R2.6 Phase 2 (2.0 · 2.1 · 2.2 GATED; **2.3 BUILT, gate PENDING**)
 
-**▶ START HERE = item 2.3, `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
-⚠️ Its trap is on the record already: **Figma rejects a min above a max, so validate the
-PAIR, not each field, before writing either.** ⛔ Note this is the first layout tool where
-partial application is genuinely possible again — 2.2 was one object assignment, 2.3 writes
-up to four independent fields.
+**▶ START HERE = run `scripts/live-size-limits-gate.mjs`, then item 2.4 `set_clips_content`.**
+
+**⏳ R2.6 ITEM 2.3 IS BUILT (offline) 2026-08-22 AND COMMITTED — the live gate has NOT run.**
+`set_size_limits`, a node's min/max width and height. **257 tests green** (was 224), nine
+source mutations killed with the control surviving, `dist/` byte-identical across three
+builds, `verify-release` passed. Commits `8c3ab70` (feat) · `6a65eb4` (test) · `7d86dd3`
+(chore). ⛔ **NO contract bump** — additive, schema **HELD at `1.8.0`**, zero
+`compatibilityErrors`.
+
+⛔ **The gate refused at `join_channel` on its first attempt** — the DEV plugin was still
+serving `r2-plugin-e82230c1bbb1` (item 2.2's build) and the preflight named the missing
+command. **Nothing in the document was touched.** That is the SECOND time `assertRuntime`
+has fired for real; 2.2 was the first. ⏳ **The re-run is owed: re-run the DEV plugin in
+Figma, then `node scripts/live-size-limits-gate.mjs --channel=<channel>
+--output-dir=docs/evidence/r2.6-2.3`.**
+
+⚠️ **Pin shape is the SAME as 2.1 and 2.2 and NOT 2.0** — both build IDs moved, the
+fingerprint moved, the tool count moved **58 → 59**, the schema **held**. New pair
+**`r2-server-de9d03651f55` ↔ `r2-plugin-81dba60db9dd`**, fingerprint
+**`sha256:89be6e6c…cea87f9d`**. ⛔ Re-derive from `runtime-metadata.ts` — eight steps, and
+this answer keeps changing shape.
+
+**Four decisions taken with the owner BEFORE building:** ① **`null` clears, omitted
+preserves** — R2.3's plugin-data semantics, published in the contract as
+`type: ["number","null"]`; ② the pair rule validates the **EFFECTIVE post-write pair**
+(supplied merged over stored), so a lone `minWidth: 500` is refused against a stored
+`maxWidth: 300` — a conflict invisible in the caller's own arguments; ③ **NO context
+refusal**, the inverse of BOTH neighbours (2.1 refuses a non-auto-layout parent, 2.2
+refuses an auto-layout one) — the "min/max are auto-layout only" claim is unmeasured, and
+an unverified refusal looks authoritative; the gate returns a three-way verdict; ④ the
+**clamp is reported, never refused** — the receipt carries `size.before`/`size.after` and
+`resized`, a second currency the stored value cannot report.
+
+⛔ **Partial application is genuinely possible here for the first time since Phase 1.** 2.1
+wrote one field, 2.2 wrote one OBJECT — validate-all-then-write was a formality in both.
+⚠️ **And the pair trap has a SECOND half validation cannot catch:** two assignments pass
+through an intermediate state, so the write **ORDER** is computed per axis. Raising past
+the stored max needs max-first, lowering below it needs min-first. ⭐ One of the two is
+always available — for both to be unsafe the node would already hold min > max.
+
+⭐ **`appliedFields` is PRESENT here and was deliberately ABSENT from 2.2's receipt** —
+there both axes wrote every call, so the list was a constant that could never fail.
+
+🔴 **A mutation SURVIVED the first run, and the fix was in the HARNESS, not the tool.**
+While the platform stores exactly what it is handed, a receipt that echoes its arguments
+and one that reads the node back produce **identical output** — `appliedFields` would have
+been decorative for the second time in three items. Closed with an opt-in
+`roundSizeLimits` coercion; a node that rounds separates the echo from the read in one
+reading. ⛔ Same family as [[feedback_a_zero_valued_write_reads_as_no_write]], caught by
+mutation rather than by review.
+
+🔴 **FOUR gates are now declared stale** by name in `tests/live-gate-pins.test.mjs`:
+`live-batch-gate.mjs`, `live-text-style-gate.mjs`, `live-layout-gate.mjs` and now
+`live-constraints-gate.mjs`, which passed on `2bcdtr5b` earlier the same day. ⛔ None
+re-pinned — this change cannot re-run them. **Owner's standing call: re-pin and re-run the
+set ONCE, after 2.4 lands** — it is the last of the four layout tools.
+
+---
+
+## ▶ Previous — item 2.2 (BUILT + GATED)
 
 **✅✅ R2.6 ITEM 2.2 IS BUILT AND GATED 2026-08-22** — `set_constraints`, how a node resizes
 with its parent frame. **224 tests green** (was 204), seven source mutations killed with the

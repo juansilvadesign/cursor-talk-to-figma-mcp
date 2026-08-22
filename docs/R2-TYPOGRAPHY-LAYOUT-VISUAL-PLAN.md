@@ -682,9 +682,54 @@ two running halves agree with **each other**, never that they agree with this tr
       wrote a value Figma ignores. It was masked by the harness's blanket
       `layoutMode: "NONE"` default; type-gating that default (which also retires the
       dishonest-fixture debt 2.1's gate recorded) surfaced it immediately.
-- [ ] **2.3 `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`.**
-      ⚠️ Figma rejects a min above a max; validate the **pair**, not each field, before
-      writing either.
+- [x] **2.3 ⏳ `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`** —
+      **BUILT (offline) 2026-08-22, NOT YET GATED.** 257 tests green (was 224), nine source
+      mutations killed with the control surviving, `dist/` byte-identical across three
+      builds, `verify-release` passed. ⛔ **NO contract bump** — a new tool is additive, so
+      the schema HELD at `1.8.0` and regeneration reported zero `compatibilityErrors`.
+      ⚠️ **Same pin shape as 2.1 and 2.2, not 2.0:** both build IDs moved, the fingerprint
+      moved, the tool count moved **58 → 59**, and the schema **held**. New pair
+      **`r2-server-de9d03651f55` ↔ `r2-plugin-81dba60db9dd`**, fingerprint
+      **`sha256:89be6e6c…cea87f9d`**. ⛔ Re-derive from `runtime-metadata.ts`.
+      **Four decisions taken with the owner before building, not after:**
+      ① **`null` clears, an omitted field preserves** — R2.3's plugin-data semantics reused
+      rather than reinvented, because Figma types these four as `number | null` and a tool
+      without a clear can only ever tighten. The nullable half is published in the contract
+      (`type: ["number","null"]`), so the clear is representable at the boundary;
+      ② the pair rule validates the **EFFECTIVE post-write pair** — supplied merged over
+      stored — so a lone `minWidth: 500` is refused against a stored `maxWidth: 300`. That
+      is a conflict the caller cannot see anywhere in their own arguments, and it is the
+      case a tool comparing only its arguments would miss;
+      ③ **NO context refusal**, which is the inverse of both its neighbours: 2.1 refuses a
+      parent that is not auto-layout, 2.2 refuses one that is, and this refuses neither.
+      Whether min/max are inert outside an auto-layout context is a platform claim this
+      project has not measured, and the house rule is that an unverified refusal is worse
+      than none because it looks authoritative. The live gate returns a three-way verdict;
+      ④ the **clamp is reported, never refused**. A limit conflicting with the node's
+      current size resizes it, so the receipt carries `size.before` / `size.after` and
+      `resized` — a second currency the stored value cannot report, and the one the live
+      gate measures in.
+      ⛔ **Partial application is genuinely possible here for the first time since Phase 1**
+      — 2.1 wrote one field and 2.2 wrote one OBJECT, so validate-all-then-write was a
+      formality in both. Four independent number properties put this in
+      `set_corner_radius`'s structural family.
+      ⚠️ **The pair trap has a SECOND half that validation cannot catch:** two assignments
+      pass through an intermediate state, so the write **order** is computed per axis.
+      Raising past the stored max needs max-first, lowering below the stored min needs
+      min-first, and ⭐ one of the two is always available — for both to be unsafe would
+      require the node to already hold min > max, which the platform cannot have stored.
+      ⭐ **`appliedFields` is PRESENT here and was deliberately absent from 2.2's receipt.**
+      There both axes wrote on every call, so the list was a constant that could never fail
+      in either direction. Here each field is independent, so a value the platform did not
+      take is missing from it.
+      🔴 **A mutation SURVIVED the first run and the fix is in the harness, not the tool.**
+      While the platform stores exactly what it is handed, a receipt that echoes its own
+      arguments and one that reads the node back produce **identical output** — so
+      `appliedFields` would have been decorative for the second time in three items. Closed
+      with an opt-in `roundSizeLimits` harness coercion: a node that rounds separates the
+      echo from the read in one reading. ⛔ Nine killed, control survived, on the re-run.
+      ⏳ **The live gate has NOT run yet.** First attempt refused at `join_channel` with the
+      plugin still on `r2-plugin-e82230c1bbb1`; **nothing in the document was touched.**
 - [ ] **2.4 `set_clips_content(nodeId, clipsContent)`.**
 - [ ] **2.5 Every one validate-all-then-write**, per 3.2 above. The rule is now the house
       rule, not a per-tool decision.

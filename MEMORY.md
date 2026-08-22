@@ -13,6 +13,11 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-22)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
+- **▶ START HERE:** 2.0 · 2.1 · 2.2 are GATED. **2.3 `set_size_limits` is BUILT + COMMITTED
+  but NOT GATED** — the gate refused at `join_channel` on a stale DEV plugin and touched
+  nothing. **Re-run the DEV plugin in Figma, then run
+  `scripts/live-size-limits-gate.mjs --channel=<ch> --output-dir=docs/evidence/r2.6-2.3`.**
+  Then 2.4 `set_clips_content`, the last layout tool.
 - **Doing:** ✅✅ **R2.6 Phase 2 item 2.0 is BUILT, COMMITTED and GATED.** Built 2026-08-21
   (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`. `create_text` carries the
   twelve `set_text_style` parameters, `setCharacters` is **awaited**, and an unloadable
@@ -88,9 +93,44 @@ type: project
   comment-only control died too, because any `code.js` edit moves the plugin fingerprint and
   `contract.test.mjs` was killing everything regardless of behaviour. Re-run against the
   behavioural files only: **7 killed, control survived**.
-- **Next step:** ▶ **2.3 `set_size_limits`**, then 2.4. ⚠️ Figma rejects a min above a max —
-  validate the **pair**, not each field. ⛔ First layout tool since Phase 1 where partial
-  application is genuinely possible again: 2.2 was one assignment, 2.3 writes four fields.
+- **Also done 2026-08-22:** ⏳ **item 2.3 `set_size_limits` is BUILT (offline) and
+  COMMITTED — the live gate has NOT run.** A node's min/max width and height. **257 tests**
+  (was 224), **nine** mutations killed + control survived, `dist/` byte-identical ×3,
+  `verify-release` passed. Commits `8c3ab70` · `6a65eb4` · `7d86dd3`, tree clean. ⛔ **No
+  bump** — additive, schema **HELD at `1.8.0`**, zero `compatibilityErrors`. ⚠️ Pin shape
+  **same as 2.1 and 2.2, not 2.0**: both builds moved, fingerprint moved, tools **58 → 59**,
+  schema held. New pair **`r2-server-de9d03651f55` ↔ `r2-plugin-81dba60db9dd`**,
+  **`sha256:89be6e6c…cea87f9d`**.
+  ⛔ **The gate refused at `join_channel`** with the plugin still on
+  `r2-plugin-e82230c1bbb1`; **nothing in the document was touched**. Second time
+  `assertRuntime` has fired for real. ⏳ Owed: re-run the DEV plugin, then
+  `node scripts/live-size-limits-gate.mjs --channel=<ch> --output-dir=docs/evidence/r2.6-2.3`.
+  **Four decisions taken with the owner before building:** ① **`null` clears, omitted
+  preserves** (R2.3's semantics; published as `type: ["number","null"]`); ② the pair rule
+  validates the **EFFECTIVE post-write pair**, supplied merged over stored — a lone
+  `minWidth: 500` is refused against a stored `maxWidth: 300`, a conflict invisible in the
+  caller's own arguments; ③ **NO context refusal** — the inverse of BOTH neighbours, because
+  "min/max are auto-layout only" is unmeasured and an unverified refusal looks
+  authoritative; the gate returns a three-way verdict; ④ the **clamp is reported, never
+  refused** — `size.before`/`size.after`/`resized`, a second currency.
+  ⛔ **Partial application is genuinely possible for the first time since Phase 1**, so
+  validate-all-then-write stops being a formality. ⚠️ **The pair trap has a SECOND half
+  validation cannot catch** — two assignments pass through an intermediate state, so the
+  write **ORDER** is computed per axis (raise → max first, lower → min first). ⭐ One order
+  is always available: for both to be unsafe the node would already hold min > max.
+  ⭐ **`appliedFields` is PRESENT here and was deliberately ABSENT from 2.2's** — there both
+  axes wrote every call, so the list was a constant that could never fail.
+- 🔴 **A mutation SURVIVED, and the fix was in the HARNESS, not the tool.** While the
+  platform stores exactly what it is handed, a receipt that **echoes its own arguments** and
+  one that **reads the node back** produce identical output — so `appliedFields` would have
+  been decorative for the second time in three items, and no assertion over values could
+  have told them apart. Closed with an opt-in `roundSizeLimits` coercion: a node that rounds
+  reports 13 where the echo reports 12.5. ⭐ **Mutation testing caught what review did not**,
+  and the surviving mutant was the one defending the receipt's honesty. Same family as
+  [[feedback_a_zero_valued_write_reads_as_no_write]].
+- **Next step:** ▶ **run the 2.3 live gate** (needs a DEV plugin re-run first), then **2.4
+  `set_clips_content`** — the last of the four layout tools, after which the owner's standing
+  call is to re-pin and re-run all four stale gates ONCE.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·

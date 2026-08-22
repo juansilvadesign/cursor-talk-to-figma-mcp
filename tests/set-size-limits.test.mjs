@@ -38,14 +38,25 @@ import { loadPluginHarness } from "./helpers/plugin-harness.mjs";
  * from it.
  */
 
-// Page Two. ⭐ The types are load-bearing: the harness models Figma's documented carrier
-// set, so a RECTANGLE and a GROUP reach the "no surface" refusal honestly rather than by
-// `delete`ing a property inside a test — the fiction 2.1 shipped and 2.2 paid off.
-const FRAME = "30:1"; // Static Card — FRAME 400×300, layoutMode NONE. Carrier.
-const TEXT = "30:3"; // Caption — TEXT 120×20. Carrier.
-const RECT = "30:2"; // Pinned Badge — RECTANGLE 80×40. NOT a carrier.
-const GROUP = "40:1"; // Loose Group — GROUP. NOT a carrier.
-const AL_FRAME = "20:1"; // Horizontal Stack — FRAME 400×100, layoutMode HORIZONTAL.
+// Page Two. ⛔ The CONTEXT is load-bearing here, and the node types deliberately are NOT.
+// The live gate's §6 matrix measured Figma's real rule — min/max are writable on auto-layout
+// nodes and their children, and on nothing else, REGARDLESS of type. This file's first
+// draft modelled a type rule instead and every one of its eligibility tests was green
+// against a fiction: a RECTANGLE in an auto-layout frame was refused offline and accepted
+// live, a TEXT in a plain frame the other way round.
+//
+// ⚠️ `50:*` was added for this item precisely because every pre-existing frame on the page
+// is the case Figma REFUSES.
+const FRAME = "50:2"; // Sizing Card — FRAME 400×300, child of the auto-layout 50:1.
+const TEXT = "50:3"; // Sizing Caption — TEXT, child of the auto-layout 50:1.
+const RECT_IN_AL = "50:4"; // Sizing Badge — RECTANGLE, child of the auto-layout 50:1.
+const AL_FRAME = "50:1"; // Sizing Stack — FRAME 400×300, layoutMode VERTICAL.
+// ⛔ The ineligible side, all four of them refused for the SAME reason — no auto-layout in
+// sight — and not one of them for being the wrong type.
+const PLAIN_FRAME = "30:1"; // Static Card — FRAME, layoutMode NONE, child of PAGE.
+const RECT_IN_PLAIN = "30:2"; // Pinned Badge — RECTANGLE inside that plain frame.
+const TEXT_IN_PLAIN = "30:3"; // Caption — TEXT inside that plain frame.
+const GROUP = "40:1"; // Loose Group — GROUP on the page.
 const PAGE = "1:1";
 
 const FIELDS = ["minWidth", "maxWidth", "minHeight", "maxHeight"];
@@ -126,8 +137,9 @@ test("writes what it says it writes, and reports all four fields", async () => {
   assert.deepEqual(result.preservedFields, []);
   assert.deepEqual(result.changedFields, FIELDS);
   assert.equal(result.unchanged, false);
-  assert.equal(result.parentId, "2:1");
-  assert.equal(result.parentType, "PAGE");
+  assert.equal(result.parentId, AL_FRAME);
+  assert.equal(result.parentType, "FRAME");
+  assert.equal(result.parentLayoutMode, "VERTICAL");
 
   // ⛔ Read the NODE, not the reply. A reply is what the tool chose to say.
   assert.deepEqual(limitsOf(harness, FRAME), SEED);
@@ -201,7 +213,7 @@ test("rewriting the same values reports unchanged instead of claiming a change",
   assert.deepEqual(result.appliedFields, FIELDS);
 });
 
-test("a TEXT node carries size limits too — this is not a frame-only tool", async () => {
+test("a TEXT node in an auto-layout frame takes limits — type is not the rule", async () => {
   const harness = await loadPluginHarness();
   const result = await harness.command("set_size_limits", {
     nodeId: TEXT,
@@ -212,17 +224,29 @@ test("a TEXT node carries size limits too — this is not a frame-only tool", as
   assert.equal(harness.getNode(TEXT).maxWidth, 300);
 });
 
-test("an auto-layout frame takes limits — no context refusal, by decision", async () => {
+test("a RECTANGLE in an auto-layout frame takes limits too", async () => {
   const harness = await loadPluginHarness();
-  // ⚠️ 2.1 refuses a non-auto-layout parent and 2.2 refuses an auto-layout one. This tool
-  // refuses NEITHER, and that is a decision on the record rather than a gap: whether
-  // min/max are inert outside an auto-layout context is unmeasured, and an unverified
-  // refusal is worse than none because it looks authoritative. The live gate measures it.
+  // ⛔ The single case that proves the rule is contextual rather than type-based, and the
+  // one this file's first draft got backwards: it asserted a RECTANGLE was REFUSED for
+  // having no size-limit surface. The live matrix measured Figma accepting exactly this.
+  const result = await harness.command("set_size_limits", {
+    nodeId: RECT_IN_AL,
+    maxWidth: 300,
+  });
+  assert.equal(result.type, "RECTANGLE");
+  assert.equal(result.limits.maxWidth, 300);
+});
+
+test("an auto-layout frame takes limits by being one, not by having an auto-layout parent", async () => {
+  const harness = await loadPluginHarness();
+  // ⭐ Its parent is the PAGE, so this passes only on the FIRST half of the rule. A guard
+  // that checked the parent alone would refuse it — and the live matrix measured Figma
+  // accepting it.
   const result = await harness.command("set_size_limits", {
     nodeId: AL_FRAME,
     minWidth: 200,
   });
-  assert.equal(result.parentLayoutMode, null); // its parent is the PAGE
+  assert.equal(result.parentType, "PAGE");
   assert.equal(result.limits.minWidth, 200);
 });
 
@@ -471,23 +495,54 @@ test("a call naming no limit at all is refused, not answered 'done'", async () =
 // Eligibility
 // ---------------------------------------------------------------------------
 
-test("a node with no size-limit surface is refused, and the reply names its type", async () => {
+test("a node outside any auto-layout is refused BEFORE the platform sees it", async () => {
   const harness = await loadPluginHarness();
-  // ⭐ Reached honestly: the harness models Figma's documented carrier set, so a RECTANGLE
-  // simply has no such property. No `delete` inside the test, which is the surgery item
-  // 2.1's fixture needed and 2.2's live gate flagged as a debt.
+  // ⭐ The rule the live matrix measured, and the reason it has to be enforced here rather
+  // than left to Figma: the four properties are READABLE on this node, so nothing about
+  // reading them distinguishes it from an eligible one. Only the write is gated, and a
+  // write phase that can throw is a partial application waiting for the right ordering.
+  // ⛔ The refusal must be the handler's own, naming the way in — the harness models the
+  // platform's message, so a handler that skipped the check would fail with
+  // "Can only set minWidth on auto layout nodes" instead and this assertion would catch it.
   await refuses(
     harness,
     { minWidth: 100 },
-    /node 30:2 is a RECTANGLE and does not expose minWidth[\s\S]*exposes none of the four size limits/,
-    RECT,
+    /Figma only accepts min\/max sizing on auto-layout nodes and their children[\s\S]*set_layout_mode/,
+    PLAIN_FRAME,
   );
 });
 
-test("a GROUP and a PAGE are refused for the same structural reason", async () => {
+test("type is NOT the rule — the same two types are refused outside auto-layout", async () => {
   const harness = await loadPluginHarness();
-  await refuses(harness, { maxWidth: 100 }, /is a GROUP and does not expose maxWidth/, GROUP);
-  await refuses(harness, { maxWidth: 100 }, /is a PAGE and does not expose maxWidth/, PAGE);
+  // ⛔ The mirror of the two acceptance tests above. A RECTANGLE and a TEXT are accepted
+  // inside an auto-layout frame and refused inside a plain one, so no type-based guard can
+  // produce all four of these readings.
+  await refuses(harness, { maxWidth: 100 }, /auto-layout nodes and their children/, RECT_IN_PLAIN);
+  await refuses(harness, { maxWidth: 100 }, /auto-layout nodes and their children/, TEXT_IN_PLAIN);
+});
+
+test("a GROUP and a PAGE are refused for the same reason as everything else", async () => {
+  const harness = await loadPluginHarness();
+  // ⭐ Subsumed by the context rule rather than needing their own clause: neither has a
+  // layoutMode, and neither sits inside anything that does.
+  await refuses(harness, { maxWidth: 100 }, /auto-layout nodes and their children/, GROUP);
+  await refuses(harness, { maxWidth: 100 }, /auto-layout nodes and their children/, PAGE);
+});
+
+test("the context rule is evaluated at WRITE time, not at creation", async () => {
+  const harness = await loadPluginHarness();
+  // A plain frame is refused; giving it an auto-layout makes the same call succeed. ⛔ A
+  // guard that cached eligibility when the node was built would keep refusing.
+  await assert.rejects(
+    () => harness.command("set_size_limits", { nodeId: PLAIN_FRAME, minWidth: 100 }),
+    /auto-layout nodes and their children/,
+  );
+  await harness.command("set_layout_mode", { nodeId: PLAIN_FRAME, layoutMode: "HORIZONTAL" });
+  const result = await harness.command("set_size_limits", {
+    nodeId: PLAIN_FRAME,
+    minWidth: 100,
+  });
+  assert.equal(result.limits.minWidth, 100);
 });
 
 test("a missing node is refused before any surface probe", async () => {

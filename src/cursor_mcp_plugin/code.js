@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-81dba60db9dd",
+  "buildId": "r2-plugin-1fb9729971a3",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
@@ -7348,6 +7348,51 @@ async function setSizeLimits(params) {
 
   // ---- Validation phase: nothing below this block writes ----
 
+  const parent = node.parent;
+
+  // ⛔ THE ELIGIBILITY RULE, and it is MEASURED rather than documented — `live-size-limits-
+  // gate.mjs` §6 put an eight-cell matrix against real Figma. Two things came back, and the
+  // first draft of this handler had both of them wrong:
+  //
+  //   ① The rule is CONTEXTUAL, not type-based. A RECTANGLE inside an auto-layout frame is
+  //      accepted; a TEXT inside a plain frame is refused. Node type is irrelevant, exactly
+  //      as the platform's own message says: "can only set maxWidth on auto layout nodes
+  //      and their children".
+  //   ② The four properties are READABLE on every node, returning null. Only the WRITE is
+  //      gated. So the obvious probe — read the property and see if it is there — cannot
+  //      distinguish eligible from ineligible, and the first draft's did not: all four
+  //      ineligible cases in the matrix were refused by FIGMA during the write phase, never
+  //      by this handler.
+  //
+  // ⭐ That second point is why this rule has to live here rather than being left to the
+  // platform. This tool writes up to four independent fields, and a write phase that can
+  // throw is a partial application waiting for the right ordering. The gate measured that
+  // Figma happens to refuse the FIRST field, so nothing lands today — but that is the
+  // platform's ordering, not this tool's guarantee, and "validate-all-then-write" has to
+  // mean the validation actually happened.
+  //
+  // ⚠️ Decision ③ originally ALLOWED this case rather than refusing it, on the house rule
+  // that an unverified refusal is worse than none. That was right at the time and is
+  // superseded by the measurement, not overturned by an opinion.
+  const isAutoLayout = (candidate) =>
+    Boolean(candidate) &&
+    candidate.layoutMode !== undefined &&
+    candidate.layoutMode !== "NONE";
+
+  if (!isAutoLayout(node) && !isAutoLayout(parent)) {
+    throw new Error(
+      `set_size_limits wrote nothing: node ${nodeId} is a ${node.type} with layoutMode ${
+        node.layoutMode === undefined ? "unset" : node.layoutMode
+      }, and its parent ${
+        parent
+          ? `"${parent.name}" (${parent.type}) has layoutMode ${
+              parent.layoutMode === undefined ? "unset" : parent.layoutMode
+            }`
+          : "does not exist"
+      }. Figma only accepts min/max sizing on auto-layout nodes and their children — the write would be refused by the platform, not stored and ignored. Give the node or its parent an auto-layout with set_layout_mode first.`
+    );
+  }
+
   const previous = {};
   const surface = [];
   for (const field of SIZE_LIMIT_FIELDS) {
@@ -7357,18 +7402,19 @@ async function setSizeLimits(params) {
     previous[field] = value;
   }
 
-  // ⭐ Per-FIELD, not "does this node carry all four". A type that exposed only some of
-  // them would be over-refused by an all-or-nothing test, and which types carry which is
-  // precisely what is not measured yet.
+  // ⚠️ A residual guard, NOT the eligibility test — the matrix showed these properties are
+  // readable everywhere, so in practice this is unreachable on a node that passed the
+  // context rule above. It stays because the pair merge below indexes `previous`, and a
+  // field that silently read back `undefined` would turn the merge into a comparison
+  // against nothing. ⛔ Per-FIELD, so a future node type that exposed only some of them
+  // would not be refused wholesale.
   const missing = requestedFields.filter((field) => !surface.includes(field));
   if (missing.length > 0) {
     throw new Error(
       `set_size_limits wrote nothing: node ${nodeId} is a ${
         node.type
-      } and does not expose ${missing.join(", ")}. ${
-        surface.length > 0
-          ? `It does expose ${surface.join(", ")}.`
-          : "It exposes none of the four size limits — min/max sizing is carried by frame-like nodes and text, not by a PAGE, a GROUP or a SECTION."
+      } and does not expose ${missing.join(", ")}${
+        surface.length > 0 ? `. It does expose ${surface.join(", ")}` : ""
       }`
     );
   }
@@ -7482,7 +7528,6 @@ async function setSizeLimits(params) {
     (field) => applied[field] !== previous[field]
   );
 
-  const parent = node.parent;
   return {
     id: node.id,
     name: node.name,

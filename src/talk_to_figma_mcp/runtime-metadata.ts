@@ -2,8 +2,8 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-de9d03651f55",
-  "pluginBuildId": "r2-plugin-81dba60db9dd",
+  "serverBuildId": "r2-server-a9e8d5b3bf78",
+  "pluginBuildId": "r2-plugin-1fb9729971a3",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",

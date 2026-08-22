@@ -107,10 +107,15 @@ if (!options.channel) {
   process.exit(2);
 }
 
-// ⛔ PINNED to R2.6 item 2.3. Which halves moved: both build IDs moved, the fingerprint
-// moved and the tool count moved 58 → 59, but the schema HELD at 1.8.0 — a new tool is
-// additive, so item 2.0's bump still covers this tree. That is the SAME shape as 2.1 and
-// 2.2, and a DIFFERENT shape from 2.0, which moved the schema too.
+// ⛔ PINNED to R2.6 item 2.3, AFTER the context-rule fix this gate's own first run forced.
+//
+// 🔴 A FOURTH PIN SHAPE, and the most dangerous one yet: **only the build IDs moved.** The
+// fingerprint HELD at `sha256:89be6e6c…`, the schema held at 1.8.0, and the tool count held
+// at 59 — while a real behaviour change shipped underneath (a new refusal, and a rewritten
+// published description). The fingerprint hashes the capability SURFACE, so adding a rule
+// inside an existing tool is invisible to it. ⛔ A green fingerprint is evidence about what
+// it hashes and never about freshness; the build IDs are the only halves that moved here,
+// and they are the reason the DEV plugin still has to be re-run.
 //
 // ⭐ Read that as an operator instruction: the DEV plugin **must** be re-run before this
 // gate, because `code.js` changed. The gate spawns its own server from `dist/server.js`,
@@ -119,8 +124,8 @@ if (!options.channel) {
 // ⚠️ Eight releases running, this answer has changed shape almost every time. ⛔ Do not
 // carry it forward — re-derive which halves moved from `runtime-metadata.ts` every time.
 const expectedRuntime = {
-  serverBuildId: "r2-server-de9d03651f55",
-  pluginBuildId: "r2-plugin-81dba60db9dd",
+  serverBuildId: "r2-server-a9e8d5b3bf78",
+  pluginBuildId: "r2-plugin-1fb9729971a3",
   schemaVersion: "1.8.0",
   fingerprint:
     "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
@@ -334,6 +339,8 @@ try {
     describesTheClear: /null/i.test(description),
     describesThePairRule: /pair/i.test(description),
     describesTheResize: /resiz/i.test(description),
+    describesTheAutoLayoutRule: /auto-layout/i.test(description),
+    namesTheWayIn: /set_layout_mode/i.test(description),
   };
   for (const field of FIELDS) {
     // ⭐ `["null","number"]` and not `"number"`. The nullable half IS the clear verb, and a
@@ -356,6 +363,17 @@ try {
   assert.ok(
     record.checks.publishedSchema.describesThePairRule,
     "the published description must state that an axis is validated as a pair",
+  );
+  // ⛔ A refusal the caller cannot see coming is a refusal they will hit. 2.2's gate makes
+  // the same demand of `set_constraints`, and for the same reason: naming the way in is
+  // what separates a rule from an obstacle.
+  assert.ok(
+    record.checks.publishedSchema.describesTheAutoLayoutRule,
+    "the published description must state the auto-layout requirement — it is the tool's largest refusal",
+  );
+  assert.ok(
+    record.checks.publishedSchema.namesTheWayIn,
+    "the published description must name set_layout_mode as the way in, not just the refusal",
   );
 
   await joinWithRetry();
@@ -595,12 +613,18 @@ try {
     "The premise UNDER the write ordering — that Figma rejects a transient min > max — is UNMEASURABLE through this surface. set_size_limits is the fork's only writer for these four properties and it refuses every path that would produce the transient, so a run in which the ordering was unnecessary reads exactly like one in which it was load-bearing. The ordering is adopted as the SAFE direction (it costs nothing if unnecessary, and prevents a partial application if not), not as a measured fact. ⛔ Do not record this gate as having confirmed it.",
   );
 
-  // ── 6. 🔴 The open question: does a limit resolve OUTSIDE auto-layout? ───────────
+  // ── 6. 🔴 The open question decision ③ deferred — MEASURED, and the answer is a
+  //        THIRD outcome neither the decision nor this gate's first draft anticipated ──
   //
-  // Decision ③ allowed this case rather than refusing it on the documented claim. §3 is the
-  // instrument: it already proved a limit resolves INSIDE an auto-layout frame on this
-  // build, so a null reading here is about the context and not about the tool.
-  // ⛔ THREE outcomes, and the third is not a pass.
+  // Decision ③ allowed a non-auto-layout context rather than refusing it on the documented
+  // claim, and named two possible answers: the limit RESOLVES (allow was right) or it is
+  // INERT (a silent discard, so refuse). Figma does neither — it THROWS
+  // `Can only set maxWidth on auto layout nodes and their children`.
+  //
+  // ⭐ So this section is a MEASUREMENT, not a check. It probes a matrix of contexts and
+  // records which the platform accepts, because the exact eligibility rule is what any
+  // handler-side refusal would have to encode — and encoding a guess is what decision ③
+  // was avoiding in the first place. Nothing here asserts a specific answer.
   const plainFrameId = await callNodeId("create_frame", {
     x: 0,
     y: 700,
@@ -617,105 +641,189 @@ try {
     name: "gate-outside-child",
     parentId: plainFrameId,
   });
-  const outsideControlId = await callNodeId("create_frame", {
+  const alTextId = await callNodeId("create_text", {
+    x: 0,
+    y: 0,
+    text: "gate-al-text",
+    name: "gate-al-text",
+    parentId: alFrameId,
+  });
+  const plainTextId = await callNodeId("create_text", {
     x: 20,
-    y: 120,
-    width: 300,
-    height: 60,
-    name: "gate-outside-control",
+    y: 200,
+    text: "gate-plain-text",
+    name: "gate-plain-text",
+    parentId: plainFrameId,
+  });
+  const alRectId = await callNodeId("create_rectangle", {
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    name: "gate-al-rect",
+    parentId: alFrameId,
+  });
+  const plainRectId = await callNodeId("create_rectangle", {
+    x: 20,
+    y: 240,
+    width: 100,
+    height: 100,
+    name: "gate-plain-rect",
     parentId: plainFrameId,
   });
 
-  const outsideBefore = await boxOf(outsideId);
-  const outsideControlBefore = await boxOf(outsideControlId);
-  const outsideReceipt = (
-    await callJson("set_size_limits", { nodeId: outsideId, maxWidth: 150 })
-  ).value;
-  const outsideAfter = await boxOf(outsideId);
-  const outsideControlAfter = await boxOf(outsideControlId);
+  // ⛔ A generous maximum, deliberately above every probe node's width, so acceptance does
+  // not resize anything. This section asks WHETHER the platform accepts, not what the
+  // limit does — §3 already answered that.
+  const contexts = [
+    { name: "FRAME, child of an auto-layout FRAME", nodeId: controlId },
+    { name: "the auto-layout FRAME itself (child of PAGE)", nodeId: alFrameId },
+    { name: "FRAME, child of a plain FRAME", nodeId: outsideId },
+    { name: "plain FRAME, child of PAGE", nodeId: plainFrameId },
+    { name: "TEXT, child of an auto-layout FRAME", nodeId: alTextId },
+    { name: "TEXT, child of a plain FRAME", nodeId: plainTextId },
+    { name: "RECTANGLE, child of an auto-layout FRAME", nodeId: alRectId },
+    { name: "RECTANGLE, child of a plain FRAME", nodeId: plainRectId },
+  ];
 
-  const instrumentWorked = record.checks.limitsClamp.separated;
-  const outsideMoved = outsideAfter.width !== outsideBefore.width;
-  const controlHeld = outsideControlAfter.width === outsideControlBefore.width;
-
-  record.checks.resolvesOutsideAutoLayout = {
-    tested: { before: outsideBefore.width, after: outsideAfter.width, limit: 150 },
-    control: {
-      before: outsideControlBefore.width,
-      after: outsideControlAfter.width,
-    },
-    receiptResized: outsideReceipt.resized,
-    parentLayoutMode: outsideReceipt.parentLayoutMode,
-    // ⭐ The control must NOT have moved, or the two children are not separated and any
-    // reading of the tested one is confounded — 2.2 §6's repair, applied at design time.
-    separated: outsideMoved && controlHeld,
-    verdict: !instrumentWorked
-      ? "unmeasured"
-      : !controlHeld
-        ? "unmeasured"
-        : outsideMoved
-          ? "resolves"
-          : "inert",
-  };
-
-  const outsideVerdict = record.checks.resolvesOutsideAutoLayout.verdict;
-  if (outsideVerdict === "resolves") {
-    record.findings.push(
-      `MEASURED, not assumed: a size limit RESOLVES outside any auto-layout context — a child of a plain FRAME went ${outsideBefore.width} → ${outsideAfter.width} under maxWidth 150 while its untouched sibling held at ${outsideControlAfter.width}. Decision ③ was right to allow the case rather than refuse it on the documented auto-layout claim.`,
-    );
-  } else if (outsideVerdict === "inert") {
-    record.findings.push(
-      `🔴 A size limit is INERT outside auto-layout: the child held at ${outsideAfter.width} under maxWidth 150 while §3 proved the same write resolves inside an auto-layout frame. set_size_limits is storing a value Figma discards here, which is the silent discard 2.1 and 2.2 both refuse. Revisit decision ③ before 2.4 lands — the refusal now has the measurement it was waiting for.`,
-    );
-  } else {
-    record.stillOwed.push(
-      `The outside-auto-layout question is UNMEASURED, not answered: instrument=${instrumentWorked}, controlHeld=${controlHeld}. ⛔ Do not read this run as support for either decision.`,
-    );
+  const eligibility = [];
+  for (const context of contexts) {
+    try {
+      const receipt = (
+        await callJson("set_size_limits", { nodeId: context.nodeId, maxWidth: 2000 })
+      ).value;
+      eligibility.push({
+        context: context.name,
+        accepted: true,
+        nodeType: receipt.type,
+        parentType: receipt.parentType,
+        parentLayoutMode: receipt.parentLayoutMode,
+      });
+    } catch (probeError) {
+      const message = String(probeError.message ?? probeError);
+      eligibility.push({
+        context: context.name,
+        accepted: false,
+        // ⭐ WHICH LAYER refused, and after the first run this is the load-bearing column.
+        // The first run measured all four refusals coming from FIGMA, during the write
+        // phase — the handler's read-based probe could not see the difference, because
+        // these properties are readable on every node and only the WRITE is gated. The
+        // handler now owns the rule, so a platform refusal here means it has been lost.
+        platformRefusal: /Can only set/.test(message),
+        handlerRefusal: /auto-layout nodes and their children/.test(message),
+        message: message.slice(0, 220),
+      });
+    }
   }
+  record.checks.eligibilityMatrix = eligibility;
+  record.findings.push(
+    `MEASURED — the eligibility rule for min/max, and it is CONTEXTUAL rather than type-based: ${eligibility
+      .map((row) => `${row.context} → ${row.accepted ? "ACCEPTED" : "REFUSED"}`)
+      .join("; ")}.`,
+  );
+
+  // ⛔ The fix's own acceptance test. Every ineligible context must be refused by THIS
+  // TOOL, before the write phase, with a message naming the way in — not by Figma throwing
+  // mid-write. A run where these come back as platform refusals is a run where
+  // "validate-all-then-write" is a claim the tool cannot back.
+  const refusedByPlatform = eligibility.filter(
+    (row) => !row.accepted && row.platformRefusal,
+  );
+  assert.deepEqual(
+    refusedByPlatform.map((row) => row.context),
+    [],
+    "these contexts reached Figma and were refused there, so the handler's context rule did not fire — the write phase can still throw",
+  );
+  assert.ok(
+    eligibility.some((row) => !row.accepted && row.handlerRefusal),
+    "no context was refused by the handler's own rule — the matrix proves nothing about who owns it",
+  );
+  assert.ok(
+    eligibility.some((row) => row.accepted),
+    "no context was accepted — a rule that refuses everything would pass the checks above",
+  );
+
+  // ── 6b. ⛔ THE ONE THAT MATTERS: does the platform's throw leave a PARTIAL write? ──
+  //
+  // This item exists because it is the first layout tool where partial application is
+  // genuinely possible, and the handler's write phase is commented "this block cannot
+  // reject". Against real Figma that comment is FALSE — the platform rejects during the
+  // write phase on an ineligible node. So the question is no longer theoretical: with two
+  // fields requested and the write phase throwing, does the FIRST field land?
+  //
+  // ⭐ Measured in GEOMETRY, because a node that refuses the write also refuses to be read
+  // through this tool. minWidth 400 on a 300-wide node would grow it; if the width moved,
+  // the first write landed and the throw left the document changed.
+  const partialProbeId = await callNodeId("create_frame", {
+    x: 20,
+    y: 400,
+    width: 300,
+    height: 60,
+    name: "gate-partial-probe",
+    parentId: plainFrameId,
+  });
+  const partialBefore = await boxOf(partialProbeId);
+  assertSizeChannelWorks(partialBefore, "before the partial-application probe");
+  const partialRefusal = await callExpectingRefusal("set_size_limits", {
+    nodeId: partialProbeId,
+    minWidth: 400,
+    maxWidth: 500,
+  });
+  const partialAfter = await boxOf(partialProbeId);
+
+  const ineligibleRefused = eligibility.some(
+    (row) => !row.accepted && row.platformRefusal,
+  );
+  record.checks.platformThrowIsAtomic = {
+    refusalMessage: partialRefusal.message.slice(0, 250),
+    layer: partialRefusal.layer,
+    width: { before: partialBefore.width, after: partialAfter.width },
+    // The instrument: if no context refused at all, this probe measured nothing.
+    instrumentWorked: ineligibleRefused,
+    held: partialBefore.width === partialAfter.width,
+  };
+  assert.ok(
+    ineligibleRefused,
+    "no context was refused by the platform, so the partial-application probe proves nothing",
+  );
+  assert.equal(
+    partialAfter.width,
+    partialBefore.width,
+    "🔴 A TWO-FIELD CALL ON AN INELIGIBLE NODE LEFT A PARTIAL WRITE: the first field landed before the second was rejected, and the node changed size on a call that reported failure. This is exactly the partial application item 2.3 was built to prevent.",
+  );
+  record.checks.platformThrowIsAtomic.refusedBeforeTheWritePhase = /auto-layout nodes and their children/.test(
+    partialRefusal.message,
+  );
+  assert.ok(
+    record.checks.platformThrowIsAtomic.refusedBeforeTheWritePhase,
+    "the two-field ineligible call must be refused by the handler's context rule, not by Figma during the write phase",
+  );
+  record.findings.push(
+    `The ineligible two-field call is refused BEFORE the write phase and the node held at ${partialAfter.width}. ⛔ Worth recording why this check exists: on the FIRST run the handler had no context rule, Figma threw during the write phase instead, and the call happened to stay atomic only because the platform rejected the FIRST field. That was the platform's ordering, not this tool's guarantee.`,
+  );
 
   // ── 7. 🔴 The harness's carrier model, against Figma ─────────────────────────────
   //
-  // The offline fixture models these four properties as absent on a RECTANGLE. That is a
-  // model of Figma's documentation, and this is the first thing to put it against Figma.
-  const rectId = await callNodeId("create_rectangle", {
-    x: 0,
-    y: 400,
-    width: 100,
-    height: 100,
-    name: "gate-carrier-probe",
-    parentId: scratchPageId,
-  });
-  let rectRefusal = null;
-  let rectAccepted = null;
-  try {
-    rectAccepted = (
-      await callJson("set_size_limits", { nodeId: rectId, maxWidth: 50 })
-    ).value;
-  } catch {
-    rectAccepted = null;
-  }
-  if (!rectAccepted) {
-    rectRefusal = await callExpectingRefusal("set_size_limits", {
-      nodeId: rectId,
-      maxWidth: 50,
-    });
-  }
+  // The offline fixture models these four properties as absent on a RECTANGLE, which is
+  // what makes the "no surface" refusal reachable offline without surgery. §6's matrix
+  // already probed a RECTANGLE in both contexts; this reads the verdict out of it.
+  const rectInAutoLayout = eligibility.find((row) =>
+    row.context.startsWith("RECTANGLE, child of an auto-layout"),
+  );
   record.checks.carrierModel = {
-    rectangleRefused: Boolean(rectRefusal),
-    layer: rectRefusal?.layer ?? null,
-    message: rectRefusal?.message?.slice(0, 300) ?? null,
+    rectangleInAutoLayoutAccepted: rectInAutoLayout?.accepted ?? null,
     // ⭐ Recorded either way. A RECTANGLE that ACCEPTS the write means the harness is
     // over-refusing offline and the carrier Set is what changes — never the handler, which
     // asks the node.
-    modelAgreesWithFigma: Boolean(rectRefusal),
+    harnessModelsItAsAbsent: true,
   };
-  if (rectRefusal) {
+  if (rectInAutoLayout?.accepted) {
     record.findings.push(
-      "The offline harness's carrier model matches Figma on the case it was built to reach: a RECTANGLE exposes no size limits and is refused for having no surface, not by a type allowlist.",
+      "🔴 A RECTANGLE inside an auto-layout frame ACCEPTED a size limit. The offline harness models these four properties as ABSENT on a RECTANGLE, so the fixture is stricter than Figma and the \"no surface\" refusal is reached offline for a case that does not exist. ⛔ Fix the harness's SIZE_LIMIT_CARRIERS, not the handler — the handler reads the node and was right.",
     );
   } else {
     record.findings.push(
-      `🔴 A RECTANGLE ACCEPTED a size limit (resized=${rectAccepted?.resized}). The offline harness models these four properties as absent on a RECTANGLE, so the fixture is stricter than Figma and the "no surface" refusal is being reached offline for a case that does not exist. ⛔ Fix the harness's SIZE_LIMIT_CARRIERS, not the handler — the handler reads the node and was right.`,
+      "The offline harness's carrier model matches Figma on the case it was built to reach: a RECTANGLE does not take a size limit.",
     );
   }
 
@@ -725,13 +833,15 @@ try {
   // back. Leg two is the question: after the clear, the same resize must be allowed
   // through. Two different numbers. ⛔ Reading `maxWidth` back as null would have passed
   // against a node that never had one.
+  // ⛔ Parented into the AUTO-LAYOUT frame, not the page — §6 measured that a page child
+  // cannot take a limit at all, so the first draft's node would have thrown here.
   const clearNodeId = await callNodeId("create_frame", {
     x: 0,
-    y: 1100,
+    y: 0,
     width: 300,
     height: 60,
     name: "gate-clear-child",
-    parentId: scratchPageId,
+    parentId: alFrameId,
   });
   await call("set_size_limits", { nodeId: clearNodeId, maxWidth: 200 });
   await call("resize_node", { nodeId: clearNodeId, width: 400, height: 60 });

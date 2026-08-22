@@ -50,7 +50,10 @@ test("page, style, variable, component, and binding fixtures retain honest cover
   // 2 → 4 on Page Two at R2.6 item 2.2: a PLAIN (non-auto-layout) frame with children and
   // a GROUP with one. Every frame in the fixture was auto-layout before, which is the case
   // `set_constraints` refuses, so its primary happy path had nowhere to live.
-  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 4]);
+  // 4 → 5 at item 2.3, and for the mirror-image reason: `set_size_limits` is writable ONLY
+  // on auto-layout nodes and their children — measured, not documented — so it needed an
+  // auto-layout branch (`50:1`) holding one node of each type its live matrix probed.
+  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 5]);
 
   const styles = await harness.command("get_styles");
   assert.deepEqual(styles.counts, { colors: 1, texts: 1, effects: 1, grids: 1 });

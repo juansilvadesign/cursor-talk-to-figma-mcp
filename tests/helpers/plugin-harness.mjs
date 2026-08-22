@@ -76,21 +76,25 @@ function createFixtureRuntime(fixture, options) {
     "INSTANCE",
   ]);
 
-  // ⛔ Item 2.3's carrier set, and it is a MODEL of a platform claim rather than a fact
-  // this project has measured. Figma documents `minWidth`/`maxWidth`/`minHeight`/
-  // `maxHeight` on frame-likes and on text, and NOT on a RECTANGLE, a GROUP, a SECTION or
-  // a PAGE — so `set_size_limits`'s "this node has no size limits" refusal is reachable
-  // offline without deleting a property inside a test, which is the fiction 2.1 shipped
-  // and 2.2 paid off. ⚠️ `live-size-limits-gate.mjs` measures the real set and is the
-  // authority; if Figma disagrees, this Set is what changes, not the handler, because the
-  // handler asks the NODE rather than consulting a list.
-  const SIZE_LIMIT_CARRIERS = new Set([
-    "FRAME",
-    "COMPONENT",
-    "COMPONENT_SET",
-    "INSTANCE",
-    "TEXT",
-  ]);
+  // ⛔ Item 2.3's size-limit model, and it was WRONG on its first draft — corrected here
+  // from a live measurement rather than from documentation.
+  //
+  // The first version gated these four properties by node TYPE, on the documented claim
+  // that min/max belong to frame-likes and text. `live-size-limits-gate.mjs` §6 measured an
+  // eight-cell matrix against real Figma and the answer is that TYPE IS IRRELEVANT: the
+  // rule is purely CONTEXTUAL, exactly as the platform's own error says — "can only set
+  // maxWidth on auto layout nodes and their children". A RECTANGLE inside an auto-layout
+  // frame is accepted; a TEXT inside a plain frame is refused.
+  //
+  // ⭐ And the second half of the correction matters as much as the first: the properties
+  // are READABLE on every node, returning null. Only the WRITE is gated. So a model that
+  // deleted the properties from ineligible nodes would still be wrong — it would let a
+  // handler distinguish eligible from ineligible by reading, which against Figma it cannot.
+  // Every node therefore carries all four, and the SETTER is what refuses.
+  const nodeIsAutoLayout = (node) =>
+    Boolean(node) && node.layoutMode !== undefined && node.layoutMode !== "NONE";
+  const takesSizeLimits = (node) =>
+    nodeIsAutoLayout(node) || nodeIsAutoLayout(node && node.parent);
 
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
@@ -191,11 +195,9 @@ function createFixtureRuntime(fixture, options) {
       delete node.constraints;
     }
 
-    // Item 2.3's size limits. `null` on a carrier means "no limit set" and is a legal
-    // stored value; ABSENT means the node has no such surface. Those are two different
-    // facts and the handler's eligibility probe turns on exactly that difference, so the
-    // harness has to be able to represent both.
-    if (SIZE_LIMIT_CARRIERS.has(node.type)) {
+    // Item 2.3's size limits, modelled on the live measurement: READABLE on every node,
+    // WRITABLE only in an auto-layout context.
+    {
       const limits = {
         minWidth: null,
         maxWidth: null,
@@ -241,6 +243,16 @@ function createFixtureRuntime(fixture, options) {
           configurable: true,
           get: () => limits[field],
           set: (value) => {
+            // ⛔ The platform's own gate, quoted from the live measurement. This is what
+            // makes `set_size_limits`'s context refusal reachable offline — and, more
+            // importantly, what makes a handler that FORGOT the rule fail offline instead
+            // of only in Figma. Evaluated at write time, not construction time, because
+            // `set_layout_mode` can make a node eligible after it was created.
+            if (!takesSizeLimits(node)) {
+              throw new Error(
+                `in set_${field}: Can only set ${field} on auto layout nodes and their children`
+              );
+            }
             const stored =
               rounds && typeof value === "number" ? Math.round(value) : value;
             const next = { ...limits, [field]: stored };
@@ -261,10 +273,6 @@ function createFixtureRuntime(fixture, options) {
         });
       }
       applyLimits();
-    } else {
-      for (const field of ["minWidth", "maxWidth", "minHeight", "maxHeight"]) {
-        delete node[field];
-      }
     }
 
     // ⚠️ A fixture that DECLARES layoutMode on a non-carrier keeps it, so this cannot

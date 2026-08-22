@@ -13,8 +13,8 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-de9d03651f55",
-  "pluginBuildId": "r2-plugin-81dba60db9dd",
+  "serverBuildId": "r2-server-a9e8d5b3bf78",
+  "pluginBuildId": "r2-plugin-1fb9729971a3",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
@@ -3073,7 +3073,7 @@ server.tool(
 );
 server.tool(
   "set_size_limits",
-  "Set a node's minimum and maximum width and height. Each of the four limits is independent: omit one to leave it as it is, pass a positive number to set it, or pass null to remove it. Figma rejects a minimum above a maximum, so the two fields of an axis are validated as a PAIR against the values the node already holds \u2014 a call naming only minWidth is still checked against the stored maxWidth, and refused before anything is written. Setting a limit that conflicts with the node's current size makes Figma resize the node to fit; the reply reports the size before and after and a `resized` flag. Validate-all-then-write: a rejected parameter leaves all four fields untouched.",
+  "Set a node's minimum and maximum width and height. Each of the four limits is independent: omit one to leave it as it is, pass a positive number to set it, or pass null to remove it. Requires an auto-layout context: Figma accepts min/max sizing only on auto-layout nodes and their children, so a node whose own layoutMode is unset and whose parent is not an auto-layout frame is refused \u2014 give either one an auto-layout with set_layout_mode first. Node type is not the rule; a rectangle inside an auto-layout frame is accepted and a text node outside one is not. Figma rejects a minimum above a maximum, so the two fields of an axis are validated as a PAIR against the values the node already holds \u2014 a call naming only minWidth is still checked against the stored maxWidth, and refused before anything is written. Setting a limit that conflicts with the node's current size makes Figma resize the node to fit; the reply reports the size before and after and a `resized` flag. Validate-all-then-write: a rejected parameter leaves all four fields untouched.",
   {
     nodeId: z.string().describe("The ID of the node to limit"),
     minWidth: z.number().nullable().optional().describe(

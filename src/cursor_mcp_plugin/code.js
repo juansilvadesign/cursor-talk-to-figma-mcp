@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-1fb9729971a3",
+  "buildId": "r2-plugin-1eee5a6f3bd9",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
+  "capabilityFingerprint": "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -60,6 +60,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_layout_child",
     "set_constraints",
     "set_size_limits",
+    "set_clips_content",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -107,6 +108,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
@@ -411,6 +413,8 @@ async function handleCommand(command, params) {
       return await setConstraints(params);
     case "set_size_limits":
       return await setSizeLimits(params);
+    case "set_clips_content":
+      return await setClipsContent(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -7558,6 +7562,199 @@ async function setSizeLimits(params) {
   };
 }
 
+// R2.6 item 2.4 — `set_clips_content(nodeId, clipsContent)`
+//
+// The LAST of the four layout tools, and the smallest surface any of them has: one
+// boolean. That is also the whole design problem.
+//
+// ⛔ A ONE-BOOLEAN RECEIPT CANNOT TELL AN ECHO FROM A READ-BACK. While the platform stores
+// exactly what it is handed, `applied = source.clipsContent` and `applied = node.clipsContent`
+// produce identical output on every input, so no assertion over the reported value can
+// separate an honest receipt from a decorative one. Item 2.3 met this and closed it with an
+// opt-in harness coercion (`roundSizeLimits`); item 2.1 met the same family from the other
+// side and shipped a check that could not fail in either direction. See
+// [[feedback_a_zero_valued_write_reads_as_no_write]] — the fix is to measure in a DIFFERENT
+// CURRENCY, and this tool has a real one rather than a modelled one.
+//
+// ⭐ The currency is `absoluteRenderBounds`. Unlike 2.3's clamp, a boolean write has no
+// effect the STORED value can report — but clipping is precisely a statement about what the
+// node paints, and Figma answers that separately from what the node measures:
+// `absoluteRenderBounds` extends past `absoluteBoundingBox` exactly when unclipped content
+// spills out. Reading both, before and after, is a reading an echo cannot fabricate.
+//
+// ⚠️ WHETHER FIGMA RECOMPUTES THAT SYNCHRONOUSLY WITH THE ASSIGNMENT IS NOT CLAIMED HERE.
+// `live-clips-content-gate.mjs` measures it and returns a three-way verdict. Until it does,
+// `renderBoundsChanged` is `null` whenever either reading was unavailable and NEVER `false`
+// — a `false` would read as "nothing happened", which is the one thing an absent measurement
+// must not be allowed to say.
+//
+// ⛔ NO `appliedFields`, and that is the deliberate inverse of 2.3 rather than an omission.
+// There the four fields were independent and each optional, so the list was a real reading
+// that a dropped field would falsify. Here one field is written on every single call, so
+// the list would be the constant ["clipsContent"] and could never fail in either direction
+// — exactly 2.2's reasoning, and exactly the false-green shape 2.1's gate was caught by.
+//
+// ⭐ Partial application is structurally impossible: one assignment, like 2.2's single
+// object write. Validate-all-then-write (plan 2.5) is therefore satisfied by construction
+// here, and the interesting half of the rule is that the ELIGIBILITY refusal happens before
+// the write rather than being left to the platform.
+const CLIPS_CONTENT_TYPES = ["FRAME", "COMPONENT", "COMPONENT_SET", "INSTANCE"];
+
+// ⭐ THE ELIGIBILITY PROBE, and 2.3 is why a presence test needs an argument rather than an
+// apology. There the identical-looking probe was WRONG: min/max are readable on EVERY node,
+// returning null, and only the WRITE is gated — so "can I read it" could not distinguish an
+// eligible node from an ineligible one, and all four refusals came from Figma mid-write.
+// See [[feedback_a_readable_property_is_not_a_writable_one]].
+//
+// The ambiguity that defeated it cannot arise here: `clipsContent` is a boolean with no
+// "unset" value, so a node reading back a boolean carries the surface and one reading
+// `undefined` does not. There is no third state for a null to hide in.
+//
+// ⚠️ What that argument does NOT establish is that everything which READS a boolean will
+// ACCEPT the write — that is 2.3's lesson stated exactly, and it is unmeasured. The live
+// gate puts a matrix against real Figma and reports where readable and writable disagree.
+// If they do, this rule moves, superseded by its own measurement rather than by an opinion.
+function readClipsContent(node) {
+  try {
+    return node.clipsContent;
+  } catch (error) {
+    // A few node proxies throw on an absent property rather than answering `undefined`.
+    // Both mean "no surface", and neither can be mistaken for a stored boolean.
+    return undefined;
+  }
+}
+
+// Kill float noise without hiding sub-pixel spill. Rounding to whole pixels would report a
+// 0.5px stroke overhang as no overhang at all, which is the direction that under-warns.
+function roundOverflow(value) {
+  return Math.round(value * 10000) / 10000;
+}
+
+// ⛔ `null` here means THE PLATFORM DID NOT ANSWER, and it is deliberately not `false`.
+// A node Figma declines to measure must never read as a node with nothing to clip —
+// [[feedback_a_zero_valued_write_reads_as_no_write]] one layer down, where an absence
+// would otherwise be indistinguishable from a real measurement of zero.
+//
+// ⚠️ `absoluteRenderBounds` includes strokes and effects, so a non-zero overflow is not by
+// itself proof of an overflowing CHILD. This reports the reading and derives nothing from
+// it beyond the arithmetic; interpreting it is the gate's job, against a fixture it built.
+function readRenderGeometry(node) {
+  let boundingBox = null;
+  let renderBounds = null;
+  try {
+    boundingBox = node.absoluteBoundingBox || null;
+  } catch (error) {
+    boundingBox = null;
+  }
+  try {
+    renderBounds = node.absoluteRenderBounds || null;
+  } catch (error) {
+    renderBounds = null;
+  }
+  if (!boundingBox || !renderBounds) {
+    return { boundingBox, renderBounds, overflow: null, overflowing: null };
+  }
+  const overflow = {
+    left: roundOverflow(boundingBox.x - renderBounds.x),
+    top: roundOverflow(boundingBox.y - renderBounds.y),
+    right: roundOverflow(
+      renderBounds.x + renderBounds.width - (boundingBox.x + boundingBox.width)
+    ),
+    bottom: roundOverflow(
+      renderBounds.y + renderBounds.height - (boundingBox.y + boundingBox.height)
+    ),
+  };
+  return {
+    boundingBox,
+    renderBounds,
+    overflow,
+    overflowing: Object.keys(overflow).some((edge) => overflow[edge] > 0.01),
+  };
+}
+
+function sameRenderBounds(before, after) {
+  // `null` propagates rather than collapsing to a verdict — see the comment on
+  // `readRenderGeometry`. Two unavailable readings are not two equal readings.
+  if (!before.renderBounds || !after.renderBounds) return null;
+  return (
+    before.renderBounds.x === after.renderBounds.x &&
+    before.renderBounds.y === after.renderBounds.y &&
+    before.renderBounds.width === after.renderBounds.width &&
+    before.renderBounds.height === after.renderBounds.height
+  );
+}
+
+async function setClipsContent(params) {
+  const source = params || {};
+  const { nodeId, clipsContent } = source;
+
+  // ⛔ Zod owns this type at the transport boundary and the gate asserts the refusal
+  // arrives at `layer: "schema"`. It is repeated here because the plugin dispatcher is a
+  // second entry point, and a handler that trusts its caller's schema is a handler that
+  // writes `undefined` into a boolean property the first time anything else calls it.
+  if (typeof clipsContent !== "boolean") {
+    throw new Error(
+      `set_clips_content requires clipsContent to be true or false; received ${JSON.stringify(
+        clipsContent
+      )} and wrote nothing`
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+
+  const previous = readClipsContent(node);
+  if (typeof previous !== "boolean") {
+    throw new Error(
+      `set_clips_content wrote nothing: node ${nodeId} is a ${node.type} and does not carry clipsContent, so there is nothing to clip with. Frame-like nodes have it — ${CLIPS_CONTENT_TYPES.join(
+        ", "
+      )}. A GROUP is sized by its children and cannot clip them; put the content in a frame with create_frame instead.`
+    );
+  }
+
+  const parent = node.parent;
+  const before = readRenderGeometry(node);
+
+  // ---- Write phase: this block cannot reject ----
+  //
+  // ⭐ ONE assignment. There is no ordering, no intermediate state and no field that can
+  // land while another is refused, which is why this tool could never join
+  // NON_ATOMIC_BATCH_OPERATIONS even if 2.6 had let it into the batch allowlist.
+  node.clipsContent = clipsContent;
+
+  // ⛔ Read back through the node's own getter. On a boolean this looks like ceremony and
+  // is the exact opposite: it is the only line that separates this receipt from one that
+  // reports the caller's own argument back to them, and the offline suite mutates it.
+  const applied = readClipsContent(node);
+  const after = readRenderGeometry(node);
+
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    clipsContent: applied,
+    previous,
+    requested: clipsContent,
+    // ⚠️ `changed` describes the STORED boolean and nothing else. A caller writing `true`
+    // over `true` gets `changed: false` and a successful call — a no-op is not an error,
+    // but it must not be reported as a change either.
+    changed: applied !== previous,
+    // ⭐ The second currency. `previous`/`applied` is a coin flip; this is not.
+    render: { before, after },
+    renderBoundsChanged: (() => {
+      const same = sameRenderBounds(before, after);
+      return same === null ? null : !same;
+    })(),
+    childCount: Array.isArray(node.children) ? node.children.length : null,
+    parentId: parent ? parent.id : null,
+    parentType: parent ? parent.type : null,
+  };
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -8112,6 +8309,16 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // as atomic — but that is a property a future edit could quietly lose, and the entry
   // would then be wrong in the direction that under-warns.
   set_size_limits:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ FOURTH AND LAST, which COMPLETES the set 2.6 decided — and the completion is the
+  // point. The decision named four tools before any of them existed; four entries now
+  // carry it. A set that was decided as a whole and lands three-quarters honoured is
+  // indistinguishable from one where somebody forgot the last one.
+  // ⚠️ This is the strongest fit of all four and still excluded: a single boolean
+  // assignment cannot partially apply under any future edit, so unlike `set_size_limits`
+  // its atomicity is structural rather than maintained. Fitting well has never been the
+  // criterion — 2.6 decided the SET, not the members.
+  set_clips_content:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 

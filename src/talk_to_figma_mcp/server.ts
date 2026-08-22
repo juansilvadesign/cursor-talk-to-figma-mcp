@@ -3464,6 +3464,56 @@ server.tool(
   }
 );
 
+// Set Clips Content Tool (R2.6 item 2.4)
+//
+// ⭐ Zod owns the WHOLE parameter here, and unlike 2.1 that is not a close call: a boolean
+// has exactly two values and both are legal, so there is no semantic decision hiding
+// behind a type error the way `layoutAlign: "STRETCH"` hid behind an enum. This follows
+// 2.2's split rather than 2.1's. The one refusal the tool owns — a node that does not
+// carry `clipsContent` at all — is about the NODE, which Zod cannot see, so it lives in
+// the plugin and stays reachable through the transport. The live gate asserts the two
+// arrive at different layers, which is the only place the split is visible.
+//
+// ⚠️ `clipsContent` is REQUIRED, not optional, and it is the only one of the four layout
+// tools with no optional field. There is nothing to merge and no "omit to preserve" case:
+// a call that named no value would be a read, and `get_node_info` is already the read.
+server.tool(
+  "set_clips_content",
+  "Set whether a frame clips content that extends past its bounds. Requires a node that carries clipsContent — a FRAME, COMPONENT, COMPONENT_SET or INSTANCE; a GROUP is sized by its children and cannot clip them, and is refused. Writing the value the node already holds succeeds and reports changed: false. Because a stored boolean cannot show that anything happened, the reply also reports the node's absoluteRenderBounds and absoluteBoundingBox before and after the write, plus the per-edge overflow between them: an unclipped frame renders past its own box exactly when its content spills out, which is the only reading in the reply that a clipped frame and an unclipped one cannot both produce. A null render measurement means the platform did not answer and is never reported as zero overflow.",
+  {
+    nodeId: z
+      .string()
+      .describe("The ID of the frame-like node whose clipping is being set"),
+    clipsContent: z
+      .boolean()
+      .describe(
+        "true to clip content to the node's bounds, false to let it render outside them"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_clips_content", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting clips content: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -3826,6 +3876,7 @@ type FigmaCommand =
   | "set_layout_child"
   | "set_constraints"
   | "set_size_limits"
+  | "set_clips_content"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4113,6 +4164,15 @@ type CommandParams = {
     maxWidth?: number | null;
     minHeight?: number | null;
     maxHeight?: number | null;
+  };
+  // ⛔ REQUIRED, not `clipsContent?`. The other three layout tools all have optional
+  // fields because they merge with what the node holds; this one has nothing to merge,
+  // and an optional boolean would make "no value supplied" indistinguishable from `false`
+  // at the transport boundary — the same absence-reads-as-an-answer trap the receipt's
+  // `renderBoundsChanged: null` exists to avoid one layer down.
+  set_clips_content: {
+    nodeId: string;
+    clipsContent: boolean;
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

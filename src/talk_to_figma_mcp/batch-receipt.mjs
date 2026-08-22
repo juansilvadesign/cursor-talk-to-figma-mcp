@@ -154,6 +154,16 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // would then be wrong in the direction that under-warns.
   set_size_limits:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ FOURTH AND LAST, which COMPLETES the set 2.6 decided — and the completion is the
+  // point. The decision named four tools before any of them existed; four entries now
+  // carry it. A set that was decided as a whole and lands three-quarters honoured is
+  // indistinguishable from one where somebody forgot the last one.
+  // ⚠️ This is the strongest fit of all four and still excluded: a single boolean
+  // assignment cannot partially apply under any future edit, so unlike `set_size_limits`
+  // its atomicity is structural rather than maintained. Fitting well has never been the
+  // criterion — 2.6 decided the SET, not the members.
+  set_clips_content:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 
 /**

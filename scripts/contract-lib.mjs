@@ -92,6 +92,30 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
+  // ⛔ R2.6's FOUR LAYOUT TOOLS, and three of them are a REPAIR rather than a new entry.
+  //
+  // CC1 says every new tool ships `additive-preview` and F6 is why: `getResultStability`
+  // falls through to `stable` for anything unlisted, so an unlisted tool is frozen the
+  // moment it ships — on a reply shape no live gate has judged. R2.5's two tools honoured
+  // it. `set_layout_child` (2.1), `set_constraints` (2.2) and `set_size_limits` (2.3) did
+  // not: all three shipped `stable` from birth. Only 2.2's deviation was ever written down,
+  // and even there it was recorded as owed rather than chosen.
+  //
+  // ⭐ THE REPAIR IS FREE, AND ONLY UNTIL R2.6 IS FROZEN. `compatibilityErrors()` iterates
+  // the BASELINE's tools and compares the ones it finds; a tool absent from every baseline
+  // is never compared, so weakening it produces no error. None of the three appears in any
+  // of the six frozen contracts (R0 / R1 / R2.1 / R2.2 / R2.3 / R2.4) — they were all added
+  // after R2.4 was cut. CC3 freezes R2.6 as the seventh baseline at R2 acceptance, and from
+  // that moment `stable` is permanent and the walk-back is breaking. This is the last
+  // release in which the mistake costs nothing to undo.
+  //
+  // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
+  // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
+  // pins the rule so R2.7's tools cannot repeat it silently.
+  "set_layout_child",
+  "set_constraints",
+  "set_size_limits",
+  "set_clips_content",
 ]);
 
 // ⭐ R2.5's three tools — `get_available_fonts`, `check_fonts` and `set_text_style` —
@@ -210,6 +234,13 @@ const TOOL_SCOPES = {
   // this tool reads the parent's layoutMode and the node's own layoutPositioning purely
   // to decide whether to REFUSE. One node changes.
   set_constraints: "node",
+  // R2.6 2.4. Written out for the same reason as its three neighbours, and here the
+  // fallback would actually have been RIGHT — which is precisely why it is not relied on.
+  // ⭐ Worth stating because the answer is not obvious: clipping changes what the node's
+  // CHILDREN look like, so "node" reads too narrow at a glance. Scope describes what a
+  // call can CHANGE, and no child is touched — the parent stops painting past its own
+  // bounds. The children are read for the receipt's geometry, which is a measurement.
+  set_clips_content: "node",
 };
 
 const SPECIAL_PROGRESS = {

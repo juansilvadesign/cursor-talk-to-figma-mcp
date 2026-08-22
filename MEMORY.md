@@ -13,11 +13,9 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-22)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
-- **▶ START HERE:** 2.0 · 2.1 · 2.2 are GATED. **2.3 `set_size_limits` is BUILT + COMMITTED
-  but NOT GATED** — the gate refused at `join_channel` on a stale DEV plugin and touched
-  nothing. **Re-run the DEV plugin in Figma, then run
-  `scripts/live-size-limits-gate.mjs --channel=<ch> --output-dir=docs/evidence/r2.6-2.3`.**
-  Then 2.4 `set_clips_content`, the last layout tool.
+- **▶ START HERE:** 2.0 · 2.1 · 2.2 · **2.3 all GATED**. Next = **2.4 `set_clips_content`**,
+  the LAST of the four layout tools — after which the owner's standing call comes due:
+  re-pin and re-run all four stale gates ONCE.
 - **Doing:** ✅✅ **R2.6 Phase 2 item 2.0 is BUILT, COMMITTED and GATED.** Built 2026-08-21
   (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`. `create_text` carries the
   twelve `set_text_style` parameters, `setCharacters` is **awaited**, and an unloadable
@@ -93,18 +91,52 @@ type: project
   comment-only control died too, because any `code.js` edit moves the plugin fingerprint and
   `contract.test.mjs` was killing everything regardless of behaviour. Re-run against the
   behavioural files only: **7 killed, control survived**.
-- **Also done 2026-08-22:** ⏳ **item 2.3 `set_size_limits` is BUILT (offline) and
-  COMMITTED — the live gate has NOT run.** A node's min/max width and height. **257 tests**
-  (was 224), **nine** mutations killed + control survived, `dist/` byte-identical ×3,
-  `verify-release` passed. Commits `8c3ab70` · `6a65eb4` · `7d86dd3`, tree clean. ⛔ **No
-  bump** — additive, schema **HELD at `1.8.0`**, zero `compatibilityErrors`. ⚠️ Pin shape
-  **same as 2.1 and 2.2, not 2.0**: both builds moved, fingerprint moved, tools **58 → 59**,
-  schema held. New pair **`r2-server-de9d03651f55` ↔ `r2-plugin-81dba60db9dd`**,
-  **`sha256:89be6e6c…cea87f9d`**.
-  ⛔ **The gate refused at `join_channel`** with the plugin still on
-  `r2-plugin-e82230c1bbb1`; **nothing in the document was touched**. Second time
-  `assertRuntime` has fired for real. ⏳ Owed: re-run the DEV plugin, then
-  `node scripts/live-size-limits-gate.mjs --channel=<ch> --output-dir=docs/evidence/r2.6-2.3`.
+- **Also done 2026-08-22:** ✅✅ **item 2.3 `set_size_limits` is BUILT AND GATED** — a node's
+  min/max width and height. **260 tests** (was 224), **twelve** mutations killed + control
+  survived, `dist/` byte-identical ×3, `verify-release` passed, then
+  `scripts/live-size-limits-gate.mjs` PASSED on channel **`o2vws4ph`**, **run twice**,
+  baseline restored both times. Commits `8c3ab70` · `6a65eb4` · `7d86dd3` · `1c83135` ·
+  `c915688`. ⛔ **No bump** — additive, schema **HELD at `1.8.0`**, zero
+  `compatibilityErrors`.
+  ⚠️🔴 **THE PIN SHAPE CHANGED TWICE INSIDE THIS ONE ITEM, and the second is NEW.** Building
+  it gave 2.1/2.2's shape (both builds + fingerprint + tools 58 → 59 moved, schema held).
+  Then the context-rule fix moved **ONLY THE BUILD IDS** — fingerprint HELD, schema held,
+  tool count held, while a new refusal and a rewritten description shipped underneath. The
+  fingerprint hashes the capability SURFACE, so a rule added *inside* an existing tool is
+  invisible to it; the stale-plugin preflight caught that run on the **build ID alone**.
+  ⛔ A fingerprint check by itself would have waved a stale plugin through. Final pair
+  **`r2-server-a9e8d5b3bf78` ↔ `r2-plugin-1fb9729971a3`**, **`sha256:89be6e6c…cea87f9d`**.
+  See [[feedback_a_fingerprint_only_covers_what_it_hashes]].
+  ⛔ **The gate refused at `join_channel` TWICE**, once per plugin build; **nothing in the
+  document was touched either time**. Second and third times `assertRuntime` has fired.
+- 🔴 **THE GATE FOUND TWO REAL DEFECTS ON ITS FIRST RUN, BOTH IN THE TOOL.** Decision ③
+  named two possible answers — the limit RESOLVES or it is INERT (a silent discard). Figma
+  gave a **THIRD: it THROWS.** The measured rule (an 8-cell matrix) is purely **CONTEXTUAL**
+  — writable on auto-layout nodes and their children, **node TYPE irrelevant**: a RECTANGLE
+  *inside* auto-layout is accepted, a TEXT *outside* it is refused.
+  ① 🔴 **The eligibility probe measured the wrong thing** — it read whether the node
+  *exposes* `minWidth`, but all four are **readable on EVERY node** and only the WRITE is
+  gated. All four ineligible cases were refused by **FIGMA during the write phase**; the
+  handler had never once refused for the right reason. ⭐ It stayed atomic only because the
+  platform rejects the FIRST field — the platform's ordering, not the tool's guarantee.
+  ② 🔴 **The harness modelled a TYPE rule Figma does not have**, so its eligibility tests
+  were green against a fiction — same class as the blanket `layoutMode: "NONE"` 2.1 shipped.
+  ✅ **Fixed** (owner's call): the handler owns the rule in the validation phase naming
+  `set_layout_mode`; the harness gates the **setter** on context, so forgetting the rule now
+  fails offline. Fixture gained `50:1`. The re-run **proved the refusal moved layers** — 4
+  handler refusals, 0 platform.
+  ⭐ **Decision ③ was superseded by its own measurement, not overturned by an opinion** —
+  "allow and measure" is what produced the evidence that closed it.
+- 🔴 **And TWO defects in the GATE itself.** ① **An instrument pinned to the implementation
+  it measures** fails on exactly the change it exists to verify: §6b asked whether some
+  context was refused *by the platform*, true before the fix and false after, so a correct
+  fix made the gate report its own probe proved nothing. ② **§7 asserted a belief about the
+  harness instead of reading it** and kept emitting a red "go fix `SIZE_LIMIT_CARRIERS`"
+  finding after the harness was already correct — [[feedback_a_status_marker_that_was_true_when_written]].
+  It now READS the harness file.
+  ⏳ **Still unmeasurable:** whether Figma rejects a *transient* min > max. The fork has no
+  other writer for these properties and the tool refuses every path that produces the
+  transient, so both readings are identical. In `stillOwed`, never in `findings`.
   **Four decisions taken with the owner before building:** ① **`null` clears, omitted
   preserves** (R2.3's semantics; published as `type: ["number","null"]`); ② the pair rule
   validates the **EFFECTIVE post-write pair**, supplied merged over stored — a lone
@@ -128,9 +160,8 @@ type: project
   reports 13 where the echo reports 12.5. ⭐ **Mutation testing caught what review did not**,
   and the surviving mutant was the one defending the receipt's honesty. Same family as
   [[feedback_a_zero_valued_write_reads_as_no_write]].
-- **Next step:** ▶ **run the 2.3 live gate** (needs a DEV plugin re-run first), then **2.4
-  `set_clips_content`** — the last of the four layout tools, after which the owner's standing
-  call is to re-pin and re-run all four stale gates ONCE.
+- **Next step:** ▶ **2.4 `set_clips_content`** — the last of the four layout tools, after
+  which the owner's standing call is to re-pin and re-run all four stale gates ONCE.
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·

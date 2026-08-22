@@ -682,15 +682,22 @@ two running halves agree with **each other**, never that they agree with this tr
       wrote a value Figma ignores. It was masked by the harness's blanket
       `layoutMode: "NONE"` default; type-gating that default (which also retires the
       dishonest-fixture debt 2.1's gate recorded) surfaced it immediately.
-- [x] **2.3 ⏳ `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`** —
-      **BUILT (offline) 2026-08-22, NOT YET GATED.** 257 tests green (was 224), nine source
-      mutations killed with the control surviving, `dist/` byte-identical across three
+- [x] **2.3 ✅✅ `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`** —
+      **BUILT + GATED 2026-08-22**, channel **`o2vws4ph`**, `scripts/live-size-limits-gate.mjs`
+      PASSED **twice**, baseline restored both runs. **260 tests green** (was 224), **twelve**
+      source mutations killed with the control surviving, `dist/` byte-identical across three
       builds, `verify-release` passed. ⛔ **NO contract bump** — a new tool is additive, so
       the schema HELD at `1.8.0` and regeneration reported zero `compatibilityErrors`.
-      ⚠️ **Same pin shape as 2.1 and 2.2, not 2.0:** both build IDs moved, the fingerprint
-      moved, the tool count moved **58 → 59**, and the schema **held**. New pair
-      **`r2-server-de9d03651f55` ↔ `r2-plugin-81dba60db9dd`**, fingerprint
-      **`sha256:89be6e6c…cea87f9d`**. ⛔ Re-derive from `runtime-metadata.ts`.
+      ⚠️ **The pin shape changed TWICE inside this one item, and the second is a shape this
+      project had not seen.** Building the tool moved both build IDs, the fingerprint and
+      the tool count (58 → 59) with the schema holding — 2.1/2.2's shape. Then the
+      context-rule fix moved **ONLY THE BUILD IDS**: 🔴 the fingerprint HELD, the schema
+      held, the tool count held, while a new refusal and a rewritten published description
+      shipped underneath. The fingerprint hashes the capability SURFACE, so a rule added
+      inside an existing tool is invisible to it — the stale-plugin preflight caught that
+      run on the **build ID alone**, and a fingerprint check by itself would have waved it
+      through. Final pair **`r2-server-a9e8d5b3bf78` ↔ `r2-plugin-1fb9729971a3`**,
+      fingerprint **`sha256:89be6e6c…cea87f9d`**. ⛔ Re-derive from `runtime-metadata.ts`.
       **Four decisions taken with the owner before building, not after:**
       ① **`null` clears, an omitted field preserves** — R2.3's plugin-data semantics reused
       rather than reinvented, because Figma types these four as `number | null` and a tool
@@ -728,8 +735,43 @@ two running halves agree with **each other**, never that they agree with this tr
       `appliedFields` would have been decorative for the second time in three items. Closed
       with an opt-in `roundSizeLimits` harness coercion: a node that rounds separates the
       echo from the read in one reading. ⛔ Nine killed, control survived, on the re-run.
-      ⏳ **The live gate has NOT run yet.** First attempt refused at `join_channel` with the
-      plugin still on `r2-plugin-e82230c1bbb1`; **nothing in the document was touched.**
+      🔴 **DECISION ③ WAS SUPERSEDED BY ITS OWN MEASUREMENT, and the gate's first run is
+      what did it.** ③ named two possible answers — the limit RESOLVES (allow was right) or
+      it is INERT (a silent discard, so refuse). Figma gave a **third**: it THROWS,
+      `Can only set maxWidth on auto layout nodes and their children`. §6 became an
+      eight-cell matrix, and the measured rule is purely **CONTEXTUAL** — writable on
+      auto-layout nodes and their children, and **node TYPE is irrelevant**:
+
+      | context | verdict |
+      | --- | --- |
+      | FRAME / TEXT / **RECTANGLE**, child of an auto-layout FRAME | ACCEPTED |
+      | the auto-layout FRAME itself (parent is PAGE) | ACCEPTED |
+      | FRAME / **TEXT** / RECTANGLE, child of a plain FRAME | REFUSED |
+      | plain FRAME, child of PAGE | REFUSED |
+
+      ⛔ **Two real defects came out of that run, both in the tool and neither in the
+      platform.** ① The handler's eligibility probe read whether the node *exposes*
+      `minWidth` — but all four properties are **readable on every node**, returning null,
+      and only the WRITE is gated. All four ineligible cases were refused by **FIGMA**,
+      during the write phase, with a raw platform string; the handler had never once refused
+      for the right reason. On a tool that writes four independent fields that is a partial
+      application waiting for the right ordering, and it made "validate-all-then-write" a
+      claim the tool could not back. ② The offline harness modelled a **TYPE** rule Figma
+      does not have — a RECTANGLE in an auto-layout frame refused offline and accepted live,
+      a TEXT in a plain frame the other way round. Same class as the blanket
+      `layoutMode: "NONE"` 2.1 shipped and 2.2 paid off.
+      ✅ **Fixed, per the owner's call:** the handler owns the rule in the validation phase,
+      naming `set_layout_mode` as the way in; the harness makes the four properties readable
+      everywhere and gates the **setter**, so a handler that forgot the rule now fails
+      offline instead of only in Figma. Fixture gained `50:1`, an auto-layout branch — every
+      pre-existing frame on page two is the case Figma refuses.
+      ⭐ The gate re-run then **proved the refusal moved layers**: all four ineligible
+      contexts refused by the handler, zero by Figma.
+      ⏳ **What the ordering premise still does NOT prove:** whether Figma rejects a
+      transient min > max is **unmeasurable through this surface** — the fork has no other
+      writer for these properties and this tool refuses every path that would produce the
+      transient, so a run where the ordering was unnecessary reads identically to one where
+      it was load-bearing. Recorded in `stillOwed`, never in `findings`.
 - [ ] **2.4 `set_clips_content(nodeId, clipsContent)`.**
 - [ ] **2.5 Every one validate-all-then-write**, per 3.2 above. The rule is now the house
       rule, not a per-tool decision.

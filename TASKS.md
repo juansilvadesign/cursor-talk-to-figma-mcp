@@ -1418,17 +1418,42 @@ plan therefore carries **no prerequisite**; its entry point is **Phase 1.1**
 (`hasVariableWriteApi`), and what remains is net-new work only. Styles, components and
 variants still stay coarse below.
 
-⛔ **The consumer gap is still open — re-verified 2026-08-12** against HEAD `c10c9ff`
-(schema `1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`): of **52 registered tools**, the only
-variable-aware ones are `get_variables` and `get_node_variables`, **both read-only**;
-`set_variable*` / `create_variable*` / `bind_variable*` match nothing in `server.ts` or
-`code.js`; and none of the 33 write tools touches a variable, collection, or mode. All ten
-`umjuansantos` §1.4 corrections remain hand-transcription. ⚠️ **`apply_batch` does not close
-this** — it is mutate-only over existing **node** IDs, and variables are not nodes, so R2.4
-completing changes nothing here.
+⛔ **The consumer gap is still open — re-verified 2026-08-22** against the generated
+contract at HEAD `e41735e`: **59 registered tools** committed (schema `1.8.0`, fingerprint
+`sha256:89be6e6c…cea87f9d`; 60 in the working tree with item 2.4 in flight), and the only
+variable-aware ones are `get_variables` and `get_node_variables`, **both read-only**.
+`setValueForMode` / `createVariable` / `createVariableCollection` / `setBoundVariable` match
+nothing anywhere in `src/`, and none of the 39 write tools touches a variable, collection, or
+mode. All ten `umjuansantos` §1.4 corrections remain hand-transcription.
+*(Supersedes the 2026-08-12 note that read `c10c9ff` / `1.4.0` / 52 tools — its numbers went
+stale across R2.5 and R2.6; its conclusion never did.)*
 
-- [ ] Create/update local variable collections, modes, variables, aliases, and
-      bindings with explicit Figma-plan capability responses.
+⚠️ **`apply_batch` does not close this** — it is mutate-only over existing **node** IDs, and
+variables are not nodes, so R2.4 completing changes nothing here. ⚠️ **Neither does R2.6's
+typography surface**, and this one reads like it should: `create_text` and `set_text_style`
+both take `fontFamily`, which looks like it covers the consumer's `Family/Heading` and
+`Family/Body` corrections. It does not — those are **STRING variables**, and a text tool
+writes a *node's* font. **A node tool never reaches a variable.**
+
+⭐ **THE FIRST THIRD IS NOW SCHEDULED AS R3-A, ahead of R2.7 visuals — 2026-08-22.** The
+trigger was not new consumer pressure but the **elimination of the alternative**: the Figma
+REST Variables API is Enterprise-gated on **reads as well as writes** (`file_variables:read`
+Tier 2 *and* `file_variables:write` Tier 3, all three endpoints *"available to full members of
+Enterprise orgs"*), and the consumer's account is Education/Professional. ⛔ **The `fileKey`
+was never the blocker** — it was captured 2026-08-07 to unblock this exact route.
+Conversely the **plugin** surface is ungated: the only tier-limited calls are `addMode`
+(*"Limited to N modes only"*) and `extend` (Enterprise), **neither of which R3-A invokes**,
+which is what makes the slice behave identically on every plan.
+
+- [ ] **R3-A — the scheduled slice.** `set_variable_value` · `create_variable` ·
+      `delete_variable`, against **existing** collections and modes. One bump `1.8.0` →
+      `1.9.0`, one live gate. Needs **no read-layer change** — `get_variables` already
+      returns variable IDs, collection IDs, per-mode `id` (`code.js:3085`) and
+      `defaultModeId` (`code.js:3096`).
+      ⭐ **Scope + coverage proof → [`docs/VARIABLE-SLICE-PRIORITIZATION.md`](docs/VARIABLE-SLICE-PRIORITIZATION.md).**
+- [ ] **The remainder — still coarse.** Collections, modes, `bind_variable`
+      (`setBoundVariable`), and explicit Figma-plan capability responses for the two
+      tier-limited calls.
       ⭐ **Planned in full → [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md).**
 - [ ] Create/update/apply local paint, text, effect, and grid styles.
 - [ ] Create components, combine variants, define component properties, create

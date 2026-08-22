@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-a9e8d5b3bf78",
-  "pluginBuildId": "r2-plugin-1fb9729971a3",
+  "serverBuildId": "r2-server-fb30663ee0f1",
+  "pluginBuildId": "r2-plugin-1eee5a6f3bd9",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
+  "capabilityFingerprint": "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -91,6 +91,7 @@ var RUNTIME_METADATA = {
     "set_layout_child",
     "set_constraints",
     "set_size_limits",
+    "set_clips_content",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -138,6 +139,7 @@ var RUNTIME_METADATA = {
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
@@ -200,6 +202,7 @@ var RUNTIME_METADATA = {
     "scan_text_nodes",
     "set_annotation",
     "set_axis_align",
+    "set_clips_content",
     "set_constraints",
     "set_corner_radius",
     "set_current_page",
@@ -3128,6 +3131,38 @@ server.tool(
           {
             type: "text",
             text: `Error setting size limits: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_clips_content",
+  "Set whether a frame clips content that extends past its bounds. Requires a node that carries clipsContent \u2014 a FRAME, COMPONENT, COMPONENT_SET or INSTANCE; a GROUP is sized by its children and cannot clip them, and is refused. Writing the value the node already holds succeeds and reports changed: false. Because a stored boolean cannot show that anything happened, the reply also reports the node's absoluteRenderBounds and absoluteBoundingBox before and after the write, plus the per-edge overflow between them: an unclipped frame renders past its own box exactly when its content spills out, which is the only reading in the reply that a clipped frame and an unclipped one cannot both produce. A null render measurement means the platform did not answer and is never reported as zero overflow.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the frame-like node whose clipping is being set"),
+    clipsContent: import_zod.z.boolean().describe(
+      "true to clip content to the node's bounds, false to let it render outside them"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_clips_content", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting clips content: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.8.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
+  "capabilityFingerprint": "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -42,6 +42,7 @@
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
@@ -129,6 +130,7 @@
       "set_layout_child",
       "set_constraints",
       "set_size_limits",
+      "set_clips_content",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -190,6 +192,7 @@
       "set_layout_child",
       "set_constraints",
       "set_size_limits",
+      "set_clips_content",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -250,6 +253,7 @@
       "set_layout_child",
       "set_constraints",
       "set_size_limits",
+      "set_clips_content",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -2016,6 +2020,38 @@
     },
     {
       "kind": "tool",
+      "name": "set_clips_content",
+      "description": "Set whether a frame clips content that extends past its bounds. Requires a node that carries clipsContent — a FRAME, COMPONENT, COMPONENT_SET or INSTANCE; a GROUP is sized by its children and cannot clip them, and is refused. Writing the value the node already holds succeeds and reports changed: false. Because a stored boolean cannot show that anything happened, the reply also reports the node's absoluteRenderBounds and absoluteBoundingBox before and after the write, plus the per-edge overflow between them: an unclipped frame renders past its own box exactly when its content spills out, which is the only reading in the reply that a clipped frame and an unclipped one cannot both produce. A null render measurement means the platform did not answer and is never reported as zero overflow.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the frame-like node whose clipping is being set"
+          },
+          "clipsContent": {
+            "type": "boolean",
+            "description": "true to clip content to the node's bounds, false to let it render outside them"
+          }
+        },
+        "required": [
+          "nodeId",
+          "clipsContent"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_clips_content",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "set_constraints",
       "description": "Set how a node resizes with its parent frame: horizontal and vertical constraints (MIN, CENTER, MAX, STRETCH, SCALE). Either axis may be omitted and is carried over from the node's current value, because Figma writes both axes as one object. Requires a node that has constraints and a container parent: a top-level node on a PAGE is refused, and so is a child in the flow of an auto-layout frame — auto-layout owns that child's position, so Figma would store the constraint and never apply it. Take the child out of the flow with set_layout_child({ layoutPositioning: \"ABSOLUTE\" }) first. Validate-all-then-write — a rejected parameter leaves the node untouched.",
       "direction": "write",
@@ -2061,7 +2097,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_constraints",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -2404,7 +2440,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_layout_child",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -2834,7 +2870,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_size_limits",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

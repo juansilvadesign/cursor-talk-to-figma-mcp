@@ -11,8 +11,8 @@
 > net-new work.
 >
 > ⛔ **The consumer gap is still open, re-verified 2026-08-22** against the generated contract
-> at HEAD `e41735e`: **59 registered tools** committed (schema `1.8.0`, fingerprint
-> `sha256:89be6e6c…cea87f9d`; 60 in the working tree with R2.6 item 2.4 in flight), of which
+> at HEAD `6708666`, **after R2.6 item 2.4 landed**: **60 registered tools** committed
+> (schema `1.8.0`, fingerprint `sha256:f229f6ec…53ebd`), of which
 > the only variable-aware ones are `get_variables` and `get_node_variables` — **both
 > read-only.** `setValueForMode` / `createVariable` / `createVariableCollection` /
 > `setBoundVariable` return zero matches anywhere in `src/`, and none of the 39 write tools

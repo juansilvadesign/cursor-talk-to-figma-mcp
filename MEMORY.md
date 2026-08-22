@@ -252,23 +252,28 @@ type: project
   opt-in `ignoreClipsContentWrites` + `clipRenderBounds`; `tests/contract.test.mjs` gained
   the **CC1 guard** + `ACCEPTED_SINCE_LAST_BASELINE` ·
   `src/talk_to_figma_mcp/batch-receipt.mjs` + its `code.js` mirror (the
-  `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · HEAD pair
-  **`r2-server-92dc135f665b` ↔ `r2-plugin-3f7c7cd69133`**, `1.8.0`, **57 tools/56
-  commands**, fingerprint **`sha256:1865d817…6b7ebb09`**. Prior (2.0, gated):
-  `r2-server-2fa65a5749e2` ↔ `r2-plugin-045a95955905`, `sha256:b5cbf7b1…6241f2f0`.
+  `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · **HEAD pair (2.4, 2026-08-22):
+  `r2-server-fb30663ee0f1` ↔ `r2-plugin-1eee5a6f3bd9`**, `1.8.0`, **60 tools/59 commands**,
+  fingerprint **`sha256:f229f6ec…2453ebd`**. ⛔ **The DEV plugin is NOT on this build** — it
+  was still serving `r2-plugin-1fb9729971a3` when the gate refused. Prior (2.3, GATED):
+  `r2-server-a9e8d5b3bf78` ↔ `r2-plugin-1fb9729971a3`, `sha256:89be6e6c…cea87f9d`.
+  ⚠️ This paragraph described **2.1** as HEAD until 2026-08-22 — re-derive it from
+  `runtime-metadata.ts` every release rather than reading it.
 - **Open / blockers:** ⛔ **2.1 moved both builds, the fingerprint and the tool count
   (56 → 57) — but the SCHEMA HELD at `1.8.0`**, because a new tool is additive. That is a
   different shape from 2.0, which moved the schema too; the answer has now differed on
   **seven consecutive steps**. ⛔ Re-derive from `runtime-metadata.ts`, never carry it
   forward. Adopting HEAD needs a **DEV plugin re-run AND a server respawn**. ⚠️ The gates
   spawn their own server from `dist/server.js`, so only an **interactive** MCP session
-  needs the respawn. 🔴 **TWO gates are now declared stale** — `live-batch-gate.mjs` AND
-  `live-text-style-gate.mjs` (which passed on `7l9ymck4` only two days ago) — both
+  needs the respawn. 🔴 **FIVE gates are now declared stale** — `live-batch-gate.mjs`,
+  `live-text-style-gate.mjs`, `live-layout-gate.mjs`, `live-constraints-gate.mjs` and now
+  `live-size-limits-gate.mjs`, which passed hours earlier on `o2vws4ph`. All five
   deliberately **not re-pinned**, because re-pinning a gate without re-running it is the
   `e02d1b2` defect. Their staleness is declared by name in
   `tests/live-gate-pins.test.mjs`. ⭐ **Their results still stand for the builds they ran
   on** — what they can no longer do is *start*. Owner's call 2026-08-22: re-pin and re-run
-  both **once**, after the layout tools land. ⛔ Stage explicit paths, never
+  the set **once**, after the layout tools land. ⚠️ The plan predicted **four**; each item
+  staled its predecessor's gate on the way in, and 2.4 staled 2.3's. ⛔ Stage explicit paths, never
   `git add -A` (peer sessions write this repo — one committed `d75c7df` mid-run).
 - **Don't forget:** 🔴 **The `1.8.0` bump was NOT mechanically enforced** — regenerating at
   `1.7.0` produced **zero** `compatibilityErrors`, because the snapshot records input

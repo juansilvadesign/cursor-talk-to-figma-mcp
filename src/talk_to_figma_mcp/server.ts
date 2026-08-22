@@ -3331,6 +3331,67 @@ server.tool(
   }
 );
 
+// Set Constraints Tool (R2.6 item 2.2) — how a node resizes with its parent frame.
+//
+// ⭐ Pure-JSON reply, like `set_layout_child` and unlike `create_text`: the prose-plus-
+// receipt shape exists only to keep existing callers of `create_text`'s historical first
+// line working, and a tool with no history owes no prose.
+//
+// ⚠️ Unlike 2.1, the enum here is published in FULL and refused nowhere. All five values
+// Figma defines are legal and distinct, so a closed Zod enum is the honest layer for them
+// — there is no semantic decision hiding behind a type error. The refusals this tool does
+// own (an in-flow auto-layout child, a PAGE parent, a node with no constraints property)
+// are all about the node's CONTEXT, which Zod cannot see, so those live in the plugin and
+// stay reachable through the transport.
+//
+// ⛔ Both axes are optional and the handler merges. That is forced by the platform:
+// `constraints` is one object property and Figma refuses a half-object, so a call naming
+// one axis must carry the other over. Sending both as required would make every call a
+// two-axis overwrite and silently clobber the axis the caller never thought about.
+server.tool(
+  "set_constraints",
+  "Set how a node resizes with its parent frame: horizontal and vertical constraints (MIN, CENTER, MAX, STRETCH, SCALE). Either axis may be omitted and is carried over from the node's current value, because Figma writes both axes as one object. Requires a node that has constraints and a container parent: a top-level node on a PAGE is refused, and so is a child in the flow of an auto-layout frame — auto-layout owns that child's position, so Figma would store the constraint and never apply it. Take the child out of the flow with set_layout_child({ layoutPositioning: \"ABSOLUTE\" }) first. Validate-all-then-write — a rejected parameter leaves the node untouched.",
+  {
+    nodeId: z
+      .string()
+      .describe("The ID of the node to constrain (the CHILD, not the parent frame)"),
+    horizontal: z
+      .enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"])
+      .optional()
+      .describe(
+        "Horizontal constraint: MIN pins to the left, MAX to the right, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current horizontal constraint"
+      ),
+    vertical: z
+      .enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"])
+      .optional()
+      .describe(
+        "Vertical constraint: MIN pins to the top, MAX to the bottom, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current vertical constraint"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_constraints", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting constraints: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -3691,6 +3752,7 @@ type FigmaCommand =
   | "set_layout_sizing"
   | "set_item_spacing"
   | "set_layout_child"
+  | "set_constraints"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -3964,6 +4026,11 @@ type CommandParams = {
     layoutGrow?: number;
     layoutAlign?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "INHERIT";
     layoutPositioning?: "AUTO" | "ABSOLUTE";
+  };
+  set_constraints: {
+    nodeId: string;
+    horizontal?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
+    vertical?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

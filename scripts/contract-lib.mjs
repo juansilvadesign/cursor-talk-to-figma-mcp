@@ -206,6 +206,10 @@ const TOOL_SCOPES = {
   // parent to decide whether to refuse — but scope describes what a call can CHANGE,
   // and this one changes exactly one node. The parent read is a precondition, not scope.
   set_layout_child: "node",
+  // R2.6 2.2. Same answer, and the parent read is even more clearly a precondition here:
+  // this tool reads the parent's layoutMode and the node's own layoutPositioning purely
+  // to decide whether to REFUSE. One node changes.
+  set_constraints: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -240,6 +244,8 @@ const SPECIAL_PROGRESS = {
   // ⛔ set_layout_child is deliberately absent for the same reason, and it is the
   // clearest case yet: one parent read, three synchronous property assignments, no
   // await in the write phase at all. A third declined declaration, not an oversight.
+  // ⛔ set_constraints is absent on the same grounds and beats it: ONE synchronous
+  // assignment. A fourth declined declaration.
 };
 
 function sha256(value) {

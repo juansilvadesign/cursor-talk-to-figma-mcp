@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-3f7c7cd69133",
+  "buildId": "r2-plugin-e82230c1bbb1",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
+  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -58,6 +58,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_layout_sizing",
     "set_item_spacing",
     "set_layout_child",
+    "set_constraints",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -105,6 +106,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
@@ -403,6 +405,8 @@ async function handleCommand(command, params) {
       return await setItemSpacing(params);
     case "set_layout_child":
       return await setLayoutChild(params);
+    case "set_constraints":
+      return await setConstraints(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -6831,9 +6835,17 @@ async function setLayoutSizing(params) {
       );
     }
     // FILL is only valid on auto-layout children
+    // ⛔ `undefined` is checked alongside "NONE" and that is not defensive padding: a
+    // PAGE and a GROUP have no `layoutMode` property AT ALL, so this guard passed for
+    // every top-level frame and wrote a FILL that Figma silently ignores. It was masked
+    // by the harness giving every node a blanket `layoutMode: "NONE"`; R2.6 item 2.2
+    // type-gated that default and the hole surfaced immediately. `setLayoutChild` has
+    // always tested both, which is what the two being read side by side revealed.
     if (
       layoutSizingHorizontal === "FILL" &&
-      (!node.parent || node.parent.layoutMode === "NONE")
+      (!node.parent ||
+        node.parent.layoutMode === undefined ||
+        node.parent.layoutMode === "NONE")
     ) {
       throw new Error("FILL sizing is only valid on auto-layout children");
     }
@@ -6855,9 +6867,12 @@ async function setLayoutSizing(params) {
       );
     }
     // FILL is only valid on auto-layout children
+    // ⛔ Same hole, same fix — see the horizontal branch above.
     if (
       layoutSizingVertical === "FILL" &&
-      (!node.parent || node.parent.layoutMode === "NONE")
+      (!node.parent ||
+        node.parent.layoutMode === undefined ||
+        node.parent.layoutMode === "NONE")
     ) {
       throw new Error("FILL sizing is only valid on auto-layout children");
     }
@@ -7095,6 +7110,159 @@ async function setLayoutChild(params) {
     layoutPositioning: node.layoutPositioning,
     parentId: parent.id,
     parentLayoutMode: parent.layoutMode,
+  };
+}
+
+// Set Constraints (R2.6 item 2.2) — how a node resizes with its parent frame.
+//
+// ⚠️ The parent rule here is the EXACT INVERSE of `set_layout_child`'s, and that is not an
+// inconsistency: it is the same principle pointing the other way. Auto-layout and
+// constraints are two mutually exclusive ways to answer "where does this child go", so a
+// child in the flow of an auto-layout frame has its constraints stored and never resolved
+// — the layout engine owns its position. `set_layout_child` refuses when the parent is NOT
+// auto-layout; this refuses when it IS. Between the two, exactly one is always the right
+// tool, and neither ever writes a value the platform will discard.
+//
+// The single exception is an ABSOLUTE child: `layoutPositioning: "ABSOLUTE"` takes a node
+// out of the flow, and constraints govern it again. So the refusal tests the CHILD's
+// positioning too, not just the parent's layoutMode.
+const CONSTRAINT_VALUES = ["MIN", "CENTER", "MAX", "STRETCH", "SCALE"];
+
+async function setConstraints(params) {
+  const { nodeId, horizontal, vertical } = params || {};
+
+  // ⛔ A zero-property call is REFUSED, not answered "done" — `setLayoutChild`,
+  // `setItemSpacing` and `set_text_style` all refuse it. Replying success to a call that
+  // changed nothing teaches a caller their write landed.
+  if (horizontal === undefined && vertical === undefined) {
+    throw new Error(
+      "set_constraints requires at least one of horizontal or vertical, and wrote nothing"
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+
+  // ⭐ The eligibility test asks the NODE, it does not consult a type allowlist. A hand
+  // written list of constraint-carrying types is the guard shape item 2.1's live gate
+  // flagged as a debt — `set_layout_sizing` refuses RECTANGLE, which the Figma UI accepts
+  // — and it goes stale every time Figma adds a node type. Reading the property is exact,
+  // costs one access, and needs no maintenance.
+  const current = node.constraints;
+  const carriesConstraints =
+    current !== null &&
+    typeof current === "object" &&
+    typeof current.horizontal === "string" &&
+    typeof current.vertical === "string";
+  if (!carriesConstraints) {
+    throw new Error(
+      `set_constraints wrote nothing: node ${nodeId} is a ${node.type}, which has no constraints property. Constraints exist on nodes that can be laid out inside a frame; a PAGE, a GROUP or a SECTION has none.`
+    );
+  }
+
+  const parent = node.parent;
+  if (!parent) {
+    throw new Error(
+      `Node ${nodeId} has no parent, so a constraint has nothing to resolve against; wrote nothing`
+    );
+  }
+  // ⛔ A top-level node on a PAGE keeps a `constraints` value that nothing ever reads:
+  // constraints resolve against a containing frame, and a page never resizes. Figma
+  // stores the write happily, which is the silent discard this release refuses.
+  // ⚠️ GROUP is deliberately NOT refused here. Whether a group child resolves its
+  // constraints against the enclosing frame is a platform claim I could not verify, and
+  // the house rule is to MEASURE a platform claim rather than encode it — an unverified
+  // refusal is worse than none, because it looks authoritative. `live-constraints-gate`
+  // measures it and reports a three-way verdict.
+  if (parent.type === "PAGE" || parent.type === "DOCUMENT") {
+    throw new Error(
+      `set_constraints requires a node inside a container and wrote nothing: node ${nodeId}'s parent is a ${parent.type}. Constraints resolve against a containing frame — a top-level node has nothing to resize with, so Figma would store the value and never apply it.`
+    );
+  }
+
+  // ⛔ The auto-layout refusal. Same shape as 2.1's, opposite polarity — see the note
+  // above the function. An ABSOLUTE child is out of the flow and keeps its constraints.
+  const parentIsAutoLayout =
+    parent.layoutMode !== undefined && parent.layoutMode !== "NONE";
+  if (parentIsAutoLayout && node.layoutPositioning !== "ABSOLUTE") {
+    throw new Error(
+      `set_constraints wrote nothing: node ${nodeId}'s parent "${parent.name}" (${parent.type}) is an auto-layout frame with layoutMode ${parent.layoutMode}, and this node is in its flow. Auto-layout owns an in-flow child's position, so Figma stores constraints there and never applies them. Size it with set_layout_sizing / set_layout_child, or take it out of the flow with set_layout_child({ layoutPositioning: "ABSOLUTE" }) first.`
+    );
+  }
+
+  if (horizontal !== undefined && !CONSTRAINT_VALUES.includes(horizontal)) {
+    throw new Error(
+      `horizontal must be one of: ${CONSTRAINT_VALUES.join(
+        ", "
+      )}; received ${JSON.stringify(horizontal)} and wrote nothing`
+    );
+  }
+  if (vertical !== undefined && !CONSTRAINT_VALUES.includes(vertical)) {
+    throw new Error(
+      `vertical must be one of: ${CONSTRAINT_VALUES.join(
+        ", "
+      )}; received ${JSON.stringify(vertical)} and wrote nothing`
+    );
+  }
+
+  // ---- Write phase: this block cannot reject ----
+  // ⭐ ONE assignment, which is why partial application is structurally impossible here
+  // rather than merely avoided. `constraints` is a single object property: Figma refuses
+  // a half-object, so the axis the caller did not supply must be carried over from the
+  // node's current value. The merge is a REQUIREMENT of the platform's setter, not a
+  // convenience — and it is also the reason the receipt reports `previous`, so a caller
+  // can see the axis they did not name.
+  const previous = {
+    horizontal: current.horizontal,
+    vertical: current.vertical,
+  };
+  const requestedFields = [];
+  if (horizontal !== undefined) requestedFields.push("horizontal");
+  if (vertical !== undefined) requestedFields.push("vertical");
+
+  node.constraints = {
+    horizontal: horizontal !== undefined ? horizontal : previous.horizontal,
+    vertical: vertical !== undefined ? vertical : previous.vertical,
+  };
+
+  // ⛔ Read back through the node's own getter, never echo the object just assigned. An
+  // echo describes the argument, not the document, and would report success against a
+  // setter that silently dropped the write.
+  const applied = {
+    horizontal: node.constraints.horizontal,
+    vertical: node.constraints.vertical,
+  };
+  // ⚠️ NOT "appliedFields": both axes are written on every call, so a field list of what
+  // was WRITTEN would be the constant ["horizontal","vertical"] and could never fail.
+  // These two can. `preservedFields` makes the merge visible; `changedFields` distinguishes
+  // a write that moved something from an idempotent rewrite of the same value.
+  const preservedFields = ["horizontal", "vertical"].filter(
+    (axis) => !requestedFields.includes(axis)
+  );
+  const changedFields = ["horizontal", "vertical"].filter(
+    (axis) => applied[axis] !== previous[axis]
+  );
+
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    constraints: applied,
+    previous,
+    requestedFields,
+    preservedFields,
+    changedFields,
+    unchanged: changedFields.length === 0,
+    parentId: parent.id,
+    parentType: parent.type,
+    parentLayoutMode:
+      parent.layoutMode === undefined ? null : parent.layoutMode,
+    layoutPositioning:
+      node.layoutPositioning === undefined ? null : node.layoutPositioning,
   };
 }
 
@@ -7638,6 +7806,12 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // across both copies, receipt tests and a longer live gate are not owed until a
   // consumer asks for them.
   set_layout_child:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ Second of the four, same decision, and it is worth noting that this one would fit
+  // BETTER than any op already on the allowlist: it is a single object assignment, so it
+  // is the one layout op that could never land in `NON_ATOMIC_BATCH_OPERATIONS`. Fitting
+  // well is not the criterion — 2.6 decided the set, not the members.
+  set_constraints:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 

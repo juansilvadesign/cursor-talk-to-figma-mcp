@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.8.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
+  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -42,6 +42,7 @@
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
@@ -125,6 +126,7 @@
       "set_layout_sizing",
       "set_item_spacing",
       "set_layout_child",
+      "set_constraints",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -184,6 +186,7 @@
       "set_layout_sizing",
       "set_item_spacing",
       "set_layout_child",
+      "set_constraints",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -242,6 +245,7 @@
       "set_layout_sizing",
       "set_item_spacing",
       "set_layout_child",
+      "set_constraints",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -2004,6 +2008,55 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_axis_align",
+      "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_constraints",
+      "description": "Set how a node resizes with its parent frame: horizontal and vertical constraints (MIN, CENTER, MAX, STRETCH, SCALE). Either axis may be omitted and is carried over from the node's current value, because Figma writes both axes as one object. Requires a node that has constraints and a container parent: a top-level node on a PAGE is refused, and so is a child in the flow of an auto-layout frame — auto-layout owns that child's position, so Figma would store the constraint and never apply it. Take the child out of the flow with set_layout_child({ layoutPositioning: \"ABSOLUTE\" }) first. Validate-all-then-write — a rejected parameter leaves the node untouched.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node to constrain (the CHILD, not the parent frame)"
+          },
+          "horizontal": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "CENTER",
+              "MAX",
+              "STRETCH",
+              "SCALE"
+            ],
+            "description": "Horizontal constraint: MIN pins to the left, MAX to the right, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current horizontal constraint"
+          },
+          "vertical": {
+            "type": "string",
+            "enum": [
+              "MIN",
+              "CENTER",
+              "MAX",
+              "STRETCH",
+              "SCALE"
+            ],
+            "description": "Vertical constraint: MIN pins to the top, MAX to the bottom, CENTER keeps the centre offset, STRETCH holds both edges, SCALE resizes proportionally. Omit to keep the node's current vertical constraint"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_constraints",
       "resultStability": "stable"
     },
     {

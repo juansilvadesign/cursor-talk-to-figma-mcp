@@ -140,6 +140,12 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // consumer asks for them.
   set_layout_child:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ Second of the four, same decision, and it is worth noting that this one would fit
+  // BETTER than any op already on the allowlist: it is a single object assignment, so it
+  // is the one layout op that could never land in `NON_ATOMIC_BATCH_OPERATIONS`. Fitting
+  // well is not the criterion — 2.6 decided the set, not the members.
+  set_constraints:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 
 /**

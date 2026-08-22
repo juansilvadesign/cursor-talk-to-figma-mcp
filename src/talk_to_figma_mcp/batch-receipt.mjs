@@ -146,6 +146,14 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // well is not the criterion — 2.6 decided the set, not the members.
   set_constraints:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ Third of the four, same decision — and the exact OPPOSITE case from its neighbour
+  // above. `set_constraints` could never have landed in `NON_ATOMIC_BATCH_OPERATIONS`;
+  // this one would have to be evaluated for it, because it writes up to four independent
+  // number properties. It is validate-all-then-write from birth, so today it would qualify
+  // as atomic — but that is a property a future edit could quietly lose, and the entry
+  // would then be wrong in the direction that under-warns.
+  set_size_limits:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 
 /**

@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-e82230c1bbb1",
+  "buildId": "r2-plugin-81dba60db9dd",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
+  "capabilityFingerprint": "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -59,6 +59,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_item_spacing",
     "set_layout_child",
     "set_constraints",
+    "set_size_limits",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -124,6 +125,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
     "figma.command.set_selections@1",
+    "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
@@ -407,6 +409,8 @@ async function handleCommand(command, params) {
       return await setLayoutChild(params);
     case "set_constraints":
       return await setConstraints(params);
+    case "set_size_limits":
+      return await setSizeLimits(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -7266,6 +7270,249 @@ async function setConstraints(params) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// R2.6 item 2.3 — `set_size_limits(nodeId, minWidth?, maxWidth?, minHeight?, maxHeight?)`
+//
+// ⛔ THE FIRST LAYOUT TOOL SINCE PHASE 1 WHERE PARTIAL APPLICATION IS GENUINELY POSSIBLE.
+// 2.1 and 2.2 were each a single assignment — 2.2's was one OBJECT property, so a
+// half-written state could not even be represented. This writes up to FOUR independent
+// number properties, which puts it in the same structural family as `set_corner_radius`
+// and `set_padding`, both of which sit in `NON_ATOMIC_BATCH_OPERATIONS` for exactly that
+// reason. Validate-all-then-write (plan 2.5) is load-bearing here, not ceremonial.
+//
+// ⚠️ THE PAIR TRAP, and it has two halves. Figma rejects a minimum above a maximum, so
+// ① validation is on the EFFECTIVE post-write pair — supplied merged over stored — rather
+// than on the fields the call happens to name, because a caller writing `minWidth: 500`
+// onto a node already holding `maxWidth: 300` is conflicting with something invisible in
+// their own arguments; and ② the WRITE ORDER matters even after validation passes, since
+// two assignments pass through an intermediate state and raising a floor before raising
+// the ceiling hands Figma a momentary min > max.
+//
+// ⛔ `null` is the single clear verb and an omitted field preserves — R2.3's plugin-data
+// semantics, reused rather than reinvented. Figma types these four as `number | null`
+// where null means "no limit", so a tool without a clear is a tool that can only tighten.
+//
+// ⚠️ THERE IS NO CONTEXT REFUSAL HERE, and that is a decision rather than an oversight.
+// 2.1 refuses a parent that is NOT auto-layout, 2.2 refuses one that IS; whether min/max
+// are inert outside an auto-layout context is a platform claim this project has not
+// measured, and the house rule is that an unverified refusal is worse than none because it
+// looks authoritative. `live-size-limits-gate.mjs` measures it and reports a three-way
+// verdict — the same shape 2.2 used for its GROUP question. The only refusal about the
+// node itself is that it does not carry the properties at all.
+const SIZE_LIMIT_FIELDS = ["minWidth", "maxWidth", "minHeight", "maxHeight"];
+
+// Each axis as the (min, max) pair the platform validates together. ⭐ The PAIR is the
+// unit of validation; the FIELD is the unit of writing. Conflating the two is how a tool
+// ends up checking the arguments against each other and calling that a pair check.
+const SIZE_LIMIT_AXES = [
+  { axis: "width", min: "minWidth", max: "maxWidth" },
+  { axis: "height", min: "minHeight", max: "maxHeight" },
+];
+
+// ⭐ The eligibility probe, and it CANNOT be a value-shape test like 2.2's. There the
+// stored value was always a string, so its shape answered "does this node carry
+// constraints". Here `null` is a legal stored value meaning "no limit set", so only the
+// absent/`null` distinction can separate a node with no surface from a carrier with
+// nothing set. Reading an undefined property returns `undefined`; a few node proxies throw
+// instead. Both mean no surface, and neither can be mistaken for `null`.
+function readSizeLimit(node, field) {
+  try {
+    return node[field];
+  } catch (error) {
+    return undefined;
+  }
+}
+
+async function setSizeLimits(params) {
+  const source = params || {};
+  const { nodeId } = source;
+
+  // ⛔ The zero-field refusal its four neighbours all carry. `undefined` is "not supplied";
+  // `null` IS supplied — it is the clear — so it has to count as a field here or the one
+  // call that removes a limit would be refused as empty.
+  const requestedFields = SIZE_LIMIT_FIELDS.filter(
+    (field) => source[field] !== undefined
+  );
+  if (requestedFields.length === 0) {
+    throw new Error(
+      `set_size_limits requires at least one of ${SIZE_LIMIT_FIELDS.join(
+        ", "
+      )}, and wrote nothing. Pass a positive number to set a limit, or null to remove one`
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+
+  const previous = {};
+  const surface = [];
+  for (const field of SIZE_LIMIT_FIELDS) {
+    const value = readSizeLimit(node, field);
+    if (value === undefined) continue;
+    surface.push(field);
+    previous[field] = value;
+  }
+
+  // ⭐ Per-FIELD, not "does this node carry all four". A type that exposed only some of
+  // them would be over-refused by an all-or-nothing test, and which types carry which is
+  // precisely what is not measured yet.
+  const missing = requestedFields.filter((field) => !surface.includes(field));
+  if (missing.length > 0) {
+    throw new Error(
+      `set_size_limits wrote nothing: node ${nodeId} is a ${
+        node.type
+      } and does not expose ${missing.join(", ")}. ${
+        surface.length > 0
+          ? `It does expose ${surface.join(", ")}.`
+          : "It exposes none of the four size limits — min/max sizing is carried by frame-like nodes and text, not by a PAGE, a GROUP or a SECTION."
+      }`
+    );
+  }
+
+  // Each supplied value is either a clear or a positive finite number. ⛔ `0` is REFUSED
+  // rather than read as "no limit": `null` already says that unambiguously, and a
+  // `maxWidth: 0` describes a node that cannot exist. `create_text` set the precedent when
+  // it stopped turning `fontSize: 0` into 14 silently.
+  for (const field of requestedFields) {
+    const value = source[field];
+    if (value === null) continue;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error(
+        `${field} must be a positive number, or null to clear it; received ${JSON.stringify(
+          value
+        )} and wrote nothing`
+      );
+    }
+    if (value <= 0) {
+      throw new Error(
+        `${field} must be greater than 0; received ${value} and wrote nothing. Pass null to remove the limit instead`
+      );
+    }
+  }
+
+  // ⚠️ Half one of the pair trap. The pair that matters is the one the node will HOLD
+  // after the write, so a supplied value is merged over the stored one before comparing.
+  // This is what catches a lone `minWidth: 500` landing on a stored `maxWidth: 300` — a
+  // conflict the caller cannot see anywhere in their own arguments.
+  const target = {};
+  for (const field of surface) {
+    target[field] =
+      source[field] !== undefined ? source[field] : previous[field];
+  }
+  for (const { axis, min, max } of SIZE_LIMIT_AXES) {
+    const low = target[min];
+    const high = target[max];
+    if (low === undefined || high === undefined) continue;
+    if (low === null || high === null) continue;
+    if (low > high) {
+      throw new Error(
+        `set_size_limits wrote nothing: ${min} ${low} (${
+          source[min] !== undefined ? "requested" : "already stored"
+        }) is greater than ${max} ${high} (${
+          source[max] !== undefined ? "requested" : "already stored"
+        }), and Figma rejects a minimum above a maximum. The ${axis} pair is validated together, so a call naming only one of the two is still checked against the value the node already holds`
+      );
+    }
+  }
+
+  // ---- Write phase: this block cannot reject ----
+
+  const before = { width: node.width, height: node.height };
+  const writeOrder = [];
+
+  for (const { min, max } of SIZE_LIMIT_AXES) {
+    const writing = [min, max].filter((field) =>
+      requestedFields.includes(field)
+    );
+    if (writing.length === 0) continue;
+
+    // ⚠️ Half two of the pair trap, and the half that survives a passing validation. The
+    // END state is valid by construction, but two assignments pass THROUGH an intermediate
+    // one. Writing the min first is unsafe exactly when the new min exceeds the max the
+    // node is still holding; there the max goes first.
+    // ⭐ One of the two orders is always available, and that is provable rather than
+    // hopeful: for both to be unsafe we would need target-min > current-max AND
+    // current-min > target-max, which chain to current-min > current-max — a state the
+    // platform cannot have been holding in the first place.
+    // ⛔ A clear never creates a violation, so it needs no special case: `null` fails the
+    // comparison below and takes the default order.
+    const minFirstUnsafe =
+      writing.includes(min) &&
+      typeof target[min] === "number" &&
+      typeof previous[max] === "number" &&
+      target[min] > previous[max];
+
+    for (const field of minFirstUnsafe ? [max, min] : [min, max]) {
+      if (!writing.includes(field)) continue;
+      node[field] = source[field];
+      writeOrder.push(field);
+    }
+  }
+
+  // ⛔ Read back through the node's own getters, never echo the values just assigned. An
+  // echo describes the argument rather than the document, and would report success against
+  // a platform that dropped, rounded or refused the write.
+  const applied = {};
+  for (const field of surface) {
+    const value = readSizeLimit(node, field);
+    applied[field] = value === undefined ? null : value;
+  }
+  const after = { width: node.width, height: node.height };
+
+  // ⚠️ `appliedFields` is here on purpose, and it is the deliberate INVERSE of 2.2's
+  // receipt. There both axes were written on every call, so the list would have been the
+  // constant ["horizontal","vertical"] and could never have failed in either direction —
+  // the false-green shape item 2.1 was caught by. Here the four fields are independent and
+  // each optional, so this is a real reading: a field the platform did not take is absent
+  // from it, and a caller can tell that from the reply alone.
+  const appliedFields = requestedFields.filter(
+    (field) => applied[field] === source[field]
+  );
+  const clearedFields = requestedFields.filter(
+    (field) => source[field] === null
+  );
+  const preservedFields = surface.filter(
+    (field) => !requestedFields.includes(field)
+  );
+  const changedFields = surface.filter(
+    (field) => applied[field] !== previous[field]
+  );
+
+  const parent = node.parent;
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    limits: applied,
+    previous,
+    requestedFields,
+    appliedFields,
+    clearedFields,
+    preservedFields,
+    changedFields,
+    unchanged: changedFields.length === 0,
+    // The order the fields were actually written in, which is the only place half two of
+    // the pair trap is visible to a caller — or to a test.
+    writeOrder,
+    // ⭐ A size limit does not merely store a number: Figma CLAMPS the node to it, so the
+    // write has a geometric side effect the stored value cannot report. Measuring in a
+    // second currency is also what lets the live gate distinguish a limit that resolved
+    // from one that was stored and ignored.
+    size: { before, after },
+    resized: before.width !== after.width || before.height !== after.height,
+    parentId: parent ? parent.id : null,
+    parentType: parent ? parent.type : null,
+    parentLayoutMode:
+      parent && parent.layoutMode !== undefined ? parent.layoutMode : null,
+    layoutPositioning:
+      node.layoutPositioning === undefined ? null : node.layoutPositioning,
+  };
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -7812,6 +8059,14 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // is the one layout op that could never land in `NON_ATOMIC_BATCH_OPERATIONS`. Fitting
   // well is not the criterion — 2.6 decided the set, not the members.
   set_constraints:
+    "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ Third of the four, same decision — and the exact OPPOSITE case from its neighbour
+  // above. `set_constraints` could never have landed in `NON_ATOMIC_BATCH_OPERATIONS`;
+  // this one would have to be evaluated for it, because it writes up to four independent
+  // number properties. It is validate-all-then-write from birth, so today it would qualify
+  // as atomic — but that is a property a future edit could quietly lose, and the entry
+  // would then be wrong in the direction that under-warns.
+  set_size_limits:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
 });
 

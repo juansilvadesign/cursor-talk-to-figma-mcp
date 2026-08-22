@@ -3392,6 +3392,78 @@ server.tool(
   }
 );
 
+// Set Size Limits Tool (R2.6 item 2.3)
+//
+// ⚠️ Every parameter is `.nullable().optional()`, and the two halves mean different
+// things: OMITTED preserves what the node holds, explicit NULL clears the limit. That is
+// R2.3's plugin-data semantics, and it is the only way to express Figma's `number | null`
+// honestly — a schema of plain numbers would let a caller set a limit and never remove it.
+//
+// ⛔ Zod owns the TYPE of each field and nothing else. It cannot see the other three
+// fields' stored values, so the pair rule — a minimum above a maximum — is unrepresentable
+// here and lives entirely in the plugin, where the node is. That split is deliberate and
+// the live gate asserts it: a bad type arrives at `layer: "schema"`, a bad pair at
+// `layer: "handler"`. ⭐ `.positive()` is likewise NOT declared here even though it could
+// be: the zero refusal belongs with the pair rule it is part of, and splitting one tool's
+// numeric validation across two layers is how the two copies start disagreeing.
+server.tool(
+  "set_size_limits",
+  "Set a node's minimum and maximum width and height. Each of the four limits is independent: omit one to leave it as it is, pass a positive number to set it, or pass null to remove it. Figma rejects a minimum above a maximum, so the two fields of an axis are validated as a PAIR against the values the node already holds — a call naming only minWidth is still checked against the stored maxWidth, and refused before anything is written. Setting a limit that conflicts with the node's current size makes Figma resize the node to fit; the reply reports the size before and after and a `resized` flag. Validate-all-then-write: a rejected parameter leaves all four fields untouched.",
+  {
+    nodeId: z.string().describe("The ID of the node to limit"),
+    minWidth: z
+      .number()
+      .nullable()
+      .optional()
+      .describe(
+        "Minimum width in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+      ),
+    maxWidth: z
+      .number()
+      .nullable()
+      .optional()
+      .describe(
+        "Maximum width in pixels, greater than 0 and not below minWidth. Pass null to remove the limit; omit to keep the node's current value"
+      ),
+    minHeight: z
+      .number()
+      .nullable()
+      .optional()
+      .describe(
+        "Minimum height in pixels, greater than 0. Pass null to remove the limit; omit to keep the node's current value"
+      ),
+    maxHeight: z
+      .number()
+      .nullable()
+      .optional()
+      .describe(
+        "Maximum height in pixels, greater than 0 and not below minHeight. Pass null to remove the limit; omit to keep the node's current value"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_size_limits", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting size limits: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -3753,6 +3825,7 @@ type FigmaCommand =
   | "set_item_spacing"
   | "set_layout_child"
   | "set_constraints"
+  | "set_size_limits"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4031,6 +4104,15 @@ type CommandParams = {
     nodeId: string;
     horizontal?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
     vertical?: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
+  };
+  // ⛔ `number | null`, not `number` — null is the clear, and typing it away here would
+  // make the one call that removes a limit unrepresentable at the transport boundary.
+  set_size_limits: {
+    nodeId: string;
+    minWidth?: number | null;
+    maxWidth?: number | null;
+    minHeight?: number | null;
+    maxHeight?: number | null;
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

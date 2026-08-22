@@ -96,6 +96,48 @@ function createFixtureRuntime(fixture, options) {
   const takesSizeLimits = (node) =>
     nodeIsAutoLayout(node) || nodeIsAutoLayout(node && node.parent);
 
+  // ⛔ Item 2.4's model, and it is TYPE-gated where 2.3's is context-gated — which is the
+  // opposite of the correction 2.3 had to make, so it needs stating rather than assuming.
+  // Figma puts `clipsContent` on FrameNode and the three frame-likes that extend it; a
+  // GROUP, a PAGE, a RECTANGLE and a TEXT do not have the property at all, they do not
+  // have it set to `false`. That distinction is the tool's entire eligibility rule, so a
+  // blanket default would erase the refusal branch exactly as 2.1's blanket
+  // `layoutMode: "NONE"` erased its own.
+  // ⚠️ SECTION is deliberately NOT here. Whether a section carries `clipsContent` is the
+  // open question `live-clips-content-gate.mjs` measures, and encoding a guess would be
+  // the fiction 2.3 shipped — green offline against a rule Figma does not have. Absent
+  // here means "unmeasured", and the gate reports the answer either way.
+  const CLIPS_CONTENT_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+  ]);
+
+  // Absolute position, by walking the parent chain. Arithmetic over data the fixture
+  // already holds, so this claims nothing about the platform.
+  function absoluteOrigin(node) {
+    let x = 0;
+    let y = 0;
+    let current = node;
+    while (current) {
+      x += typeof current.x === "number" ? current.x : 0;
+      y += typeof current.y === "number" ? current.y : 0;
+      current = current.parent;
+    }
+    return { x, y };
+  }
+
+  function absoluteBoxOf(node) {
+    const origin = absoluteOrigin(node);
+    return {
+      x: origin.x,
+      y: origin.y,
+      width: node.width,
+      height: node.height,
+    };
+  }
+
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
     "COMPONENT",
@@ -273,6 +315,81 @@ function createFixtureRuntime(fixture, options) {
         });
       }
       applyLimits();
+    }
+
+    // Item 2.4's clipping model. Three separate decisions live in this block and each one
+    // is a place the fixture could quietly lie to the tool.
+    {
+      // ① PRESENCE is type-gated and the property is DELETED from non-carriers, not set
+      // to false. `set_clips_content` refuses on `typeof previous !== "boolean"`, so a
+      // blanket default would make that branch unreachable offline and the live gate would
+      // be the first thing to execute it — 2.1's exact debt, which 2.2 then had to pay.
+      if (CLIPS_CONTENT_CARRIERS.has(node.type)) {
+        let clips = typeof node.clipsContent === "boolean" ? node.clipsContent : true;
+        // ⭐ ② OPT-IN SILENT-DISCARD, and it is here for one specific lie. A receipt that
+        // ECHOED its own argument is invisible while the platform stores what it is handed:
+        // echo and read-back agree on every input, so no assertion over the reported boolean
+        // can separate them. This is 2.3's `roundSizeLimits` pattern applied to a value that
+        // cannot be rounded — a node that accepts the write and keeps its old value reports
+        // `false` through a read-back and `true` through an echo, in one reading.
+        // ⚠️ It is NOT claimed that Figma does this. It models a platform that might, so the
+        // honesty of the read-back stops depending on the platform being well-behaved. And
+        // it is not idle speculation either: `set_layout_child`'s decision ① exists because
+        // Figma accepts all three of ITS assignments outside auto-layout and applies none.
+        const discards = (options.ignoreClipsContentWrites || []).includes(node.id);
+        Object.defineProperty(node, "clipsContent", {
+          enumerable: true,
+          configurable: true,
+          get: () => clips,
+          set: (value) => {
+            if (discards) return;
+            clips = value;
+          },
+        });
+      } else {
+        delete node.clipsContent;
+      }
+
+      Object.defineProperty(node, "absoluteBoundingBox", {
+        enumerable: false,
+        configurable: true,
+        get: () => absoluteBoxOf(node),
+      });
+
+      // ⛔ ③ `absoluteRenderBounds` DEFAULTS TO NULL, and that default is the honest one.
+      // Whether Figma recomputes render bounds synchronously with a `clipsContent`
+      // assignment is UNMEASURED — `live-clips-content-gate.mjs` is what measures it. A
+      // harness that computed it unconditionally would be asserting the answer, and every
+      // offline test would then be green against a platform behaviour nobody had checked.
+      // Null here means "the platform did not answer", which is the reading the tool must
+      // propagate as `renderBoundsChanged: null` rather than collapsing to `false`.
+      //
+      // ⭐ A fixture opts IN with `clipRenderBounds`, and only then does the union geometry
+      // exist. So the suite proves two different things on purpose: the null path proves the
+      // absence never reads as an answer, and the opt-in path proves the arithmetic.
+      const measuresRender = (options.clipRenderBounds || []).includes(node.id);
+      Object.defineProperty(node, "absoluteRenderBounds", {
+        enumerable: false,
+        configurable: true,
+        get: () => {
+          if (!measuresRender) return null;
+          const box = absoluteBoxOf(node);
+          if (node.clipsContent !== false) return box;
+          let minX = box.x;
+          let minY = box.y;
+          let maxX = box.x + box.width;
+          let maxY = box.y + box.height;
+          for (const child of descendants(node)) {
+            if (child.visible === false) continue;
+            const childBox = absoluteBoxOf(child);
+            minX = Math.min(minX, childBox.x);
+            minY = Math.min(minY, childBox.y);
+            maxX = Math.max(maxX, childBox.x + childBox.width);
+            maxY = Math.max(maxY, childBox.y + childBox.height);
+          }
+          return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        },
+      });
     }
 
     // ⚠️ A fixture that DECLARES layoutMode on a non-carrier keeps it, so this cannot

@@ -53,7 +53,13 @@ test("page, style, variable, component, and binding fixtures retain honest cover
   // 4 → 5 at item 2.3, and for the mirror-image reason: `set_size_limits` is writable ONLY
   // on auto-layout nodes and their children — measured, not documented — so it needed an
   // auto-layout branch (`50:1`) holding one node of each type its live matrix probed.
-  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 5]);
+  // 5 → 8 at item 2.4, and this one is about GEOMETRY rather than layout context. Every
+  // frame in the fixture had its children safely inside it, so "the render bounds spill
+  // past the box" — the only currency in which a `clipsContent` write is visible at all —
+  // had nowhere to happen. `60:1` holds a child that overflows on two edges; `60:3` and
+  // `60:4` are the INSTANCE and COMPONENT_SET arms of the carrier matrix, which no earlier
+  // fixture contained.
+  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 8]);
 
   const styles = await harness.command("get_styles");
   assert.deepEqual(styles.counts, { colors: 1, texts: 1, effects: 1, grids: 1 });

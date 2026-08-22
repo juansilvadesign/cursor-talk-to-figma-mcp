@@ -21,7 +21,7 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   );
   assert.deepEqual(parityErrors(built.surface), []);
   assert.deepEqual(compatibilityErrors(snapshot, built.contract), []);
-  assert.equal(snapshot.tools.length, 59);
+  assert.equal(snapshot.tools.length, 60);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));
@@ -67,6 +67,121 @@ test("the current contract stays backwards compatible with every frozen release 
       `current contract broke compatibility with ${file}`,
     );
   }
+});
+
+/**
+ * ⛔ **CC1, MECHANISED — because for three consecutive items it was not.**
+ *
+ * `getResultStability` returns `stable` for any tool not named in
+ * `ADDITIVE_PREVIEW_RESULTS`, and `compatibilityErrors()` refuses to weaken a level. That
+ * is F6, which the R2 cut called its highest-leverage finding: an unlisted tool is frozen
+ * the moment it ships, on a reply shape no live gate has judged. R2.5's two tools honoured
+ * CC1. R2.6's `set_layout_child`, `set_constraints` and `set_size_limits` did not — all
+ * three shipped `stable` from birth, and only 2.2's deviation was ever written down.
+ *
+ * ⭐ Nothing in `bun run verify` could have caught it, because a default that is silently
+ * WRONG and a decision that is deliberately right produce byte-identical contracts. This
+ * test is the difference: a tool may be `stable` only if a frozen baseline already carries
+ * it — meaning it survived a release and an acceptance — or if it is named below as a
+ * deliberate act.
+ *
+ * ⚠️ The list is expected to be EMPTY almost always. It fills for exactly one window: from
+ * a release's acceptance (which promotes its tools) until the next release freezes that
+ * contract as a baseline (which makes the promotion visible here). Names that linger past
+ * that window are the smell.
+ */
+const ACCEPTED_SINCE_LAST_BASELINE = [
+  // ⭐ R2.5's three tools, promoted `additive-preview` → `stable` at R2.5 acceptance on
+  // 2026-08-19 on channel `ohipqdhg`, after the typography live gate re-ran green on the
+  // promoted build. These are `stable` by a decision that was made, recorded and earned —
+  // the opposite of falling through the default — so they belong here rather than failing
+  // the guard.
+  //
+  // 🔴 **And their presence is itself a finding: CC3 has a gap.** The rule is that each
+  // release freezes the previous contract as a baseline, so R2.5 should have been frozen
+  // as the seventh when R2.6 opened. It was not — `contracts/baselines/` still stops at
+  // R2.4 — which is why these three have no baseline to vouch for them. That is what
+  // empties this list: freeze R2.5, and all three disappear from it on the next run.
+  // ⛔ Not fixed here. Adding a baseline changes the replay set every release is checked
+  // against, and that is its own decision with its own verification, not a side effect of
+  // landing a layout tool.
+  "get_available_fonts",
+  "check_fonts",
+  "set_text_style",
+];
+
+async function frozenToolNames() {
+  const baselineDir = path.join(root, "contracts/baselines");
+  const baselineFiles = (await readdir(baselineDir)).filter((name) =>
+    name.endsWith("-public-contract.json"),
+  );
+  const names = new Set();
+  for (const file of baselineFiles) {
+    const baseline = JSON.parse(
+      await readFile(path.join(baselineDir, file), "utf8"),
+    );
+    for (const tool of baseline.tools) names.add(tool.name);
+  }
+  return names;
+}
+
+/** The guard itself, so the test below can run it against a contract it has mutated. */
+function bornFrozenTools(contract, everFrozen) {
+  return contract.tools
+    .filter((tool) => tool.resultStability === "stable")
+    .map((tool) => tool.name)
+    .filter(
+      (name) =>
+        !everFrozen.has(name) && !ACCEPTED_SINCE_LAST_BASELINE.includes(name),
+    );
+}
+
+test("a tool may only be `stable` once a frozen baseline carries it (CC1 / F6)", async () => {
+  const built = await buildContract();
+  const everFrozen = await frozenToolNames();
+  assert.ok(everFrozen.size > 0, "at least one frozen baseline must exist");
+
+  const bornFrozen = bornFrozenTools(built.contract, everFrozen);
+  assert.deepEqual(
+    bornFrozen,
+    [],
+    `these tools ship \`stable\` without ever having faced a release: ${bornFrozen.join(
+      ", ",
+    )}. Per CC1 every new tool ships \`additive-preview\` — add it to ADDITIVE_PREVIEW_RESULTS in the same commit that registers it. Promotion is an acceptance act, and once a baseline freezes the \`stable\` level the walk-back is breaking.`,
+  );
+});
+
+test("the CC1 guard is observed FAILING when a new tool falls through to `stable`", async () => {
+  // ⛔ A guard nobody has watched fail is a guard nobody has tested — and this one has to
+  // be watched, because the defect it pins was invisible for three items precisely by
+  // producing a contract that looks correct. So the guard is RUN against a contract
+  // mutated into the exact shape it exists to catch, rather than re-stating its condition.
+  const built = await buildContract();
+  const everFrozen = await frozenToolNames();
+
+  const victim = built.contract.tools.find(
+    (tool) => tool.name === "set_clips_content",
+  );
+  assert.equal(
+    victim.resultStability,
+    "additive-preview",
+    "set_clips_content must ship additive-preview per CC1",
+  );
+  assert.ok(
+    !everFrozen.has("set_clips_content"),
+    "and it must be absent from every baseline, or this test proves nothing",
+  );
+
+  const fellThrough = structuredClone(built.contract);
+  fellThrough.tools.find(
+    (tool) => tool.name === "set_clips_content",
+  ).resultStability = "stable";
+
+  assert.deepEqual(
+    bornFrozenTools(fellThrough, everFrozen),
+    ["set_clips_content"],
+    "the guard must name the tool that fell through the default",
+  );
 });
 
 test("result stability may be strengthened across releases but never weakened", async () => {

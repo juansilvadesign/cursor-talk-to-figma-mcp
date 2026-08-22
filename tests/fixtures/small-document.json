@@ -307,6 +307,45 @@
        "height": 40
       }
      ]
+    },
+    {
+     "id": "60:1",
+     "name": "Clip Stack",
+     "type": "FRAME",
+     "x": 0,
+     "y": 800,
+     "width": 200,
+     "height": 200,
+     "clipsContent": true,
+     "children": [
+      {
+       "id": "60:2",
+       "name": "Overflow Badge",
+       "type": "RECTANGLE",
+       "x": 150,
+       "y": 150,
+       "width": 100,
+       "height": 100
+      }
+     ]
+    },
+    {
+     "id": "60:3",
+     "name": "Button/Primary Instance",
+     "type": "INSTANCE",
+     "x": 300,
+     "y": 800,
+     "width": 120,
+     "height": 40
+    },
+    {
+     "id": "60:4",
+     "name": "Button/Set",
+     "type": "COMPONENT_SET",
+     "x": 300,
+     "y": 900,
+     "width": 260,
+     "height": 40
     }
    ]
   }

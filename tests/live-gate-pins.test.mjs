@@ -62,6 +62,16 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // change that can only re-run one is four claims and one test.
   "live-constraints-gate.mjs":
     "R2.6 item 2.2, schema 1.8.0 — PASSED on channel 2bcdtr5b, 2026-08-22. Item 2.3 moved both build IDs and the fingerprint and took the tool count 58 → 59; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
+  // ⛔ FIFTH, added by item 2.4 — and this is the entry that ENDS the pattern rather than
+  // continuing it. 2.4 is the last of the four layout tools, so no sixth item will stale a
+  // sixth gate. ⚠️ The owner's standing call named THIS moment: re-pin and re-run the set
+  // ONCE after the layout tools land. That moment has now arrived, and the backlog is FIVE
+  // rather than the four the plan predicted — 2.3's own gate joined it on the way out.
+  // ⛔ Still not re-pinned here, for the fifth time and the same reason: this change can
+  // only re-run one gate, and re-pinning five while running one is five claims and one
+  // test (`e02d1b2`).
+  "live-size-limits-gate.mjs":
+    "R2.6 item 2.3, schema 1.8.0 — PASSED on channel o2vws4ph, 2026-08-22, run twice. Item 2.4 moved both build IDs and the fingerprint and took the tool count 59 → 60; the schema HELD at 1.8.0. ⚠️ Two independent changes moved serverBuildId here — the new tool, and the CC1 repair that walked 2.1/2.2/2.3 back to additive-preview. Re-pin and re-run before its result is quoted against this tree.",
 });
 
 function readPins(source) {

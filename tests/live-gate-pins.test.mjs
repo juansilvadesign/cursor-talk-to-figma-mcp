@@ -42,6 +42,17 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // live-layout-gate.mjs, then delete this entry.
   "live-text-style-gate.mjs":
     "R2.6 item 2.0, schema 1.8.0 — PASSED on channel 7l9ymck4, 2026-08-22. Item 2.1 moved both build IDs, the fingerprint and the tool count (56 → 57); the schema HELD at 1.8.0, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
+  // ⛔ THIRD, added by item 2.2 — and this one passed HOURS ago, twice, on the build 2.2
+  // has just replaced. That it is the freshest result in the repo changes nothing: a gate
+  // is stale when its pins stop describing the tree, not when its result gets old.
+  // ⛔ Not re-pinned here, for the third time and the same reason: this change cannot
+  // re-run it. Re-pinning and re-running travel together or the pin is a claim nobody
+  // tested (`e02d1b2`).
+  // ⚠️ THREE stale gates is now a backlog, not an incident. The owner's standing call of
+  // 2026-08-22 is to re-pin and re-run the set ONCE after the layout tools land — 2.3 and
+  // 2.4 are still outstanding, so that moment has not arrived.
+  "live-layout-gate.mjs":
+    "R2.6 item 2.1, schema 1.8.0 — PASSED on channel mzg3tlfl, 2026-08-22, run twice. Item 2.2 moved both build IDs and the fingerprint and took the tool count 57 → 58; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
 });
 
 function readPins(source) {

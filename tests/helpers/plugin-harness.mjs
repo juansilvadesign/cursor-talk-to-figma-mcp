@@ -55,6 +55,43 @@ function createFixtureRuntime(fixture, options) {
     "INSTANCE",
   ]);
 
+  // ⛔ Type-gated, NOT a blanket default — and that distinction is the whole point.
+  // Item 2.1 gave every node `layoutMode: "NONE"`, pages included, so the arm for "a
+  // parent with no layoutMode property at all" could only be reached by `delete`ing the
+  // property inside a test. That is fiction dressed as a fixture, and the live gate was
+  // the first thing to execute the branch for real. Figma's ConstraintMixin is carried by
+  // laid-out nodes and NOT by DOCUMENT, PAGE, GROUP or SECTION, so the harness models
+  // exactly that and `set_constraints`'s "this node has no constraints" refusal is
+  // reachable honestly, offline, without surgery.
+  // ⛔ The debt item 2.1's live gate recorded, paid here. `layoutMode` was a BLANKET
+  // default — every node got `"NONE"`, pages and groups included — so `set_layout_child`'s
+  // arm for "a parent with no layoutMode property at all" could only be reached by
+  // `delete`ing the property inside a test, and the live gate was the first thing to
+  // execute it for real. In Figma only frame-likes carry AutoLayoutMixin. Gating it here
+  // makes that branch honestly reachable offline, for 2.1 and for 2.2's parent guard.
+  const AUTO_LAYOUT_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+  ]);
+
+  const CONSTRAINT_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+    "RECTANGLE",
+    "ELLIPSE",
+    "POLYGON",
+    "STAR",
+    "VECTOR",
+    "LINE",
+    "TEXT",
+    "BOOLEAN_OPERATION",
+    "SLICE",
+  ]);
+
   function serializeNode(node) {
     const result = {};
     for (const [key, value] of Object.entries(node)) {
@@ -128,6 +165,25 @@ function createFixtureRuntime(fixture, options) {
     if (!node.type) node.type = "RECTANGLE";
     if (containers.has(node.type)) node.children = [];
     else delete node.children;
+
+    // MIN/MIN is what Figma hands back on a freshly created node, so a test that reads
+    // `constraints` without writing sees the platform's own answer rather than the
+    // tool's. A fixture may override it; a non-carrier can never have one.
+    if (CONSTRAINT_CARRIERS.has(node.type)) {
+      if (!node.constraints) node.constraints = { horizontal: "MIN", vertical: "MIN" };
+    } else {
+      delete node.constraints;
+    }
+
+    // ⚠️ A fixture that DECLARES layoutMode on a non-carrier keeps it, so this cannot
+    // silently drop a value a test deliberately set up; only the blanket default is
+    // withdrawn. ⏳ The sibling auto-layout defaults (paddingTop, itemSpacing,
+    // primaryAxisAlignItems, layoutSizing*) are blanket in exactly the same way and are
+    // NOT fixed here — one property, the one 2.2's guard branches on.
+    if (!AUTO_LAYOUT_CARRIERS.has(node.type) && !("layoutMode" in (raw || {}))) {
+      delete node.layoutMode;
+      delete node.layoutWrap;
+    }
 
     node.resize = (width, height) => {
       node.width = width;

@@ -47,7 +47,10 @@ test("page, style, variable, component, and binding fixtures retain honest cover
   const harness = await loadPluginHarness();
   const pages = await harness.command("get_pages", { includeChildCount: true });
   assert.equal(pages.pageCount, 2);
-  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 2]);
+  // 2 → 4 on Page Two at R2.6 item 2.2: a PLAIN (non-auto-layout) frame with children and
+  // a GROUP with one. Every frame in the fixture was auto-layout before, which is the case
+  // `set_constraints` refuses, so its primary happy path had nowhere to live.
+  assert.deepEqual(pages.pages.map((page) => page.childCount), [6, 4]);
 
   const styles = await harness.command("get_styles");
   assert.deepEqual(styles.counts, { colors: 1, texts: 1, effects: 1, grids: 1 });

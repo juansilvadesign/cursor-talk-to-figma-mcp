@@ -53,6 +53,15 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // 2.4 are still outstanding, so that moment has not arrived.
   "live-layout-gate.mjs":
     "R2.6 item 2.1, schema 1.8.0 — PASSED on channel mzg3tlfl, 2026-08-22, run twice. Item 2.2 moved both build IDs and the fingerprint and took the tool count 57 → 58; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
+  // ⛔ FOURTH, added by item 2.3 — and the pattern is now fully regular: each layout item
+  // stales its predecessor's gate on the way in. This one passed on `2bcdtr5b` earlier the
+  // same day.
+  // ⚠️ The owner's standing call names THIS moment as the one that has not arrived yet:
+  // re-pin and re-run the set ONCE after the layout tools land. 2.4 is still outstanding,
+  // so the backlog goes to four rather than being worked now — re-pinning four gates in a
+  // change that can only re-run one is four claims and one test.
+  "live-constraints-gate.mjs":
+    "R2.6 item 2.2, schema 1.8.0 — PASSED on channel 2bcdtr5b, 2026-08-22. Item 2.3 moved both build IDs and the fingerprint and took the tool count 58 → 59; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
 });
 
 function readPins(source) {

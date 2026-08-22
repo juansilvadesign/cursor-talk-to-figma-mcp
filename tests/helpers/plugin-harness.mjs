@@ -76,6 +76,22 @@ function createFixtureRuntime(fixture, options) {
     "INSTANCE",
   ]);
 
+  // ⛔ Item 2.3's carrier set, and it is a MODEL of a platform claim rather than a fact
+  // this project has measured. Figma documents `minWidth`/`maxWidth`/`minHeight`/
+  // `maxHeight` on frame-likes and on text, and NOT on a RECTANGLE, a GROUP, a SECTION or
+  // a PAGE — so `set_size_limits`'s "this node has no size limits" refusal is reachable
+  // offline without deleting a property inside a test, which is the fiction 2.1 shipped
+  // and 2.2 paid off. ⚠️ `live-size-limits-gate.mjs` measures the real set and is the
+  // authority; if Figma disagrees, this Set is what changes, not the handler, because the
+  // handler asks the NODE rather than consulting a list.
+  const SIZE_LIMIT_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+    "TEXT",
+  ]);
+
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
     "COMPONENT",
@@ -173,6 +189,82 @@ function createFixtureRuntime(fixture, options) {
       if (!node.constraints) node.constraints = { horizontal: "MIN", vertical: "MIN" };
     } else {
       delete node.constraints;
+    }
+
+    // Item 2.3's size limits. `null` on a carrier means "no limit set" and is a legal
+    // stored value; ABSENT means the node has no such surface. Those are two different
+    // facts and the handler's eligibility probe turns on exactly that difference, so the
+    // harness has to be able to represent both.
+    if (SIZE_LIMIT_CARRIERS.has(node.type)) {
+      const limits = {
+        minWidth: null,
+        maxWidth: null,
+        minHeight: null,
+        maxHeight: null,
+      };
+      const axes = [
+        ["minWidth", "maxWidth", "width"],
+        ["minHeight", "maxHeight", "height"],
+      ];
+      for (const field of Object.keys(limits)) {
+        if (raw && field in raw) limits[field] = raw[field];
+        delete node[field];
+      }
+      // ⭐ Figma CLAMPS the node to a limit rather than merely storing it, and it REFUSES
+      // a minimum above a maximum. Both are modelled, and the refusal is the one that
+      // earns its keep: without it, a handler that wrote its four fields in a careless
+      // order would pass offline and only fail against the real platform. With it, the
+      // write-order test can actually fail — the intermediate state is checked, not just
+      // the end state.
+      const applyLimits = () => {
+        for (const [min, max, size] of axes) {
+          if (typeof limits[min] === "number" && node[size] < limits[min]) {
+            node[size] = limits[min];
+          }
+          if (typeof limits[max] === "number" && node[size] > limits[max]) {
+            node[size] = limits[max];
+          }
+        }
+      };
+      // ⭐ Opt-in COERCION, and it exists to make one specific lie detectable. A receipt
+      // that echoed its own arguments instead of reading the node back is invisible while
+      // the platform stores exactly what it is given — the write and the read agree, so
+      // both implementations produce identical output and no test can separate them. A
+      // node that rounds its limits separates them in one reading: the echo reports 12.5,
+      // the read-back reports 13. ⚠️ Whether Figma actually rounds is NOT claimed here;
+      // this models a platform that might, so the honesty of the read-back stops depending
+      // on the platform being well-behaved.
+      const rounds = (options.roundSizeLimits || []).includes(node.id);
+      for (const field of Object.keys(limits)) {
+        Object.defineProperty(node, field, {
+          enumerable: true,
+          configurable: true,
+          get: () => limits[field],
+          set: (value) => {
+            const stored =
+              rounds && typeof value === "number" ? Math.round(value) : value;
+            const next = { ...limits, [field]: stored };
+            for (const [min, max] of axes) {
+              if (
+                typeof next[min] === "number" &&
+                typeof next[max] === "number" &&
+                next[min] > next[max]
+              ) {
+                throw new Error(
+                  `Cannot set ${min} to ${next[min]}, which is greater than ${max} ${next[max]}`
+                );
+              }
+            }
+            limits[field] = stored;
+            applyLimits();
+          },
+        });
+      }
+      applyLimits();
+    } else {
+      for (const field of ["minWidth", "maxWidth", "minHeight", "maxHeight"]) {
+        delete node[field];
+      }
     }
 
     // ⚠️ A fixture that DECLARES layoutMode on a non-carrier keeps it, so this cannot

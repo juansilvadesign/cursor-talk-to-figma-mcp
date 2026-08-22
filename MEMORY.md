@@ -13,9 +13,12 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-22)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
-- **▶ START HERE:** 2.0 · 2.1 · 2.2 · **2.3 all GATED**. Next = **2.4 `set_clips_content`**,
-  the LAST of the four layout tools — after which the owner's standing call comes due:
-  re-pin and re-run all four stale gates ONCE.
+- **▶ START HERE:** 2.0 · 2.1 · 2.2 · 2.3 GATED, and **2.4 `set_clips_content` is BUILT +
+  COMMITTED but ⏳ NOT GATED** — the gate REFUSED at `join_channel` on a stale DEV plugin.
+  Next = **owner re-runs the DEV plugin in Figma, rejoins a channel, then re-run
+  `scripts/live-clips-content-gate.mjs`.** After it passes, the owner's standing call comes
+  due: re-pin and re-run the stale gates ONCE — the backlog is **FIVE**, not the four the
+  plan predicted, because 2.3's own gate joined on the way out.
 - **Doing:** ✅✅ **R2.6 Phase 2 item 2.0 is BUILT, COMMITTED and GATED.** Built 2026-08-21
   (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`. `create_text` carries the
   twelve `set_text_style` parameters, `setCharacters` is **awaited**, and an unloadable

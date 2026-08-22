@@ -10,15 +10,33 @@
 > discharged it. **The entry point is Phase 1.1**, not Phase 0. Everything that remains is
 > net-new work.
 >
-> ⛔ **The consumer gap is still open, re-verified the same day** against HEAD `c10c9ff`
-> (schema `1.4.0`, fingerprint `sha256:c3cd6e71…dcc6bd`): **52 registered tools, of which
-> the only variable-aware ones are `get_variables` and `get_node_variables` — both
-> read-only.** `set_variable*` / `create_variable*` / `bind_variable*` return zero matches
-> in `server.ts` and `code.js`, and none of the 33 write tools touches a variable,
-> collection, or mode. Nothing since the cut has narrowed the gap: R2.1–R2.4 shipped export
-> safety, `create_page`, plugin data, and the batch receipt vocabulary. ⚠️ **`apply_batch`
-> will not help even once it lands** — it is mutate-only over existing **node** IDs, and
-> variables are not nodes.
+> ⛔ **The consumer gap is still open, re-verified 2026-08-22** against the generated contract
+> at HEAD `e41735e`: **59 registered tools** committed (schema `1.8.0`, fingerprint
+> `sha256:89be6e6c…cea87f9d`; 60 in the working tree with R2.6 item 2.4 in flight), of which
+> the only variable-aware ones are `get_variables` and `get_node_variables` — **both
+> read-only.** `setValueForMode` / `createVariable` / `createVariableCollection` /
+> `setBoundVariable` return zero matches anywhere in `src/`, and none of the 39 write tools
+> touches a variable, collection, or mode. Nothing since the cut has narrowed the gap:
+> R2.1–R2.6 shipped export safety, `create_page`, plugin data, the batch receipt vocabulary,
+> typography, and four layout tools. ⚠️ **`apply_batch` will not help even once it lands** —
+> it is mutate-only over existing **node** IDs, and variables are not nodes. ⚠️ **Nor does
+> R2.6's typography surface**, which is the more tempting misread: `create_text` and
+> `set_text_style` take `fontFamily`, but a text tool writes a *node's* font, and the
+> consumer's font corrections are **STRING variables**.
+> *(Supersedes the 2026-08-12 note reading `c10c9ff` / `1.4.0` / 52 tools.)*
+>
+> ⭐ **THE ALTERNATIVE ROUTE IS NOW CLOSED, MEASURED 2026-08-22 — this is what schedules the
+> work.** The Figma **REST** Variables API is Enterprise-gated on **reads as well as writes**:
+> all three endpoints state *"available to full members of Enterprise orgs"*
+> (`file_variables:read` Tier 2; `file_variables:write` Tier 3 plus file edit access). The
+> consumer's account is Education/Professional. ⛔ **The missing `fileKey` was never the
+> blocker** — it was captured 2026-08-07 to unblock precisely this route, which was already
+> closed. Conversely the **plugin** API is ungated for ordinary variable writes; only
+> `addMode` (*"Limited to N modes only"*) and `extend` (Enterprise) are tier-limited.
+> **The first three tools have therefore been cut as R3-A and scheduled ahead of R2.7 →
+> [`VARIABLE-SLICE-PRIORITIZATION.md`](VARIABLE-SLICE-PRIORITIZATION.md).** Phases 1–4 below
+> remain the full plan; R3-A is its front third, deliberately excluding both tier-limited
+> calls so the slice carries no plan dependency.
 >
 > This plan owns **variables only**. R3's paint/text/effect/grid *styles* and its
 > component/variant authoring stay coarse until they are cut separately.

@@ -85,13 +85,24 @@ if (!options.channel) {
 //
 // ⚠️ Six releases running, this answer has changed shape every time. ⛔ Do not carry it
 // forward — re-derive which halves moved from `runtime-metadata.ts` on every release.
+//
+// ⛔ RE-PINNED 2026-08-22 to R2.6 item 2.4, the LAST of the four layout tools — the
+// owner's standing call to re-pin and re-run the stale set ONCE, now that the set is
+// closed at five. Since this gate last ran (item 2.1, channel `mzg3tlfl`, twice), three
+// additive items landed: both build IDs and the fingerprint moved, the tool count moved
+// 57 → 60, and the schema HELD at 1.8.0.
+//
+// ⭐ **A pin edit does NOT move the build.** `serverBuildId` is
+// `sha256(server.ts + contractPayload)`; `scripts/` is hashed by nothing
+// (`scripts/contract-lib.mjs:605`). Five gates re-pinned to one pair in one pass therefore
+// cannot stale each other — the *items* staled them, never the pins.
 const expectedRuntime = {
-  serverBuildId: "r2-server-92dc135f665b",
-  pluginBuildId: "r2-plugin-3f7c7cd69133",
+  serverBuildId: "r2-server-fb30663ee0f1",
+  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
   schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:1865d8179b594d68a7a394c3d8e0c7982800671a0e05b3ed99d344056b7ebb09",
-  toolCount: 57,
+    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  toolCount: 60,
 };
 
 const serverPath = options.server
@@ -749,9 +760,23 @@ try {
   record.stillOwed.push(
     "2.2–2.4 (set_constraints, set_size_limits, set_clips_content) are not built and not covered here. This gate is item 2.1 alone, per the owner's split-scope decision.",
   );
-  record.stillOwed.push(
-    "live-batch-gate.mjs and live-text-style-gate.mjs both pin builds this tree no longer produces. They are declared stale by name in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run — together, in one change, because re-pinning without re-running is the e02d1b2 defect.",
-  );
+  // ⛔ This slot used to hardcode "live-batch-gate.mjs and live-text-style-gate.mjs both
+  // pin builds this tree no longer produces" — true when written, FALSE from 2026-08-22,
+  // when the whole stale set was re-pinned to the item 2.4 build and re-run on channel
+  // sa6ggz00. A passing gate printing a false finding is exactly the status-marker defect
+  // this project has now hit four times. ⭐ The fix is not a corrected sentence — it is to
+  // stop asserting a belief and READ the declaration file, the same repair §7 of the
+  // size-limits gate needed.
+  const staleGateDeclarations = [
+    ...(await readFile(path.join(root, "tests/live-gate-pins.test.mjs"), "utf8")).matchAll(
+      /^\s*"(live-[a-z-]+\.mjs)":/gm,
+    ),
+  ].map((match) => match[1]);
+  if (staleGateDeclarations.length > 0) {
+    record.stillOwed.push(
+      `${staleGateDeclarations.length} gate(s) are declared as pinned to an earlier release in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run together, because re-pinning without re-running is the e02d1b2 defect: ${staleGateDeclarations.join(", ")}.`,
+    );
+  }
   record.stillOwed.push(
     "Whether layoutGrow interacts with textAutoResize on a TEXT child is untested. The plan flags textAutoResize x layoutSizing as a cross-release interaction and says to land the child-layout tools before asserting combined behaviour — so it is deliberately NOT asserted here.",
   );

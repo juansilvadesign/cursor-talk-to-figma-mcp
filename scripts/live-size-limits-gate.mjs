@@ -130,13 +130,26 @@ if (!options.channel) {
 //
 // ⚠️ Eight releases running, this answer has changed shape almost every time. ⛔ Do not
 // carry it forward — re-derive which halves moved from `runtime-metadata.ts` every time.
+//
+// ⛔ RE-PINNED 2026-08-22 to R2.6 item 2.4, the LAST of the four layout tools — the
+// owner's standing call to re-pin and re-run the stale set ONCE, now that the set is
+// closed at five. Since this gate last ran (item 2.3, channel `o2vws4ph`, twice) exactly
+// one item landed, and it took the shape 2.1 and 2.2 had: both build IDs and the
+// fingerprint moved, the tool count moved 59 → 60, the schema HELD at 1.8.0. ⭐ TWO
+// independent changes moved `serverBuildId` in that one item — `set_clips_content` itself,
+// and the CC1 repair that walked 2.1/2.2/2.3 back off a silently-defaulted `stable`.
+//
+// ⭐ **A pin edit does NOT move the build.** `serverBuildId` is
+// `sha256(server.ts + contractPayload)`; `scripts/` is hashed by nothing
+// (`scripts/contract-lib.mjs:605`). Five gates re-pinned to one pair in one pass therefore
+// cannot stale each other — the *items* staled them, never the pins.
 const expectedRuntime = {
-  serverBuildId: "r2-server-a9e8d5b3bf78",
-  pluginBuildId: "r2-plugin-1fb9729971a3",
+  serverBuildId: "r2-server-fb30663ee0f1",
+  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
   schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:89be6e6c668d147b17c58f9f1d7f454d8d60ad38657e13d935cf4142cea87f9d",
-  toolCount: 59,
+    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  toolCount: 60,
 };
 
 const serverPath = options.server
@@ -976,12 +989,33 @@ try {
   record.stillOwed.push(
     "2.4 (set_clips_content) is not built and not covered here. This gate is item 2.3 alone, per the owner's one-tool-at-a-time decision.",
   );
-  record.stillOwed.push(
-    "FOUR gates now pin builds this tree no longer produces — live-batch-gate.mjs, live-text-style-gate.mjs, live-layout-gate.mjs and now live-constraints-gate.mjs, which passed earlier the same day. All four are declared stale by name in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run together, because re-pinning without re-running is the e02d1b2 defect. Owner's standing call of 2026-08-22: do it once, after the layout tools land — 2.4 is the last of them.",
-  );
-  record.stillOwed.push(
-    "set_size_limits ships at resultStability `stable` from birth, following 2.1 and 2.2 rather than R2.5's hold-at-additive-preview. A reply-shape defect found later needs a publicContractVersion bump, and 1.9.0 is reserved for R2.7. The exposure window is this session; it is named here so the choice is on the record.",
-  );
+  // ⛔ This slot used to hardcode "FOUR gates now pin builds this tree no longer
+  // produces" — true when written, FALSE from 2026-08-22, when the whole stale set was
+  // re-pinned to the item 2.4 build and re-run on channel sa6ggz00. ⭐ The fix is not a
+  // corrected count: it is to stop asserting a belief and READ the declaration file —
+  // the same repair §7 of this gate already needed for SIZE_LIMIT_CARRIERS.
+  const staleGateDeclarations = [
+    ...(await readFile(path.join(root, "tests/live-gate-pins.test.mjs"), "utf8")).matchAll(
+      /^\s*"(live-[a-z-]+\.mjs)":/gm,
+    ),
+  ].map((match) => match[1]);
+  if (staleGateDeclarations.length > 0) {
+    record.stillOwed.push(
+      `${staleGateDeclarations.length} gate(s) are declared as pinned to an earlier release in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run together, because re-pinning without re-running is the e02d1b2 defect: ${staleGateDeclarations.join(", ")}.`,
+    );
+  }
+  // ⛔ This slot used to assert "set_size_limits ships at resultStability `stable` from
+  // birth" — true when written, FALSE from item 2.4's CC1 repair, which walked all four
+  // layout tools back to additive-preview. Read the published contract.
+  const publishedStability = JSON.parse(
+    await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),
+  ).tools.find((tool) => tool.name === "set_size_limits")?.resultStability;
+  record.checks.publishedStability = publishedStability ?? null;
+  if (publishedStability === "stable") {
+    record.stillOwed.push(
+      "set_size_limits is published at resultStability `stable`, so a reply-shape defect found later needs a publicContractVersion bump — and 1.9.0 is reserved for R2.7. Named here so the exposure is on the record.",
+    );
+  }
   record.stillOwed.push(
     "Whether Figma ROUNDS a fractional limit is not measured. The tool accepts 12.5 and compares the read-back exactly, so a platform that rounded would drop the field out of appliedFields rather than lie — but no leg here supplies a fractional value to a real node.",
   );

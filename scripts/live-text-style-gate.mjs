@@ -82,13 +82,25 @@ if (!options.channel) {
 //
 // ⚠️ The last five releases have each flipped this answer. ⛔ Do not carry it forward —
 // re-derive which halves moved from `runtime-metadata.ts` every time.
+//
+// ⛔ RE-PINNED 2026-08-22 to R2.6 item 2.4, the LAST of the four layout tools — the
+// owner's standing call to re-pin and re-run the stale set ONCE, now that the set is
+// closed at five. Since this gate last ran (item 2.0, channel `7l9ymck4`), four additive
+// items landed: both build IDs and the fingerprint moved each time, the tool count moved
+// 56 → 60, and the **schema HELD at 1.8.0 throughout** — 2.0 spent this release's one bump
+// and a new tool is additive.
+//
+// ⭐ **A pin edit does NOT move the build.** `serverBuildId` is
+// `sha256(server.ts + contractPayload)`; `scripts/` is hashed by nothing
+// (`scripts/contract-lib.mjs:605`). That is why five gates can be re-pinned to one pair in
+// one pass without staling each other — the *items* staled them, never the pins.
 const expectedRuntime = {
-  serverBuildId: "r2-server-2fa65a5749e2",
-  pluginBuildId: "r2-plugin-045a95955905",
+  serverBuildId: "r2-server-fb30663ee0f1",
+  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
   schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:b5cbf7b1dd1641013e1524e6a2bee525a85b1c2b45abe519234d18956241f2f0",
-  toolCount: 56,
+    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  toolCount: 60,
 };
 
 const serverPath = options.server

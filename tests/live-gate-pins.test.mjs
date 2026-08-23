@@ -31,47 +31,32 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
-  "live-batch-gate.mjs":
-    "R2.6 Phase 1, schema 1.7.0 — PASSED on channel kw7qggwv, 2026-08-20. Item 2.0 moved every pin, so this needs re-pinning before its next run; it is NOT re-pinned here, because a gate re-pinned without being re-run is exactly the e02d1b2 defect.",
-  // ⛔ Added by item 2.1, and it is the SECOND gate to land here for the same reason.
-  // This one PASSED two days ago — 2026-08-22, channel 7l9ymck4, first run — against the
-  // build 2.1 has just replaced. Its result stands for the build it ran on; what it can
-  // no longer do is start. ⛔ It is deliberately NOT re-pinned in this change, because
-  // this change cannot re-run it: re-pinning and re-running have to travel together, or
-  // the pin becomes a claim nobody tested. Re-pin + re-run it in the same live session as
-  // live-layout-gate.mjs, then delete this entry.
-  "live-text-style-gate.mjs":
-    "R2.6 item 2.0, schema 1.8.0 — PASSED on channel 7l9ymck4, 2026-08-22. Item 2.1 moved both build IDs, the fingerprint and the tool count (56 → 57); the schema HELD at 1.8.0, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
-  // ⛔ THIRD, added by item 2.2 — and this one passed HOURS ago, twice, on the build 2.2
-  // has just replaced. That it is the freshest result in the repo changes nothing: a gate
-  // is stale when its pins stop describing the tree, not when its result gets old.
-  // ⛔ Not re-pinned here, for the third time and the same reason: this change cannot
-  // re-run it. Re-pinning and re-running travel together or the pin is a claim nobody
-  // tested (`e02d1b2`).
-  // ⚠️ THREE stale gates is now a backlog, not an incident. The owner's standing call of
-  // 2026-08-22 is to re-pin and re-run the set ONCE after the layout tools land — 2.3 and
-  // 2.4 are still outstanding, so that moment has not arrived.
-  "live-layout-gate.mjs":
-    "R2.6 item 2.1, schema 1.8.0 — PASSED on channel mzg3tlfl, 2026-08-22, run twice. Item 2.2 moved both build IDs and the fingerprint and took the tool count 57 → 58; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
-  // ⛔ FOURTH, added by item 2.3 — and the pattern is now fully regular: each layout item
-  // stales its predecessor's gate on the way in. This one passed on `2bcdtr5b` earlier the
-  // same day.
-  // ⚠️ The owner's standing call names THIS moment as the one that has not arrived yet:
-  // re-pin and re-run the set ONCE after the layout tools land. 2.4 is still outstanding,
-  // so the backlog goes to four rather than being worked now — re-pinning four gates in a
-  // change that can only re-run one is four claims and one test.
-  "live-constraints-gate.mjs":
-    "R2.6 item 2.2, schema 1.8.0 — PASSED on channel 2bcdtr5b, 2026-08-22. Item 2.3 moved both build IDs and the fingerprint and took the tool count 58 → 59; the schema HELD at 1.8.0 again, because a new tool is additive. Re-pin and re-run before its result is quoted against this tree.",
-  // ⛔ FIFTH, added by item 2.4 — and this is the entry that ENDS the pattern rather than
-  // continuing it. 2.4 is the last of the four layout tools, so no sixth item will stale a
-  // sixth gate. ⚠️ The owner's standing call named THIS moment: re-pin and re-run the set
-  // ONCE after the layout tools land. That moment has now arrived, and the backlog is FIVE
-  // rather than the four the plan predicted — 2.3's own gate joined it on the way out.
-  // ⛔ Still not re-pinned here, for the fifth time and the same reason: this change can
-  // only re-run one gate, and re-pinning five while running one is five claims and one
-  // test (`e02d1b2`).
-  "live-size-limits-gate.mjs":
-    "R2.6 item 2.3, schema 1.8.0 — PASSED on channel o2vws4ph, 2026-08-22, run twice. Item 2.4 moved both build IDs and the fingerprint and took the tool count 59 → 60; the schema HELD at 1.8.0. ⚠️ Two independent changes moved serverBuildId here — the new tool, and the CC1 repair that walked 2.1/2.2/2.3 back to additive-preview. Re-pin and re-run before its result is quoted against this tree.",
+  // ✅ THE R2.6 BACKLOG IS CLEARED — 2026-08-22, channel `sa6ggz00`.
+  //
+  // Five entries lived here at once: `live-batch-gate.mjs` (R2.6 Phase 1),
+  // `live-text-style-gate.mjs` (item 2.0), `live-layout-gate.mjs` (2.1),
+  // `live-constraints-gate.mjs` (2.2) and `live-size-limits-gate.mjs` (2.3). Each layout
+  // item staled its predecessor's gate on the way in, and each declined to re-pin, because
+  // a change that can only re-run ONE gate cannot honestly re-pin five — that is five
+  // claims and one test (`e02d1b2`). The owner's standing call was to do the set ONCE
+  // after the layout tools landed. 2.4 was the last of them, so it was done: all five
+  // re-pinned to the item 2.4 build and all five RE-RUN on one channel, each once, all
+  // five green. Their entries are deleted rather than reworded — the declaration and the
+  // run travelled together, which is the whole rule.
+  //
+  // ⭐ **A PIN EDIT DOES NOT MOVE THE BUILD, and that is what made a five-gate re-pin
+  // possible in one pass.** The standing worry — recorded in MEMORY.md as "each re-pin
+  // moves serverBuildId, so re-derive" — was WRONG, and it is worth naming because it is
+  // what made the backlog look unworkable. `serverBuildId` is
+  // `sha256(server.ts + contractPayload)` and `pluginBuildId` hashes
+  // `code.js` + `ui.html` + `manifest.json` (`scripts/contract-lib.mjs:605`). `scripts/`
+  // is hashed by NEITHER. So these five could never have staled each other; what staled
+  // them was the *item* landing above them, every time.
+  //
+  // ⛔ The three entries above are a DIFFERENT case and stay: `live-export-gate.mjs`,
+  // `live-create-page-gate.mjs` and `live-plugin-data-gate.mjs` belong to R2.1/R2.2/R2.4
+  // and were never part of the R2.6 backlog. They are owed a re-pin and a re-run together
+  // whenever their results are next quoted.
 });
 
 function readPins(source) {

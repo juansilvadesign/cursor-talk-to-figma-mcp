@@ -119,13 +119,25 @@ if (!options.channel) {
 //
 // ⚠️ Seven releases running, this answer has changed shape almost every time. ⛔ Do not
 // carry it forward — re-derive which halves moved from `runtime-metadata.ts` every time.
+// ⛔ RE-PINNED 2026-08-22 to R2.6 item 2.4, the LAST of the four layout tools — the
+// owner's standing call to re-pin and re-run the stale set ONCE, now that the set is
+// closed at five. Since this gate last ran (item 2.2, channel `2bcdtr5b`), two additive
+// items landed: both build IDs and the fingerprint moved, the tool count moved 58 → 60,
+// and the schema HELD at 1.8.0. ⚠️ 2.3 moved `serverBuildId` a SECOND time inside its own
+// item, on a context-rule fix that left the fingerprint standing still — a rule added
+// inside an existing tool is invisible to a surface hash.
+//
+// ⭐ **A pin edit does NOT move the build.** `serverBuildId` is
+// `sha256(server.ts + contractPayload)`; `scripts/` is hashed by nothing
+// (`scripts/contract-lib.mjs:605`). Five gates re-pinned to one pair in one pass therefore
+// cannot stale each other — the *items* staled them, never the pins.
 const expectedRuntime = {
-  serverBuildId: "r2-server-06f75969aa1d",
-  pluginBuildId: "r2-plugin-e82230c1bbb1",
+  serverBuildId: "r2-server-fb30663ee0f1",
+  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
   schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:8ceaf9d212e9fc1520dd510c2f039b0548676edc63ecfc20607b2317a93b236f",
-  toolCount: 58,
+    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  toolCount: 60,
 };
 
 const serverPath = options.server
@@ -938,12 +950,34 @@ try {
   record.stillOwed.push(
     "2.3 and 2.4 (set_size_limits, set_clips_content) are not built and not covered here. This gate is item 2.2 alone, per the owner's one-tool-at-a-time decision.",
   );
-  record.stillOwed.push(
-    "THREE gates now pin builds this tree no longer produces — live-batch-gate.mjs, live-text-style-gate.mjs and live-layout-gate.mjs. All three are declared stale by name in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run together, because re-pinning without re-running is the e02d1b2 defect. Owner's standing call of 2026-08-22: do it once, after the layout tools land.",
-  );
-  record.stillOwed.push(
-    "set_constraints ships at resultStability `stable` from birth, following item 2.1 rather than R2.5's hold-at-additive-preview. If this gate had found a reply-shape defect, fixing it would need a publicContractVersion bump — and 1.9.0 is reserved for R2.7. The exposure window is this session; it is named here so the choice is on the record.",
-  );
+  // ⛔ This slot used to hardcode "THREE gates now pin builds this tree no longer
+  // produces" — true when written, FALSE from 2026-08-22, when the whole stale set was
+  // re-pinned to the item 2.4 build and re-run on channel sa6ggz00. ⭐ The fix is not a
+  // corrected count: it is to stop asserting a belief and READ the declaration file.
+  const staleGateDeclarations = [
+    ...(await readFile(path.join(root, "tests/live-gate-pins.test.mjs"), "utf8")).matchAll(
+      /^\s*"(live-[a-z-]+\.mjs)":/gm,
+    ),
+  ].map((match) => match[1]);
+  if (staleGateDeclarations.length > 0) {
+    record.stillOwed.push(
+      `${staleGateDeclarations.length} gate(s) are declared as pinned to an earlier release in tests/live-gate-pins.test.mjs and are owed a re-pin AND a re-run together, because re-pinning without re-running is the e02d1b2 defect: ${staleGateDeclarations.join(", ")}.`,
+    );
+  }
+  // ⛔ This slot used to assert "set_constraints ships at resultStability `stable` from
+  // birth" — true when written, FALSE from item 2.4's CC1 repair, which found that
+  // `getResultStability` had been falling THROUGH to `stable` for three consecutive items
+  // and walked all four layout tools back to additive-preview. Read the published
+  // contract rather than restating what the tool was believed to ship as.
+  const publishedStability = JSON.parse(
+    await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),
+  ).tools.find((tool) => tool.name === "set_constraints")?.resultStability;
+  record.checks.publishedStability = publishedStability ?? null;
+  if (publishedStability === "stable") {
+    record.stillOwed.push(
+      "set_constraints is published at resultStability `stable`, so a reply-shape defect found later needs a publicContractVersion bump — and 1.9.0 is reserved for R2.7. Named here so the exposure is on the record.",
+    );
+  }
   record.stillOwed.push(
     "SCALE is published and round-trips offline, but no geometry check here distinguishes SCALE from STRETCH on a single-axis resize. It is the one of the five values whose live behaviour this gate does not measure.",
   );

@@ -92,14 +92,29 @@ if (!options.channel) {
 // `sha256:a6ca7f4a…` against a tree whose fingerprint was `sha256:05ac28c5…`, so this gate
 // would have failed at `assertRuntime` before reaching a single check. It went unnoticed
 // because the gate was edited in that commit and never re-run on it.
+//
+// ⛔ RE-PINNED 2026-08-22 to R2.6 item 2.4, the LAST of the four layout tools — the
+// owner's standing call to re-pin and re-run the stale set ONCE, now that the set is
+// closed at five. This gate had sat at R2.6 Phase 1 (`1.7.0`, 56 tools) across four items,
+// so this is the largest jump of the five: the schema moved 1.7.0 → 1.8.0 (item 2.0's
+// widening of `create_text`), the tool count moved 56 → 60 (2.1 `set_layout_child`,
+// 2.2 `set_constraints`, 2.3 `set_size_limits`, 2.4 `set_clips_content`), and both build
+// IDs and the fingerprint moved several times over.
+//
+// ⭐ **A pin edit does NOT move the build, and that is what makes a five-gate re-pin
+// coherent.** `serverBuildId` is `sha256(server.ts + contractPayload)` and `pluginBuildId`
+// hashes `code.js` + `ui.html` + `manifest.json` (`scripts/contract-lib.mjs:605`).
+// `scripts/` is hashed by NEITHER. So re-pinning these five cannot stale each other, and
+// the standing worry that "each re-pin moves `serverBuildId`" was wrong — what staled each
+// gate was the *item* landing above it, never the pin.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-c45214d7420b",
-  pluginBuildId: "r2-plugin-65d716d57dbb",
-  schemaVersion: "1.7.0",
+  serverBuildId: "r2-server-fb30663ee0f1",
+  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
+  schemaVersion: "1.8.0",
   fingerprint:
-    "sha256:05ac28c502317e859f0cb20934397764519d4c44d57aa31cdfef703663734d42",
-  toolCount: 56,
+    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  toolCount: 60,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

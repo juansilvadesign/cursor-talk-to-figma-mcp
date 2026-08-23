@@ -131,6 +131,12 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // with no public-contract bump available to repair it.
   "set_opacity",
   "set_blend_mode",
+  // R2.7 Phase 2. `createdNodeCount`, `svgSourceLength` and `duplicatesOnRerun` are a brand
+  // new reply shape that no live gate has judged, and CC1's whole point is that an unlisted
+  // tool falls through to `stable` and freezes on the spot. ⛔ R2.7 has no bump left — 1.2
+  // spent 1.9.0 and 1.10.0 is R3-A's — so a reply-shape defect discovered after promotion
+  // would have no version available to repair it.
+  "create_node_from_svg",
   // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
   // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
   // pins the rule so R2.7's tools cannot repeat it silently.
@@ -243,6 +249,10 @@ const TOOL_SCOPES = {
   export_node_as_image: "node",
   create_rectangle: "current_page_or_parent",
   create_frame: "current_page_or_parent",
+  // R2.7 Phase 2. Same scope as the other creates: it lands on the current page, or inside
+  // an explicit parentId. ⚠️ The subtree it creates can be large, but scope describes WHERE
+  // a call writes, not how much — createdNodeCount reports the size as a reading.
+  create_node_from_svg: "current_page_or_parent",
   create_section: "current_page",
   create_text: "current_page_or_parent",
   create_component_instance: "current_page_or_parent",

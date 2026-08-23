@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.9.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -12,6 +12,7 @@
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
@@ -139,6 +140,7 @@
       "set_effects",
       "set_opacity",
       "set_blend_mode",
+      "create_node_from_svg",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -211,6 +213,7 @@
       "set_focus",
       "set_selections",
       "set_image_fill",
+      "create_node_from_svg",
       "rename_node",
       "create_section",
       "set_parent"
@@ -276,6 +279,7 @@
       "set_focus",
       "set_selections",
       "set_image_fill",
+      "create_node_from_svg",
       "rename_node",
       "create_section",
       "set_parent"
@@ -768,6 +772,52 @@
       },
       "pluginCommand": "create_frame",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_node_from_svg",
+      "description": "Create a Figma node tree from SVG source, using Figma's own SVG parser. Returns one FrameNode containing the parsed subtree. IMPORTANT: this tool is NOT idempotent — every call appends a fresh copy, so retrying after a timeout leaves two subtrees in the file; the reply carries duplicatesOnRerun to say so at the call site. The input is bounded by SVG source length rather than by node count, because Figma offers no way to preflight how many nodes a document expands into; createdNodeCount in the reply is a reading taken afterwards, never a prediction. This tool is deliberately absent from apply_batch's allowlist: a retried batch would multiply whole subtrees rather than re-apply one field.",
+      "direction": "write",
+      "scope": "current_page_or_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "svg": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 524288,
+            "description": "SVG source to parse. Figma's parser is the authority on what is valid"
+          },
+          "x": {
+            "type": "number",
+            "description": "X position of the created frame (default: 0)"
+          },
+          "y": {
+            "type": "number",
+            "description": "Y position of the created frame (default: 0)"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional name for the created frame; Figma's own default is kept when omitted"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Optional parent node ID. Defaults to the current page"
+          }
+        },
+        "required": [
+          "svg"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_node_from_svg",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -2713,7 +2763,7 @@
     {
       "kind": "tool",
       "name": "set_image_fill",
-      "description": "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills)",
+      "description": "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills). IMPORTANT: scaleMode CROP requires imageTransform, a 2x3 matrix naming which region to crop to. Figma accepts a bare CROP but stores the identity matrix, which maps the whole image onto the whole node and renders a STRETCH rather than a crop — measured live 2026-08-23 — so a CROP without a transform is refused instead of silently degrading. Supplying imageTransform with any other scaleMode is also refused, because Figma reads it for CROP alone and would discard it. The reply reports scaleMode, imageTransform and imageTransformSource read back off the node rather than echoed from the request; scaleMode is null with scaleModeReadable false when the node's fills cannot be read.",
       "direction": "write",
       "scope": "node",
       "inputSchema": {
@@ -2744,6 +2794,20 @@
               "TILE"
             ],
             "description": "How the image fills the node (default: FILL)"
+          },
+          "imageTransform": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "2x3 matrix naming WHICH region a CROP maps the node onto. REQUIRED for scaleMode CROP and refused for every other mode. Figma accepts a bare CROP but stores the identity matrix [[1,0,0],[0,1,0]], which renders a STRETCH rather than a crop"
           }
         },
         "required": [

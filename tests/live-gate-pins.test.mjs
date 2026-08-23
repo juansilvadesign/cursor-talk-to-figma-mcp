@@ -64,6 +64,45 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // and were part of neither the R2.6 nor the R2.7 backlog. They are owed a re-pin and a
   // re-run together whenever their results are next quoted. Folding them into this pass was
   // put to the owner on 2026-08-23 and declined — the scope was the eight.
+  //
+  // 🔴 **AND THE BACKLOG IS BACK AT NINE — staled by R2.7 PHASE 2, same day, hours later.**
+  // The `set_image_fill` CROP repair changed `code.js` and `server.ts`, moving both build IDs
+  // beneath every gate that had just been re-pinned. ⚠️ **The ninth is new to the set:**
+  // `live-opacity-blend-gate.mjs` was the one gate NOT in the end-of-Phase-1 eight — it pinned
+  // that build and had been run on it — so Phase 2 is the change that finally staled it.
+  //
+  // ⛔ NOT RE-PINNED, and the rule is the same one as every previous time: a change that can
+  // re-run only its own gate cannot honestly re-pin nine. ⭐ **This is the cost the owner
+  // chose with eyes open.** Phase 2 was sequenced BEFORE R2 acceptance precisely so the
+  // promotion of `additive-preview` → `stable` (which rewrites `contractPayload.tools` and so
+  // moves `serverBuildId` again) lands first and the whole set is re-pinned and re-run ONCE,
+  // at acceptance, rather than once per stage.
+  //
+  // ⚠️ All nine were green on `3az2oicz` against the end-of-Phase-1 build
+  // (`r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`) — eight in the re-pin pass and
+  // `live-opacity-blend` on `shtlklfy` before it. Nothing about those results is withdrawn;
+  // they are results about a build this tree no longer produces.
+  "live-batch-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-text-style-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-layout-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-constraints-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-size-limits-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-clips-content-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-fill-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  "live-effects-gate.mjs":
+    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
+  // ⭐ The ninth, and the first time this gate has ever been declared. It pinned the
+  // end-of-Phase-1 build and was run on it (`shtlklfy`, twice), which is exactly why it sat
+  // out the eight-gate re-pin. Phase 2 staled it like all the others.
+  "live-opacity-blend-gate.mjs":
+    "R2.7 item 1.3 build, schema 1.9.0, 64 tools. Green on shtlklfy, run twice; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
 });
 
 function readPins(source) {

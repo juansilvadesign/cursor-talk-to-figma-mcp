@@ -250,3 +250,78 @@ test(
     });
   },
 );
+
+/**
+ * R2.7 Phase 2. This tool is the exact defect class this FILE was created for: its wrapper
+ * formats a prose sentence, and the CROP repair's whole value lives in fields that sentence
+ * could quietly drop. `imageTransform` is what distinguishes a crop from a stretch — the mode
+ * name cannot, in either vocabulary — so a wrapper that kept the prose and lost the receipt
+ * would leave the repair working and unobservable, with every plugin-level test still green.
+ */
+test(
+  "set_image_fill delivers its CROP receipt through the wrapper, not just a prose line",
+  { timeout: 30000 },
+  async () => {
+    await withLiveStack(async ({ client }) => {
+      const imageTransform = [[0.5, 0, 0.25], [0, 0.5, 0.25]];
+      const result = await client.callTool({
+        name: "set_image_fill",
+        arguments: {
+          nodeId: "10:3",
+          imageBase64: Buffer.from("iVBORw0KGgo=", "base64").toString("base64"),
+          scaleMode: "CROP",
+          imageTransform,
+        },
+      });
+
+      const texts = result.content
+        .filter((entry) => entry.type === "text")
+        .map((entry) => entry.text);
+      const combined = texts.join("\n");
+
+      // ⛔ The historical prose line is load-bearing — several gates parse it — so the
+      // receipt is APPENDED, never substituted. Both halves are asserted so a future
+      // "tidy-up" cannot drop either one silently.
+      assert.match(combined, /Set image fill of node "/, "the historical prose line vanished");
+
+      const start = combined.lastIndexOf("\n{");
+      assert.ok(start >= 0, `the wrapper published no JSON receipt:\n${combined}`);
+      const reply = JSON.parse(combined.slice(start + 1));
+
+      assert.deepEqual(
+        reply.imageTransform,
+        imageTransform,
+        "the wrapper dropped imageTransform — the one field that tells a crop from a stretch",
+      );
+      assert.equal(reply.imageTransformSource, "caller");
+      assert.equal(reply.scaleModeReadable, true);
+    });
+  },
+);
+
+test(
+  "a bare CROP is refused across the wrapper, and the refusal names the stretch",
+  { timeout: 30000 },
+  async () => {
+    await withLiveStack(async ({ client }) => {
+      const result = await client.callTool({
+        name: "set_image_fill",
+        arguments: {
+          nodeId: "10:3",
+          imageBase64: Buffer.from("iVBORw0KGgo=", "base64").toString("base64"),
+          scaleMode: "CROP",
+        },
+      });
+      const combined = result.content
+        .filter((entry) => entry.type === "text")
+        .map((entry) => entry.text)
+        .join("\n");
+
+      // ⛔ Refused by the HANDLER, not by a narrowed schema enum: CROP is still a valid
+      // enum value, and narrowing it would have been a breaking change this repair avoided.
+      assert.match(combined, /Error setting image fill/);
+      assert.match(combined, /requires imageTransform/);
+      assert.match(combined, /renders a STRETCH, not a crop/);
+    });
+  },
+);

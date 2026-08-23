@@ -935,6 +935,33 @@ function createFixtureRuntime(fixture, options) {
     createFrame: () => createDynamicNode("FRAME", "Frame"),
     createText: () => createDynamicNode("TEXT", "Text"),
     createSection: () => createDynamicNode("SECTION", "Section"),
+    // R2.7 Phase 2. ⛔ **THIS MODELS STRUCTURE, NOT FIGMA'S PARSER.** A real
+    // `createNodeFromSvg` returns one FrameNode whose subtree is whatever Figma's own SVG
+    // parser produced, and this harness cannot and must not predict that: how many nodes a
+    // given document expands into is precisely the question the LIVE gate exists to measure.
+    // So the fake builds one child per element tag it can see, and the offline tests assert
+    // that the tool COUNTS its subtree correctly — never that a particular SVG yields a
+    // particular number. Encoding a guessed count here would be 2.3's fiction again, and
+    // [[feedback_a_fake_export_from_enumerable_props_invents_fields]] is the general shape.
+    createNodeFromSvg: (svg) => {
+      if (typeof svg !== "string" || !/<svg[\s>]/i.test(svg)) {
+        // Figma rejects unparseable source; the harness models THAT a rejection happens,
+        // which is what the tool's refusal path needs, without claiming to share its rules.
+        throw new Error("invalid SVG source");
+      }
+      const root = createDynamicNode("FRAME", "svg");
+      const tags = svg.match(/<(?!\/|\?|!)[a-zA-Z][\w:-]*/g) || [];
+      // The <svg> wrapper itself becomes the returned frame, so it is not also a child.
+      for (let index = 1; index < tags.length; index++) {
+        const child = makeNode({
+          id: `900:${dynamicId++}`,
+          type: "VECTOR",
+          name: tags[index].slice(1),
+        });
+        appendChild(root, child);
+      }
+      return root;
+    },
     // Pages attach to the document root, not to the current page, so this
     // deliberately does not go through createDynamicNode.
     createPage: () => {

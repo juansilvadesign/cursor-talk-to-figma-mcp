@@ -20,8 +20,10 @@ type: project
   `bun run verify` green, 2 mutants killed. All **six** gate sections ran; five semantic
   refusals all from the **handler** layer with `documentUntouched: true`; `null` clears.
   Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 live gate*.
-  **▶ NEXT: item 1.3 `set_opacity` / `set_blend_mode`** — ⚠️ but `1.9.0` is spent and
-  `1.10.0` is R3-A's, so 1.3 must be **additive only**.
+  **▶ CURRENT: item 1.3 `set_opacity` / `set_blend_mode` is BUILT + OFFLINE-GATED** —
+  `1.9.0` remains held because 1.2 spent it and `1.10.0` is R3-A's. The 64-tool / 343-test
+  build adds only additive-preview write tools; the live opacity/blend gate awaits a fresh
+  DEV-plugin reload and live channel.
 
 - 🔴 **THE GATE'S FIRST RUN FAILED, AND IT WAS A REAL DEFECT: `JSON_REST_V1` NEVER CARRIED
   `effectStyleId`.** Decision ① scoped the repair as "add four fields to `filterFigmaNode` in

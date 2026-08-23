@@ -4,7 +4,7 @@
   "serverSchemaVersion": "1.9.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
+  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -42,6 +42,7 @@
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_blend_mode@1",
     "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
@@ -59,6 +60,7 @@
     "figma.command.set_layout_sizing@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_opacity@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
@@ -135,6 +137,8 @@
       "set_clips_content",
       "set_fill",
       "set_effects",
+      "set_opacity",
+      "set_blend_mode",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -199,6 +203,8 @@
       "set_clips_content",
       "set_fill",
       "set_effects",
+      "set_opacity",
+      "set_blend_mode",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -262,6 +268,8 @@
       "set_clips_content",
       "set_fill",
       "set_effects",
+      "set_opacity",
+      "set_blend_mode",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -2028,6 +2036,59 @@
     },
     {
       "kind": "tool",
+      "name": "set_blend_mode",
+      "description": "Set a node's layer blend mode, the Layer panel setting that controls how the whole node blends with layers behind it. This is distinct from paint and effect blend modes. The full layer enum is accepted here, including PASS_THROUGH; PASS_THROUGH is intentionally excluded only from paint and effect tools. It requires a node with Figma's blendMode surface. The one property assignment is read back from the plugin node, so the receipt reports the stored mode and its previous value rather than echoing the request. get_node_info intentionally does not gain a blendMode field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node whose layer blend mode is being set"
+          },
+          "blendMode": {
+            "type": "string",
+            "enum": [
+              "PASS_THROUGH",
+              "NORMAL",
+              "DARKEN",
+              "MULTIPLY",
+              "LINEAR_BURN",
+              "COLOR_BURN",
+              "LIGHTEN",
+              "SCREEN",
+              "LINEAR_DODGE",
+              "COLOR_DODGE",
+              "OVERLAY",
+              "SOFT_LIGHT",
+              "HARD_LIGHT",
+              "DIFFERENCE",
+              "EXCLUSION",
+              "HUE",
+              "SATURATION",
+              "COLOR",
+              "LUMINOSITY"
+            ],
+            "description": "Layer blend mode. PASS_THROUGH is valid here because this is a node-level setting, unlike paint and effect blend modes"
+          }
+        },
+        "required": [
+          "nodeId",
+          "blendMode"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_blend_mode",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "set_clips_content",
       "description": "Set whether a frame clips content that extends past its bounds. Requires a node that carries clipsContent — a FRAME, COMPONENT, COMPONENT_SET or INSTANCE; a GROUP is sized by its children and cannot clip them, and is refused. Writing the value the node already holds succeeds and reports changed: false. Because a stored boolean cannot show that anything happened, the reply also reports the node's absoluteRenderBounds and absoluteBoundingBox before and after the write, plus the per-edge overflow between them: an unclipped frame renders past its own box exactly when its content spills out, which is the only reading in the reply that a clipped frame and an unclipped one cannot both produce. A null render measurement means the platform did not answer and is never reported as zero overflow.",
       "direction": "write",
@@ -3031,6 +3092,40 @@
       },
       "pluginCommand": "set_multiple_text_contents",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_opacity",
+      "description": "Set a node's layer opacity, from 0 (fully transparent) through 1 (fully opaque). This is the node-level Layer panel value, distinct from a paint's or effect's opacity. It requires a node with Figma's opacity surface; a page or document root is refused rather than treated as opacity 1. The one property assignment is read back from the plugin node, so the receipt reports the stored opacity and its previous value rather than echoing the request. get_node_info intentionally does not gain an opacity field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node whose layer opacity is being set"
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Layer opacity, 0-1 inclusive; 0 is a real fully transparent value"
+          }
+        },
+        "required": [
+          "nodeId",
+          "opacity"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_opacity",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

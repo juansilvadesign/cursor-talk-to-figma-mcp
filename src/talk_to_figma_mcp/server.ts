@@ -3807,6 +3807,104 @@ server.tool(
   }
 );
 
+// R2.7 item 1.3 — layer opacity and layer blend mode.
+//
+// ⛔ These are deliberately two small, standalone write tools. They expose properties from
+// Figma's BlendMixin, but do NOT add either property to filterFigmaNode: get_node_info is
+// stable, and widening its result would require the next public-contract bump. Each new
+// tool instead reports the plugin node's own post-write reading in its additive-preview
+// receipt. That keeps 1.3 additive after item 1.2 spent 1.9.0.
+server.tool(
+  "set_opacity",
+  "Set a node's layer opacity, from 0 (fully transparent) through 1 (fully opaque). This is the node-level Layer panel value, distinct from a paint's or effect's opacity. It requires a node with Figma's opacity surface; a page or document root is refused rather than treated as opacity 1. The one property assignment is read back from the plugin node, so the receipt reports the stored opacity and its previous value rather than echoing the request. get_node_info intentionally does not gain an opacity field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+  {
+    nodeId: z.string().describe("The ID of the node whose layer opacity is being set"),
+    opacity: z
+      .number()
+      .finite()
+      .min(0)
+      .max(1)
+      .describe("Layer opacity, 0-1 inclusive; 0 is a real fully transparent value"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_opacity", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting opacity: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+server.tool(
+  "set_blend_mode",
+  "Set a node's layer blend mode, the Layer panel setting that controls how the whole node blends with layers behind it. This is distinct from paint and effect blend modes. The full layer enum is accepted here, including PASS_THROUGH; PASS_THROUGH is intentionally excluded only from paint and effect tools. It requires a node with Figma's blendMode surface. The one property assignment is read back from the plugin node, so the receipt reports the stored mode and its previous value rather than echoing the request. get_node_info intentionally does not gain a blendMode field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+  {
+    nodeId: z.string().describe("The ID of the node whose layer blend mode is being set"),
+    blendMode: z
+      .enum([
+        "PASS_THROUGH",
+        "NORMAL",
+        "DARKEN",
+        "MULTIPLY",
+        "LINEAR_BURN",
+        "COLOR_BURN",
+        "LIGHTEN",
+        "SCREEN",
+        "LINEAR_DODGE",
+        "COLOR_DODGE",
+        "OVERLAY",
+        "SOFT_LIGHT",
+        "HARD_LIGHT",
+        "DIFFERENCE",
+        "EXCLUSION",
+        "HUE",
+        "SATURATION",
+        "COLOR",
+        "LUMINOSITY",
+      ])
+      .describe(
+        "Layer blend mode. PASS_THROUGH is valid here because this is a node-level setting, unlike paint and effect blend modes"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_blend_mode", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting blend mode: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -4172,6 +4270,8 @@ type FigmaCommand =
   | "set_clips_content"
   | "set_fill"
   | "set_effects"
+  | "set_opacity"
+  | "set_blend_mode"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4511,6 +4611,33 @@ type CommandParams = {
       showShadowBehindNode?: boolean;
       [key: string]: unknown;
     }> | null;
+  };
+  set_opacity: {
+    nodeId: string;
+    opacity: number;
+  };
+  set_blend_mode: {
+    nodeId: string;
+    blendMode:
+      | "PASS_THROUGH"
+      | "NORMAL"
+      | "DARKEN"
+      | "MULTIPLY"
+      | "LINEAR_BURN"
+      | "COLOR_BURN"
+      | "LIGHTEN"
+      | "SCREEN"
+      | "LINEAR_DODGE"
+      | "COLOR_DODGE"
+      | "OVERLAY"
+      | "SOFT_LIGHT"
+      | "HARD_LIGHT"
+      | "DIFFERENCE"
+      | "EXCLUSION"
+      | "HUE"
+      | "SATURATION"
+      | "COLOR"
+      | "LUMINOSITY";
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

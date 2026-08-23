@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-e577688241c0",
+  "buildId": "r2-plugin-364f8001f2d1",
   "apiVersion": "1.9.0",
   "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
+  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -63,6 +63,8 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_clips_content",
     "set_fill",
     "set_effects",
+    "set_opacity",
+    "set_blend_mode",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -110,6 +112,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_blend_mode@1",
     "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
@@ -127,6 +130,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_layout_sizing@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_opacity@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
@@ -423,6 +427,10 @@ async function handleCommand(command, params) {
       return await setFill(params);
     case "set_effects":
       return await setEffects(params);
+    case "set_opacity":
+      return await setOpacity(params);
+    case "set_blend_mode":
+      return await setBlendMode(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -8638,6 +8646,133 @@ async function setEffects(params) {
   };
 }
 
+// R2.7 item 1.3 — Layer opacity and layer blend mode.
+//
+// These values belong to Figma's BlendMixin. They are intentionally NOT added to
+// filterFigmaNode: publishing them through get_node_info would widen a stable read result,
+// which needs a public-contract bump that R2.7 no longer has. The two new write tools are
+// additive-preview instead, and their receipts carry the direct plugin-node read-back.
+//
+// `PASS_THROUGH` belongs here. Paint and effect blend modes deliberately exclude it, but
+// Figma's node-level BlendMode includes it — silently reusing either narrower enum would
+// make this layer tool promise less than the platform surface it names.
+const LAYER_BLEND_MODES = [
+  "PASS_THROUGH",
+  "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+  "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY",
+  "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION",
+  "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+];
+
+function readLayerOpacity(node) {
+  let raw;
+  try {
+    raw = node.opacity;
+  } catch (error) {
+    return { readable: false, value: null };
+  }
+  return {
+    readable: isFiniteNumber(raw),
+    value: isFiniteNumber(raw) ? raw : null,
+  };
+}
+
+function readLayerBlendMode(node) {
+  let raw;
+  try {
+    raw = node.blendMode;
+  } catch (error) {
+    return { readable: false, value: null };
+  }
+  return {
+    readable: typeof raw === "string",
+    value: typeof raw === "string" ? raw : null,
+  };
+}
+
+function validateLayerOpacity(opacity) {
+  if (!isFiniteNumber(opacity) || opacity < 0 || opacity > 1) {
+    throw new Error(
+      `set_opacity requires opacity to be a finite number from 0 to 1; received ${JSON.stringify(
+        opacity
+      )} and wrote nothing`
+    );
+  }
+}
+
+function validateLayerBlendMode(blendMode) {
+  if (LAYER_BLEND_MODES.indexOf(blendMode) === -1) {
+    throw new Error(
+      `set_blend_mode requires blendMode to be one of ${LAYER_BLEND_MODES.join(
+        ", "
+      )}; received ${JSON.stringify(blendMode)} and wrote nothing`
+    );
+  }
+}
+
+function layerWriteReceipt(node, field, before, after) {
+  const changed =
+    before.readable && after.readable ? before.value !== after.value : null;
+  const common = {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    changed,
+  };
+  if (field === "opacity") {
+    return {
+      ...common,
+      opacity: after.value,
+      opacityReadable: after.readable,
+      previousOpacity: before.value,
+      previousOpacityReadable: before.readable,
+    };
+  }
+  return {
+    ...common,
+    blendMode: after.value,
+    blendModeReadable: after.readable,
+    previousBlendMode: before.value,
+    previousBlendModeReadable: before.readable,
+  };
+}
+
+async function setOpacity(params) {
+  const { nodeId, opacity } = params || {};
+  validateLayerOpacity(opacity);
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node with ID ${nodeId} not found`);
+  if (!("opacity" in node)) {
+    throw new Error(
+      `set_opacity wrote nothing: node ${nodeId} is a ${node.type} and does not support layer opacity`
+    );
+  }
+
+  const before = readLayerOpacity(node);
+  node.opacity = opacity;
+  const after = readLayerOpacity(node);
+  return layerWriteReceipt(node, "opacity", before, after);
+}
+
+async function setBlendMode(params) {
+  const { nodeId, blendMode } = params || {};
+  validateLayerBlendMode(blendMode);
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) throw new Error(`Node with ID ${nodeId} not found`);
+  if (!("blendMode" in node)) {
+    throw new Error(
+      `set_blend_mode wrote nothing: node ${nodeId} is a ${node.type} and does not support layer blendMode`
+    );
+  }
+
+  const before = readLayerBlendMode(node);
+  node.blendMode = blendMode;
+  const after = readLayerBlendMode(node);
+  return layerWriteReceipt(node, "blendMode", before, after);
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -9218,6 +9353,13 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // 15 until R2 acceptance, so a batch receipt and parity work are not silently owed here.
   set_effects:
     "CC8 holds the v1 allowlist at 15 ops through R2.7; effect batching and its receipt contract are deferred until a consumer asks",
+  // R2.7 1.3. Both are single-property writes and would fit v1 mechanically. That is not
+  // enough: CC8 froze the set at 15 through R2 acceptance, and admitting them would create
+  // a batch receipt surface that this item neither designs nor gates.
+  set_opacity:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; layer-opacity batching and its receipt contract are deferred until a consumer asks",
+  set_blend_mode:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; layer-blend-mode batching and its receipt contract are deferred until a consumer asks",
 });
 
 const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({

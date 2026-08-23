@@ -459,6 +459,49 @@ function createFixtureRuntime(fixture, options) {
       }
     }
 
+    // R2.7 item 1.3's layer-opacity / layer-blend model. These two properties come from
+    // the same BlendMixin as effects. The harness type-gates them instead of granting every
+    // node an opacity of 1 and a NORMAL blend mode: DOCUMENT and PAGE lack the surface, and
+    // a blanket default would make the handlers' only node-surface refusals unreachable.
+    //
+    // The two ignore options are instruments, not claims about Figma. A receipt that echoes
+    // the request instead of reading node.opacity / node.blendMode must become observably
+    // wrong even when the platform otherwise stores scalar assignments verbatim.
+    {
+      if (EFFECT_CARRIERS.has(node.type)) {
+        let opacity =
+          typeof node.opacity === "number" && Number.isFinite(node.opacity)
+            ? node.opacity
+            : 1;
+        let blendMode = typeof node.blendMode === "string" ? node.blendMode : "NORMAL";
+        const discardsOpacity = (options.ignoreOpacityWrites || []).includes(node.id);
+        const discardsBlendMode = (options.ignoreBlendModeWrites || []).includes(node.id);
+
+        Object.defineProperty(node, "opacity", {
+          enumerable: true,
+          configurable: true,
+          get: () => opacity,
+          set: (value) => {
+            if (discardsOpacity) return;
+            opacity = value;
+          },
+        });
+
+        Object.defineProperty(node, "blendMode", {
+          enumerable: true,
+          configurable: true,
+          get: () => blendMode,
+          set: (value) => {
+            if (discardsBlendMode) return;
+            blendMode = value;
+          },
+        });
+      } else {
+        delete node.opacity;
+        delete node.blendMode;
+      }
+    }
+
     // R2.7 item 1.2's effect model. The two opt-ins are instruments, not platform
     // claims: either one makes a receipt that echoes its arguments observably wrong.
     {

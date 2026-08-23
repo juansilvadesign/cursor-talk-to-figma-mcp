@@ -170,12 +170,13 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.7 Phase 1 (**1.1 and 1.2 both GATED + COMMITTED**)
+## ▶ Current session — R2.7 Phase 1 (**1.1 and 1.2 GATED + COMMITTED; 1.3 OFFLINE-GATED**)
 
-**▶ START HERE = item 1.3, `set_opacity` / `set_blend_mode`.**
-⚠️ **1.3 must be ADDITIVE ONLY.** `1.9.0` was spent by 1.2 and `1.10.0` belongs to R3-A, so
-there is **no bump left in R2.7** — anything that changes a `stable` tool's result shape has
-to wait or take the owner's decision first.
+**▶ Item 1.3, `set_opacity` / `set_blend_mode`, is implemented.**
+⚠️ It remains **ADDITIVE ONLY**: `1.9.0` was spent by 1.2 and `1.10.0` belongs to R3-A, so
+there is **no bump left in R2.7**. The 64-tool / 343-test build leaves stable read results
+unchanged; its fresh live opacity/blend gate is prepared but still needs a DEV-plugin reload
+and live channel.
 
 ✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**
 (`e394e38` build + `b531d68` read-source repair). `live-effects-gate.mjs` PASSED on channel

@@ -89,6 +89,11 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // the single end-of-R2.7 re-pin/re-run; this change has not exercised that earlier gate.
   "live-fill-gate.mjs":
     "R2.7 item 1.1 build, schema 1.8.0. Green before item 1.2; staled by item 1.2 changing the read shape and runtime pins. Re-pin and re-run with the R2.7 set.",
+  // `live-effects-gate` was the current R2.7 item 1.2 gate. Item 1.3 adds two commands,
+  // moving both runtime identities without spending another schema version, so its old
+  // pins must refuse until the one end-of-R2.7 re-pin/re-run set is exercised.
+  "live-effects-gate.mjs":
+    "R2.7 item 1.2 build, schema 1.9.0. Green before item 1.3; staled by item 1.3 adding set_opacity and set_blend_mode. Re-pin and re-run with the R2.7 set.",
 });
 
 function readPins(source) {

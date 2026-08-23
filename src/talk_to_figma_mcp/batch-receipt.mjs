@@ -179,6 +179,13 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // 15 until R2 acceptance, so a batch receipt and parity work are not silently owed here.
   set_effects:
     "CC8 holds the v1 allowlist at 15 ops through R2.7; effect batching and its receipt contract are deferred until a consumer asks",
+  // R2.7 1.3. Both are single-property writes and would fit v1 mechanically. That is not
+  // enough: CC8 froze the set at 15 through R2 acceptance, and admitting them would create
+  // a batch receipt surface that this item neither designs nor gates.
+  set_opacity:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; layer-opacity batching and its receipt contract are deferred until a consumer asks",
+  set_blend_mode:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; layer-blend-mode batching and its receipt contract are deferred until a consumer asks",
 });
 
 /**

@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-fa007eb01947",
-  "pluginBuildId": "r2-plugin-e577688241c0",
+  "serverBuildId": "r2-server-d95951a3ce93",
+  "pluginBuildId": "r2-plugin-364f8001f2d1",
   "serverSchemaVersion": "1.9.0",
   "pluginApiVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
+  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -94,6 +94,8 @@ var RUNTIME_METADATA = {
     "set_clips_content",
     "set_fill",
     "set_effects",
+    "set_opacity",
+    "set_blend_mode",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -141,6 +143,7 @@ var RUNTIME_METADATA = {
     "figma.command.scan_text_nodes@1",
     "figma.command.set_annotation@1",
     "figma.command.set_axis_align@1",
+    "figma.command.set_blend_mode@1",
     "figma.command.set_clips_content@1",
     "figma.command.set_constraints@1",
     "figma.command.set_corner_radius@1",
@@ -158,6 +161,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_layout_sizing@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
+    "figma.command.set_opacity@1",
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
@@ -206,6 +210,7 @@ var RUNTIME_METADATA = {
     "scan_text_nodes",
     "set_annotation",
     "set_axis_align",
+    "set_blend_mode",
     "set_clips_content",
     "set_constraints",
     "set_corner_radius",
@@ -223,6 +228,7 @@ var RUNTIME_METADATA = {
     "set_layout_sizing",
     "set_multiple_annotations",
     "set_multiple_text_contents",
+    "set_opacity",
     "set_padding",
     "set_parent",
     "set_plugin_data",
@@ -3362,6 +3368,88 @@ server.tool(
           {
             type: "text",
             text: `Error setting effects: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_opacity",
+  "Set a node's layer opacity, from 0 (fully transparent) through 1 (fully opaque). This is the node-level Layer panel value, distinct from a paint's or effect's opacity. It requires a node with Figma's opacity surface; a page or document root is refused rather than treated as opacity 1. The one property assignment is read back from the plugin node, so the receipt reports the stored opacity and its previous value rather than echoing the request. get_node_info intentionally does not gain an opacity field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node whose layer opacity is being set"),
+    opacity: import_zod.z.number().finite().min(0).max(1).describe("Layer opacity, 0-1 inclusive; 0 is a real fully transparent value")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_opacity", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting opacity: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_blend_mode",
+  "Set a node's layer blend mode, the Layer panel setting that controls how the whole node blends with layers behind it. This is distinct from paint and effect blend modes. The full layer enum is accepted here, including PASS_THROUGH; PASS_THROUGH is intentionally excluded only from paint and effect tools. It requires a node with Figma's blendMode surface. The one property assignment is read back from the plugin node, so the receipt reports the stored mode and its previous value rather than echoing the request. get_node_info intentionally does not gain a blendMode field in R2.7: that stable read result would need a new public-contract version, so use this receipt to observe the write.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node whose layer blend mode is being set"),
+    blendMode: import_zod.z.enum([
+      "PASS_THROUGH",
+      "NORMAL",
+      "DARKEN",
+      "MULTIPLY",
+      "LINEAR_BURN",
+      "COLOR_BURN",
+      "LIGHTEN",
+      "SCREEN",
+      "LINEAR_DODGE",
+      "COLOR_DODGE",
+      "OVERLAY",
+      "SOFT_LIGHT",
+      "HARD_LIGHT",
+      "DIFFERENCE",
+      "EXCLUSION",
+      "HUE",
+      "SATURATION",
+      "COLOR",
+      "LUMINOSITY"
+    ]).describe(
+      "Layer blend mode. PASS_THROUGH is valid here because this is a node-level setting, unlike paint and effect blend modes"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_blend_mode", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting blend mode: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

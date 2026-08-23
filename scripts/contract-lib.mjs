@@ -125,6 +125,12 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // R2.7 item 1.2. The result carries the read-back plus effect-style readings, neither
   // of which has faced a live Figma gate yet; it must not fall through to stable.
   "set_effects",
+  // R2.7 item 1.3. Both are new write surfaces and their receipts are the deliberately
+  // additive way to expose node-layer readings without widening stable get_node_info.
+  // 1.2 already spent 1.9.0; shipping either tool stable would freeze its un-gated receipt
+  // with no public-contract bump available to repair it.
+  "set_opacity",
+  "set_blend_mode",
   // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
   // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
   // pins the rule so R2.7's tools cannot repeat it silently.
@@ -278,6 +284,12 @@ const TOOL_SCOPES = {
   // assignment touches one node only. An effect-style detach changes the node's reference,
   // not the style resource itself, and the receipt makes that secondary reading explicit.
   set_effects: "node",
+  // R2.7 1.3. The two BlendMixin writes change exactly one node. Their render can differ
+  // because of layers behind it, but scope is what the call changes, not every pixel it
+  // influences. Do not infer a wider get_node_info result from this: that stable read
+  // surface remains deliberately unchanged after 1.2 spent the release bump.
+  set_opacity: "node",
+  set_blend_mode: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -325,6 +337,9 @@ const SPECIAL_PROGRESS = {
   // ⛔ set_effects is deliberately absent, a SIXTH declined declaration. It validates at
   // most 16 in-memory effects and performs one synchronous assignment; there is no await
   // or useful midpoint at which the plugin could truthfully report progress.
+  // ⛔ set_opacity and set_blend_mode are deliberately absent too. Each validates one
+  // scalar then makes one synchronous property assignment, so there is no truthful
+  // intermediate progress state to declare.
 };
 
 function sha256(value) {

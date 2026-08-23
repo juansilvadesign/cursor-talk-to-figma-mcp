@@ -946,9 +946,10 @@ had never been run. This is what a first run buys, and one of the three was a fa
       tools take flat `r,g,b,a` — the false "same shape" claim the R2.4 gate caught.
       ⛔ `set_fill_color` is `stable` and cannot be changed; `set_fill` ships **one** shape
       and the old tool is documented as legacy.
-- [ ] **1.2 `set_effects(nodeId, effects[])`** — drop/inner shadow, layer/background blur.
-      ⏸️ **DECIDED 2026-08-23, NOT BUILT** — three owner decisions recorded in full in
-      [`docs/R2.7-VISUALS.md`](R2.7-VISUALS.md). ⛔ Do not re-interview.
+- [x] **1.2 `set_effects(nodeId, effects[])`** — drop/inner shadow, layer/background blur.
+      ✅✅ **BUILT, GATED AND COMMITTED 2026-08-23** — the `1.9.0` bump and full
+      `filterFigmaNode` repair landed before 1.3. The complete record is in
+      [`docs/R2.7-VISUALS.md`](R2.7-VISUALS.md). ⛔ Do not re-interview or spend another bump.
       🔴 **THIS IS THE ITEM THAT SPENDS `1.8.0` → `1.9.0`**, on the full `filterFigmaNode`
       repair: `effects`, `effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in BOTH
       copies. `effects` is absent from the `JSON_REST_V1` subset on both sides, so without
@@ -958,7 +959,9 @@ had never been run. This is what a first run buys, and one of the three was a fa
       ⭐ A cross-type field is **refused, naming it** (`color` on a `LAYER_BLUR`), which is a
       deliberate divergence from `set_fill`'s silent drop — recorded as a debt against 1.1,
       not repaired, because 1.1 is gated. `NOISE` / `TEXTURE` **pinned absent by a test**.
-- [ ] **1.3 `set_opacity`** and **`set_blend_mode`.**
+- [ ] **1.3 `set_opacity`** and **`set_blend_mode`.** ✅ BUILT + OFFLINE-GATED 2026-08-23;
+      live Figma gate remains. ⛔ **ADDITIVE ONLY:** `1.9.0` was spent by 1.2 and `1.10.0`
+      belongs to R3-A, so neither `runtime/release.json` nor a stable read-result shape moves.
 
 ### Phase 2 — assets
 

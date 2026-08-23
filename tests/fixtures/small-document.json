@@ -73,6 +73,8 @@
        "y": 72,
        "width": 320,
        "height": 180,
+       "opacity": 1,
+       "blendMode": "NORMAL",
        "fills": [
         {
          "type": "IMAGE",

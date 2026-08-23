@@ -938,14 +938,26 @@ had never been run. This is what a first run buys, and one of the three was a fa
 
 ### Phase 1 — paint and effects
 
-- [ ] **1.1 `set_fill`** — solid **and** gradient (`GRADIENT_LINEAR` / `RADIAL` / `ANGULAR` /
-      `DIAMOND`), taking one nested colour shape.
+- [x] **1.1 `set_fill`** ✅✅ **BUILT + GATED + COMMITTED 2026-08-23** (`yoq962bg`, run twice;
+      318/318, 12/12 mutants, 61 tools, schema HELD at `1.8.0`) — solid **and** gradient
+      (`GRADIENT_LINEAR` / `RADIAL` / `ANGULAR` / `DIAMOND`), taking one nested colour shape.
       ⭐ **This is the chance to end the shape divergence.** `apply_batch`'s
       `set_fill_color` / `set_stroke_color` take `{color:{r,g,b,a}}` while the standalone
       tools take flat `r,g,b,a` — the false "same shape" claim the R2.4 gate caught.
       ⛔ `set_fill_color` is `stable` and cannot be changed; `set_fill` ships **one** shape
       and the old tool is documented as legacy.
 - [ ] **1.2 `set_effects(nodeId, effects[])`** — drop/inner shadow, layer/background blur.
+      ⏸️ **DECIDED 2026-08-23, NOT BUILT** — three owner decisions recorded in full in
+      [`docs/R2.7-VISUALS.md`](R2.7-VISUALS.md). ⛔ Do not re-interview.
+      🔴 **THIS IS THE ITEM THAT SPENDS `1.8.0` → `1.9.0`**, on the full `filterFigmaNode`
+      repair: `effects`, `effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in BOTH
+      copies. `effects` is absent from the `JSON_REST_V1` subset on both sides, so without
+      the repair this tool's own gate has **no read channel** — R2.6 2.4's vacuum. ⚠️ 1.1's
+      note that the owed repair was *"narrower than recorded"* is **wrong in the opposite
+      direction**; it is wider.
+      ⭐ A cross-type field is **refused, naming it** (`color` on a `LAYER_BLUR`), which is a
+      deliberate divergence from `set_fill`'s silent drop — recorded as a debt against 1.1,
+      not repaired, because 1.1 is gated. `NOISE` / `TEXTURE` **pinned absent by a test**.
 - [ ] **1.3 `set_opacity`** and **`set_blend_mode`.**
 
 ### Phase 2 — assets

@@ -122,6 +122,9 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // (`styleDetached`), and whether the angle→matrix convention aims where it claims. Both
   // are `live-fill-gate.mjs`'s job. Promotion is R2 acceptance's act, not this item's.
   "set_fill",
+  // R2.7 item 1.2. The result carries the read-back plus effect-style readings, neither
+  // of which has faced a live Figma gate yet; it must not fall through to stable.
+  "set_effects",
   // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
   // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
   // pins the rule so R2.7's tools cannot repeat it silently.
@@ -271,6 +274,10 @@ const TOOL_SCOPES = {
   // node stops pointing at it — so the scope holds, and the receipt reports the detach
   // precisely because it is the part a reader of this line would not expect.
   set_fill: "node",
+  // R2.7 1.2. Same scope as set_fill: effects can change how a node renders, but the
+  // assignment touches one node only. An effect-style detach changes the node's reference,
+  // not the style resource itself, and the receipt makes that secondary reading explicit.
+  set_effects: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -315,6 +322,9 @@ const SPECIAL_PROGRESS = {
   // Finding 4. ⚠️ If a future paint type needs an await (an IMAGE paint would, via
   // createImage), this entry changes in the SAME commit that adds the await — per CC2, not
   // afterwards.
+  // ⛔ set_effects is deliberately absent, a SIXTH declined declaration. It validates at
+  // most 16 in-memory effects and performs one synchronous assignment; there is no await
+  // or useful midpoint at which the plugin could truthfully report progress.
 };
 
 function sha256(value) {

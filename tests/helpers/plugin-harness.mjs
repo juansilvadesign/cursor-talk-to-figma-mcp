@@ -164,6 +164,26 @@ function createFixtureRuntime(fixture, options) {
     "TEXT",
   ]);
 
+  // R2.7 1.2. Effects come from BlendMixin, which is broader than fills (a GROUP can
+  // carry effects) but deliberately excludes PAGE, DOCUMENT, SECTION and SLICE. The
+  // presence check is the handler's only node-surface refusal, so a blanket `effects: []`
+  // would hide it just as the old blanket fills hid `set_fill`'s refusal.
+  const EFFECT_CARRIERS = new Set([
+    "FRAME",
+    "GROUP",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+    "RECTANGLE",
+    "ELLIPSE",
+    "POLYGON",
+    "STAR",
+    "VECTOR",
+    "LINE",
+    "TEXT",
+    "BOOLEAN_OPERATION",
+  ]);
+
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
     "COMPONENT",
@@ -192,6 +212,12 @@ function createFixtureRuntime(fixture, options) {
         continue;
       }
       result[key] = clone(value);
+    }
+    // JSON_REST_V1's render-bounds field is the one the read filter must preserve, but
+    // it is a non-enumerable getter on the fake node. An opt-in puts the value into the
+    // exported response without claiming every real export includes or recomputes it.
+    if ((options.includeAbsoluteRenderBoundsInExport || []).includes(node.id)) {
+      result.absoluteRenderBounds = clone(node.absoluteRenderBounds);
     }
     if (Array.isArray(node.children)) {
       result.children = node.children.map(serializeNode);
@@ -415,6 +441,42 @@ function createFixtureRuntime(fixture, options) {
       } else {
         delete node.fills;
         delete node.fillStyleId;
+      }
+    }
+
+    // R2.7 item 1.2's effect model. The two opt-ins are instruments, not platform
+    // claims: either one makes a receipt that echoes its arguments observably wrong.
+    {
+      if (EFFECT_CARRIERS.has(node.type)) {
+        // Figma represents an unbound effect style as "". It is a plain string, unlike
+        // fillStyleId, so there is no mixed branch to invent.
+        let styleId = typeof node.effectStyleId === "string" ? node.effectStyleId : "";
+        let stored = Array.isArray(node.effects) ? clone(node.effects) : [];
+        const discardsEffects = (options.ignoreEffectWrites || []).includes(node.id);
+        const detachesOnWrite = (options.detachStyleOnEffectWrite || []).includes(node.id);
+
+        Object.defineProperty(node, "effects", {
+          enumerable: true,
+          configurable: true,
+          get: () => clone(stored),
+          set: (value) => {
+            if (discardsEffects) return;
+            stored = clone(value);
+            if (detachesOnWrite) styleId = "";
+          },
+        });
+
+        Object.defineProperty(node, "effectStyleId", {
+          enumerable: true,
+          configurable: true,
+          get: () => styleId,
+          set: (value) => {
+            styleId = value;
+          },
+        });
+      } else {
+        delete node.effects;
+        delete node.effectStyleId;
       }
     }
 

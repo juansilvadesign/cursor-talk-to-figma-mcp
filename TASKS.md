@@ -170,16 +170,46 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.7 Phase 1 (**1.1 GATED**; CC3 freeze DONE; next = item 1.2)
+## ▶ Next session — R2.7 Phase 1 (**1.1 GATED + COMMITTED**; **1.2 DECIDED, NOT BUILT**)
 
-**▶ START HERE = R2.7 item 1.2, `set_effects(nodeId, effects[])`** — drop/inner shadow and
-layer/background blur. ✅✅ **ITEM 1.1 `set_fill` IS BUILT AND GATED 2026-08-23** — solid +
-all four gradients, `paints: Paint[]` or `null`, one nested colour shape, ending the
-`set_fill_color` divergence R2.4's gate caught. `live-fill-gate.mjs` PASSED on `yoq962bg`,
-**run twice**; 318/318 offline, **12/12 mutants killed**, `verify` green at **61 tools**.
-Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md).
-⛔ **1.1 spent NO bump — the schema HELD at `1.8.0`.** A new tool is additive, so R2.7 still
-owes `1.8.0` → `1.9.0` to whichever item changes a `stable` tool's result shape.
+**▶ START HERE = BUILD R2.7 item 1.2, `set_effects(nodeId, effects[])`.**
+⏸️ **THE BUILD BOX IS PARKED, 2026-08-23, on the owner's call — the interview finished, three
+decisions were taken, and NOTHING WAS WRITTEN.** Working tree clean at `c3b167d`, offline
+baseline **318/318**. ⛔ Do not re-run the interview; the decisions are settled and recorded
+in full → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 — DECIDED, NOT BUILT*, with
+the per-type field table, the CC2 map audit and the refusal-ownership split. Resume by
+writing code.
+
+**The three decisions, one line each:**
+① 🔴 **1.2 SPENDS the `1.9.0` bump** on the FULL `filterFigmaNode` repair — `effects`,
+`effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in **both** copies
+(`code.js:1258` + `server.ts:775`), `runtime/release.json` all three fields together.
+② **A cross-type field is REFUSED, naming it** (`color` on a `LAYER_BLUR`), not dropped.
+③ **The plan's four types only**; `NOISE` / `TEXTURE` **pinned absent by a test**.
+
+🔴 **THE FINDING BEHIND ①, AND IT CORRECTS 1.1's RECORD IN THE OPPOSITE DIRECTION.**
+`filterFigmaNode` drops `effects` on **both sides**, so 1.2's gate had no read channel at all
+— R2.6 2.4's vacuum, where before and after both read `undefined` and §2 passes on nothing.
+1.1 recorded the owed repair as *"narrower than recorded — it is `clipsContent` /
+`absoluteRenderBounds`"*; it is **wider**. ⛔ That claim was generalised from one green
+reading (`fills` survived the subset) without opening the filter.
+⭐ **`live-clips-content-gate.mjs:746` had already written this down** — the missing fields,
+the required bump, and that R2.7 owes it — and it went unread for a day. **Grep the gate
+scripts before opening a read-layer question.**
+
+🔴 **A NEW DEBT AGAINST 1.1:** `set_fill` **silently drops `color` on a gradient**
+(`code.js:8047`) and the schema advertises the drop — the same "a discarded value reads as an
+applied one" rule the tool enforces on its other two pairs. ⛔ Not repaired: it costs a re-run
+of a gate that passed twice on `yoq962bg`. Owner's call when to pay it.
+
+✅✅ **ITEM 1.1 `set_fill` IS BUILT, GATED AND COMMITTED 2026-08-23** — solid + all four
+gradients, `paints: Paint[]` or `null`, one nested colour shape, ending the `set_fill_color`
+divergence R2.4's gate caught. `live-fill-gate.mjs` PASSED on `yoq962bg`, **run twice**;
+318/318 offline, **12/12 mutants killed**, `verify` green at **61 tools**. Landed as
+`1e5bc0a` + `c3b167d`. ⛔ **Committing is the owner's act** — *"leave commit to me"*, said
+2026-08-23; a session builds and verifies, it does not commit.
+⛔ **1.1 spent NO bump — the schema HELD at `1.8.0`.** ⭐ **1.2 spends it**, per decision ①,
+and `1.10.0` belongs to R3-A — so there is no second bump behind this one.
 ✅ **R2.6 CLOSED 2026-08-22** — four layout tools gated, backlog cleared on `sa6ggz00`, all
 promoted to `stable` at acceptance.
 ✅ **CC3's seven-tool debt is PAID, 2026-08-23** — R2.5 and R2.6 frozen as the 7th and 8th
@@ -187,6 +217,11 @@ baselines (`0c0f68a`), `ACCEPTED_SINCE_LAST_BASELINE` emptied to `[]` (`6e558ba`
 ⏳ **R2.7 owes ONE re-pin + re-run of six stale gates at its end** — `live-batch`,
 `live-text-style`, `live-layout`, `live-constraints`, `live-size-limits`,
 `live-clips-content`, all staled by 1.1 moving both build IDs.
+⚠️ **It becomes SEVEN the moment 1.2 builds:** `live-fill-gate.mjs` joins them, because 1.2
+moves both build IDs beneath it exactly as 1.1 did to the six. ⛔ Still **ONE** re-pin and
+**ONE** re-run of the whole set at R2.7's end — six claims and one test is the defect
+`e02d1b2` created, and seven is not an improvement on it. ⛔ 1.2 must NOT re-pin the seven
+on its own change; it can only re-run its own gate.
 
 ⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
 2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's

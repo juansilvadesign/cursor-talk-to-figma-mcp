@@ -13,16 +13,64 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-23)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals, Phase 1 OPEN**
-- **▶ START HERE: item 1.2 `set_effects`.** ✅✅ **ITEM 1.1 `set_fill` IS BUILT AND GATED**
-  — `live-fill-gate.mjs` PASSED on channel **`yoq962bg`**, **run twice on the final script**,
-  live pair `r2-server-b8086c604b60` ↔ `r2-plugin-959345dd8f16`, `compatible`, 61 tools,
-  scratch page deleted and baseline restored id-for-id (6 pages, current `0:1`) every run.
+- **▶ START HERE: BUILD item 1.2 `set_effects`.**
+  ⏸️ **THE BUILD BOX IS PARKED, 2026-08-23, on the owner's call.** The interview ran, three
+  decisions were taken, and **NOTHING WAS WRITTEN** — working tree clean at `c3b167d`,
+  offline baseline **318/318**. ⛔ **Do not re-interview.** The decisions, the per-type field
+  table, the CC2 map audit and the refusal-ownership split are recorded in full →
+  [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 — DECIDED, NOT BUILT*.
+  **① 1.2 SPENDS `1.8.0` → `1.9.0`** on the FULL `filterFigmaNode` repair (`effects`,
+  `effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in **both** copies —
+  `code.js:1258` + `server.ts:775`; `runtime/release.json` moves all three fields together).
+  **② a cross-type field is REFUSED, naming it** (`color` on a `LAYER_BLUR`), not dropped.
+  **③ the plan's four types only**; `NOISE` / `TEXTURE` **pinned absent by a test**.
+
+- 🔴 **`filterFigmaNode` DROPS `effects` ON BOTH SIDES — and this corrects 1.1's record in
+  the OPPOSITE direction to the way it was written.** The `JSON_REST_V1` subset keeps `id`,
+  `name`, `type`, `boundVariables`, `fills`, `strokes`, `cornerRadius`,
+  `absoluteBoundingBox`, `characters`, `style`, `children` and nothing else. 1.1 recorded the
+  owed repair as *"narrower than recorded — it is `clipsContent` / `absoluteRenderBounds`"*;
+  it is **wider**, because `effects` and `effectStyleId` are missing too. ⛔ That claim was
+  generalised from ONE green reading (`fills` survived the subset) into a claim about a
+  filter nobody had opened. Without the repair, 1.2's own gate has **no read channel** —
+  R2.6 2.4's vacuum, where before and after both read `undefined` and §2 passes on nothing.
+  ⚠️ `1.10.0` is R3-A's, so there is **no second bump** behind this one.
+
+- ⭐ **`live-clips-content-gate.mjs:746` HAD ALREADY WRITTEN THIS DOWN — and it went unread
+  for a day.** It names the missing fields, the required bump, and that R2.7 owes it. The
+  `stillOwed` channel worked; reading it is what failed. ⛔ **Grep the gate scripts before
+  opening a read-layer question** — they are where the previous item's measurements live.
+
+- 🔴 **NEW DEBT AGAINST 1.1: `set_fill` silently drops `color` on a gradient paint**
+  (`code.js:8047` — the gradient branch never reads `input.color`), and the published schema
+  advertises the drop (*"ignored by the gradients"*). ⛔ That is **a discarded value reading
+  as an applied one** — the rule the same tool enforces on `color.a` × `opacity` and on
+  `gradientTransform` × `angle`. Enforced on two pairs, broken on a third.
+  ⚠️ **Not repaired, deliberately:** the fix changes the handler that `yoq962bg` judged, so it
+  costs a re-run, and it is a `stable`-bound reply-shape question after R2 acceptance.
+  ⭐ **1.2 therefore diverges from its own sibling by decision** — `set_effects` refuses where
+  `set_fill` drops — and the divergence is recorded rather than smoothed over.
+
+- ⭐ **1.2's five handler refusals ARE reachable through the transport, unlike 1.1's three
+  that are not.** A **cross-FIELD** rule (this key is illegal *given* that sibling's value)
+  is one Zod cannot express in a flat optional-field object schema, so it lands in the
+  handler by structure rather than by choice: a field belonging to another type;
+  `showShadowBehindNode` on an `INNER_SHADOW`; a required field missing for the type; an
+  unknown field; and the node having no `effects` surface. ⛔ The gate must still check
+  **ownership** (declared layer vs observed), not merely print what it saw.
+
+- ⛔ **COMMITTING IS THE OWNER'S ACT** — *"diff committed. Leave commit to me"*, 2026-08-23.
+  A session builds, verifies and records; it does not commit. ✅ 1.1 landed as `1e5bc0a` +
+  `c3b167d` (this supersedes the "🟡 uncommitted" note that stood here).
+
+- ✅✅ **ITEM 1.1 `set_fill` IS BUILT, GATED AND COMMITTED** — `live-fill-gate.mjs` PASSED on
+  channel **`yoq962bg`**, **run twice on the final script**, live pair
+  `r2-server-b8086c604b60` ↔ `r2-plugin-959345dd8f16`, `compatible`, 61 tools, scratch page
+  deleted and baseline restored id-for-id (6 pages, current `0:1`) every run.
   Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md).
   ⛔ **Two attempts refused first and neither touched the document:** a defect in the GATE's
   own §1 probe (it looked for a per-parameter fact in the TOOL description), then
   `join_channel` naming a stale DEV plugin. Fourth real firing of that preflight.
-  🟡 **Uncommitted** — nothing from R2.7 1.1 is staged beyond the peer session's two
-  baseline-freeze commits. ⛔ Stage explicit paths.
 
 - ✅✅ **THE ANGLE CONVENTION IS MEASURED, and it MATCHES the schema** — `0°` renders red
   LEFT→right, `90°` renders red **TOP**→bottom, `270°` is its exact mirror. ⭐ This
@@ -119,6 +167,10 @@ type: project
   `set_fill` moved both builds beneath them. ⛔ **Not re-pinned** — a change that can only
   re-run ONE gate cannot honestly re-pin six. R2.7 re-pins and re-runs the set ONCE at its
   end, as R2.6 did after 2.4.
+  ⚠️ **It becomes SEVEN the moment 1.2 builds** — `live-fill-gate.mjs` joins them, for the
+  same reason and by the same mechanism (1.2 moves both build IDs beneath a gate that passed
+  on `yoq962bg`). ⛔ **1.2 must NOT re-pin the seven on its own change**; it re-runs its own
+  gate only. Six claims and one test is the defect `e02d1b2` created — seven is not better.
 
 - ⏳ **TWO READINGS THE GATE STILL OWES.** ① `styleDetached` is **UNMEASURED** and the gate
   may not be able to close it — **no fork tool BINDS a paint style** (R3 work), so the

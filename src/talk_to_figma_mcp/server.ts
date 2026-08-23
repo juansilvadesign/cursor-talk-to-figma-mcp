@@ -831,6 +831,31 @@ function filterFigmaNode(node: any) {
     });
   }
 
+  // Effects are a read channel for the visual tools. Keep an empty array too: `[]` is
+  // the observable result of clearing effects, whereas an omitted field says nothing.
+  if (Array.isArray(node.effects)) {
+    filtered.effects = node.effects.map((effect: any) => {
+      const processedEffect = { ...effect };
+      if (processedEffect.color) {
+        processedEffect.color = rgbaToHex(processedEffect.color);
+      }
+      return processedEffect;
+    });
+  }
+
+  if (node.effectStyleId !== undefined) {
+    filtered.effectStyleId = node.effectStyleId;
+  }
+
+  // Preserve false and null: both are real readings, unlike an absent field.
+  if (node.clipsContent !== undefined) {
+    filtered.clipsContent = node.clipsContent;
+  }
+
+  if (node.absoluteRenderBounds !== undefined) {
+    filtered.absoluteRenderBounds = node.absoluteRenderBounds;
+  }
+
   if (node.cornerRadius !== undefined) {
     filtered.cornerRadius = node.cornerRadius;
   }
@@ -3683,6 +3708,105 @@ server.tool(
   }
 );
 
+// R2.7 item 1.2 — effects. The flat optional-field object is intentional: ownership
+// depends on `type`, so the plugin can refuse a cross-type or unknown field by name rather
+// than Zod silently dropping it before the handler can explain what would be discarded.
+server.tool(
+  "set_effects",
+  "Replace a node's effects with shadows or standard blurs. Supported types are DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, and BACKGROUND_BLUR; NOISE, TEXTURE, and newer effect types are intentionally outside this release. Pass effects: null to remove every effect; an empty array is refused because null already says that. Each effect is validated against its type before the one array assignment, so a field that belongs to a different type (for example color on LAYER_BLUR), an unknown field, or a missing required field refuses the whole call without changing the document. Effects are read back from the node rather than echoed, and the reply separately reports effectStyleId before and after because writing effects may detach a bound effect style.",
+  {
+    nodeId: z.string().describe("The ID of the node whose effects are being replaced"),
+    effects: z
+      .array(
+        z
+          .object({
+            type: z
+              .enum([
+                "DROP_SHADOW",
+                "INNER_SHADOW",
+                "LAYER_BLUR",
+                "BACKGROUND_BLUR",
+              ])
+              .describe("The kind of effect. Only the four R2.7 effect types are supported"),
+            color: z
+              .object({
+                r: z.number().finite().min(0).max(1).describe("Red channel, 0-1"),
+                g: z.number().finite().min(0).max(1).describe("Green channel, 0-1"),
+                b: z.number().finite().min(0).max(1).describe("Blue channel, 0-1"),
+                a: z
+                  .number()
+                  .finite()
+                  .min(0)
+                  .max(1)
+                  .optional()
+                  .describe("Alpha, 0-1. Defaults to 1; a shadow has no second opacity spelling"),
+              })
+              .optional()
+              .describe("Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"),
+            offset: z
+              .object({
+                x: z.number().finite().describe("Horizontal offset in pixels"),
+                y: z.number().finite().describe("Vertical offset in pixels"),
+              })
+              .optional()
+              .describe("Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"),
+            radius: z
+              .number()
+              .finite()
+              .min(0)
+              .optional()
+              .describe("Required blur or shadow radius, greater than or equal to 0"),
+            spread: z
+              .number()
+              .finite()
+              .optional()
+              .describe("Optional shadow spread. Its sign is intentionally not constrained"),
+            visible: z.boolean().optional().describe("Whether this effect is drawn"),
+            blendMode: z
+              .enum([
+                "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+                "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY",
+                "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION",
+                "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+              ])
+              .optional()
+              .describe("Optional shadow blend mode. PASS_THROUGH is layer-only and is refused"),
+            showShadowBehindNode: z
+              .boolean()
+              .optional()
+              .describe("Optional DROP_SHADOW-only setting; refused on every other effect type"),
+          })
+          .passthrough()
+      )
+      .min(1)
+      .max(16)
+      .nullable()
+      .describe("1-16 effects in Figma draw order, or null to remove every effect"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_effects", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting effects: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -4047,6 +4171,7 @@ type FigmaCommand =
   | "set_size_limits"
   | "set_clips_content"
   | "set_fill"
+  | "set_effects"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4371,6 +4496,20 @@ type CommandParams = {
       opacity?: number;
       visible?: boolean;
       blendMode?: string;
+    }> | null;
+  };
+  set_effects: {
+    nodeId: string;
+    effects: Array<{
+      type: "DROP_SHADOW" | "INNER_SHADOW" | "LAYER_BLUR" | "BACKGROUND_BLUR";
+      color?: { r: number; g: number; b: number; a?: number };
+      offset?: { x: number; y: number };
+      radius?: number;
+      spread?: number;
+      visible?: boolean;
+      blendMode?: string;
+      showShadowBehindNode?: boolean;
+      [key: string]: unknown;
     }> | null;
   };
   get_reactions: { nodeIds: string[] };

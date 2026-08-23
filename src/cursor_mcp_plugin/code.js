@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-959345dd8f16",
-  "apiVersion": "1.8.0",
-  "serverSchemaVersion": "1.8.0",
+  "buildId": "r2-plugin-741db0eb6bd9",
+  "apiVersion": "1.9.0",
+  "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
+  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -62,6 +62,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_size_limits",
     "set_clips_content",
     "set_fill",
+    "set_effects",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -114,6 +115,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
+    "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
     "figma.command.set_focus@1",
@@ -419,6 +421,8 @@ async function handleCommand(command, params) {
       return await setClipsContent(params);
     case "set_fill":
       return await setFill(params);
+    case "set_effects":
+      return await setEffects(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -1319,6 +1323,36 @@ async function filterFigmaNode(node) {
       }
       return processedStroke;
     }));
+  }
+
+  // Effects need to survive the JSON_REST_V1 subset even when the array is empty: an
+  // empty array witnesses a clear, while an omitted field cannot witness anything.
+  if (Array.isArray(node.effects)) {
+    filtered.effects = await Promise.all(node.effects.map(async (effect) => {
+      var processedEffect = Object.assign({}, effect);
+      if (processedEffect.color) {
+        processedEffect.color = rgbaToHex(processedEffect.color);
+      }
+      if (processedEffect.boundVariables) {
+        processedEffect.boundVariables = await resolveBoundVariables(
+          processedEffect.boundVariables
+        );
+      }
+      return processedEffect;
+    }));
+  }
+
+  if (node.effectStyleId !== undefined) {
+    filtered.effectStyleId = node.effectStyleId;
+  }
+
+  // Keep false and null. They are observations; omission is not.
+  if (node.clipsContent !== undefined) {
+    filtered.clipsContent = node.clipsContent;
+  }
+
+  if (node.absoluteRenderBounds !== undefined) {
+    filtered.absoluteRenderBounds = node.absoluteRenderBounds;
   }
 
   if (node.cornerRadius !== undefined) {
@@ -8277,6 +8311,301 @@ async function setFill(params) {
   };
 }
 
+// R2.7 item 1.2 — `set_effects(nodeId, effects)`.
+//
+// Effects deliberately use the same bounded array-or-null / validate-all-then-write
+// contract as `set_fill`. One assignment is structurally unable to partially apply, but
+// every member still has to be built before that assignment so a bad last effect cannot
+// leave a good first effect behind.
+const EFFECT_TYPES = [
+  "DROP_SHADOW",
+  "INNER_SHADOW",
+  "LAYER_BLUR",
+  "BACKGROUND_BLUR",
+];
+
+// PASS_THROUGH belongs to a layer, not a paint or effect. Figma's BlendMode docs make that
+// distinction explicitly, so advertising it here would promise a value the effect surface
+// cannot carry.
+const EFFECT_BLEND_MODES = [
+  "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+  "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY",
+  "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION",
+  "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+];
+const MAX_EFFECTS = 16;
+
+// The table is the ownership rule. Every field is optional at the transport layer so the
+// plugin can name cross-type fields, missing required fields, and unknown fields rather
+// than silently dropping one. Do not replace this with type-specific branches: a missing
+// table entry must be able to fail a mutation test.
+const EFFECT_FIELD_RULES = Object.freeze({
+  DROP_SHADOW: Object.freeze({
+    required: Object.freeze(["color", "offset", "radius"]),
+    allowed: Object.freeze([
+      "type", "color", "offset", "radius", "spread", "visible", "blendMode",
+      "showShadowBehindNode",
+    ]),
+  }),
+  INNER_SHADOW: Object.freeze({
+    required: Object.freeze(["color", "offset", "radius"]),
+    allowed: Object.freeze([
+      "type", "color", "offset", "radius", "spread", "visible", "blendMode",
+    ]),
+  }),
+  LAYER_BLUR: Object.freeze({
+    required: Object.freeze(["radius"]),
+    allowed: Object.freeze(["type", "radius", "visible"]),
+  }),
+  BACKGROUND_BLUR: Object.freeze({
+    required: Object.freeze(["radius"]),
+    allowed: Object.freeze(["type", "radius", "visible"]),
+  }),
+});
+
+function cloneEffects(effects) {
+  return JSON.parse(JSON.stringify(effects));
+}
+
+// Unlike fills, Figma types effects as a plain array rather than a value that can be
+// `figma.mixed`. A thrown getter or a non-array is still unreadable, and must never become
+// a claim that the node held no effects.
+function readEffects(node) {
+  let raw;
+  try {
+    raw = node.effects;
+  } catch (error) {
+    return { readable: false, effects: null };
+  }
+  if (!Array.isArray(raw)) return { readable: false, effects: null };
+  return { readable: true, effects: cloneEffects(raw) };
+}
+
+// effectStyleId is a string, not a mixed-valued property. An absent or unreadable surface
+// is kept distinct from an empty string, which Figma uses for "no style bound".
+function readEffectStyleId(node) {
+  let raw;
+  try {
+    raw = node.effectStyleId;
+  } catch (error) {
+    return { readable: false, styleId: null };
+  }
+  if (typeof raw !== "string") return { readable: false, styleId: null };
+  return { readable: true, styleId: raw === "" ? null : raw };
+}
+
+function validateEffectColor(color, where) {
+  if (!color || typeof color !== "object" || Array.isArray(color)) {
+    throw new Error(
+      `${where}: color must be {r, g, b} with optional a; received ${JSON.stringify(
+        color
+      )} and wrote nothing`
+    );
+  }
+  validateColorChannel(color.r, "color.r", where);
+  validateColorChannel(color.g, "color.g", where);
+  validateColorChannel(color.b, "color.b", where);
+  if (color.a !== undefined) validateColorChannel(color.a, "color.a", where);
+  // A shadow's alpha lives inside RGBA; unlike a solid paint there is no second opacity
+  // spelling to collide with, so omitted alpha simply means Figma's opaque default.
+  return {
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    a: color.a === undefined ? 1 : color.a,
+  };
+}
+
+function validateEffectOffset(offset, where) {
+  if (!offset || typeof offset !== "object" || Array.isArray(offset)) {
+    throw new Error(
+      `${where}: offset must be {x, y}; received ${JSON.stringify(
+        offset
+      )} and wrote nothing`
+    );
+  }
+  if (!isFiniteNumber(offset.x) || !isFiniteNumber(offset.y)) {
+    throw new Error(
+      `${where}: offset.x and offset.y must be finite numbers; received ${JSON.stringify(
+        offset
+      )} and wrote nothing`
+    );
+  }
+  return { x: offset.x, y: offset.y };
+}
+
+function validateEffectRadius(radius, where) {
+  if (!isFiniteNumber(radius) || radius < 0) {
+    throw new Error(
+      `${where}: radius must be a finite number greater than or equal to 0; received ${JSON.stringify(
+        radius
+      )} and wrote nothing`
+    );
+  }
+  return radius;
+}
+
+function buildEffect(input, index) {
+  const where = `effects[${index}]`;
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error(
+      `${where} must be an object describing one effect; received ${JSON.stringify(
+        input
+      )} and wrote nothing`
+    );
+  }
+
+  const type = input.type;
+  if (EFFECT_TYPES.indexOf(type) === -1) {
+    throw new Error(
+      `${where}: type must be one of ${EFFECT_TYPES.join(
+        ", "
+      )}; received ${JSON.stringify(type)} and wrote nothing`
+    );
+  }
+  const rule = EFFECT_FIELD_RULES[type];
+
+  for (const field of Object.keys(input)) {
+    if (rule.allowed.indexOf(field) === -1) {
+      throw new Error(
+        `${where}: ${field} is not valid for ${type}. ${type} supports ${rule.allowed
+          .filter((name) => name !== "type")
+          .join(", ")}; wrote nothing`
+      );
+    }
+  }
+  for (const field of rule.required) {
+    if (input[field] === undefined) {
+      throw new Error(
+        `${where}: ${type} requires ${field}; received no ${field} and wrote nothing`
+      );
+    }
+  }
+
+  const effect = { type };
+  if (rule.allowed.indexOf("color") !== -1) {
+    effect.color = validateEffectColor(input.color, where);
+    effect.offset = validateEffectOffset(input.offset, where);
+  }
+  effect.radius = validateEffectRadius(input.radius, where);
+
+  if (input.spread !== undefined) {
+    if (!isFiniteNumber(input.spread)) {
+      throw new Error(
+        `${where}: spread must be a finite number; received ${JSON.stringify(
+          input.spread
+        )} and wrote nothing`
+      );
+    }
+    // The sign is intentionally unbounded. Figma's UI accepts negative spread, but the
+    // plugin surface has not been measured; a made-up sign rule would be a false contract.
+    effect.spread = input.spread;
+  }
+  if (input.visible !== undefined) {
+    if (typeof input.visible !== "boolean") {
+      throw new Error(
+        `${where}: visible must be true or false; received ${JSON.stringify(
+          input.visible
+        )} and wrote nothing`
+      );
+    }
+    effect.visible = input.visible;
+  }
+  if (input.blendMode !== undefined) {
+    if (EFFECT_BLEND_MODES.indexOf(input.blendMode) === -1) {
+      throw new Error(
+        `${where}: blendMode must be one of ${EFFECT_BLEND_MODES.join(
+          ", "
+        )}; received ${JSON.stringify(input.blendMode)} and wrote nothing`
+      );
+    }
+    effect.blendMode = input.blendMode;
+  }
+  if (input.showShadowBehindNode !== undefined) {
+    if (typeof input.showShadowBehindNode !== "boolean") {
+      throw new Error(
+        `${where}: showShadowBehindNode must be true or false; received ${JSON.stringify(
+          input.showShadowBehindNode
+        )} and wrote nothing`
+      );
+    }
+    effect.showShadowBehindNode = input.showShadowBehindNode;
+  }
+  return effect;
+}
+
+async function setEffects(params) {
+  const source = params || {};
+  const { nodeId, effects } = source;
+
+  if (effects === undefined) {
+    throw new Error(
+      `set_effects requires effects: an array of 1-${MAX_EFFECTS} effects, or null to remove every effect. Received nothing and wrote nothing`
+    );
+  }
+  if (effects !== null) {
+    if (!Array.isArray(effects)) {
+      throw new Error(
+        `set_effects requires effects to be an array or null; received ${JSON.stringify(
+          effects
+        )} and wrote nothing`
+      );
+    }
+    if (effects.length === 0) {
+      throw new Error(
+        "set_effects received an empty effects array and wrote nothing. Pass null to remove every effect — an empty array and null would be two ways to say one thing"
+      );
+    }
+    if (effects.length > MAX_EFFECTS) {
+      throw new Error(
+        `set_effects received ${effects.length} effects, above this fork's ceiling of ${MAX_EFFECTS}, and wrote nothing`
+      );
+    }
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+  if (!("effects" in node)) {
+    throw new Error(
+      `set_effects wrote nothing: node ${nodeId} is a ${node.type} and does not support effects`
+    );
+  }
+  const beforeRead = readEffects(node);
+  const built = effects === null ? [] : effects.map(buildEffect);
+  const styleBefore = readEffectStyleId(node);
+
+  // ---- Write phase: one assignment, so this block cannot partially apply ----
+  node.effects = built;
+
+  const afterRead = readEffects(node);
+  const styleAfter = readEffectStyleId(node);
+
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    effects: afterRead.effects,
+    effectCount: afterRead.effects === null ? null : afterRead.effects.length,
+    previous: beforeRead.effects,
+    previousReadable: beforeRead.readable,
+    requestedCount: effects === null ? 0 : effects.length,
+    cleared: effects === null,
+    // A style detachment is read, not assumed. The live gate can turn these readings into
+    // a platform finding without this tool ever claiming that all effects writes detach.
+    styleIdBefore: styleBefore.styleId,
+    styleIdAfter: styleAfter.styleId,
+    styleReadable: styleBefore.readable && styleAfter.readable,
+    styleDetached:
+      styleBefore.readable && styleAfter.readable
+        ? Boolean(styleBefore.styleId) && !styleAfter.styleId
+        : null,
+  };
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -8853,6 +9182,10 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // original divergence with an extra participant.
   set_fill:
     "CC8 holds the v1 allowlist at 15 ops through R2.7; and admitting it would put a second, different paint shape alongside set_fill_color's in one batch surface — the divergence this tool exists to end",
+  // R2.7 1.2. Same release-wide CC8 rule as set_fill: the v1 allowlist stays frozen at
+  // 15 until R2 acceptance, so a batch receipt and parity work are not silently owed here.
+  set_effects:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; effect batching and its receipt contract are deferred until a consumer asks",
 });
 
 const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({

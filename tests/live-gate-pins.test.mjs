@@ -83,6 +83,12 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
   "live-clips-content-gate.mjs":
     "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  // `live-fill-gate` was the only gate pinned to the R2.7 item 1.1 build. Item 1.2 changes
+  // the exported read shape and spends the 1.9.0 bump, so its runtime preflight must now
+  // refuse rather than falsely presenting a 1.1 result as a 1.2 result. It joins the set for
+  // the single end-of-R2.7 re-pin/re-run; this change has not exercised that earlier gate.
+  "live-fill-gate.mjs":
+    "R2.7 item 1.1 build, schema 1.8.0. Green before item 1.2; staled by item 1.2 changing the read shape and runtime pins. Re-pin and re-run with the R2.7 set.",
 });
 
 function readPins(source) {

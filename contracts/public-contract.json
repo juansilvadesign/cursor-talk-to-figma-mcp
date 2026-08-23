@@ -1,10 +1,10 @@
 {
   "release": "R2",
-  "publicContractVersion": "1.8.0",
-  "serverSchemaVersion": "1.8.0",
+  "publicContractVersion": "1.9.0",
+  "serverSchemaVersion": "1.9.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
+  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -47,6 +47,7 @@
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
+    "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
     "figma.command.set_focus@1",
@@ -133,6 +134,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_effects",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -196,6 +198,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_effects",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -258,6 +261,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_effects",
       "get_reactions",
       "set_default_connector",
       "create_connections",
@@ -2195,6 +2199,162 @@
       },
       "pluginCommand": "set_default_connector",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_effects",
+      "description": "Replace a node's effects with shadows or standard blurs. Supported types are DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, and BACKGROUND_BLUR; NOISE, TEXTURE, and newer effect types are intentionally outside this release. Pass effects: null to remove every effect; an empty array is refused because null already says that. Each effect is validated against its type before the one array assignment, so a field that belongs to a different type (for example color on LAYER_BLUR), an unknown field, or a missing required field refuses the whole call without changing the document. Effects are read back from the node rather than echoed, and the reply separately reports effectStyleId before and after because writing effects may detach a bound effect style.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node whose effects are being replaced"
+          },
+          "effects": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "DROP_SHADOW",
+                        "INNER_SHADOW",
+                        "LAYER_BLUR",
+                        "BACKGROUND_BLUR"
+                      ],
+                      "description": "The kind of effect. Only the four R2.7 effect types are supported"
+                    },
+                    "color": {
+                      "type": "object",
+                      "properties": {
+                        "r": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Red channel, 0-1"
+                        },
+                        "g": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Green channel, 0-1"
+                        },
+                        "b": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Blue channel, 0-1"
+                        },
+                        "a": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1,
+                          "description": "Alpha, 0-1. Defaults to 1; a shadow has no second opacity spelling"
+                        }
+                      },
+                      "required": [
+                        "r",
+                        "g",
+                        "b"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"
+                    },
+                    "offset": {
+                      "type": "object",
+                      "properties": {
+                        "x": {
+                          "type": "number",
+                          "description": "Horizontal offset in pixels"
+                        },
+                        "y": {
+                          "type": "number",
+                          "description": "Vertical offset in pixels"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"
+                    },
+                    "radius": {
+                      "type": "number",
+                      "minimum": 0,
+                      "description": "Required blur or shadow radius, greater than or equal to 0"
+                    },
+                    "spread": {
+                      "type": "number",
+                      "description": "Optional shadow spread. Its sign is intentionally not constrained"
+                    },
+                    "visible": {
+                      "type": "boolean",
+                      "description": "Whether this effect is drawn"
+                    },
+                    "blendMode": {
+                      "type": "string",
+                      "enum": [
+                        "NORMAL",
+                        "DARKEN",
+                        "MULTIPLY",
+                        "LINEAR_BURN",
+                        "COLOR_BURN",
+                        "LIGHTEN",
+                        "SCREEN",
+                        "LINEAR_DODGE",
+                        "COLOR_DODGE",
+                        "OVERLAY",
+                        "SOFT_LIGHT",
+                        "HARD_LIGHT",
+                        "DIFFERENCE",
+                        "EXCLUSION",
+                        "HUE",
+                        "SATURATION",
+                        "COLOR",
+                        "LUMINOSITY"
+                      ],
+                      "description": "Optional shadow blend mode. PASS_THROUGH is layer-only and is refused"
+                    },
+                    "showShadowBehindNode": {
+                      "type": "boolean",
+                      "description": "Optional DROP_SHADOW-only setting; refused on every other effect type"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "additionalProperties": true
+                },
+                "minItems": 1,
+                "maxItems": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-16 effects in Figma draw order, or null to remove every effect"
+          }
+        },
+        "required": [
+          "nodeId",
+          "effects"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_effects",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

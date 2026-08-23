@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-b8086c604b60",
-  "pluginBuildId": "r2-plugin-959345dd8f16",
-  "serverSchemaVersion": "1.8.0",
-  "pluginApiVersion": "1.8.0",
+  "serverBuildId": "r2-server-fa007eb01947",
+  "pluginBuildId": "r2-plugin-741db0eb6bd9",
+  "serverSchemaVersion": "1.9.0",
+  "pluginApiVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
+  "capabilityFingerprint": "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -71,6 +71,7 @@ var RUNTIME_METADATA = {
     "set_size_limits",
     "set_clips_content",
     "set_fill",
+    "set_effects",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -123,6 +124,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
+    "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
     "figma.command.set_focus@1",
@@ -187,6 +189,7 @@ var RUNTIME_METADATA = {
     "set_corner_radius",
     "set_current_page",
     "set_default_connector",
+    "set_effects",
     "set_fill",
     "set_fill_color",
     "set_focus",
@@ -1035,6 +1038,24 @@ function filterFigmaNode(node) {
       }
       return processedStroke;
     });
+  }
+  if (Array.isArray(node.effects)) {
+    filtered.effects = node.effects.map((effect) => {
+      const processedEffect = { ...effect };
+      if (processedEffect.color) {
+        processedEffect.color = rgbaToHex(processedEffect.color);
+      }
+      return processedEffect;
+    });
+  }
+  if (node.effectStyleId !== void 0) {
+    filtered.effectStyleId = node.effectStyleId;
+  }
+  if (node.clipsContent !== void 0) {
+    filtered.clipsContent = node.clipsContent;
+  }
+  if (node.absoluteRenderBounds !== void 0) {
+    filtered.absoluteRenderBounds = node.absoluteRenderBounds;
   }
   if (node.cornerRadius !== void 0) {
     filtered.cornerRadius = node.cornerRadius;
@@ -3246,6 +3267,79 @@ server.tool(
           {
             type: "text",
             text: `Error setting fill: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_effects",
+  "Replace a node's effects with shadows or standard blurs. Supported types are DROP_SHADOW, INNER_SHADOW, LAYER_BLUR, and BACKGROUND_BLUR; NOISE, TEXTURE, and newer effect types are intentionally outside this release. Pass effects: null to remove every effect; an empty array is refused because null already says that. Each effect is validated against its type before the one array assignment, so a field that belongs to a different type (for example color on LAYER_BLUR), an unknown field, or a missing required field refuses the whole call without changing the document. Effects are read back from the node rather than echoed, and the reply separately reports effectStyleId before and after because writing effects may detach a bound effect style.",
+  {
+    nodeId: z.string().describe("The ID of the node whose effects are being replaced"),
+    effects: z.array(
+      z.object({
+        type: z.enum([
+          "DROP_SHADOW",
+          "INNER_SHADOW",
+          "LAYER_BLUR",
+          "BACKGROUND_BLUR"
+        ]).describe("The kind of effect. Only the four R2.7 effect types are supported"),
+        color: z.object({
+          r: z.number().finite().min(0).max(1).describe("Red channel, 0-1"),
+          g: z.number().finite().min(0).max(1).describe("Green channel, 0-1"),
+          b: z.number().finite().min(0).max(1).describe("Blue channel, 0-1"),
+          a: z.number().finite().min(0).max(1).optional().describe("Alpha, 0-1. Defaults to 1; a shadow has no second opacity spelling")
+        }).optional().describe("Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"),
+        offset: z.object({
+          x: z.number().finite().describe("Horizontal offset in pixels"),
+          y: z.number().finite().describe("Vertical offset in pixels")
+        }).optional().describe("Required by DROP_SHADOW and INNER_SHADOW; refused on blur effects"),
+        radius: z.number().finite().min(0).optional().describe("Required blur or shadow radius, greater than or equal to 0"),
+        spread: z.number().finite().optional().describe("Optional shadow spread. Its sign is intentionally not constrained"),
+        visible: z.boolean().optional().describe("Whether this effect is drawn"),
+        blendMode: z.enum([
+          "NORMAL",
+          "DARKEN",
+          "MULTIPLY",
+          "LINEAR_BURN",
+          "COLOR_BURN",
+          "LIGHTEN",
+          "SCREEN",
+          "LINEAR_DODGE",
+          "COLOR_DODGE",
+          "OVERLAY",
+          "SOFT_LIGHT",
+          "HARD_LIGHT",
+          "DIFFERENCE",
+          "EXCLUSION",
+          "HUE",
+          "SATURATION",
+          "COLOR",
+          "LUMINOSITY"
+        ]).optional().describe("Optional shadow blend mode. PASS_THROUGH is layer-only and is refused"),
+        showShadowBehindNode: z.boolean().optional().describe("Optional DROP_SHADOW-only setting; refused on every other effect type")
+      }).passthrough()
+    ).min(1).max(16).nullable().describe("1-16 effects in Figma draw order, or null to remove every effect")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_effects", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting effects: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

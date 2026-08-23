@@ -175,6 +175,10 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // original divergence with an extra participant.
   set_fill:
     "CC8 holds the v1 allowlist at 15 ops through R2.7; and admitting it would put a second, different paint shape alongside set_fill_color's in one batch surface — the divergence this tool exists to end",
+  // R2.7 1.2. Same release-wide CC8 rule as set_fill: the v1 allowlist stays frozen at
+  // 15 until R2 acceptance, so a batch receipt and parity work are not silently owed here.
+  set_effects:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; effect batching and its receipt contract are deferred until a consumer asks",
 });
 
 /**

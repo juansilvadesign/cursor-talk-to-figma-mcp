@@ -13,12 +13,30 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-22)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
-- **▶ START HERE:** 2.0 · 2.1 · 2.2 · 2.3 GATED, and **2.4 `set_clips_content` is BUILT +
-  COMMITTED but ⏳ NOT GATED** — the gate REFUSED at `join_channel` on a stale DEV plugin.
-  Next = **owner re-runs the DEV plugin in Figma, rejoins a channel, then re-run
-  `scripts/live-clips-content-gate.mjs`.** After it passes, the owner's standing call comes
-  due: re-pin and re-run the stale gates ONCE — the backlog is **FIVE**, not the four the
-  plan predicted, because 2.3's own gate joined on the way out.
+- **▶ START HERE:** 2.0 · 2.1 · 2.2 · 2.3 · **2.4 ALL GATED — R2.6 Phase 2's four layout
+  tools are COMPLETE.** 2.4 PASSED 2026-08-22 on channel `u2k66m3w`, **run twice, both
+  green**, gate repair committed `98b315d`.
+  ✅✅ **AND THE FIVE-GATE BACKLOG IS CLEARED — 2026-08-22, channel `sa6ggz00`.** The
+  owner's standing call was discharged: all five re-pinned to the 2.4 build and all five
+  RE-RUN, each once, **5/5 PASSED on the first run, zero defects found in any gate or
+  tool** — the first item in this release where nothing broke. Live pair confirmed
+  `r2-server-fb30663ee0f1` ↔ `r2-plugin-1eee5a6f3bd9`, `1.8.0`, `sha256:f229f6ec…`,
+  `compatible`, 60 tools. Scratch page deleted and baseline restored (6 pages, current page
+  `0:1`) on **all eight** runs. Their five entries are **deleted** from
+  `tests/live-gate-pins.test.mjs`; 287/287 offline, `bun run verify` passed.
+  Next = **R2.6 acceptance** (promotes the four layout tools `additive-preview` → `stable`,
+  which moves the contract → the server build → ⛔ re-pin and re-run again), or R2.7.
+  🟡 **This MEMORY.md is uncommitted**, as are the 6 gate/test files from this session —
+  owner's call was to leave them so. ⛔ Stage explicit paths — peer sessions write this repo.
+- ⭐🔴 **A PIN EDIT DOES NOT MOVE THE BUILD — the standing warning in this file was WRONG,
+  and it is what made the backlog look unworkable.** This file said "⚠️ Each re-pin moves
+  `serverBuildId`, so re-derive", which implies re-pinning gate 1 stales gate 2's fresh pin
+  and the set can never be closed in one pass. Read the code: `serverBuildId` is
+  `sha256(server.ts + contractPayload)` and `pluginBuildId` hashes
+  `code.js` + `ui.html` + `manifest.json` (`scripts/contract-lib.mjs:605`). **`scripts/`
+  and `tests/` are hashed by NEITHER.** ⭐ Verified live, not just read: after six edited
+  files, `bun run verify` regenerated the contract and **all three pins held**. What staled
+  these five was the *item* landing above them, every time — never the pin.
 - **Doing:** ✅✅ **R2.6 Phase 2 item 2.0 is BUILT, COMMITTED and GATED.** Built 2026-08-21
   (offline), and it SPENT the bump: contract `1.7.0` → `1.8.0`. `create_text` carries the
   twelve `set_text_style` parameters, `setCharacters` is **awaited**, and an unloadable
@@ -163,7 +181,7 @@ type: project
   reports 13 where the echo reports 12.5. ⭐ **Mutation testing caught what review did not**,
   and the surviving mutant was the one defending the receipt's honesty. Same family as
   [[feedback_a_zero_valued_write_reads_as_no_write]].
-- **Also done 2026-08-22:** ✅ **item 2.4 `set_clips_content` is BUILT AND COMMITTED, ⏳ NOT
+- **Also done 2026-08-22:** ✅✅ **item 2.4 `set_clips_content` is BUILT, COMMITTED AND
   GATED** — the last of the four layout tools. **287 tests** (was 260), **nine** source
   mutations killed + control survived, `dist/` byte-identical ×3, `verify-release` passed.
   Commits `eef4e15` · `4c4988c` · `d0d2de1`. ⛔ **No bump** — additive, schema **HELD at
@@ -194,6 +212,51 @@ type: project
   recomputes it synchronously is **unmeasured**, and computing it unconditionally would turn
   every offline test green against a platform behaviour nobody checked. `renderBoundsChanged`
   is `null`, never `false`, when a reading is missing.
+- ✅✅ **THE 2.4 LIVE GATE PASSED — 2026-08-22, channel `u2k66m3w`, run TWICE, both green.**
+  Pair confirmed live `r2-server-fb30663ee0f1` ↔ `r2-plugin-1eee5a6f3bd9`, `1.8.0`,
+  fingerprint `sha256:f229f6ec…`, `compatible`. Scratch page deleted in the `finally` and
+  baseline restored id-for-id on **all four** runs, including the two that failed. Evidence
+  `docs/evidence/r2.6-2.4/` (report + 7 probe SVGs). Repair committed **`98b315d`**.
+  ⭐ **The DEV plugin re-run was PERFORMED, not merely verified** — fifth `assertRuntime`
+  encounter and the first to pass. ⛔ The interactive MCP servers were all pre-2.4 and were
+  deliberately NOT used to probe: asking a stale server whether a plugin is fresh is the
+  `compatible` trap. The only read trusted was live pins vs `runtime-metadata.ts`.
+  ✅ **Three findings, all green:** clipping RESOLVES and round-trips (200 → 250 → 200 through
+  `export_node_as_image`'s preflight, untouched CONTROL held); the receipt's render currency
+  is **SYNCHRONOUS** — ⭐ *this retires the "unmeasured" caveat directly above*, Figma does
+  recompute `absoluteRenderBounds` in-call, so `renderBoundsChanged` is usable; and **SECTION
+  does NOT carry `clipsContent`**, refused by the handler's own rule — the harness's
+  deliberate omission was RIGHT. ⭐ **All four refusals came from the HANDLER, zero from Figma
+  mid-write** — 2.3's defect did not repeat.
+- 🔴 **THE GATE FAILED ITS FIRST REAL RUN, AND BOTH DEFECTS WERE IN THE GATE — the tool needed
+  NO changes.** Third time in four items ([[feedback_a_status_marker_that_was_true_when_written]]).
+  ① 🔴 **§5's eligibility matrix writes `clipsContent: false` to `subjectId` itself** (its
+  accepted "FRAME on a page" case), and **§7 then asserted `previous === true` because "§3
+  re-clipped the subject"** — true when written, falsified 110 lines later. The tool answered
+  `previous: false` **honestly and the gate scored it a failure**. ⛔ The near-miss is the
+  whole lesson: the obvious reading was "the receipt is lying", which would have "fixed" a
+  correct tool. ✅ §7 now performs a **settling write** and measures only the SECOND — and the
+  passing run proves the diagnosis in its own evidence: **`settledFrom: false`**.
+  ② 🔴 **§7's own guard could not fail in either direction** — `independentWidthHeld` compared
+  `afterNoop` against §3's `reclipped`, and **both ends are 200**, so it read "held" straight
+  through a real 250 → 200 re-clip. Same family as
+  [[feedback_a_zero_valued_write_reads_as_no_write]]. Now compares against bounds read
+  immediately **before** the no-op.
+  ⭐ **The repair was proved by a KNOWN-BAD RERUN, not by turning green**
+  ([[feedback_loosening_a_gate_needs_a_known_bad_rerun]]): on one run's real numbers
+  (before 250, after 200, reclipped 200) the **OLD** predicate returns `true` — green and
+  wrong — and the **NEW** one returns `false`. Same inputs, opposite verdicts.
+  ⭐ **§7 had never actually run its own test**; it performed a real write. First live
+  measurement of the no-op: `previous: true`, `changed: false`, **`renderBoundsChanged: false`
+  and not `null`** — the discriminator that keeps the field readable. §8/§9 also ran for the
+  first time; the harness carrier model **agrees** with live.
+  🔴 **NEW `stillOwed`: a node inside an INSTANCE is UNMEASURED** — the matrix nests a frame
+  in a plain FRAME because this gate creates no component to instantiate, and an instance
+  child is the context most likely to make a readable property unwritable.
+  ⚠️ **Two `join_channel` TIMEOUTS** (`plugin=unknown`, `compatibility=not_checked`) were
+  **not** a stale build — the owner was driving the plugin from another session. ⭐ A timeout
+  is a *different* failure from the build refusal, which names the build it received; the
+  relay socket stays `ESTAB` throughout, so ⛔ connection state is NOT liveness.
 - 🔴 **A CC1 DEFECT HAD BEEN LIVE FOR THREE CONSECUTIVE ITEMS, and 2.4 repaired it.**
   `getResultStability` falls through to `stable` for anything unlisted, so
   `set_layout_child`, `set_constraints` and `set_size_limits` all shipped **FROZEN from
@@ -227,10 +290,34 @@ type: project
   committed my README line on its own as `b64ab2e`, and wrote `TASKS.md` + `ROADMAP.md`
   (the R3-A / Variables-API planning block). Both left untouched. ⛔ `dist/` is gitignored
   but TRACKED — it needs `git add -f`, which is not a red flag here.
-- **Next step:** ▶ **Owner re-runs the DEV plugin in Figma** (it holds `code.js` from
-  launch), rejoins a channel, then **re-run `node scripts/live-clips-content-gate.mjs
-  --channel=<ch> --output-dir=docs/evidence/r2.6-2.4`**. After it passes: re-pin and re-run
-  the **five** stale gates ONCE.
+- ✅✅ **DONE 2026-08-22 — the five-gate re-pin + re-run, channel `sa6ggz00`.** All five
+  re-pinned to the 2.4 build **and re-run in the same session**, so no pin is a claim
+  nobody tested (`e02d1b2` stays closed). **5/5 PASSED first run.** ⛔ **Nothing was found
+  in any tool, and nothing in any gate's checks** — the first item since Phase 1 where the
+  gates had no defect to report, which is itself the notable result after three straight
+  items where the gate was the thing that was broken.
+  ⭐ **Three of the five did emit a FALSE FINDING while passing**, and that was repaired:
+  `live-layout`, `live-constraints` and `live-size-limits` hardcoded *"THREE/FOUR gates now
+  pin builds this tree no longer produces"* — true when written, falsified by this very
+  run. `live-constraints` and `live-size-limits` also asserted their tool *"ships at
+  resultStability `stable` from birth"*, which **2.4's own CC1 repair had already
+  falsified** (all four layout tools are `additive-preview` in the published contract).
+  ⛔ The fix is not a corrected sentence — both now **READ** the file they describe
+  (`live-gate-pins.test.mjs`, `public-contract.json`) instead of restating a belief, the
+  same repair §7 of the size-limits gate needed. Fourth instance of
+  [[feedback_a_status_marker_that_was_true_when_written]] in this release.
+  ⚠️ **Those three were then RE-RUN on the edited scripts** — editing a gate is not
+  exercising it, and their first reports had been produced by a different version of the
+  file. Eight live runs total, all green. New output verified true: **3** remaining
+  declared gates, and `publishedStability: additive-preview`.
+- **Next step:** ▶ **R2.6 acceptance** — promotes `set_layout_child`, `set_constraints`,
+  `set_size_limits`, `set_clips_content` from `additive-preview` → `stable`. ⛔ **The
+  promotion moves the contract and therefore `serverBuildId`, so every gate must be
+  re-pinned and re-run AGAIN on the promoted build** — R2.4 acceptance did exactly this,
+  and accepting a build no gate has seen is the defect this release spent three phases
+  closing. ⚠️ Three OLDER gates remain declared stale and were **not** in this session's
+  scope: `live-export-gate` (R2.1), `live-create-page-gate` (R2.2), `live-plugin-data-gate`
+  (R2.4).
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
   `LAYOUT_CHILD_ALIGN` / `LAYOUT_CHILD_POSITIONING` · `tests/set-layout-child.test.mjs`
   (17 cases) · **`scripts/live-layout-gate.mjs` (NEW, pins HEAD, never run)** ·
@@ -244,9 +331,9 @@ type: project
   `AUTO_LAYOUT_CARRIERS` ·
   **2.4:** `setClipsContent` + `CLIPS_CONTENT_TYPES` / `readClipsContent` /
   `readRenderGeometry` / `sameRenderBounds` in `code.js` · `tests/set-clips-content.test.mjs`
-  (25 cases) · **`scripts/live-clips-content-gate.mjs` (NEW, pins HEAD, REFUSED at
-  `join_channel` — never completed a run)** · `docs/evidence/r2.6-2.4/report.json` (the
-  refused run) · fixture gained `60:1` (FRAME 200×200 + a child at 150,150 that overflows
+  (25 cases) · **`scripts/live-clips-content-gate.mjs` (pins HEAD, PASSED `u2k66m3w` ×2
+  after its own §7 repair, `98b315d`)** · `docs/evidence/r2.6-2.4/report.json` (the PASSING
+  run) + 7 probe SVGs · fixture gained `60:1` (FRAME 200×200 + a child at 150,150 that overflows
   two edges), `60:3` INSTANCE, `60:4` COMPONENT_SET on page `2:1`; harness gained
   `CLIPS_CONTENT_CARRIERS` (⛔ **SECTION deliberately OMITTED as unmeasured**, not guessed),
   opt-in `ignoreClipsContentWrites` + `clipRenderBounds`; `tests/contract.test.mjs` gained
@@ -254,8 +341,9 @@ type: project
   `src/talk_to_figma_mcp/batch-receipt.mjs` + its `code.js` mirror (the
   `EXCLUDED_BATCH_OPERATIONS` entry, ⛔ **both** copies) · **HEAD pair (2.4, 2026-08-22):
   `r2-server-fb30663ee0f1` ↔ `r2-plugin-1eee5a6f3bd9`**, `1.8.0`, **60 tools/59 commands**,
-  fingerprint **`sha256:f229f6ec…2453ebd`**. ⛔ **The DEV plugin is NOT on this build** — it
-  was still serving `r2-plugin-1fb9729971a3` when the gate refused. Prior (2.3, GATED):
+  fingerprint **`sha256:f229f6ec…2453ebd`**. ✅ **The DEV plugin IS on this build** — read
+  live 2026-08-22 on `u2k66m3w`; it was still serving `r2-plugin-1fb9729971a3` when the gate
+  first refused. Prior (2.3, GATED):
   `r2-server-a9e8d5b3bf78` ↔ `r2-plugin-1fb9729971a3`, `sha256:89be6e6c…cea87f9d`.
   ⚠️ This paragraph described **2.1** as HEAD until 2026-08-22 — re-derive it from
   `runtime-metadata.ts` every release rather than reading it.
@@ -265,15 +353,16 @@ type: project
   **seven consecutive steps**. ⛔ Re-derive from `runtime-metadata.ts`, never carry it
   forward. Adopting HEAD needs a **DEV plugin re-run AND a server respawn**. ⚠️ The gates
   spawn their own server from `dist/server.js`, so only an **interactive** MCP session
-  needs the respawn. 🔴 **FIVE gates are now declared stale** — `live-batch-gate.mjs`,
-  `live-text-style-gate.mjs`, `live-layout-gate.mjs`, `live-constraints-gate.mjs` and now
-  `live-size-limits-gate.mjs`, which passed hours earlier on `o2vws4ph`. All five
-  deliberately **not re-pinned**, because re-pinning a gate without re-running it is the
-  `e02d1b2` defect. Their staleness is declared by name in
-  `tests/live-gate-pins.test.mjs`. ⭐ **Their results still stand for the builds they ran
-  on** — what they can no longer do is *start*. Owner's call 2026-08-22: re-pin and re-run
-  the set **once**, after the layout tools land. ⚠️ The plan predicted **four**; each item
-  staled its predecessor's gate on the way in, and 2.4 staled 2.3's. ⛔ Stage explicit paths, never
+  needs the respawn. ✅ **The five-gate stale backlog is CLOSED, 2026-08-22** — re-pinned
+  and re-run together on `sa6ggz00`, 5/5 green, entries deleted from
+  `tests/live-gate-pins.test.mjs`. The plan predicted four; it reached five because each
+  item staled its predecessor's gate on the way in, and 2.4 staled 2.3's. ⭐ **The reason it
+  could be closed in ONE pass is that a pin edit does not move the build** — `scripts/` and
+  `tests/` feed neither build ID (`contract-lib.mjs:605`), so the five could not stale each
+  other. ⚠️ **THREE older gates are still declared stale and were out of scope:**
+  `live-export-gate.mjs` (R2.1), `live-create-page-gate.mjs` (R2.2),
+  `live-plugin-data-gate.mjs` (R2.4). ⭐ Their results still stand for the builds they ran
+  on — what they can no longer do is *start*. ⛔ Stage explicit paths, never
   `git add -A` (peer sessions write this repo — one committed `d75c7df` mid-run).
 - **Don't forget:** 🔴 **The `1.8.0` bump was NOT mechanically enforced** — regenerating at
   `1.7.0` produced **zero** `compatibilityErrors`, because the snapshot records input
@@ -308,18 +397,29 @@ r2-server-a30e91f4f88e  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)      
 r2-server-c45214d7420b  ↔  r2-plugin-0bc82334ff83   (sha256:05ac28c5…)         ← R2.5 ACCEPTED
 r2-server-c45214d7420b  ↔  r2-plugin-65d716d57dbb   (sha256:05ac28c5…)         ← R2.6 Phase 1, GATED
 r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)         ← R2.6 2.0, GATED 08-22
-r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← HEAD, R2.6 2.1, GATED 08-22
+r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← R2.6 2.1, GATED 08-22
+r2-server-06f75969aa1d  ↔  r2-plugin-e82230c1bbb1   (sha256:8ceaf9d2…)         ← R2.6 2.2, GATED 08-22
+r2-server-a9e8d5b3bf78  ↔  r2-plugin-1fb9729971a3   (sha256:89be6e6c…)         ← R2.6 2.3, GATED 08-22
+r2-server-fb30663ee0f1  ↔  r2-plugin-1eee5a6f3bd9   (sha256:f229f6ec…)         ← HEAD, R2.6 2.4, ALL SIX GATES GREEN 08-22
 ```
 
-⛔ **HEAD is now item 2.1, and which pins moved is DIFFERENT from 2.0** — ⚠️ this paragraph
-described 2.0 as HEAD until 2026-08-22; re-derive it every release rather than reading it.
-2.1 moved **both build IDs**, the **fingerprint** and the **tool count (56 → 57)**, but the
-**schema HELD at `1.8.0`** because a new tool is additive. (2.0, by contrast, moved the
-schema and held the tool count — it was a widening that added none.) Adopting HEAD still
-needs **a DEV plugin re-run AND a server respawn**. ⭐ The gates spawn their own server from
-`dist/server.js`, so only an **interactive** MCP session needs the respawn — and the plugin
-half is what `assertRuntime` pins, which is how 2.0's and 2.1's re-runs were *verified*
-rather than assumed.
+⛔ **HEAD is item 2.4**, and as of 2026-08-22 it is the first build in this release that
+**every runnable gate has actually passed on** — `live-clips-content` (`u2k66m3w`) plus the
+five re-pinned on `sa6ggz00`. ⚠️ This paragraph described 2.0 as HEAD, then 2.1; ⛔ re-derive
+it from `runtime-metadata.ts` every release rather than reading it here.
+2.4 moved **both build IDs**, the **fingerprint** and the **tool count (59 → 60)**, with the
+**schema HELD at `1.8.0`** because a new tool is additive — the same shape as 2.1 and 2.2,
+**not** 2.3's second move (which took the build IDs alone while the fingerprint stood still).
+⭐ **TWO independent changes moved `serverBuildId` here** — `set_clips_content` itself, and
+the CC1 repair. Adopting HEAD needs **a DEV plugin re-run AND a server respawn**; ⭐ the gates
+spawn their own server from `dist/server.js`, so only an **interactive** MCP session needs the
+respawn, and the plugin half is what `assertRuntime` pins.
+
+⭐ **The DEV plugin was confirmed ON this build, read live rather than assumed** — every one
+of the eight `sa6ggz00` runs reported `pluginBuildId: r2-plugin-1eee5a6f3bd9`, and
+`assertRuntime` would have refused at `join_channel` before touching the document otherwise.
+⛔ Still never trust `compatibility: "compatible"` for this; it means the two RUNNING halves
+agree with each other, never that they agree with the tree.
 
 ⚠️ **That answer has now flipped on SIX consecutive steps.** R2.5 Phase 1/2/3 moved both;
 R2.5 acceptance moved the server only; R2.6 Phase 1 moved the plugin only (and `dist/`

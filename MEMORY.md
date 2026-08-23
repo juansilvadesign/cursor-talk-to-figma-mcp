@@ -10,10 +10,136 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-22)
+## ▶ Resume (checkpoint 2026-08-23)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork` — R2.6 layout, **Phase 2 open**
-- **▶ START HERE:** 2.0 · 2.1 · 2.2 · 2.3 · **2.4 ALL GATED — R2.6 Phase 2's four layout
+- **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals, Phase 1 OPEN**
+- **▶ START HERE: item 1.2 `set_effects`.** ✅✅ **ITEM 1.1 `set_fill` IS BUILT AND GATED**
+  — `live-fill-gate.mjs` PASSED on channel **`yoq962bg`**, **run twice on the final script**,
+  live pair `r2-server-b8086c604b60` ↔ `r2-plugin-959345dd8f16`, `compatible`, 61 tools,
+  scratch page deleted and baseline restored id-for-id (6 pages, current `0:1`) every run.
+  Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md).
+  ⛔ **Two attempts refused first and neither touched the document:** a defect in the GATE's
+  own §1 probe (it looked for a per-parameter fact in the TOOL description), then
+  `join_channel` naming a stale DEV plugin. Fourth real firing of that preflight.
+  🟡 **Uncommitted** — nothing from R2.7 1.1 is staged beyond the peer session's two
+  baseline-freeze commits. ⛔ Stage explicit paths.
+
+- ✅✅ **THE ANGLE CONVENTION IS MEASURED, and it MATCHES the schema** — `0°` renders red
+  LEFT→right, `90°` renders red **TOP**→bottom, `270°` is its exact mirror. ⭐ This
+  **positively excludes the sign-flipped convention**, which is the mutant that survived the
+  entire offline suite. ⛔ The gate carries no PNG decoder — it asserts 0/90/270 render to
+  three DIFFERENT byte strings, and the direction comes from LOOKING at the three PNGs it
+  retains in `docs/evidence/r2.7-1.1/`. Re-confirm by eye if `gradientTransformFromAngle` is
+  touched: the offline determinant check proves it is *a* rotation, never which way it turns.
+
+- 🔴 **THREE HANDLER REFUSAL MESSAGES ARE UNREACHABLE THROUGH THE TRANSPORT.** `emptyArray`,
+  `badBlendMode` and `outOfRange` all refuse at the **schema** layer — Zod's `.min(1)`, the
+  enum and the `.min(0).max(1)` bounds fire before the plugin is reached — so the handler's
+  much better messages ("Pass null to remove every fill…", "Figma colour channels are 0-1
+  floats, not 0-255 bytes") are never what a caller sees. ⚠️ **Not a defect**, and ⛔ the
+  schema was NOT loosened to expose them: an earlier structured refusal is better, and the
+  handler checks still guard the plugin's second entry point. ⛔ But the offline tests
+  asserting those messages exercise that second entry point ONLY.
+  ⭐ The gate reports this as an **ownership MISMATCH** (each refusal declares its owning
+  layer; any disagreement fails) rather than as a description of the observed layers — and
+  it was **observed FAILING** first, by declaring `alphaCollision` as `schema`.
+
+- ⭐ **`get_node_info` CAN witness `fills`, unlike `clipsContent`** — `readChannel.usable:
+  true`, a real moving value across the write. The R2.6 expectation was the opposite.
+  ⚠️ So the `filterFigmaNode` repair owed to R2.7's `1.9.0` is **narrower than recorded**:
+  it is about `clipsContent` / `absoluteRenderBounds`, not fills.
+
+- ⏳ **`styleDetached` IS STILL UNMEASURED, and the gate cannot close it alone.**
+  `paintStyleCount: 0` — the file has no local paint styles, so there was nothing to bind and
+  §5 reported UNMEASURED honestly rather than passing vacuously. ⛔ The blocker is
+  structural: **no fork tool BINDS a paint style** (R3 work), so the gate cannot manufacture
+  its own precondition. Bind one by hand before a future run. ⭐ The tool is correct under
+  either answer — that is why the receipt reports three readings instead of asserting a rule
+  — but ⛔ promoting `set_fill` to `stable` at R2 acceptance does **not** answer it.
+
+- ✅✅ **THE CC3 DEBT IS PAID — 2026-08-23, and it landed FIRST, as its own commit.**
+  `contracts/baselines/` gained the **7th and 8th**: `r2.5-public-contract.json` (from
+  `e02d1b2`, `1.7.0`, 56 tools) and `r2.6-public-contract.json` (from `36ba158`, `1.8.0`,
+  60 tools) — lifted from the acceptance commits, not reconstructed.
+  `ACCEPTED_SINCE_LAST_BASELINE` is now `[]`, down from seven.
+  ⭐ **Proved by a KNOWN-BAD RERUN**, not inferred: with both new baselines removed the CC1
+  guard named **exactly those seven tools**. A green run alone could not tell "the baselines
+  carry them" from "the filename filter ignored the new files".
+  ⚠️ **The R2.6 baseline's replay is a TAUTOLOGY** until the contract next moves — it was
+  byte-identical to `public-contract.json` at freeze time (`sha256:aebc8dfe…`). Only R2.5's
+  is a real check this release. ⛔ Do not bank its green.
+  ⛔ **The seven are now permanently `stable`; the walk-back is BREAKING.** R2.6 was the last
+  release in which the CC1 repair was free.
+  ⭐ **The freeze moved NO build** — predicted, then confirmed. `contracts/baselines/` and
+  `tests/` feed neither build ID.
+
+- ✅ **ITEM 1.1 `set_fill` IS BUILT** — solid + all four gradients, one nested colour shape,
+  ending the `set_fill_color` divergence R2.4's gate caught (⛔ the legacy tool is `stable`
+  and unfixable, so the divergence is **pinned by a test** and the tool documented legacy).
+  **318/318 offline** (was 287), **12/12 mutants killed with the comment-only CONTROL
+  surviving**, `dist/` byte-identical ×3, `bun run verify` passed, **61 tools**.
+  ⛔ **NO BUMP — schema HELD at `1.8.0`.** A new tool is additive. R2.7 still owes
+  `1.8.0` → `1.9.0`, but 1.1 has nothing to bump *for*; the `filterFigmaNode` read-layer
+  repair is the item already named for it.
+  **Four owner decisions:** ① freeze first; ② `paints: Paint[]` (1–16) not a single paint,
+  because adding arity to a `stable` tool later is breaking; ③ `gradientTransform` XOR
+  `angle`, refuse both; ④ a bound paint style is **allowed and MEASURED**, not refused.
+  Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md).
+
+- 🔴 **TWO MUTANTS SURVIVED THE FIRST RUN AND ONLY ONE WAS A REAL GAP — the other was the
+  INSTRUMENT.** The "no fills-surface refusal" mutant anchored on
+  `if (!("fills" in node)) {`, which the **legacy `setFillColor` carries verbatim and
+  EARLIER in the file**, so `.replace()` mutated the legacy tool while the label said
+  `set_fill`, and it printed as a hole in the new tool's tests. There was no hole. ⭐ An
+  instrument aimed at the wrong function reports a defect in the one it missed.
+  ✅ **The real gap:** flipping the sign of `d` in `gradientTransformFromAngle` — turning the
+  rotation into a **reflection** — passed every test including 0° and 90°, because those read
+  the ramp position, which is **row 0 only**, and the sign lives in row 1. Harmless for a
+  LINEAR gradient; not for RADIAL/ANGULAR/DIAMOND. Closed by asserting a **property** of
+  rotation (determinant `1/s²`, negative for a reflection) rather than a hardcoded matrix,
+  which the mutant would also have satisfied.
+
+- 🔴 **THE HARNESS WAS GIVING EVERY NODE A BLANKET `fills: []`** — so `"fills" in node` was
+  TRUE for a GROUP, and `set_fill`'s only node refusal was **unreachable offline**. Same
+  dishonest-fixture shape as the blanket `layoutMode: "NONE"` that hid a real
+  `set_layout_sizing` defect for six releases. `FILL_CARRIERS` now type-gates it; ⚠️ PAGE and
+  SECTION are **absent = UNMEASURED**, never "does not have it".
+
+- ⭐🔴 **A NEW PIN SHAPE: `pluginBuildId` MOVED ALONE** — the exact inverse of R2.6
+  acceptance. The pins moved **twice inside this one item**: first 2.1/2.2/2.3's shape (both
+  builds + fingerprint + tool count 60 → 61, schema held), then a **comment-only edit to
+  `code.js`** moved `pluginBuildId` `d8537626e9db` → `959345dd8f16` while `serverBuildId`,
+  the fingerprint and the schema all HELD — because that hash covers the file's BYTES.
+  ⛔ Both single-sided shapes have now occurred. Re-derive from `runtime-metadata.ts`, always.
+  **HEAD pair: `r2-server-b8086c604b60` ↔ `r2-plugin-959345dd8f16`**, `1.8.0`,
+  `sha256:07e3fff4…2dbaea`, 61 tools.
+
+- ⏳ **SIX GATES ARE DECLARED STALE AGAIN** — `live-batch`, `live-text-style`, `live-layout`,
+  `live-constraints`, `live-size-limits`, `live-clips-content`. All were green on `sa6ggz00`;
+  `set_fill` moved both builds beneath them. ⛔ **Not re-pinned** — a change that can only
+  re-run ONE gate cannot honestly re-pin six. R2.7 re-pins and re-runs the set ONCE at its
+  end, as R2.6 did after 2.4.
+
+- ⏳ **TWO READINGS THE GATE STILL OWES.** ① `styleDetached` is **UNMEASURED** and the gate
+  may not be able to close it — **no fork tool BINDS a paint style** (R3 work), so the
+  precondition cannot be manufactured; bind one by hand in the file first. ② The angle's
+  **direction** rests on a human comparing `6-ramp-090.png` against `6-ramp-270.png`; byte
+  inequality proves the two are distinguishable, never which matches "90 is top-to-bottom".
+
+- ⚠️ **A PEER SESSION IS COMMITTING AND PUSHING INTO THIS REPO WHILE WORK IS IN FLIGHT.** It
+  committed the baseline freeze as `0c0f68a` + `6e558ba` and pushed both to `origin/main`
+  within seconds, un-prompted, correctly split. ⛔ Repo is PUBLIC. Verify what landed rather
+  than assuming your own staging.
+
+- **Superseded ordering:** `TASKS.md` said *"THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7
+  VISUALS"* (peer session, 2026-08-22). Reversed 2026-08-23 on the owner's call: **R2.7
+  first, then R3-A**, which re-plans onto **`1.10.0`** since R2.7 spends `1.9.0`. ⛔ Nothing
+  about R3-A's Enterprise-gating finding is withdrawn — only its queue position moved. All
+  three stale markers corrected.
+
+### Previous checkpoint (2026-08-22) — R2.6
+
+- **▶ WAS:** 2.0 · 2.1 · 2.2 · 2.3 · **2.4 ALL GATED — R2.6 Phase 2's four layout
   tools are COMPLETE.** 2.4 PASSED 2026-08-22 on channel `u2k66m3w`, **run twice, both
   green**, gate repair committed `98b315d`.
   ✅✅ **AND THE FIVE-GATE BACKLOG IS CLEARED — 2026-08-22, channel `sa6ggz00`.** The

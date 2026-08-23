@@ -164,6 +164,17 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // criterion — 2.6 decided the SET, not the members.
   set_clips_content:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ R2.7 1.1. CC8 holds the allowlist at 15 ops for all three sub-releases, and D3
+  // defers any extension to after R2 acceptance — so this is the rule applying, not a
+  // judgement about the tool.
+  // ⚠️ AND IT IS THE ONE ENTRY WHERE ADMITTING THE TOOL WOULD BE ACTIVELY HARMFUL. The
+  // allowlist already carries `set_fill_color`, whose batch shape (`{color:{r,g,b,a}}`)
+  // diverges from its own standalone shape (flat `r,g,b,a`) — the defect R2.4's gate caught
+  // and the defect `set_fill` exists to stop spreading. Adding a SECOND fill op to the same
+  // allowlist would put two different paint shapes behind one batch surface, which is the
+  // original divergence with an extra participant.
+  set_fill:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; and admitting it would put a second, different paint shape alongside set_fill_color's in one batch surface — the divergence this tool exists to end",
 });
 
 /**

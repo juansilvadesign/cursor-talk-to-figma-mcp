@@ -984,8 +984,16 @@ had never been run. This is what a first run buys, and one of the three was a fa
 - **CC2** Update all six hand-maintained maps per tool (F7), and extend
   `tests/progress-declaration.test.mjs` to cover each. A tool that declares progress it does
   not emit is Finding 4, again.
-- **CC3** Freeze the previous contract as a baseline each release. R2.4 becomes the **6th**
-  (R0 / R1 / R2.1 / R2.2 / R2.3 are the current five); all must replay at zero errors.
+- **CC3** Freeze the previous contract as a baseline each release; all must replay at zero
+  errors. ✅ **Paid in full 2026-08-23, as R2.7's opening act.** R2.4 was the 6th; R2.5
+  (`e02d1b2`, `1.7.0`, 56 tools) and R2.6 (`36ba158`, `1.8.0`, 60 tools) are the **7th and
+  8th**, lifted from the acceptance commits rather than reconstructed. 🔴 The rule was
+  skipped at R2.6's opening and again at its acceptance, so the debt reached **seven**
+  `stable` tools with nothing vouching for them — `ACCEPTED_SINCE_LAST_BASELINE` is now
+  `[]`, and a known-bad rerun (both new baselines removed) named exactly those seven, so
+  the freeze is what empties it. ⚠️ The R2.6 baseline is byte-identical to the live
+  contract until `set_fill` lands, so **its replay is a tautology today** and earns nothing;
+  only R2.5's is a real check this release.
 - **CC4** Each release gets its own live gate script and acceptance doc. ⛔ Pin
   **`serverBuildId`** — schema, tool count and fingerprint all held still across two server
   moves in R2.4, and the build ID was the only pin that would have caught a stale

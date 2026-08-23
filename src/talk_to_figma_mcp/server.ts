@@ -3514,6 +3514,175 @@ server.tool(
   }
 );
 
+// R2.7 item 1.1 — `set_fill`, the first visual tool.
+//
+// ⛔ THE SCHEMA IS THE POINT OF THIS TOOL, not a formality. `apply_batch`'s `set_fill_color`
+// takes `{color:{r,g,b,a}}` while the standalone `set_fill_color` takes flat `r,g,b,a` —
+// two shapes behind one name, which R2.4's live gate caught and which the contract had been
+// describing as the same shape. `set_fill_color` is `stable` and cannot be repaired, so this
+// tool ships ONE nested shape and the old one is documented as legacy.
+//
+// ⚠️ THE ENUMS LIVE IN ZOD, following 2.2's split rather than 2.1's. Every paint type and
+// every blend mode is legal — there is no semantic decision hiding behind a type error the
+// way `layoutAlign: "STRETCH"` hid behind an enum in 2.1 — so a wrong value is a caller
+// mistake best refused at the transport boundary with the legal set named. The refusals the
+// tool OWNS are the ones about the node and about pairs of arguments (`color.a` × `opacity`,
+// `gradientTransform` × `angle`), which Zod cannot see; those live in the plugin and stay
+// reachable through the transport. ⭐ The live gate asserts the two arrive at DIFFERENT
+// layers, which is the only place the split is visible.
+// ⛔ THE SCHEMA IS INLINE, AND IT HAS TO BE. `evaluateToolSchema` (contract-lib.mjs:380)
+// lifts the third argument's SOURCE TEXT and evaluates it with `z` as the only binding in
+// scope, so a hoisted `const fillColorSchema` would generate a contract that throws rather
+// than one that is wrong — which is the better failure, but still a failure. That
+// constraint is what forces the colour shape to appear TWICE below, once for a solid paint
+// and once for a gradient stop.
+// ⭐ Two copies of one shape is how two surfaces start disagreeing — the exact hazard
+// `create_text` cited for sharing one validator with `set_text_style`. It is held here the
+// way the `batch-receipt.mjs` ↔ `code.js` mirror is held: by a PARITY TEST over the
+// generated contract (`tests/set-fill.test.mjs`), not by convention. Edit one copy and the
+// suite fails.
+server.tool(
+  "set_fill",
+  "Replace a node's fills with one or more paints — solid or gradient (linear, radial, angular, diamond). This is the current fill surface and takes one nested colour shape everywhere, including inside apply_batch's sibling operation; the older set_fill_color remains for compatibility and takes a flat r,g,b,a, which is a different shape for the same job. Pass paints: null to remove every fill; an empty array is refused, because null already says that and two ways to say one thing lets one of them be discarded silently. All paints are validated before anything is written, and the whole array lands as a single assignment, so a bad paint anywhere refuses the entire call without touching the document. The reply reports the fills read back from the node rather than the argument — Figma normalizes a paint on assignment, supplying visible, opacity and blendMode defaults — plus the node's fillStyleId before and after, because writing fills to a node with a paint style bound may detach that style, which is a change to a property the caller never named.",
+  {
+    nodeId: z.string().describe("The ID of the node whose fills are being replaced"),
+    paints: z
+      .array(
+        z.object({
+          type: z
+            .enum([
+              "SOLID",
+              "GRADIENT_LINEAR",
+              "GRADIENT_RADIAL",
+              "GRADIENT_ANGULAR",
+              "GRADIENT_DIAMOND",
+            ])
+            .describe(
+              "The kind of paint. SOLID takes color; the four gradients take gradientStops"
+            ),
+          color: z
+            .object({
+              r: z.number().min(0).max(1).describe("Red channel, 0-1"),
+              g: z.number().min(0).max(1).describe("Green channel, 0-1"),
+              b: z.number().min(0).max(1).describe("Blue channel, 0-1"),
+              a: z
+                .number()
+                .min(0)
+                .max(1)
+                .optional()
+                .describe(
+                  "Alpha, 0-1. On a SOLID paint this sets the paint's opacity, so passing both this and opacity is refused rather than silently picking one"
+                ),
+            })
+            .optional()
+            .describe("Required for a SOLID paint, ignored by the gradients"),
+          gradientStops: z
+            .array(
+              z.object({
+                position: z
+                  .number()
+                  .min(0)
+                  .max(1)
+                  .describe("Where this stop sits along the ramp, 0-1"),
+                color: z
+                  .object({
+                    r: z.number().min(0).max(1).describe("Red channel, 0-1"),
+                    g: z.number().min(0).max(1).describe("Green channel, 0-1"),
+                    b: z.number().min(0).max(1).describe("Blue channel, 0-1"),
+                    a: z
+                      .number()
+                      .min(0)
+                      .max(1)
+                      .optional()
+                      .describe(
+                        "Alpha, 0-1. A gradient stop carries its own alpha because Figma types stop colours as RGBA and there is no per-stop opacity to collide with. Defaults to 1"
+                      ),
+                  })
+                  .describe("The stop's colour"),
+              })
+            )
+            .min(2)
+            .max(64)
+            .optional()
+            .describe(
+              "Required for any GRADIENT_* paint: at least 2 stops, at most 64"
+            ),
+          gradientTransform: z
+            .array(z.array(z.number()).length(3))
+            .length(2)
+            .optional()
+            .describe(
+              "The 2x3 matrix Figma actually stores, [[a,b,c],[d,e,f]]. Mutually exclusive with angle — supplying both is refused, because angle is converted into one of these and the loser would read as applied"
+            ),
+          angle: z
+            .number()
+            .optional()
+            .describe(
+              "Aim the gradient in degrees instead of writing a matrix: 0 is left-to-right, 90 is top-to-bottom (clockwise on screen, because Figma's y axis points down). Converted into gradientTransform, and the reply reports both the matrix it produced and the fact that an angle produced it. Mutually exclusive with gradientTransform"
+            ),
+          scale: z
+            .number()
+            .positive()
+            .optional()
+            .describe(
+              "Optional multiplier on the gradient's extent, only meaningful alongside angle. Passing it without angle is refused rather than ignored"
+            ),
+          opacity: z
+            .number()
+            .min(0)
+            .max(1)
+            .optional()
+            .describe(
+              "Paint opacity, 0-1. On a SOLID this sets the same thing as color.a and passing both is refused"
+            ),
+          visible: z
+            .boolean()
+            .optional()
+            .describe("Whether this paint is drawn"),
+          blendMode: z
+            .enum([
+              "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+              "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY",
+              "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION",
+              "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+            ])
+            .optional()
+            .describe(
+              "How this paint blends with the ones under it. PASS_THROUGH is absent deliberately: it is a node-level mode for groups, not a paint mode, and Figma refuses it on a paint"
+            ),
+        })
+      )
+      .min(1)
+      .max(16)
+      .nullable()
+      .describe(
+        "1-16 paints, painted bottom-first the way Figma stores them, or null to remove every fill"
+      ),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_fill", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting fill: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Item Spacing Tool
 server.tool(
   "set_item_spacing",
@@ -3877,6 +4046,7 @@ type FigmaCommand =
   | "set_constraints"
   | "set_size_limits"
   | "set_clips_content"
+  | "set_fill"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4173,6 +4343,35 @@ type CommandParams = {
   set_clips_content: {
     nodeId: string;
     clipsContent: boolean;
+  };
+  // ⛔ `paints` is REQUIRED and NULLABLE, which is a different shape from both of its
+  // neighbours and deliberately so. `set_clips_content` is required-non-null because it has
+  // nothing to merge; `set_size_limits` is optional-and-nullable because each field merges
+  // with what the node holds. Here there is nothing to merge — a fills write replaces the
+  // array wholesale — but removal is a real operation, so `null` is the clear (R2.3's
+  // semantics) while ABSENT is refused as "wrote nothing". An optional `paints` would make
+  // "remove every fill" and "you forgot an argument" the same call.
+  set_fill: {
+    nodeId: string;
+    paints: Array<{
+      type:
+        | "SOLID"
+        | "GRADIENT_LINEAR"
+        | "GRADIENT_RADIAL"
+        | "GRADIENT_ANGULAR"
+        | "GRADIENT_DIAMOND";
+      color?: { r: number; g: number; b: number; a?: number };
+      gradientStops?: Array<{
+        position: number;
+        color: { r: number; g: number; b: number; a?: number };
+      }>;
+      gradientTransform?: number[][];
+      angle?: number;
+      scale?: number;
+      opacity?: number;
+      visible?: boolean;
+      blendMode?: string;
+    }> | null;
   };
   get_reactions: { nodeIds: string[] };
   set_default_connector: {

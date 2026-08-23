@@ -257,7 +257,8 @@ The MCP server provides the following tools for interacting with Figma:
 
 ### Styling
 
-- `set_fill_color` - Set the fill color of a node (RGBA)
+- `set_fill` - Replace a node's fills with one or more paints, solid or gradient (linear, radial, angular, diamond). **This is the current fill surface** and takes one nested colour shape everywhere. Pass `paints: null` to remove every fill; an empty array is refused, because `null` already says that. All paints are validated before anything is written and the array lands as a single assignment, so a bad paint anywhere refuses the whole call without touching the document. Gradients are aimed with either a raw `gradientTransform` or an `angle` in degrees — never both — and the reply reports which one produced the matrix. The reply reads the fills back off the node rather than echoing the argument, and also reports `fillStyleId` before and after, because writing fills to a node with a paint style bound may detach that style
+- `set_fill_color` - **Legacy.** Set the fill color of a node with flat `r, g, b, a` arguments. Kept for compatibility and frozen at `stable`; it takes a *different* shape from its own `apply_batch` operation, which takes `{color:{r,g,b,a}}`. Prefer `set_fill`, which is one shape on both surfaces
 - `set_stroke_color` - Set the stroke color and weight of a node
 - `set_corner_radius` - Set the corner radius of a node with optional per-corner control
 - `set_image_fill` - Fill a node with an image from a local file path, URL, or base64 data (FILL, FIT, CROP, or TILE)

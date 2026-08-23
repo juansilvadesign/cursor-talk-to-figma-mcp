@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-975ccb3ce8b9",
-  "pluginBuildId": "r2-plugin-1eee5a6f3bd9",
+  "serverBuildId": "r2-server-b8086c604b60",
+  "pluginBuildId": "r2-plugin-959345dd8f16",
   "serverSchemaVersion": "1.8.0",
   "pluginApiVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  "capabilityFingerprint": "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -70,6 +70,7 @@ var RUNTIME_METADATA = {
     "set_constraints",
     "set_size_limits",
     "set_clips_content",
+    "set_fill",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -122,6 +123,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
+    "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
@@ -185,6 +187,7 @@ var RUNTIME_METADATA = {
     "set_corner_radius",
     "set_current_page",
     "set_default_connector",
+    "set_fill",
     "set_fill_color",
     "set_focus",
     "set_image_fill",
@@ -3141,6 +3144,108 @@ server.tool(
           {
             type: "text",
             text: `Error setting clips content: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_fill",
+  "Replace a node's fills with one or more paints \u2014 solid or gradient (linear, radial, angular, diamond). This is the current fill surface and takes one nested colour shape everywhere, including inside apply_batch's sibling operation; the older set_fill_color remains for compatibility and takes a flat r,g,b,a, which is a different shape for the same job. Pass paints: null to remove every fill; an empty array is refused, because null already says that and two ways to say one thing lets one of them be discarded silently. All paints are validated before anything is written, and the whole array lands as a single assignment, so a bad paint anywhere refuses the entire call without touching the document. The reply reports the fills read back from the node rather than the argument \u2014 Figma normalizes a paint on assignment, supplying visible, opacity and blendMode defaults \u2014 plus the node's fillStyleId before and after, because writing fills to a node with a paint style bound may detach that style, which is a change to a property the caller never named.",
+  {
+    nodeId: z.string().describe("The ID of the node whose fills are being replaced"),
+    paints: z.array(
+      z.object({
+        type: z.enum([
+          "SOLID",
+          "GRADIENT_LINEAR",
+          "GRADIENT_RADIAL",
+          "GRADIENT_ANGULAR",
+          "GRADIENT_DIAMOND"
+        ]).describe(
+          "The kind of paint. SOLID takes color; the four gradients take gradientStops"
+        ),
+        color: z.object({
+          r: z.number().min(0).max(1).describe("Red channel, 0-1"),
+          g: z.number().min(0).max(1).describe("Green channel, 0-1"),
+          b: z.number().min(0).max(1).describe("Blue channel, 0-1"),
+          a: z.number().min(0).max(1).optional().describe(
+            "Alpha, 0-1. On a SOLID paint this sets the paint's opacity, so passing both this and opacity is refused rather than silently picking one"
+          )
+        }).optional().describe("Required for a SOLID paint, ignored by the gradients"),
+        gradientStops: z.array(
+          z.object({
+            position: z.number().min(0).max(1).describe("Where this stop sits along the ramp, 0-1"),
+            color: z.object({
+              r: z.number().min(0).max(1).describe("Red channel, 0-1"),
+              g: z.number().min(0).max(1).describe("Green channel, 0-1"),
+              b: z.number().min(0).max(1).describe("Blue channel, 0-1"),
+              a: z.number().min(0).max(1).optional().describe(
+                "Alpha, 0-1. A gradient stop carries its own alpha because Figma types stop colours as RGBA and there is no per-stop opacity to collide with. Defaults to 1"
+              )
+            }).describe("The stop's colour")
+          })
+        ).min(2).max(64).optional().describe(
+          "Required for any GRADIENT_* paint: at least 2 stops, at most 64"
+        ),
+        gradientTransform: z.array(z.array(z.number()).length(3)).length(2).optional().describe(
+          "The 2x3 matrix Figma actually stores, [[a,b,c],[d,e,f]]. Mutually exclusive with angle \u2014 supplying both is refused, because angle is converted into one of these and the loser would read as applied"
+        ),
+        angle: z.number().optional().describe(
+          "Aim the gradient in degrees instead of writing a matrix: 0 is left-to-right, 90 is top-to-bottom (clockwise on screen, because Figma's y axis points down). Converted into gradientTransform, and the reply reports both the matrix it produced and the fact that an angle produced it. Mutually exclusive with gradientTransform"
+        ),
+        scale: z.number().positive().optional().describe(
+          "Optional multiplier on the gradient's extent, only meaningful alongside angle. Passing it without angle is refused rather than ignored"
+        ),
+        opacity: z.number().min(0).max(1).optional().describe(
+          "Paint opacity, 0-1. On a SOLID this sets the same thing as color.a and passing both is refused"
+        ),
+        visible: z.boolean().optional().describe("Whether this paint is drawn"),
+        blendMode: z.enum([
+          "NORMAL",
+          "DARKEN",
+          "MULTIPLY",
+          "LINEAR_BURN",
+          "COLOR_BURN",
+          "LIGHTEN",
+          "SCREEN",
+          "LINEAR_DODGE",
+          "COLOR_DODGE",
+          "OVERLAY",
+          "SOFT_LIGHT",
+          "HARD_LIGHT",
+          "DIFFERENCE",
+          "EXCLUSION",
+          "HUE",
+          "SATURATION",
+          "COLOR",
+          "LUMINOSITY"
+        ]).optional().describe(
+          "How this paint blends with the ones under it. PASS_THROUGH is absent deliberately: it is a node-level mode for groups, not a paint mode, and Figma refuses it on a paint"
+        )
+      })
+    ).min(1).max(16).nullable().describe(
+      "1-16 paints, painted bottom-first the way Figma stores them, or null to remove every fill"
+    )
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_fill", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting fill: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

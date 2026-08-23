@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-1eee5a6f3bd9",
+  "buildId": "r2-plugin-959345dd8f16",
   "apiVersion": "1.8.0",
   "serverSchemaVersion": "1.8.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
+  "capabilityFingerprint": "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -61,6 +61,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_constraints",
     "set_size_limits",
     "set_clips_content",
+    "set_fill",
     "get_reactions",
     "set_default_connector",
     "create_connections",
@@ -113,6 +114,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_corner_radius@1",
     "figma.command.set_current_page@1",
     "figma.command.set_default_connector@1",
+    "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
@@ -415,6 +417,8 @@ async function handleCommand(command, params) {
       return await setSizeLimits(params);
     case "set_clips_content":
       return await setClipsContent(params);
+    case "set_fill":
+      return await setFill(params);
     case "get_reactions":
       if (!params || !params.nodeIds || !Array.isArray(params.nodeIds)) {
         throw new Error("Missing or invalid nodeIds parameter");
@@ -7755,6 +7759,524 @@ async function setClipsContent(params) {
   };
 }
 
+// R2.7 item 1.1 — `set_fill(nodeId, paints)`
+//
+// The first visual tool, and the one that ends a divergence rather than only adding a
+// surface. R2.4's live gate caught `apply_batch`'s `set_fill_color` taking
+// `{color:{r,g,b,a}}` while the standalone `set_fill_color` takes flat `r,g,b,a` — two
+// shapes behind one name, and the contract's "same shape" claim was simply false.
+// ⛔ `set_fill_color` is `stable` and CANNOT be changed to fix it. So `set_fill` ships ONE
+// shape, the old tool is documented as legacy, and the divergence stops spreading instead
+// of being retroactively healed.
+//
+// ⭐ THE ARITY IS AN ARRAY, and that is the decision the item existed to make. Figma's own
+// property is `node.fills`, a Paint[]; a real design stacks a gradient over a solid, and a
+// single-paint surface cannot express it. Adding arity later to a `stable` tool is
+// breaking, so the array is here from birth. `node.fills = [...]` is ONE assignment, which
+// makes partial application structurally impossible — the same free guarantee 2.2 and 2.4
+// had, and the one 2.3 had to work for.
+//
+// ⛔ `null` CLEARS, an empty array is REFUSED. R2.3's plugin-data semantics, reused rather
+// than reinvented: `paints: null` sets `fills = []`, and `paints: []` is refused as the
+// zero-field "wrote nothing" its four R2.6 neighbours all carry. Two ways to say one thing
+// is how a discarded value reads as an applied one — `create_text`'s `fontWeight` ×
+// `fontFamily` collision, in a different costume.
+//
+// ⚠️ THE ELIGIBILITY REFUSAL IS DELIBERATELY NARROW, and 2.3 is why. That item probed
+// whether a node *exposed* `minWidth`, but Figma exposes all four on every node and gates
+// only the WRITE — so the probe measured nothing and 4/4 refusals came from the platform
+// mid-write. The lesson is not "probe harder", it is that a readable property is not a
+// writable one and only a MEASUREMENT can tell you which contexts refuse. So the only
+// refusal here is the genuine surface question — a node with no `fills` property cannot
+// take one — and whether any *context* refuses despite the surface being present is left
+// to `live-fill-gate.mjs` to measure. ⛔ An unverified refusal is worse than none, because
+// it looks authoritative. See [[feedback_a_readable_property_is_not_a_writable_one]].
+//
+// ⭐ THE SECOND CURRENCY IS `fillStyleId`, and it is the reason this tool is not a
+// one-liner. A node can have a paint STYLE bound, and assigning `fills` may detach it —
+// a destructive edit to a design system, performed as a side effect of a colour change,
+// on a property the caller never named. Whether Figma actually detaches is NOT claimed
+// here; the receipt reports `styleIdBefore` / `styleIdAfter` / `styleDetached` as three
+// separate readings and the gate measures what really happens. This is 2.2's
+// allow-and-measure shape (decision ③), and 2.3 is the warning that the measurement may
+// come back and supersede it — which is the process working, not failing.
+//
+// ⚠️ THE READ-BACK IS A READ-BACK, AND NOTHING ABOUT THE PLATFORM IS ASSUMED TO PROVE IT.
+// It is tempting to argue that Figma NORMALIZES a paint on assignment — supplying
+// `visible`/`opacity`/`blendMode` defaults the caller never sent — so that an echo and a
+// read-back could be told apart by eye. That may well be true, and `live-fill-gate.mjs`
+// measures it, but it is a PLATFORM CLAIM, and a tool whose honesty rests on one is the
+// defect 2.3 shipped: an offline harness green against a rule Figma does not have.
+// ⭐ What actually holds the read-back honest is the harness's opt-in discarding node
+// (`ignoreFillWrites`) — 2.4's instrument, which depends on no platform behaviour at all.
+// A node that accepts the assignment and keeps its old fills reports the OLD array through
+// a read-back and the NEW one through an echo, in a single reading.
+const FILL_SOLID_TYPE = "SOLID";
+const FILL_GRADIENT_TYPES = [
+  "GRADIENT_LINEAR",
+  "GRADIENT_RADIAL",
+  "GRADIENT_ANGULAR",
+  "GRADIENT_DIAMOND",
+];
+const FILL_PAINT_TYPES = [FILL_SOLID_TYPE].concat(FILL_GRADIENT_TYPES);
+
+// ⛔ `PASS_THROUGH` is absent on purpose. It is a NODE-level blend mode for groups, not a
+// Paint one, and Figma refuses it on a paint. Listing it would advertise a mode the handler
+// cannot deliver — F5's `CROP` defect, which R2.7 Phase 2 exists to repair, reintroduced by
+// this tool in the same release.
+const FILL_BLEND_MODES = [
+  "NORMAL", "DARKEN", "MULTIPLY", "LINEAR_BURN", "COLOR_BURN",
+  "LIGHTEN", "SCREEN", "LINEAR_DODGE", "COLOR_DODGE", "OVERLAY",
+  "SOFT_LIGHT", "HARD_LIGHT", "DIFFERENCE", "EXCLUSION",
+  "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+];
+
+// Bounds on caller-supplied structure, per the cross-cutting "bound payloads" rule. Neither
+// is a Figma limit — both are this fork refusing to let one call expand without a ceiling,
+// the same reasoning `check_fonts` used for its 50-pair cap.
+const MAX_FILL_PAINTS = 16;
+const MAX_GRADIENT_STOPS = 64;
+
+// ⛔ `node.fills` is `figma.mixed` on a TEXT node carrying per-character fills, and a few
+// node proxies throw instead of exposing the property. All three are "no readable array",
+// and NONE of them may be reported as an empty one — `[]` means "this node has no fills",
+// which is a claim about the document that a failed reading has not earned.
+function readFills(node) {
+  let raw;
+  try {
+    raw = node.fills;
+  } catch (error) {
+    return { readable: false, mixed: false, fills: null };
+  }
+  if (raw === figma.mixed) return { readable: false, mixed: true, fills: null };
+  if (!Array.isArray(raw)) return { readable: false, mixed: false, fills: null };
+  return { readable: true, mixed: false, fills: clonePaints(raw) };
+}
+
+// Figma hands back live proxy objects; the receipt has to carry inert data or the "before"
+// reading mutates underneath the caller when the write lands.
+function clonePaints(paints) {
+  return JSON.parse(JSON.stringify(paints));
+}
+
+// ⛔ `fillStyleId` is `figma.mixed` on a node with mixed styles, and absent entirely on a
+// node with no style surface. Both collapse to null in the receipt, but `styleReadable`
+// keeps them distinguishable from "no style bound" — a false "nothing was bound" is exactly
+// the reading that would hide a detach.
+function readFillStyleId(node) {
+  let raw;
+  try {
+    raw = node.fillStyleId;
+  } catch (error) {
+    return { readable: false, styleId: null };
+  }
+  if (raw === undefined) return { readable: false, styleId: null };
+  if (raw === figma.mixed) return { readable: true, styleId: null };
+  return { readable: true, styleId: raw === "" ? null : raw };
+}
+
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+// A colour channel is a 0-1 float and out-of-range is REFUSED, never clamped. The legacy
+// `set_fill_color` runs `parseFloat(r) || 0`, which turns a typo into black and reports
+// success — the same silent-coercion defect `create_text` closed when it stopped turning
+// `fontSize: 0` into 14. A clamp here would be a discarded value reading as an applied one.
+function validateColorChannel(value, label, where) {
+  if (!isFiniteNumber(value)) {
+    throw new Error(
+      `${where}: ${label} must be a number between 0 and 1; received ${JSON.stringify(
+        value
+      )} and wrote nothing`
+    );
+  }
+  if (value < 0 || value > 1) {
+    throw new Error(
+      `${where}: ${label} must be between 0 and 1; received ${value} and wrote nothing. Figma colour channels are 0-1 floats, not 0-255 bytes`
+    );
+  }
+}
+
+// ⭐ THE ANGLE → MATRIX CONVERSION, AND ITS CONVENTION IS UNVERIFIED UNTIL THE GATE RUNS.
+//
+// `gradientTransform` maps the node's normalized space into gradient space, where the ramp
+// runs along x from 0 to 1. Rotating the ramp by θ about the centre means transforming
+// points by the INVERSE rotation, hence the sign pattern below:
+//
+//     x' =  cosθ·(x-0.5) + sinθ·(y-0.5) + 0.5
+//     y' = -sinθ·(x-0.5) + cosθ·(y-0.5) + 0.5
+//
+// θ=0 collapses to [[1,0,0],[0,1,0]] — Figma's own default linear transform, left→right,
+// which is the one anchor point this derivation has that is not self-referential. θ=90
+// gives [[0,1,0],[-1,0,1]], mapping top-centre to ramp position 0 and bottom-centre to 1,
+// i.e. top→bottom. So the declared convention is **0° = left→right, 90° = top→bottom**,
+// clockwise on screen because Figma's y axis points down.
+//
+// ⚠️ THAT IS ARITHMETIC, NOT A MEASUREMENT. It is consistent and it agrees with the
+// documented default at one point, which is exactly the evidence a WRONG convention would
+// also produce if the sign of θ were flipped — both agree at θ=0. `live-fill-gate.mjs`
+// settles it by rendering, because reading `gradientTransform` back only echoes what this
+// function computed. ⛔ Do not promote this tool on a read-back agreeing with the write.
+function gradientTransformFromAngle(angle, scale) {
+  const rad = (angle * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const s = scale === undefined ? 1 : scale;
+  const a = cos / s;
+  const b = sin / s;
+  const d = -sin / s;
+  const e = cos / s;
+  return [
+    [a, b, 0.5 - a * 0.5 - b * 0.5],
+    [d, e, 0.5 - d * 0.5 - e * 0.5],
+  ];
+}
+
+function validateGradientTransform(matrix, where) {
+  if (
+    !Array.isArray(matrix) ||
+    matrix.length !== 2 ||
+    !matrix.every((row) => Array.isArray(row) && row.length === 3)
+  ) {
+    throw new Error(
+      `${where}: gradientTransform must be a 2x3 matrix, [[a,b,c],[d,e,f]]; received ${JSON.stringify(
+        matrix
+      )} and wrote nothing`
+    );
+  }
+  for (const row of matrix) {
+    for (const value of row) {
+      if (!isFiniteNumber(value)) {
+        throw new Error(
+          `${where}: every gradientTransform entry must be a finite number; received ${JSON.stringify(
+            value
+          )} and wrote nothing`
+        );
+      }
+    }
+  }
+}
+
+// Builds ONE validated Paint. Throws on anything it cannot express — this runs entirely
+// inside the validation phase, so a throw here has written nothing anywhere.
+function buildFillPaint(input, index) {
+  const where = `paints[${index}]`;
+
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error(
+      `${where} must be an object describing one paint; received ${JSON.stringify(
+        input
+      )} and wrote nothing`
+    );
+  }
+
+  const { type } = input;
+  if (FILL_PAINT_TYPES.indexOf(type) === -1) {
+    throw new Error(
+      `${where}: type must be one of ${FILL_PAINT_TYPES.join(
+        ", "
+      )}; received ${JSON.stringify(type)} and wrote nothing`
+    );
+  }
+
+  const paint = { type };
+
+  // `visible`, `opacity` and `blendMode` are shared by every paint type.
+  if (input.visible !== undefined) {
+    if (typeof input.visible !== "boolean") {
+      throw new Error(
+        `${where}: visible must be true or false; received ${JSON.stringify(
+          input.visible
+        )} and wrote nothing`
+      );
+    }
+    paint.visible = input.visible;
+  }
+
+  if (input.blendMode !== undefined) {
+    if (FILL_BLEND_MODES.indexOf(input.blendMode) === -1) {
+      throw new Error(
+        `${where}: blendMode must be one of ${FILL_BLEND_MODES.join(
+          ", "
+        )}; received ${JSON.stringify(
+          input.blendMode
+        )} and wrote nothing. PASS_THROUGH is a node-level mode for groups and is not a valid paint blend mode`
+      );
+    }
+    paint.blendMode = input.blendMode;
+  }
+
+  // Shared by every paint type. ⚠️ For a SOLID this collides with `color.a`, and the SOLID
+  // branch below refuses the combination rather than letting this assignment win silently.
+  if (input.opacity !== undefined) {
+    validateColorChannel(input.opacity, "opacity", where);
+    paint.opacity = input.opacity;
+  }
+
+  if (type === FILL_SOLID_TYPE) {
+    const color = input.color;
+    if (!color || typeof color !== "object" || Array.isArray(color)) {
+      throw new Error(
+        `${where}: a SOLID paint requires color: {r, g, b} with optional a; received ${JSON.stringify(
+          color
+        )} and wrote nothing`
+      );
+    }
+    validateColorChannel(color.r, "color.r", where);
+    validateColorChannel(color.g, "color.g", where);
+    validateColorChannel(color.b, "color.b", where);
+
+    // ⛔ TWO WAYS TO SAY ALPHA, SO THE COMBINATION IS REFUSED. Figma stores a solid's alpha
+    // in the paint's `opacity`, not in `color`, but every caller who has met the legacy
+    // `set_fill_color` will reach for `color.a`. Both are accepted; supplying both would
+    // silently discard one, and a discarded value reads as an applied one. This is
+    // `create_text`'s `fontWeight` × `fontFamily` refusal, on a different pair.
+    if (color.a !== undefined && input.opacity !== undefined) {
+      throw new Error(
+        `${where}: pass color.a OR opacity, not both — they set the same thing (a solid paint's alpha lives in its opacity) and supplying both would silently discard one. Received color.a ${JSON.stringify(
+          color.a
+        )} and opacity ${JSON.stringify(input.opacity)}, and wrote nothing`
+      );
+    }
+    if (color.a !== undefined) {
+      validateColorChannel(color.a, "color.a", where);
+      paint.opacity = color.a;
+    }
+    paint.color = { r: color.r, g: color.g, b: color.b };
+  } else {
+    const stops = input.gradientStops;
+    if (!Array.isArray(stops) || stops.length < 2) {
+      throw new Error(
+        `${where}: a ${type} paint requires gradientStops, an array of at least 2 stops; received ${JSON.stringify(
+          stops
+        )} and wrote nothing`
+      );
+    }
+    if (stops.length > MAX_GRADIENT_STOPS) {
+      throw new Error(
+        `${where}: ${stops.length} gradient stops exceeds this fork's ceiling of ${MAX_GRADIENT_STOPS} and wrote nothing`
+      );
+    }
+
+    paint.gradientStops = stops.map((stop, stopIndex) => {
+      const stopWhere = `${where}.gradientStops[${stopIndex}]`;
+      if (!stop || typeof stop !== "object" || Array.isArray(stop)) {
+        throw new Error(
+          `${stopWhere} must be an object with position and color; received ${JSON.stringify(
+            stop
+          )} and wrote nothing`
+        );
+      }
+      if (!isFiniteNumber(stop.position) || stop.position < 0 || stop.position > 1) {
+        throw new Error(
+          `${stopWhere}: position must be a number between 0 and 1; received ${JSON.stringify(
+            stop.position
+          )} and wrote nothing`
+        );
+      }
+      const color = stop.color;
+      if (!color || typeof color !== "object" || Array.isArray(color)) {
+        throw new Error(
+          `${stopWhere}: color must be {r, g, b} with optional a; received ${JSON.stringify(
+            color
+          )} and wrote nothing`
+        );
+      }
+      validateColorChannel(color.r, "color.r", stopWhere);
+      validateColorChannel(color.g, "color.g", stopWhere);
+      validateColorChannel(color.b, "color.b", stopWhere);
+      if (color.a !== undefined) validateColorChannel(color.a, "color.a", stopWhere);
+      // ⚠️ Unlike a solid, a gradient STOP carries its alpha inside the colour — Figma
+      // types stop colours as RGBA and there is no per-stop opacity to collide with. So
+      // the default is supplied here rather than refused, and there is nothing to refuse
+      // it against.
+      return {
+        position: stop.position,
+        color: {
+          r: color.r,
+          g: color.g,
+          b: color.b,
+          a: color.a === undefined ? 1 : color.a,
+        },
+      };
+    });
+
+    // ⛔ THE SECOND REFUSED COMBINATION. `gradientTransform` is what Figma stores; `angle`
+    // is a convenience this fork computes into one. Accepting both would mean silently
+    // picking a winner, and the loser would read as applied. Same refusal shape as
+    // color.a × opacity above and `create_text`'s font pair — one question, one answer.
+    const hasTransform = input.gradientTransform !== undefined;
+    const hasAngle = input.angle !== undefined;
+    if (hasTransform && hasAngle) {
+      throw new Error(
+        `${where}: pass gradientTransform OR angle, not both — angle is converted into a gradientTransform, so supplying both would silently discard one. Received angle ${JSON.stringify(
+          input.angle
+        )} and wrote nothing`
+      );
+    }
+    if (input.scale !== undefined && !hasAngle) {
+      throw new Error(
+        `${where}: scale only applies to angle, which was not supplied. Bake the scale into gradientTransform directly, or pass angle. Wrote nothing`
+      );
+    }
+
+    if (hasTransform) {
+      validateGradientTransform(input.gradientTransform, where);
+      paint.gradientTransform = input.gradientTransform;
+      paint.gradientAim = { source: "gradientTransform", angle: null, scale: null };
+    } else if (hasAngle) {
+      if (!isFiniteNumber(input.angle)) {
+        throw new Error(
+          `${where}: angle must be a finite number of degrees; received ${JSON.stringify(
+            input.angle
+          )} and wrote nothing`
+        );
+      }
+      if (input.scale !== undefined) {
+        if (!isFiniteNumber(input.scale) || input.scale <= 0) {
+          throw new Error(
+            `${where}: scale must be a number greater than 0; received ${JSON.stringify(
+              input.scale
+            )} and wrote nothing`
+          );
+        }
+      }
+      paint.gradientTransform = gradientTransformFromAngle(
+        input.angle,
+        input.scale
+      );
+      paint.gradientAim = {
+        source: "angle",
+        angle: input.angle,
+        scale: input.scale === undefined ? 1 : input.scale,
+      };
+    } else {
+      // Neither supplied: leave the property off entirely and let Figma apply its own
+      // default, rather than this fork asserting what that default is.
+      paint.gradientAim = { source: "figma-default", angle: null, scale: null };
+    }
+
+  }
+
+  return paint;
+}
+
+async function setFill(params) {
+  const source = params || {};
+  const { nodeId, paints } = source;
+
+  // ⛔ The zero-field refusal its R2.6 neighbours all carry, with the R2.3 clear layered on
+  // top. `undefined` is "not supplied" and is refused; `null` IS supplied and means clear;
+  // `[]` is refused because `null` already says that unambiguously.
+  if (paints === undefined) {
+    throw new Error(
+      `set_fill requires paints: an array of 1-${MAX_FILL_PAINTS} paints, or null to remove every fill. Received nothing and wrote nothing`
+    );
+  }
+  if (paints !== null) {
+    if (!Array.isArray(paints)) {
+      throw new Error(
+        `set_fill requires paints to be an array or null; received ${JSON.stringify(
+          paints
+        )} and wrote nothing`
+      );
+    }
+    if (paints.length === 0) {
+      throw new Error(
+        `set_fill received an empty paints array and wrote nothing. Pass null to remove every fill — an empty array and null would be two ways to say one thing`
+      );
+    }
+    if (paints.length > MAX_FILL_PAINTS) {
+      throw new Error(
+        `set_fill received ${paints.length} paints, above this fork's ceiling of ${MAX_FILL_PAINTS}, and wrote nothing`
+      );
+    }
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node with ID ${nodeId} not found`);
+  }
+
+  // ---- Validation phase: nothing below this block writes ----
+
+  // The genuine surface question, and the ONLY refusal about the node itself. See the
+  // header: 2.3 is the proof that a readable property is not a writable one, so what this
+  // does NOT do is invent a context rule the gate has not measured.
+  if (!("fills" in node)) {
+    throw new Error(
+      `set_fill wrote nothing: node ${nodeId} is a ${node.type} and does not support fills`
+    );
+  }
+  const beforeRead = readFills(node);
+
+  // ⛔ Every paint is validated BEFORE the single assignment. The assignment itself cannot
+  // partially apply — one property, one write — but a caller handed a five-paint array with
+  // a bad enum in the last slot must get the whole call refused, not four paints applied
+  // and one error. Validate-all-then-write, with the array built completely first.
+  const built =
+    paints === null
+      ? []
+      : paints.map((paint, index) => buildFillPaint(paint, index));
+
+  // `gradientAim` is this fork's provenance record, not a Figma Paint field — strip it
+  // before the write or Figma refuses the unknown property, and keep it for the receipt.
+  const aims = built.map((paint) => paint.gradientAim || null);
+  const writable = built.map((paint) => {
+    const copy = Object.assign({}, paint);
+    delete copy.gradientAim;
+    return copy;
+  });
+
+  const styleBefore = readFillStyleId(node);
+
+  // ---- Write phase: one assignment, so this block cannot partially apply ----
+
+  node.fills = writable;
+
+  // ⛔ Read back through the node's own getter. An echo of `writable` would describe the
+  // argument rather than the document, and Figma NORMALIZES on assignment — it supplies
+  // `visible`/`opacity`/`blendMode` defaults the caller never sent. That normalization is
+  // what makes this read-back a real measurement rather than 2.4's coin flip.
+  const afterRead = readFills(node);
+  const styleAfter = readFillStyleId(node);
+
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    // What the document holds now, read back — never the argument.
+    fills: afterRead.fills,
+    fillCount: afterRead.fills === null ? null : afterRead.fills.length,
+    // What it held before. ⛔ `null` here means the reading FAILED or was `figma.mixed`,
+    // and is not the same claim as `[]` (this node had no fills). `previousReadable`
+    // separates them, because a failed reading reported as an empty array would say
+    // something about the document that nobody measured.
+    previous: beforeRead.fills,
+    previousReadable: beforeRead.readable,
+    previousMixed: beforeRead.mixed,
+    requestedCount: paints === null ? 0 : paints.length,
+    cleared: paints === null,
+    // ⭐ Provenance per paint: did the caller aim this gradient with a raw matrix, with an
+    // angle this fork converted, or not at all? A silent default and a decision are
+    // otherwise byte-identical in the stored value. See
+    // [[feedback_a_silent_default_is_byte_identical_to_a_decision]].
+    gradientAim: aims,
+    // ⭐ The second currency — a fills write's effect on a property the caller never named.
+    // ⚠️ NOT a claim that Figma detaches; it is the reading, and `live-fill-gate.mjs` is
+    // what turns it into a claim. `styleDetached` is null when either side was unreadable,
+    // never false, because a false would read as "nothing was detached".
+    styleIdBefore: styleBefore.styleId,
+    styleIdAfter: styleAfter.styleId,
+    styleReadable: styleBefore.readable && styleAfter.readable,
+    styleDetached:
+      styleBefore.readable && styleAfter.readable
+        ? Boolean(styleBefore.styleId) && !styleAfter.styleId
+        : null,
+  };
+}
+
 async function setDefaultConnector(params) {
   const { connectorId } = params || {};
   
@@ -8320,6 +8842,17 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   // criterion — 2.6 decided the SET, not the members.
   set_clips_content:
     "R2.6 2.6 keeps the layout tools out of v1 by decision; it would fit, but batch parity is not owed until a consumer asks",
+  // ⛔ R2.7 1.1. CC8 holds the allowlist at 15 ops for all three sub-releases, and D3
+  // defers any extension to after R2 acceptance — so this is the rule applying, not a
+  // judgement about the tool.
+  // ⚠️ AND IT IS THE ONE ENTRY WHERE ADMITTING THE TOOL WOULD BE ACTIVELY HARMFUL. The
+  // allowlist already carries `set_fill_color`, whose batch shape (`{color:{r,g,b,a}}`)
+  // diverges from its own standalone shape (flat `r,g,b,a`) — the defect R2.4's gate caught
+  // and the defect `set_fill` exists to stop spreading. Adding a SECOND fill op to the same
+  // allowlist would put two different paint shapes behind one batch surface, which is the
+  // original divergence with an extra participant.
+  set_fill:
+    "CC8 holds the v1 allowlist at 15 ops through R2.7; and admitting it would put a second, different paint shape alongside set_fill_color's in one batch surface — the divergence this tool exists to end",
 });
 
 const NON_ATOMIC_BATCH_OPERATIONS = Object.freeze({

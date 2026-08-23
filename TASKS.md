@@ -162,7 +162,7 @@ mapping, and generated-code acceptance.
 | **R0 — Independently verifiable tool** | Clean install/build/tests, command parity, runtime identity, and a small live read/write smoke | The fork can be changed safely without relying on session memory or a sibling project |
 | **R1 — Consumer-stable read release** | A pinned, documented local release exposes the existing read layer and compact exports through a stable contract | `figma-to-code` and other clients can depend on the fork without coupling to its source tree |
 | **R2 — Safe authoring release** | Generic page/metadata/batch plus complete typography/layout/visual operations | Real authoring clients can compose the tool without a domain-specific compiler inside this repo |
-| **R3-A — Variable write slice** *(pulled ahead of R2.7, 2026-08-22)* | `set_variable_value`, `create_variable`, `delete_variable` — values, aliases and removal against existing collections and modes | A real design-system reconciliation can be executed through the plugin surface alone, with no REST access and no plan dependency |
+| **R3-A — Variable write slice** *(scheduled next after R2.7; the 2026-08-22 "pulled ahead of R2.7" ordering was reversed 2026-08-23 — the slice stands, its position moved)* | `set_variable_value`, `create_variable`, `delete_variable` — values, aliases and removal against existing collections and modes | A real design-system reconciliation can be executed through the plugin surface alone, with no REST access and no plan dependency |
 | **R3 — Design-system authoring release** | Generic variable/style/component creation and binding | Higher-level clients can create reusable Figma systems without making the fork OpenDesign-specific |
 
 After each release: record the fork acceptance, classify additive/breaking changes,
@@ -170,15 +170,35 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.6 Phase 2 (2.0 · 2.1 · 2.2 · **2.3 all GATED**; next = 2.4)
+## ▶ Next session — R2.7 Phase 1 (**1.1 GATED**; CC3 freeze DONE; next = item 1.2)
 
-**▶ START HERE = item 2.4, `set_clips_content(nodeId, clipsContent)`** — the LAST of the
-four layout tools. After it lands, the owner's standing call comes due: re-pin and re-run
-all four stale gates ONCE. **R2.6 closes there.**
+**▶ START HERE = R2.7 item 1.2, `set_effects(nodeId, effects[])`** — drop/inner shadow and
+layer/background blur. ✅✅ **ITEM 1.1 `set_fill` IS BUILT AND GATED 2026-08-23** — solid +
+all four gradients, `paints: Paint[]` or `null`, one nested colour shape, ending the
+`set_fill_color` divergence R2.4's gate caught. `live-fill-gate.mjs` PASSED on `yoq962bg`,
+**run twice**; 318/318 offline, **12/12 mutants killed**, `verify` green at **61 tools**.
+Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md).
+⛔ **1.1 spent NO bump — the schema HELD at `1.8.0`.** A new tool is additive, so R2.7 still
+owes `1.8.0` → `1.9.0` to whichever item changes a `stable` tool's result shape.
+✅ **R2.6 CLOSED 2026-08-22** — four layout tools gated, backlog cleared on `sa6ggz00`, all
+promoted to `stable` at acceptance.
+✅ **CC3's seven-tool debt is PAID, 2026-08-23** — R2.5 and R2.6 frozen as the 7th and 8th
+baselines (`0c0f68a`), `ACCEPTED_SINCE_LAST_BASELINE` emptied to `[]` (`6e558ba`).
+⏳ **R2.7 owes ONE re-pin + re-run of six stale gates at its end** — `live-batch`,
+`live-text-style`, `live-layout`, `live-constraints`, `live-size-limits`,
+`live-clips-content`, all staled by 1.1 moving both build IDs.
 
-⭐ **THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS — re-prioritized 2026-08-22.**
+⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
+2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's
+call. ⛔ **Nothing below about R3-A is withdrawn** — the Enterprise-gating finding, the
+`fileKey` correction and the slice's scope all stand exactly as written, and R3-A remains
+the release *after* R2.7. Only its POSITION IN THE QUEUE changed. ⚠️ Both cannot spend the
+`1.9.0` bump; R2.7 spends it, so R3-A re-plans onto `1.10.0` when it comes up.
+
+⭐ **R3-A — the slice that follows R2.7 — was prioritized 2026-08-22.**
 Three tools (`set_variable_value`, `create_variable`, `delete_variable`), one bump
-`1.8.0` → `1.9.0`, one live gate. Plan →
+(⚠️ **`1.9.0` → `1.10.0`**, not `1.8.0` → `1.9.0` as first written — R2.7 spends `1.9.0`),
+one live gate. Plan →
 [`docs/VARIABLE-SLICE-PRIORITIZATION.md`](docs/VARIABLE-SLICE-PRIORITIZATION.md).
 **What changed is not the gap — it is that the only alternative route was eliminated.** The
 Figma REST Variables API is Enterprise-gated on **reads as well as writes**, and the
@@ -1435,7 +1455,10 @@ both take `fontFamily`, which looks like it covers the consumer's `Family/Headin
 `Family/Body` corrections. It does not — those are **STRING variables**, and a text tool
 writes a *node's* font. **A node tool never reaches a variable.**
 
-⭐ **THE FIRST THIRD IS NOW SCHEDULED AS R3-A, ahead of R2.7 visuals — 2026-08-22.** The
+⭐ **THE FIRST THIRD IS SCHEDULED AS R3-A — 2026-08-22.** ⚠️ This read *"ahead of R2.7
+visuals"* until **2026-08-23**, when the owner reversed the order back to **R2.7 first**.
+⛔ The reversal touches the QUEUE POSITION only — every finding below stands, and none of
+it was the reason for the re-order in either direction. The
 trigger was not new consumer pressure but the **elimination of the alternative**: the Figma
 REST Variables API is Enterprise-gated on **reads as well as writes** (`file_variables:read`
 Tier 2 *and* `file_variables:write` Tier 3, all three endpoints *"available to full members of
@@ -1445,8 +1468,10 @@ Conversely the **plugin** surface is ungated: the only tier-limited calls are `a
 (*"Limited to N modes only"*) and `extend` (Enterprise), **neither of which R3-A invokes**,
 which is what makes the slice behave identically on every plan.
 
-- [ ] **R3-A — the scheduled slice.** `set_variable_value` · `create_variable` ·
-      `delete_variable`, against **existing** collections and modes. One bump `1.8.0` →
+- [ ] **R3-A — the scheduled slice, AFTER R2.7.** `set_variable_value` · `create_variable` ·
+      `delete_variable`, against **existing** collections and modes. ⚠️ **One bump, but
+      `1.9.0` → `1.10.0`** — the `1.8.0` → `1.9.0` written below was correct only while
+      R3-A came first; R2.7 spends `1.9.0`. Superseded text kept for the trail: `1.8.0` →
       `1.9.0`, one live gate. Needs **no read-layer change** — `get_variables` already
       returns variable IDs, collection IDs, per-mode `id` (`code.js:3085`) and
       `defaultModeId` (`code.js:3096`).

@@ -90,43 +90,34 @@ test("the current contract stays backwards compatible with every frozen release 
  * contract as a baseline (which makes the promotion visible here). Names that linger past
  * that window are the smell.
  */
-const ACCEPTED_SINCE_LAST_BASELINE = [
-  // ⭐ R2.5's three tools, promoted `additive-preview` → `stable` at R2.5 acceptance on
-  // 2026-08-19 on channel `ohipqdhg`, after the typography live gate re-ran green on the
-  // promoted build. These are `stable` by a decision that was made, recorded and earned —
-  // the opposite of falling through the default — so they belong here rather than failing
-  // the guard.
-  //
-  // 🔴 **And their presence is itself a finding: CC3 has a gap.** The rule is that each
-  // release freezes the previous contract as a baseline, so R2.5 should have been frozen
-  // as the seventh when R2.6 opened. It was not — `contracts/baselines/` still stops at
-  // R2.4 — which is why these three have no baseline to vouch for them. That is what
-  // empties this list: freeze R2.5, and all three disappear from it on the next run.
-  // ⛔ Not fixed here. Adding a baseline changes the replay set every release is checked
-  // against, and that is its own decision with its own verification, not a side effect of
-  // landing a layout tool.
-  "get_available_fonts",
-  "check_fonts",
-  "set_text_style",
-  // ⭐ R2.6's four layout tools, promoted `additive-preview` → `stable` at R2.6 acceptance
-  // on 2026-08-22, after each had passed its own live gate on the build it ran on
-  // (`mzg3tlfl` / `2bcdtr5b` / `o2vws4ph` / `u2k66m3w`) and all four were re-pinned and
-  // re-run together on `sa6ggz00`. `stable` here is a decision that was made, recorded and
-  // earned — the opposite of falling through the default — so they belong here rather than
-  // failing the guard.
-  //
-  // 🔴 **This list growing 3 → 7 widens the CC3 gap rather than closing it, and that is a
-  // deliberate, recorded choice, not an oversight.** The rule is that each release freezes
-  // the previous contract as a baseline; R2.5 was never frozen, and now R2.6 is accepted
-  // without R2.5 or R2.6 being frozen either. Seven `stable` tools therefore have no
-  // baseline vouching for them. ⛔ Freezing a baseline changes the replay set every future
-  // release is checked against, which is its own decision with its own verification — it
-  // is owed to R2.7, and R2.7 must freeze BOTH R2.5 and R2.6 to empty this list.
-  "set_layout_child",
-  "set_constraints",
-  "set_size_limits",
-  "set_clips_content",
-];
+// ✅ **EMPTIED AT R2.7's OPENING ACT, 2026-08-23 — the CC3 debt is paid.** This list
+// carried seven names: R2.5's `get_available_fonts` / `check_fonts` / `set_text_style`
+// (promoted 2026-08-19 on `ohipqdhg`) and R2.6's four layout tools (promoted 2026-08-22 on
+// `sa6ggz00`). All seven were `stable` by a decision that was made, recorded and earned —
+// but with no frozen baseline vouching for any of them, because CC3's per-release freeze
+// was skipped twice running and the gap widened 3 → 7 as a recorded choice.
+//
+// R2.7 freezes BOTH, as its first act rather than its last: `r2.5-public-contract.json`
+// (from `e02d1b2`, the R2.5 acceptance commit — `1.7.0`, 56 tools) and
+// `r2.6-public-contract.json` (from `36ba158`, the R2.6 acceptance commit — `1.8.0`, 60
+// tools). Both are the contracts that were actually accepted, lifted from git, not
+// reconstructions. `frozenToolNames()` now finds all seven, so the guard passes on the
+// baselines themselves and this list has nothing left to excuse.
+//
+// ⚠️ **The R2.6 baseline is byte-identical to `contracts/public-contract.json` today**
+// (`sha256:aebc8dfe…67d8b3`), so its replay is currently a tautology — it compares the
+// contract to itself and cannot fail in either direction. Only the R2.5 baseline is a real
+// check until `set_fill` moves the contract to `1.9.0`. ⛔ Do not read this release's green
+// replay as evidence the R2.6 baseline works; it earns that on the next contract change.
+//
+// ⛔ **From here the seven are permanently `stable` and the walk-back is BREAKING** —
+// `compatibilityErrors()` iterates the baseline's tools and rejects weakening a level by
+// name, and now a baseline carries them. R2.6 was the last release in which the CC1 repair
+// cost nothing; that window is closed by this file.
+//
+// ⚠️ Expected to stay EMPTY. It fills for exactly one window — a release's acceptance until
+// the next release's freeze — and a name that lingers past that window is the smell.
+const ACCEPTED_SINCE_LAST_BASELINE = [];
 
 async function frozenToolNames() {
   const baselineDir = path.join(root, "contracts/baselines");

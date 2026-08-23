@@ -13,33 +13,62 @@ type: project
 ## ▶ Resume (checkpoint 2026-08-23)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals, Phase 1 OPEN**
-- **▶ START HERE: BUILD item 1.2 `set_effects`.**
-  ⏸️ **THE BUILD BOX IS PARKED, 2026-08-23, on the owner's call.** The interview ran, three
-  decisions were taken, and **NOTHING WAS WRITTEN** — working tree clean at `c3b167d`,
-  offline baseline **318/318**. ⛔ **Do not re-interview.** The decisions, the per-type field
-  table, the CC2 map audit and the refusal-ownership split are recorded in full →
-  [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 — DECIDED, NOT BUILT*.
-  **① 1.2 SPENDS `1.8.0` → `1.9.0`** on the FULL `filterFigmaNode` repair (`effects`,
-  `effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in **both** copies —
-  `code.js:1258` + `server.ts:775`; `runtime/release.json` moves all three fields together).
-  **② a cross-type field is REFUSED, naming it** (`color` on a `LAYER_BLUR`), not dropped.
-  **③ the plan's four types only**; `NOISE` / `TEXTURE` **pinned absent by a test**.
+- ✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**
+  (`e394e38` build + `b531d68` read-source repair). `live-effects-gate.mjs` PASSED on channel
+  `5982svqp`, **run twice**, pair `r2-server-fa007eb01947` ↔ `r2-plugin-e577688241c0`,
+  schema **`1.9.0`**, 62 tools, fingerprint `sha256:e36831b7…cf28fd`. Offline **334/334**,
+  `bun run verify` green, 2 mutants killed. All **six** gate sections ran; five semantic
+  refusals all from the **handler** layer with `documentUntouched: true`; `null` clears.
+  Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 live gate*.
+  **▶ NEXT: item 1.3 `set_opacity` / `set_blend_mode`** — ⚠️ but `1.9.0` is spent and
+  `1.10.0` is R3-A's, so 1.3 must be **additive only**.
 
-- 🔴 **`filterFigmaNode` DROPS `effects` ON BOTH SIDES — and this corrects 1.1's record in
-  the OPPOSITE direction to the way it was written.** The `JSON_REST_V1` subset keeps `id`,
-  `name`, `type`, `boundVariables`, `fills`, `strokes`, `cornerRadius`,
-  `absoluteBoundingBox`, `characters`, `style`, `children` and nothing else. 1.1 recorded the
-  owed repair as *"narrower than recorded — it is `clipsContent` / `absoluteRenderBounds`"*;
-  it is **wider**, because `effects` and `effectStyleId` are missing too. ⛔ That claim was
-  generalised from ONE green reading (`fills` survived the subset) into a claim about a
-  filter nobody had opened. Without the repair, 1.2's own gate has **no read channel** —
-  R2.6 2.4's vacuum, where before and after both read `undefined` and §2 passes on nothing.
-  ⚠️ `1.10.0` is R3-A's, so there is **no second bump** behind this one.
+- 🔴 **THE GATE'S FIRST RUN FAILED, AND IT WAS A REAL DEFECT: `JSON_REST_V1` NEVER CARRIED
+  `effectStyleId`.** Decision ① scoped the repair as "add four fields to `filterFigmaNode` in
+  both copies". Three were genuinely filtered out; the fourth **was not in the channel at
+  all**, so its allowlist entry was **dead code** — `getNodeInfo` exports REST and hands *that
+  document* to the filter. Measured live: a bound node carries `styles: { effect: "6052:226" }`
+  (present at depth, on children too), an unbound node carries **no `styles` key at all**, and
+  neither carries `effectStyleId`. ⛔ **The REST key is a DIFFERENT ID SPACE** from the
+  plugin's `"S:0a45cd18…,"`, so republishing it under the plugin's name would have handed
+  consumers a value that silently fails to join `set_effects`' `styleIdBefore`/`styleIdAfter`.
+  **Fix:** attach the reading from the **plugin node** before filtering, in all three
+  top-level readers, via one helper. ⭐ `server.ts` needed **no change** — `serverBuildId`
+  HELD and only `pluginBuildId` moved (`741db0eb6bd9` → `e577688241c0`).
+  See [[feedback_a_fake_export_from_enumerable_props_invents_fields]].
+
+- 🔴 **THE OFFLINE SUITE WAS GREEN ON THAT DEAD PATH THE WHOLE TIME.** The harness's fake
+  export is `Object.entries(node)`, and the effects model made `effectStyleId` enumerable, so
+  the fiction injected the field for free. ⭐ The harness had guarded the *opposite* direction
+  one line below (`absoluteRenderBounds` is non-enumerable and needs an opt-in). Repaired +
+  2 behavioural guards, both proven killable by mutation. ⛔ The older *"both filter copies
+  preserve the four fields"* test is a **source grep** and stayed green throughout.
+
+- ⚠️ **1.1's record has now been corrected THREE times and every revision was written from a
+  reading.** "narrower than recorded" → "wider, four fields" → "one of the four was never in
+  the channel". ⛔ **Reading the code did not settle a question about the data**; only the
+  live export did. ⚠️ `1.10.0` is R3-A's, so there is **no second bump** behind this one.
 
 - ⭐ **`live-clips-content-gate.mjs:746` HAD ALREADY WRITTEN THIS DOWN — and it went unread
   for a day.** It names the missing fields, the required bump, and that R2.7 owes it. The
   `stillOwed` channel worked; reading it is what failed. ⛔ **Grep the gate scripts before
   opening a read-layer question** — they are where the previous item's measurements live.
+
+- ⏳ **OPEN, owner's call: `""` vs `null` for "unbound".** The read channel now publishes
+  Figma's raw `effectStyleId: ""` while the receipt maps `"" → null` (`code.js:8426`,
+  disambiguated by `styleReadable`). Bound nodes join exactly; **the empty case does not**.
+  Introduced by 1.2's repair — before it there was no reading at all. ⛔ Deciding it costs a
+  rebuild + plugin reload + gate re-run, and `1.9.0` is already spent.
+
+- ⏳ **The stale-gate list is now SEVEN, not six** — `live-fill` joined it the moment 1.2
+  moved `pluginBuildId`. ⛔ Still **not re-pinned**: R2.7 re-pins and re-runs the set ONCE at
+  its end, because a change that can only re-run one gate cannot honestly re-pin seven.
+
+- 🆕 **`styleDetached` is NARROWER than the record has said since 1.1.** The gate's
+  `stillOwed` ("no fork tool binds an effect style") is accurate about the **tool surface**,
+  but the *platform* allows it — 1.2's probe bound and detached a real style with
+  `figma.createEffectStyle()` + `setEffectStyleIdAsync`. It is a **missing capability, not a
+  platform limit**. ⚠️ Measured for EFFECT styles only; do not generalise to paint styles.
 
 - 🔴 **NEW DEBT AGAINST 1.1: `set_fill` silently drops `color` on a gradient paint**
   (`code.js:8047` — the gradient branch never reads `input.color`), and the published schema

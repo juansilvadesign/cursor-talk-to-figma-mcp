@@ -170,32 +170,43 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Next session — R2.7 Phase 1 (**1.1 GATED + COMMITTED**; **1.2 DECIDED, NOT BUILT**)
+## ▶ Next session — R2.7 Phase 1 (**1.1 and 1.2 both GATED + COMMITTED**)
 
-**▶ START HERE = BUILD R2.7 item 1.2, `set_effects(nodeId, effects[])`.**
-⏸️ **THE BUILD BOX IS PARKED, 2026-08-23, on the owner's call — the interview finished, three
-decisions were taken, and NOTHING WAS WRITTEN.** Working tree clean at `c3b167d`, offline
-baseline **318/318**. ⛔ Do not re-run the interview; the decisions are settled and recorded
-in full → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 — DECIDED, NOT BUILT*, with
-the per-type field table, the CC2 map audit and the refusal-ownership split. Resume by
-writing code.
+**▶ START HERE = item 1.3, `set_opacity` / `set_blend_mode`.**
+⚠️ **1.3 must be ADDITIVE ONLY.** `1.9.0` was spent by 1.2 and `1.10.0` belongs to R3-A, so
+there is **no bump left in R2.7** — anything that changes a `stable` tool's result shape has
+to wait or take the owner's decision first.
 
-**The three decisions, one line each:**
-① 🔴 **1.2 SPENDS the `1.9.0` bump** on the FULL `filterFigmaNode` repair — `effects`,
-`effectStyleId`, `clipsContent`, `absoluteRenderBounds`, in **both** copies
-(`code.js:1258` + `server.ts:775`), `runtime/release.json` all three fields together.
-② **A cross-type field is REFUSED, naming it** (`color` on a `LAYER_BLUR`), not dropped.
-③ **The plan's four types only**; `NOISE` / `TEXTURE` **pinned absent by a test**.
+✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**
+(`e394e38` build + `b531d68` read-source repair). `live-effects-gate.mjs` PASSED on channel
+`5982svqp`, **run twice**, pair `r2-server-fa007eb01947` ↔ `r2-plugin-e577688241c0`, schema
+`1.9.0`, 62 tools. Offline **334/334**, `bun run verify` green, 2 mutants killed. All six
+gate sections ran; the five semantic refusals all arrived from the **handler** layer with
+`documentUntouched: true`. Full record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md)
+§ *1.2 live gate*.
 
-🔴 **THE FINDING BEHIND ①, AND IT CORRECTS 1.1's RECORD IN THE OPPOSITE DIRECTION.**
-`filterFigmaNode` drops `effects` on **both sides**, so 1.2's gate had no read channel at all
-— R2.6 2.4's vacuum, where before and after both read `undefined` and §2 passes on nothing.
-1.1 recorded the owed repair as *"narrower than recorded — it is `clipsContent` /
-`absoluteRenderBounds`"*; it is **wider**. ⛔ That claim was generalised from one green
-reading (`fills` survived the subset) without opening the filter.
-⭐ **`live-clips-content-gate.mjs:746` had already written this down** — the missing fields,
-the required bump, and that R2.7 owes it — and it went unread for a day. **Grep the gate
-scripts before opening a read-layer question.**
+🔴 **THE GATE'S FIRST RUN FAILED ON A REAL DEFECT — decision ①'s premise was wrong.**
+① scoped the repair as four fields added to `filterFigmaNode` in both copies. Three were
+genuinely filtered out; **`effectStyleId` was never in the channel at all**, so its allowlist
+entry was dead code — `getNodeInfo` exports `JSON_REST_V1` and hands *that document* to the
+filter. Measured live: a bound node carries `styles: { effect: "6052:226" }` (present on
+children too), an unbound node carries **no `styles` key**, and neither carries
+`effectStyleId`. ⛔ **The REST key is a different ID SPACE** from the plugin's
+`"S:0a45cd18…,"`. Fixed by attaching the reading from the **plugin node** before filtering,
+in all three top-level readers. ⭐ `server.ts` needed no change, so `serverBuildId` HELD and
+only `pluginBuildId` moved.
+
+🔴 **The offline suite was green on that dead path throughout** — the harness's fake export
+was `Object.entries(node)` and the effects model had made `effectStyleId` enumerable, so the
+double injected a field the real channel never returns. Repaired + 2 behavioural guards,
+both proven killable. ⛔ The older *"both filter copies preserve the four fields"* test is a
+**source grep** and never once failed.
+
+⏳ **Two open decisions carried out of 1.2, both the owner's:**
+① **`""` vs `null` for "unbound"** — the read channel publishes Figma's raw `""`, the receipt
+maps `"" → null` (`code.js:8426`). Bound nodes join exactly; the empty case does not.
+② **REST's `styles` map is unpublished**, so nested nodes carry `effects` but no effect-style
+reading. Measured to exist at depth; publishing it is a second id space and new surface.
 
 🔴 **A NEW DEBT AGAINST 1.1:** `set_fill` **silently drops `color` on a gradient**
 (`code.js:8047`) and the schema advertises the drop — the same "a discarded value reads as an
@@ -214,14 +225,17 @@ and `1.10.0` belongs to R3-A — so there is no second bump behind this one.
 promoted to `stable` at acceptance.
 ✅ **CC3's seven-tool debt is PAID, 2026-08-23** — R2.5 and R2.6 frozen as the 7th and 8th
 baselines (`0c0f68a`), `ACCEPTED_SINCE_LAST_BASELINE` emptied to `[]` (`6e558ba`).
-⏳ **R2.7 owes ONE re-pin + re-run of six stale gates at its end** — `live-batch`,
+⏳ **R2.7 owes ONE re-pin + re-run of SEVEN stale gates at its end** — `live-batch`,
 `live-text-style`, `live-layout`, `live-constraints`, `live-size-limits`,
-`live-clips-content`, all staled by 1.1 moving both build IDs.
-⚠️ **It becomes SEVEN the moment 1.2 builds:** `live-fill-gate.mjs` joins them, because 1.2
-moves both build IDs beneath it exactly as 1.1 did to the six. ⛔ Still **ONE** re-pin and
-**ONE** re-run of the whole set at R2.7's end — six claims and one test is the defect
-`e02d1b2` created, and seven is not an improvement on it. ⛔ 1.2 must NOT re-pin the seven
-on its own change; it can only re-run its own gate.
+`live-clips-content`, all staled by 1.1 moving both build IDs — **and `live-fill` since
+2026-08-23**, which 1.2 staled by moving `pluginBuildId` (`741db0eb6bd9` →
+`e577688241c0`) beneath the pair it had passed twice on `yoq962bg`.
+⚠️ **The count is now SEVEN, not "becomes seven"** — 1.2 has built and gated. ⛔ Still **ONE**
+re-pin and **ONE** re-run of the whole set at R2.7's end — six claims and one test is the
+defect `e02d1b2` created, and seven is not an improvement on it. ⛔ 1.2 did NOT re-pin the
+seven on its own change; it re-ran only its own gate, as the rule requires.
+⭐ Note the asymmetry that made this cheaper than feared: 1.2 moved **only** `pluginBuildId`
+(`server.ts` was untouched), so a gate whose pins name only the server would not have staled.
 
 ⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
 2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's

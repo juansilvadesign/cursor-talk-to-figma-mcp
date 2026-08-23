@@ -742,19 +742,48 @@ try {
   // answer, and it answered "nothing moved". If a real measurement of no movement were
   // reported as null, the field would mean two different things at once and a caller could
   // not read either of them.
+  //
+  // ⛔ THIS SECTION ESTABLISHES ITS OWN PRECONDITION, and the reason is a defect this gate
+  // shipped with. It used to open by asserting `previous === true` "because §3 re-clipped
+  // the subject" — true when written, and falsified 110 lines later by §5's matrix, which
+  // writes `clipsContent: false` to `subjectId` itself as its accepted FRAME case. The tool
+  // answered `previous: false` honestly and the gate called it a failure.
+  // [[feedback_a_status_marker_that_was_true_when_written]]. A no-op test must depend on the
+  // value it just wrote, never on one a distant section left behind — so the SETTLING write
+  // below is the precondition, and only the SECOND write is the measurement.
+  const settleReceipt = (
+    await callJson("set_clips_content", { nodeId: subjectId, clipsContent: true })
+  ).value;
+  const beforeNoop = await renderBoundsOf(subjectId, "subject-before-noop");
+
   const noopReceipt = (
     await callJson("set_clips_content", { nodeId: subjectId, clipsContent: true })
   ).value;
   const afterNoop = await renderBoundsOf(subjectId, "subject-after-noop");
 
   record.checks.noop = {
+    // ⭐ Recorded, never asserted on: this is what §5 left behind. It is evidence that the
+    // settling write is load-bearing, and it goes red-flag-shaped if a future edit removes
+    // the matrix's write to the subject and nobody notices this section stopped being a test.
+    settledFrom: settleReceipt.previous,
+    settleChanged: settleReceipt.changed,
     previous: noopReceipt.previous,
     applied: noopReceipt.clipsContent,
     changed: noopReceipt.changed,
     renderBoundsChanged: noopReceipt.renderBoundsChanged,
-    independentWidthHeld: afterNoop.width === reclipped.width,
+    // ⛔ Measured against the bounds read immediately BEFORE the no-op, never against §3's
+    // `reclipped`. Comparing to `reclipped` is how this guard read "held" straight through a
+    // real 250 → 200 re-clip: both ends are 200, so a no-op and a re-clip are the same
+    // number. [[feedback_a_zero_valued_write_reads_as_no_write]] — a check whose two
+    // outcomes print identically cannot fail in either direction.
+    independentWidthHeld: afterNoop.width === beforeNoop.width,
+    noopWidth: beforeNoop.width,
   };
-  assert.equal(noopReceipt.previous, true, "the subject was re-clipped in §3");
+  assert.equal(
+    noopReceipt.previous,
+    true,
+    "the settling write did not take, so the no-op measurement has no precondition",
+  );
   assert.equal(noopReceipt.clipsContent, true);
   assert.equal(
     noopReceipt.changed,

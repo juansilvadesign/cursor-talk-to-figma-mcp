@@ -138,6 +138,32 @@ function createFixtureRuntime(fixture, options) {
     };
   }
 
+  // R2.7 1.1. ⛔ THE BLANKET `fills: []` THIS REPLACES WAS A DISHONEST FIXTURE, of exactly
+  // the family that cost R2.6 a shipped defect. Every node got `fills: []`, so `"fills" in
+  // node` was TRUE for a GROUP and a SLICE — node types that carry no fills at all — and
+  // `set_fill`'s only refusal would have been unreachable offline, with the live gate the
+  // first thing ever to execute it. That is 2.1's debt, which 2.2 paid, and it is the same
+  // shape as the blanket `layoutMode: "NONE"` that hid `set_layout_sizing`'s FILL guard
+  // defect for six releases.
+  // ⚠️ PAGE is deliberately absent, and so is SECTION. A page's background is
+  // `backgrounds`, and whether the current API also exposes `fills` on either is a platform
+  // question this project has not measured — `live-fill-gate.mjs` reports it. Absent here
+  // means UNMEASURED, never "does not have it", which is the discipline
+  // `CLIPS_CONTENT_CARRIERS` adopted for SECTION.
+  const FILL_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+    "RECTANGLE",
+    "ELLIPSE",
+    "POLYGON",
+    "STAR",
+    "VECTOR",
+    "LINE",
+    "TEXT",
+  ]);
+
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
     "COMPONENT",
@@ -205,6 +231,9 @@ function createFixtureRuntime(fixture, options) {
       y: 0,
       width: 100,
       height: 100,
+      // ⛔ NOT a blanket default any more — the fill block below type-gates presence and
+      // deletes the property from non-carriers. This entry only seeds the initial value a
+      // carrier starts from; a GROUP or SLICE ends up with no `fills` property at all.
       fills: [],
       strokes: [],
       effects: [],
@@ -315,6 +344,78 @@ function createFixtureRuntime(fixture, options) {
         });
       }
       applyLimits();
+    }
+
+    // R2.7 item 1.1's fill model. Four decisions, and three of them are opt-ins rather
+    // than claims — the fill surface has more unmeasured platform behaviour attached to it
+    // than any layout tool did.
+    {
+      // ① PRESENCE IS TYPE-GATED and the property is DELETED from non-carriers. See
+      // FILL_CARRIERS: the blanket `fills: []` this replaces made `set_fill`'s only node
+      // refusal unreachable offline.
+      if (FILL_CARRIERS.has(node.type)) {
+        // ④ `fillStyleId` exists on every fill carrier, "" meaning none — Figma's own
+        // representation, which the tool normalizes to null so that "no style bound" and
+        // "the reading failed" cannot be confused. Declared BEFORE the fills accessor,
+        // which closes over it for the detach model below.
+        let styleId = typeof node.fillStyleId === "string" ? node.fillStyleId : "";
+
+        // ⛔ A TEXT node with per-character fills answers `figma.mixed`, and a test reaches
+        // that through the `mixedFills` option rather than by embedding a symbol in the
+        // fixture JSON. It matters because `[]` and `figma.mixed` are opposite claims — one says
+        // the node has no fills, the other that the reading cannot be expressed as an
+        // array — and a tool that collapses them reports the first when it means the
+        // second. `set_fill` keeps them apart with `previousReadable`/`previousMixed`.
+        let stored = (options.mixedFills || []).includes(node.id)
+          ? MIXED
+          : Array.isArray(node.fills)
+            ? clone(node.fills)
+            : [];
+
+        // ⭐ ② OPT-IN SILENT-DISCARD — 2.4's instrument, and the ONLY thing holding this
+        // tool's read-back honest. An echo of the argument and a read-back of the node
+        // agree on every input while the platform stores what it is handed, so no
+        // assertion over the reported array can separate them. A discarding node reports
+        // the OLD fills through a read-back and the NEW ones through an echo, in one
+        // reading — and it depends on no platform claim whatsoever.
+        // ⛔ This is deliberately NOT modelled as "Figma normalizes paints on assignment".
+        // That normalization probably happens and would also separate the two, but it is a
+        // PLATFORM CLAIM, and resting the tool's honesty on one is what 2.3 shipped.
+        const discardsFills = (options.ignoreFillWrites || []).includes(node.id);
+
+        // ⭐ ③ OPT-IN STYLE DETACH, and it is the question this whole tool is careful
+        // about. Whether assigning `fills` to a node with a paint style bound DETACHES
+        // that style is UNMEASURED — `live-fill-gate.mjs` answers it. Encoding either
+        // answer as the harness default would make every offline test green against a
+        // platform behaviour nobody checked, which is 2.3's fiction exactly.
+        // ⛔ So the harness models BOTH worlds on request and neither by default, and the
+        // tool is asserted to report the reading correctly in each. `styleDetached` is a
+        // reading, not a claim, and that is what makes it survive either answer.
+        const detachesOnWrite = (options.detachStyleOnFillWrite || []).includes(node.id);
+
+        Object.defineProperty(node, "fills", {
+          enumerable: true,
+          configurable: true,
+          get: () => (stored === MIXED ? MIXED : clone(stored)),
+          set: (value) => {
+            if (discardsFills) return;
+            stored = clone(value);
+            if (detachesOnWrite) styleId = "";
+          },
+        });
+
+        Object.defineProperty(node, "fillStyleId", {
+          enumerable: true,
+          configurable: true,
+          get: () => styleId,
+          set: (value) => {
+            styleId = value;
+          },
+        });
+      } else {
+        delete node.fills;
+        delete node.fillStyleId;
+      }
     }
 
     // Item 2.4's clipping model. Three separate decisions live in this block and each one

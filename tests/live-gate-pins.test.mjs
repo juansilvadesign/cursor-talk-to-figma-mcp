@@ -57,6 +57,32 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // `live-create-page-gate.mjs` and `live-plugin-data-gate.mjs` belong to R2.1/R2.2/R2.4
   // and were never part of the R2.6 backlog. They are owed a re-pin and a re-run together
   // whenever their results are next quoted.
+  //
+  // 🔴 **AND THE BACKLOG IS BACK — all six, staled by R2.7 item 1.1 on 2026-08-23.**
+  // `set_fill` moved BOTH build IDs (`r2-server-975ccb3ce8b9` → `r2-server-b8086c604b60`,
+  // `r2-plugin-1eee5a6f3bd9` → `r2-plugin-d8537626e9db`) and the fingerprint
+  // (`sha256:f229f6ec…` → `sha256:07e3fff4…`), which is the 2.1/2.2/2.3 shape: a new tool
+  // is additive, so the schema HELD at `1.8.0`, but every pin below it moved.
+  //
+  // ⛔ NOT RE-PINNED, and that is the rule applying rather than an omission. A change that
+  // can only re-run ONE gate cannot honestly re-pin six — that would be six claims and one
+  // test, which is precisely the defect `e02d1b2` created and R2.6 Phase 1 had to repair.
+  // R2.7 re-pins and re-runs the set ONCE at its end, exactly as R2.6 did after 2.4.
+  //
+  // ⚠️ The six were green on `sa6ggz00` against the R2.6-accepted build, and nothing about
+  // that result is withdrawn — it is a result about a build this tree no longer produces.
+  "live-batch-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  "live-text-style-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  "live-layout-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  "live-constraints-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  "live-size-limits-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
+  "live-clips-content-gate.mjs":
+    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
 });
 
 function readPins(source) {

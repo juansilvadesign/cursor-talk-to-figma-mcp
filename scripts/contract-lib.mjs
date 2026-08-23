@@ -101,14 +101,27 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // not: all three shipped `stable` from birth. Only 2.2's deviation was ever written down,
   // and even there it was recorded as owed rather than chosen.
   //
-  // ⭐ THE REPAIR IS FREE, AND ONLY UNTIL R2.6 IS FROZEN. `compatibilityErrors()` iterates
-  // the BASELINE's tools and compares the ones it finds; a tool absent from every baseline
-  // is never compared, so weakening it produces no error. None of the three appears in any
-  // of the six frozen contracts (R0 / R1 / R2.1 / R2.2 / R2.3 / R2.4) — they were all added
-  // after R2.4 was cut. CC3 freezes R2.6 as the seventh baseline at R2 acceptance, and from
-  // that moment `stable` is permanent and the walk-back is breaking. This is the last
-  // release in which the mistake costs nothing to undo.
+  // ⛔ THE REPAIR WAS FREE ONLY UNTIL R2.6 WAS FROZEN — AND IT IS NOW FROZEN, 2026-08-23.
+  // This paragraph used to read "the repair is free, and only until R2.6 is frozen … this
+  // is the last release in which the mistake costs nothing to undo", written while the
+  // window was still open. R2.7's opening act closed it: `contracts/baselines/` gained
+  // `r2.5-public-contract.json` (from `e02d1b2`, `1.7.0`, 56 tools) and
+  // `r2.6-public-contract.json` (from `36ba158`, `1.8.0`, 60 tools) as the 7th and 8th.
+  // `compatibilityErrors()` iterates the BASELINE's tools, and a baseline now carries all
+  // four of these plus R2.5's three — so `stable` is permanent for the seven and the
+  // walk-back is BREAKING. What is written below is no longer reversible for free.
   //
+  // ⭐ R2.7 item 1.1 — `set_fill`, listed in the SAME commit that registers it, which is
+  // what CC1 asks and what R2.6's three layout tools failed to do for three consecutive
+  // items. ⛔ This entry is now load-bearing in a way it was not for any of them: the CC3
+  // freeze landed first this release, so `contracts/baselines/` carries R2.5 and R2.6 and
+  // the free walk-back is GONE. A tool that falls through to `stable` here can no longer be
+  // quietly corrected next item — it is frozen on a reply shape no live gate has judged.
+  // ⚠️ `set_fill` has two readings it must earn before promotion, and neither is settled by
+  // any offline test: whether Figma detaches a bound paint style on a fills write
+  // (`styleDetached`), and whether the angle→matrix convention aims where it claims. Both
+  // are `live-fill-gate.mjs`'s job. Promotion is R2 acceptance's act, not this item's.
+  "set_fill",
   // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
   // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
   // pins the rule so R2.7's tools cannot repeat it silently.
@@ -250,6 +263,14 @@ const TOOL_SCOPES = {
   // call can CHANGE, and no child is touched — the parent stops painting past its own
   // bounds. The children are read for the receipt's geometry, which is a measurement.
   set_clips_content: "node",
+  // R2.7 1.1. ⭐ "node" for the same reason `set_clips_content` is, arrived at from the
+  // opposite direction: a fill visibly changes what the node PAINTS, which reads wider than
+  // the node — but scope describes what a call can CHANGE, and no other node's properties
+  // move. ⚠️ The one thing that gives pause is `fillStyleId`: if Figma detaches a bound
+  // paint style, the STYLE is a document-level resource. It is still not modified — the
+  // node stops pointing at it — so the scope holds, and the receipt reports the detach
+  // precisely because it is the part a reader of this line would not expect.
+  set_fill: "node",
 };
 
 const SPECIAL_PROGRESS = {
@@ -286,6 +307,14 @@ const SPECIAL_PROGRESS = {
   // await in the write phase at all. A third declined declaration, not an oversight.
   // ⛔ set_constraints is absent on the same grounds and beats it: ONE synchronous
   // assignment. A fourth declined declaration.
+  // ⛔ set_fill is deliberately absent, a FIFTH declined declaration — and the first where
+  // the tool takes an unbounded-ish array, which is the shape that usually earns "chunked".
+  // It does not here: validation is a synchronous pass over at most 16 paints, and the
+  // write is ONE assignment with no await anywhere in either phase. There is no point
+  // between them to report from, and a tool that declares progress it does not emit is
+  // Finding 4. ⚠️ If a future paint type needs an await (an IMAGE paint would, via
+  // createImage), this entry changes in the SAME commit that adds the await — per CC2, not
+  // afterwards.
 };
 
 function sha256(value) {

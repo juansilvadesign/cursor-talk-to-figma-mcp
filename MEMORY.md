@@ -28,7 +28,8 @@ type: project
   `additive-preview` → `stable`; **6/6 gates re-pinned and re-run green on the promoted
   build** `r2-server-975ccb3ce8b9`, channel `sa6ggz00`. 287/287, `bun run verify` passed.
   Record → [`docs/R2.6-LAYOUT.md`](docs/R2.6-LAYOUT.md).
-  Next = **R2.7 (visuals)**, then R2 acceptance at its end.
+  Next = **R2.7 Phase 1 item 1.1 `set_fill`** (solid + gradient; `1.8.0` → `1.9.0`),
+  and R2.7 must also **freeze R2.5 + R2.6 as baselines**.
   🟡 **Uncommitted:** MEMORY.md, `.gitignore`, `contracts/public-contract.json`, `dist/*`,
   `scripts/contract-lib.mjs`, the 6 gate scripts, `src/.../runtime-metadata.ts`,
   `tests/contract.test.mjs`, and the new `docs/R2.6-LAYOUT.md`.
@@ -353,9 +354,16 @@ type: project
   replacement victim; re-pointing it would only reset the trap. ✅ Fixed by **synthesizing**
   a victim name no baseline can ever carry, plus a negative leg so the guard cannot pass by
   flagging everything. See [[feedback_an_instrument_pinned_to_the_implementation]].
-- **Next step:** ▶ **R2.7 — visuals**, then **R2 acceptance** at its end (which needs a
-  representative component/page fixture that does not exist yet). ⛔ **R2.7 MUST FREEZE BOTH
-  R2.5 AND R2.6 as baselines** — the CC3 gap is now **seven** tools wide
+- **Next step:** ▶ **R2.7 Phase 1 item 1.1 — `set_fill`** (solid **and** gradient:
+  `GRADIENT_LINEAR` / `RADIAL` / `ANGULAR` / `DIAMOND`, one nested colour shape).
+  ⭐ It is also the chance to end the shape divergence the R2.4 gate caught — `apply_batch`'s
+  `set_fill_color` takes `{color:{r,g,b,a}}` while the standalone tool takes flat `r,g,b,a`,
+  and the "same shape" claim was false. ⛔ `set_fill_color` is `stable` and cannot be
+  changed, so `set_fill` ships **one** shape and the old tool is documented as legacy.
+  ⚠️ R2.7 spends the last bump: **`1.8.0` → `1.9.0`**. Then **R2 acceptance** at its end
+  (which needs a representative component/page fixture that does not exist yet).
+  ⛔ **R2.7 MUST ALSO FREEZE BOTH R2.5 AND R2.6 as baselines** — CC3's per-release freeze,
+  which R2.6 skipped. The gap is now **seven** tools wide
   (`get_available_fonts`, `check_fonts`, `set_text_style` + the four layout tools), all
   `stable` with no baseline vouching for them, parked in `ACCEPTED_SINCE_LAST_BASELINE`.
   Widening it 3 → 7 was a recorded choice, not an oversight.

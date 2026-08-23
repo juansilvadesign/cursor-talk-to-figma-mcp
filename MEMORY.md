@@ -32,7 +32,37 @@ type: project
   pages. ⚠️ **ADDITIVE-ONLY is now MEASURED, not just intended** — `get_node_info` grew
   neither `opacity` nor `blendMode`, before or after the writes. `1.10.0` stays R3-A's.
   Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.3 live gate*.
-  🟡 **UNCOMMITTED** — the gate repair is in the working tree; committing is the owner's act.
+  ✅ **COMMITTED by the owner 2026-08-23** as `9037f94` (gate repair + records), on top of
+  `7037c24` (the build). Tree clean at checkpoint.
+- ✅✅ **THE END-OF-R2.7 RE-PIN IS PAID — 2026-08-23, channel `3az2oicz`.** All **EIGHT**
+  stale gates (`live-batch`, `live-text-style`, `live-layout`, `live-constraints`,
+  `live-size-limits`, `live-clips-content`, `live-fill`, `live-effects`) re-pinned to
+  `r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`, `1.9.0`, `sha256:9b7abf64…1dacb4`,
+  **64 tools**, then **run once each on one channel — all eight PASSED, no new defects**.
+  Offline **343/343** and `bun run verify` green on both sides. `GATES_PINNED_TO_AN_EARLIER_
+  RELEASE` is down to the three R2.1/R2.2/R2.4 gates. Record →
+  [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *End-of-R2.7 re-pin*.
+  ⭐ **A pin edit does not move the build — re-confirmed on the widest case yet** (8 scripts +
+  1 test, every pin held, `verify`'s rebuild byte-identical), so the eight stay pinned to the
+  build they ran on and the re-pin does not stale itself.
+  ⭐ **The DEV plugin needed no re-run, and that was MEASURED** — live `pluginBuildId` read via
+  `get_runtime_info` and compared to `runtime-metadata.ts` directly. ⛔ Never against
+  `compatibility: "compatible"`, which only says the two running halves agree with each other.
+  🔴 **The pins test was proved live in BOTH directions before its green was believed** —
+  corrupted `toolCount` → FAIL, re-added declaration on a current gate → FAIL, restored
+  control → PASS. ⛔ Necessary because `readPins` compares only the keys it can parse, so a
+  comment breaking one regex narrows coverage **silently**; parse asserted at 5/5 on all eight.
+  ⭐ **An independent witness confirmed the ledger edit** — three gates read the test at runtime
+  and each reported "3 declared", naming the right three. 11 → 3, counted by tools with no
+  stake in it.
+  ⛔ Nothing in the gates' `stillOwed` lists was closed and none of it is new — a re-pin
+  re-establishes that a gate still passes on this build; it does not widen what the gate covers.
+  🟡 **UNCOMMITTED** — 9 code files + these records. ⛔ Committing is the owner's act.
+  ▶ **NEXT = R2 acceptance / R3-A** (`1.10.0`). Two items were put to the owner 2026-08-23 and
+  **declined**, both still open: ① folding in the three R2.1/R2.2/R2.4 gates; ② repairing the
+  `set_fill` gradient `color` drop (`code.js:8047`) — its price is now a known second
+  eight-gate re-run rather than an unexamined one.
+  ⛔ `live-opacity-blend-gate.mjs` was never in that set — it pins this build and was run on it.
 
 - 🔴 **1.3's GATE FAILED ITS FIRST RUN AND THE TOOL WAS RIGHT — Figma stores layer opacity
   as a FLOAT32.** `set_opacity` returned `0.3499999940395355` where the gate asserted

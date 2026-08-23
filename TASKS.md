@@ -170,7 +170,12 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — R2.7 Phase 1 (**1.1, 1.2 and 1.3 ALL LIVE-GATED**)
+## ▶ Current session — R2.7 Phase 1 (**1.1, 1.2, 1.3 LIVE-GATED + the END-OF-RELEASE RE-PIN DONE**)
+
+✅✅ **THE EIGHT-GATE RE-PIN IS PAID — 2026-08-23, channel `3az2oicz`, all eight green on one
+run each.** See the debt block below and `docs/R2.7-VISUALS.md` § *End-of-R2.7 re-pin*.
+🟡 **UNCOMMITTED** — nine files in the working tree (eight `scripts/live-*.mjs` + 
+`tests/live-gate-pins.test.mjs`) plus these records. ⛔ Committing is the owner's act.
 
 ✅✅ **ITEM 1.3 `set_opacity` / `set_blend_mode` IS BUILT AND LIVE-GATED — 2026-08-23.**
 `live-opacity-blend-gate.mjs` PASSED on channel **`shtlklfy`**, **run twice**, both runs on a
@@ -245,17 +250,27 @@ and `1.10.0` belongs to R3-A — so there is no second bump behind this one.
 promoted to `stable` at acceptance.
 ✅ **CC3's seven-tool debt is PAID, 2026-08-23** — R2.5 and R2.6 frozen as the 7th and 8th
 baselines (`0c0f68a`), `ACCEPTED_SINCE_LAST_BASELINE` emptied to `[]` (`6e558ba`).
-⏳ **R2.7 owes ONE re-pin + re-run of SEVEN stale gates at its end** — `live-batch`,
-`live-text-style`, `live-layout`, `live-constraints`, `live-size-limits`,
-`live-clips-content`, all staled by 1.1 moving both build IDs — **and `live-fill` since
-2026-08-23**, which 1.2 staled by moving `pluginBuildId` (`741db0eb6bd9` →
-`e577688241c0`) beneath the pair it had passed twice on `yoq962bg`.
-⚠️ **The count is now SEVEN, not "becomes seven"** — 1.2 has built and gated. ⛔ Still **ONE**
-re-pin and **ONE** re-run of the whole set at R2.7's end — six claims and one test is the
-defect `e02d1b2` created, and seven is not an improvement on it. ⛔ 1.2 did NOT re-pin the
-seven on its own change; it re-ran only its own gate, as the rule requires.
-⭐ Note the asymmetry that made this cheaper than feared: 1.2 moved **only** `pluginBuildId`
-(`server.ts` was untouched), so a gate whose pins name only the server would not have staled.
+✅✅ **THE END-OF-R2.7 RE-PIN IS DONE — 2026-08-23, channel `3az2oicz`.** The debt closed at
+**EIGHT** gates, not seven: item 1.3 staled `live-effects` after this line was written. All
+eight — `live-batch`, `live-text-style`, `live-layout`, `live-constraints`,
+`live-size-limits`, `live-clips-content`, `live-fill`, `live-effects` — re-pinned to the R2.7
+final build `r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`, `1.9.0`, fingerprint
+`sha256:9b7abf64…dacb4`, **64 tools**, then **run once each on one channel. All eight PASSED,
+no new defects.** Offline **343/343** and `bun run verify` green on both sides of the change.
+Their entries are **deleted** from `GATES_PINNED_TO_AN_EARLIER_RELEASE`, so the ledger is
+down to the three R2.1/R2.2/R2.4 gates. Full record →
+[`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *End-of-R2.7 re-pin*.
+⭐ **A pin edit still does not move the build** — eight scripts and one test changed and every
+pin held, `verify`'s rebuild reproducing both IDs byte-for-byte, so the eight remain pinned to
+the build they ran on. The re-pin does not stale itself.
+🔴 **The pins test was proved live in both directions before its green was believed** — a
+corrupted `toolCount` failed, a re-added declaration on a current gate failed, the restored
+control passed. Necessary because `readPins` compares only the keys it can parse, so a broken
+regex would narrow coverage silently; the parse was asserted separately at 5/5 on all eight.
+⛔ **The three older gates were NOT folded in** — put to the owner 2026-08-23 and declined.
+⛔ **The `set_fill` gradient `color` drop was NOT repaired** — also put to the owner in the
+same round and declined; paying it later costs a second eight-gate re-run, which is now the
+known price rather than an unexamined one.
 
 ⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
 2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's

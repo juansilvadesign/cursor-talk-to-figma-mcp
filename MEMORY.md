@@ -58,11 +58,40 @@ type: project
   ⛔ Nothing in the gates' `stillOwed` lists was closed and none of it is new — a re-pin
   re-establishes that a gate still passes on this build; it does not widen what the gate covers.
   🟡 **UNCOMMITTED** — 9 code files + these records. ⛔ Committing is the owner's act.
-  ▶ **NEXT = R2 acceptance / R3-A** (`1.10.0`). Two items were put to the owner 2026-08-23 and
-  **declined**, both still open: ① folding in the three R2.1/R2.2/R2.4 gates; ② repairing the
-  `set_fill` gradient `color` drop (`code.js:8047`) — its price is now a known second
-  eight-gate re-run rather than an unexamined one.
-  ⛔ `live-opacity-blend-gate.mjs` was never in that set — it pins this build and was run on it.
+  ⚠️ This closed **PHASE 1**, not the release — R2.7 still owed two build items, which landed
+  hours later as Phase 2 and re-staled all eight plus a ninth.
+
+- ✅✅ **R2.7 PHASE 2 IS BUILT AND GATED — 2026-08-23, channel `sdg5mr5m`, run twice.**
+  `create_node_from_svg` + the `set_image_fill` CROP repair. `live-svg-crop-gate.mjs` PASSED
+  both runs on fresh scratch pages with **byte-identical renders across runs**. Pair
+  `r2-server-2ca49b0a4fd1` ↔ `r2-plugin-2741d7f5f374`, schema **HELD `1.9.0`**, **65 tools**,
+  offline **363/363**, `verify` green, **10/10 + 8/8 mutants killed**, controls surviving.
+  Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *Phase 2*.
+  🔴 **THE CROP DEFECT WAS NOT WHAT THE CHECKLIST SAID.** It read "the schema promises a mode
+  the handler cannot deliver". Figma **accepts** `CROP` and stores it; the missing piece was
+  `imageTransform`, and its identity default renders a **STRETCH** reported as a crop.
+  ⭐ **A read-back could not have caught it** — the plugin node answers `"CROP"`, only
+  `JSON_REST_V1` says `"STRETCH"`: two id spaces, one state, the third time here.
+  🔴 **My first probe was worthless and the byte-identical exports said so** — the colour
+  boundary sat at the image's centre, where a squash and a centre-crop are the same pixels.
+  ⭐ Ask what reading the BUG would produce; if it equals the fix's, change currency.
+  🔴 **Figma stores the image transform as FLOAT32** (`0.34` → `Math.fround(0.34)`) — item
+  1.3's finding on a second field. ⚠️ The identity matrix is exactly representable, so a gate
+  testing only identity would have shipped believing its receipt was verified.
+  🔴 **Three defects found by gates on FIRST runs**: the tool description omitted the
+  STRETCH warning (§1 caught it before touching the document); the float32 quantization; and a
+  silent fallback to the request when the read-back failed, caught by a surviving mutant.
+  ⚠️ **Two "surviving" mutants were NOT evidence** — the uniqueness assertion refused anchors
+  matching 2 and 3 times; both died re-anchored. A blocked bad mutation is not a killed one.
+  🔴 **The gate ledger is back to NINE** — the eight plus `live-opacity-blend`, staled for the
+  first time. ⛔ Re-pin + re-run ONCE at R2 acceptance, after promotion moves `serverBuildId`.
+  🟡 **UNCOMMITTED.** ⛔ Committing is the owner's act.
+  ▶ **NEXT = R2 ACCEPTANCE, the last R2.7 item**: build the representative component/page
+  fixture, drive it end to end, promote the **five** `additive-preview` tools (`set_fill`,
+  `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`) → `stable`, then the
+  ONE nine-gate re-pin + re-run. **R3-A (`1.10.0`) follows.**
+  ⏳ Still open, both declined by the owner 2026-08-23: ① the three R2.1/R2.2/R2.4 gates;
+  ② the `set_fill` gradient `color` drop (`code.js:8047`).
 
 - 🔴 **1.3's GATE FAILED ITS FIRST RUN AND THE TOOL WAS RIGHT — Figma stores layer opacity
   as a FLOAT32.** `set_opacity` returned `0.3499999940395355` where the gate asserted

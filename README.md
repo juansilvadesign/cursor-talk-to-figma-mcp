@@ -226,6 +226,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `create_rectangle` - Create a new rectangle with position, size, and optional name
 - `create_frame` - Create a new frame with position, size, and optional name
 - `create_section` - Create a section to group related content on the canvas
+- `create_node_from_svg` - Create a node tree from SVG source using Figma's own parser, returning one frame containing the parsed subtree. **Not idempotent** — every call appends a fresh copy, and the reply carries `duplicatesOnRerun` to say so at the call site. Bounded by SVG source length (512KB) rather than node count, because Figma offers no way to preflight how many nodes a document expands into; `createdNodeCount` is a reading taken afterwards. Deliberately absent from `apply_batch`'s allowlist
 - `create_text` - Create a new text node with customizable font properties
 
 ### Modifying text content
@@ -264,7 +265,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_fill_color` - **Legacy.** Set the fill color of a node with flat `r, g, b, a` arguments. Kept for compatibility and frozen at `stable`; it takes a *different* shape from its own `apply_batch` operation, which takes `{color:{r,g,b,a}}`. Prefer `set_fill`, which is one shape on both surfaces
 - `set_stroke_color` - Set the stroke color and weight of a node
 - `set_corner_radius` - Set the corner radius of a node with optional per-corner control
-- `set_image_fill` - Fill a node with an image from a local file path, URL, or base64 data (FILL, FIT, CROP, or TILE)
+- `set_image_fill` - Fill a node with an image from a local file path, URL, or base64 data (FILL, FIT, CROP, or TILE). **`CROP` requires `imageTransform`**, a 2×3 matrix naming which region to crop to, and the parameter is refused for every other mode. Measured 2026-08-23: Figma accepts a bare `CROP` but stores the identity matrix, which renders a *stretch* rather than a crop — so a bare `CROP` is now refused instead of silently degrading. The reply reports `scaleMode`, `imageTransform` and `imageTransformSource` read back off the node, not echoed from the request
 
 ### Layout & Organization
 

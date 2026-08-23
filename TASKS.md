@@ -170,12 +170,25 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — R2.7 Phase 1 (**1.1, 1.2, 1.3 LIVE-GATED + the END-OF-RELEASE RE-PIN DONE**)
+## ▶ Current session — R2.7 **PHASE 2 BUILT AND GATED**; only R2 acceptance remains
 
-✅✅ **THE EIGHT-GATE RE-PIN IS PAID — 2026-08-23, channel `3az2oicz`, all eight green on one
-run each.** See the debt block below and `docs/R2.7-VISUALS.md` § *End-of-R2.7 re-pin*.
-🟡 **UNCOMMITTED** — nine files in the working tree (eight `scripts/live-*.mjs` + 
-`tests/live-gate-pins.test.mjs`) plus these records. ⛔ Committing is the owner's act.
+✅✅ **PHASE 2 IS DONE — 2026-08-23, channel `sdg5mr5m`, `live-svg-crop-gate.mjs` run twice**,
+fresh scratch page each time, renders byte-identical across runs. `create_node_from_svg` +
+the `set_image_fill` CROP repair. Pair `r2-server-2ca49b0a4fd1` ↔ `r2-plugin-2741d7f5f374`,
+schema **HELD at `1.9.0`**, **65 tools**, offline **363/363**, `verify` green, 10/10 + 8/8
+mutants killed with controls surviving. Record →
+[`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *Phase 2*.
+🔴 **The CROP defect was NOT what the checklist said** — Figma accepts `CROP` and stores it;
+the missing piece was `imageTransform`, whose absence renders a **stretch** reported as a crop.
+⭐ A read-back could not have caught it: the plugin says `"CROP"`, only REST says `"STRETCH"`.
+🔴 **Figma stores the image transform as FLOAT32** — `0.34` → `Math.fround(0.34)`, item 1.3's
+finding on a second field, and the identity matrix could not have revealed it.
+🔴 **The gate ledger is back to NINE** (the eight, plus `live-opacity-blend` for the first
+time). ⛔ Re-pinned and re-run ONCE at R2 acceptance, after promotion moves `serverBuildId`.
+🟡 **UNCOMMITTED.** ⛔ Committing is the owner's act.
+
+✅ **The eight-gate re-pin was paid earlier the same day** on channel `3az2oicz` — see the debt
+block below. ⚠️ It closed **Phase 1**, not the release; Phase 2 re-staled the set within hours.
 
 ✅✅ **ITEM 1.3 `set_opacity` / `set_blend_mode` IS BUILT AND LIVE-GATED — 2026-08-23.**
 `live-opacity-blend-gate.mjs` PASSED on channel **`shtlklfy`**, **run twice**, both runs on a
@@ -1474,18 +1487,32 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             allowlist** — each gets an `EXCLUDED_BATCH_OPERATIONS` entry with its reason,
             per the R2.2 pin-the-absence pattern. Not open for re-litigation on landing.
 - [ ] **R2.7 — visuals, assets, and R2 acceptance.** Contract `1.8.0` → `1.9.0`.
-      - [ ] `set_fill` (solid + gradient), `set_effects`, `set_opacity`, `set_blend_mode`.
+      - [x] `set_fill` (solid + gradient), `set_effects`, `set_opacity`, `set_blend_mode`.
             ⭐ `set_fill` ships **one** param shape, ending the batch-vs-standalone
             divergence the R2.4 gate caught; `set_fill_color` is `stable` and stays legacy.
-      - [ ] `create_node_from_svg` — standalone, **not** in the batch allowlist, input size
+      - [x] `create_node_from_svg` — standalone, **not** in the batch allowlist, input size
             bounded, created node count reported. ⚠️ Duplicates on rerun; idempotency stays
-            deferred and is stated rather than silent.
-      - [ ] Fix `CROP`: `imageTransform` appears **zero times** in the plugin while
-            `validScaleModes` advertises `CROP` (`:1950`) — the schema promises a mode the
-            handler cannot deliver. ⛔ Measure live before fixing; the explicit-limitation
-            escape hatch stays open, but only after measurement.
+            deferred and is stated rather than silent. ✅ **BUILT + GATED 2026-08-23** on
+            `sdg5mr5m`, run twice. The bound is on SVG **source length** (512KB) because node
+            count cannot be preflighted; `duplicatesOnRerun: true` is a permanent reply field,
+            not a doc line. Figma's parser expanded a 3-element SVG into **4 nodes** — measured,
+            never predicted by the harness.
+      - [x] Fix `CROP` — ✅ **DONE 2026-08-23, and the measurement changed the fix.** This
+            entry said *"the schema promises a mode the handler cannot deliver"*; that is
+            **wrong**. Figma ACCEPTS `CROP` and stores it — what was missing is
+            `imageTransform`, and without it the identity default renders a **stretch**
+            reported as a crop. Shipped: an optional `imageTransform` (contract-free —
+            `compareSchema` never walks new optional properties), a **handler** refusal for a
+            bare `CROP` (⛔ not an enum narrowing, which would be breaking), a refusal for the
+            transform on any non-CROP mode, and a receipt reporting the transform read off the
+            node. ⭐ The escape hatch was never taken: it was measured first, exactly as this
+            line required.
       - [ ] Build the representative component/page fixture R2 acceptance names, drive it
             end to end, then promote every new tool `additive-preview` → `stable`.
+            ⏳ **THE ONLY R2.7 ITEM LEFT.** Five tools await promotion: `set_fill`,
+            `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`.
+            ⛔ Promotion rewrites `contractPayload.tools` and so moves `serverBuildId` — the
+            **nine** stale gates are re-pinned and re-run ONCE on the promoted build, after it.
 - [ ] Keep each narrow tool independently usable; no framework or scene vocabulary in
       its schema.
 

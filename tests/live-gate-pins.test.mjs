@@ -31,69 +31,39 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
-  // ✅ THE R2.6 BACKLOG IS CLEARED — 2026-08-22, channel `sa6ggz00`.
+  // ✅ THE R2.7 BACKLOG IS CLEARED — 2026-08-23, channel `3az2oicz`.
   //
-  // Five entries lived here at once: `live-batch-gate.mjs` (R2.6 Phase 1),
-  // `live-text-style-gate.mjs` (item 2.0), `live-layout-gate.mjs` (2.1),
-  // `live-constraints-gate.mjs` (2.2) and `live-size-limits-gate.mjs` (2.3). Each layout
-  // item staled its predecessor's gate on the way in, and each declined to re-pin, because
-  // a change that can only re-run ONE gate cannot honestly re-pin five — that is five
-  // claims and one test (`e02d1b2`). The owner's standing call was to do the set ONCE
-  // after the layout tools landed. 2.4 was the last of them, so it was done: all five
-  // re-pinned to the item 2.4 build and all five RE-RUN on one channel, each once, all
-  // five green. Their entries are deleted rather than reworded — the declaration and the
-  // run travelled together, which is the whole rule.
+  // EIGHT entries lived here at once, and they arrived in three waves. Item 1.1 (`set_fill`)
+  // moved both build IDs and staled the six that R2.6 had just cleared — `live-batch-gate`,
+  // `live-text-style-gate`, `live-layout-gate`, `live-constraints-gate`,
+  // `live-size-limits-gate`, `live-clips-content-gate`. Item 1.2 (`set_effects`) then staled
+  // `live-fill-gate`, and item 1.3 (`set_opacity`/`set_blend_mode`) staled
+  // `live-effects-gate`. Each item re-ran only its OWN gate and declined to re-pin the rest,
+  // because a change that can only re-run one gate cannot honestly re-pin eight — that is
+  // eight claims and one test, the defect `e02d1b2` created. The set was done ONCE at the
+  // release's end: all eight re-pinned to the R2.7 final build
+  // (`r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`, schema 1.9.0, 64 tools) and all
+  // eight RE-RUN on one channel, each once. Their entries are deleted rather than reworded —
+  // the declaration and the run travelled together, which is the whole rule.
   //
-  // ⭐ **A PIN EDIT DOES NOT MOVE THE BUILD, and that is what made a five-gate re-pin
+  // ⚠️ The six were green on `sa6ggz00`, `live-fill` on `yoq962bg` and `live-effects` on
+  // `5982svqp`. Nothing about those results is withdrawn — they are results about builds
+  // this tree no longer produces, which is exactly why they could not be quoted forward.
+  //
+  // ⭐ **A PIN EDIT DOES NOT MOVE THE BUILD, and that is what makes an eight-gate re-pin
   // possible in one pass.** The standing worry — recorded in MEMORY.md as "each re-pin
-  // moves serverBuildId, so re-derive" — was WRONG, and it is worth naming because it is
-  // what made the backlog look unworkable. `serverBuildId` is
+  // moves serverBuildId, so re-derive" — was WRONG, and it is worth keeping named because
+  // it is what made the backlog look unworkable twice now. `serverBuildId` is
   // `sha256(server.ts + contractPayload)` and `pluginBuildId` hashes
   // `code.js` + `ui.html` + `manifest.json` (`scripts/contract-lib.mjs:605`). `scripts/`
-  // is hashed by NEITHER. So these five could never have staled each other; what staled
+  // is hashed by NEITHER. So these eight could never have staled each other; what staled
   // them was the *item* landing above them, every time.
   //
   // ⛔ The three entries above are a DIFFERENT case and stay: `live-export-gate.mjs`,
   // `live-create-page-gate.mjs` and `live-plugin-data-gate.mjs` belong to R2.1/R2.2/R2.4
-  // and were never part of the R2.6 backlog. They are owed a re-pin and a re-run together
-  // whenever their results are next quoted.
-  //
-  // 🔴 **AND THE BACKLOG IS BACK — all six, staled by R2.7 item 1.1 on 2026-08-23.**
-  // `set_fill` moved BOTH build IDs (`r2-server-975ccb3ce8b9` → `r2-server-b8086c604b60`,
-  // `r2-plugin-1eee5a6f3bd9` → `r2-plugin-d8537626e9db`) and the fingerprint
-  // (`sha256:f229f6ec…` → `sha256:07e3fff4…`), which is the 2.1/2.2/2.3 shape: a new tool
-  // is additive, so the schema HELD at `1.8.0`, but every pin below it moved.
-  //
-  // ⛔ NOT RE-PINNED, and that is the rule applying rather than an omission. A change that
-  // can only re-run ONE gate cannot honestly re-pin six — that would be six claims and one
-  // test, which is precisely the defect `e02d1b2` created and R2.6 Phase 1 had to repair.
-  // R2.7 re-pins and re-runs the set ONCE at its end, exactly as R2.6 did after 2.4.
-  //
-  // ⚠️ The six were green on `sa6ggz00` against the R2.6-accepted build, and nothing about
-  // that result is withdrawn — it is a result about a build this tree no longer produces.
-  "live-batch-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  "live-text-style-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  "live-layout-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  "live-constraints-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  "live-size-limits-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  "live-clips-content-gate.mjs":
-    "R2.6-accepted build, schema 1.8.0. Green on sa6ggz00; staled by R2.7 1.1 moving both build IDs. Re-pin and re-run with the R2.7 set.",
-  // `live-fill-gate` was the only gate pinned to the R2.7 item 1.1 build. Item 1.2 changes
-  // the exported read shape and spends the 1.9.0 bump, so its runtime preflight must now
-  // refuse rather than falsely presenting a 1.1 result as a 1.2 result. It joins the set for
-  // the single end-of-R2.7 re-pin/re-run; this change has not exercised that earlier gate.
-  "live-fill-gate.mjs":
-    "R2.7 item 1.1 build, schema 1.8.0. Green before item 1.2; staled by item 1.2 changing the read shape and runtime pins. Re-pin and re-run with the R2.7 set.",
-  // `live-effects-gate` was the current R2.7 item 1.2 gate. Item 1.3 adds two commands,
-  // moving both runtime identities without spending another schema version, so its old
-  // pins must refuse until the one end-of-R2.7 re-pin/re-run set is exercised.
-  "live-effects-gate.mjs":
-    "R2.7 item 1.2 build, schema 1.9.0. Green before item 1.3; staled by item 1.3 adding set_opacity and set_blend_mode. Re-pin and re-run with the R2.7 set.",
+  // and were part of neither the R2.6 nor the R2.7 backlog. They are owed a re-pin and a
+  // re-run together whenever their results are next quoted. Folding them into this pass was
+  // put to the owner on 2026-08-23 and declined — the scope was the eight.
 });
 
 function readPins(source) {

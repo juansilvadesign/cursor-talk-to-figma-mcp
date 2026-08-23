@@ -144,12 +144,12 @@ if (!options.channel) {
 // **NOT** need re-running — the plugin half did not move. Only an interactive MCP session
 // needs a respawn, and the gate spawns its own server from `dist/server.js`.
 const expectedRuntime = {
-  serverBuildId: "r2-server-975ccb3ce8b9",
-  pluginBuildId: "r2-plugin-1eee5a6f3bd9",
-  schemaVersion: "1.8.0",
+  serverBuildId: "r2-server-d95951a3ce93",
+  pluginBuildId: "r2-plugin-364f8001f2d1",
+  schemaVersion: "1.9.0",
   fingerprint:
-    "sha256:f229f6ecdaedbe930b729857d782eee25368e48699d370345bcbbb58b2453ebd",
-  toolCount: 60,
+    "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  toolCount: 64,
 };
 
 const serverPath = options.server

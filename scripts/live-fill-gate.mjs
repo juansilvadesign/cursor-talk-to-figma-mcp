@@ -107,12 +107,12 @@ if (!options.channel) {
 // has now differed on nearly every one of twelve steps, and both single-sided shapes have
 // now occurred.
 const expectedRuntime = {
-  serverBuildId: "r2-server-b8086c604b60",
-  pluginBuildId: "r2-plugin-959345dd8f16",
-  schemaVersion: "1.8.0",
+  serverBuildId: "r2-server-d95951a3ce93",
+  pluginBuildId: "r2-plugin-364f8001f2d1",
+  schemaVersion: "1.9.0",
   fingerprint:
-    "sha256:07e3fff4c6077110c5314d44619d2db53e0fe604b3bc18a5dcfea83cc22dbaea",
-  toolCount: 61,
+    "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  toolCount: 64,
 };
 
 const serverPath = options.server

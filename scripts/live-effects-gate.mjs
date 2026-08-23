@@ -40,15 +40,18 @@ if (!options.channel) {
 // this item changes the stable get_node_info result shape, spends 1.9.0, and therefore
 // moves both runtime identities and the capability fingerprint.
 const expectedRuntime = {
-  serverBuildId: "r2-server-fa007eb01947",
-  // Moved by the read-source repair: JSON_REST_V1 never carried `effectStyleId`, so the
-  // reading is attached from the plugin node before filtering. `code.js` alone changed —
-  // serverBuildId, the fingerprint, the schema and the tool count all held.
-  pluginBuildId: "r2-plugin-e577688241c0",
+  // Re-pinned to the R2.7 FINAL build at the end-of-release re-pin, 2026-08-23. ⚠️ The note
+  // that stood here described item 1.2's read-source repair — "`code.js` alone changed, the
+  // server ID, fingerprint, schema and tool count all held" — which was true when written and
+  // is false of this pin: item 1.3 moved BOTH build IDs and the fingerprint, and the tool
+  // count went 62 → 64. Deleted rather than reworded, because a stale note about which pins
+  // moved is the same class of lie as a stale pin.
+  serverBuildId: "r2-server-d95951a3ce93",
+  pluginBuildId: "r2-plugin-364f8001f2d1",
   schemaVersion: "1.9.0",
   fingerprint:
-    "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",
-  toolCount: 62,
+    "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  toolCount: 64,
 };
 
 const serverPath = options.server

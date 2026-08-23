@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-741db0eb6bd9",
+  "buildId": "r2-plugin-e577688241c0",
   "apiVersion": "1.9.0",
   "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
@@ -1392,6 +1392,34 @@ async function filterFigmaNode(node) {
   return filtered;
 }
 
+// ⛔ `JSON_REST_V1` DOES NOT CARRY `effectStyleId`. Measured 2026-08-23 against a real
+// bound frame, not inferred: the export's own keys are `…, effects, fills, styles, …` and
+// `effectStyleId` is absent on a bound node, an unbound node and a bound CHILD alike. A
+// bound style surfaces as `styles: { effect: "6052:226" }`, and `styles` is missing
+// entirely when nothing is bound.
+//
+// ⛔ The two ids are NOT the same value. REST's `styles.effect` is a file-local key
+// (`"6052:226"`) while the plugin's `effectStyleId` is `"S:0a45cd18…,"`. Republishing the
+// REST key under the plugin's name would hand a consumer an id that silently fails to
+// join against `set_effects`' own `styleIdBefore` / `styleIdAfter`, which read the plugin
+// node — a wrong value that reads exactly like a right one.
+//
+// So the reading is taken from the plugin node, which every top-level reader already
+// holds, and it is attached BEFORE `filterFigmaNode` so that both filter copies carry it
+// through their existing `effectStyleId` branches. An unbound node reports `""` rather
+// than omitting the key: omission is not an observation.
+//
+// ⚠️ Top-level only. Nested nodes in `children` have no plugin node in hand here, so they
+// carry `effects` but no effect-style reading; closing that would mean publishing REST's
+// `styles` map (a second id space) or a lossy join against the local-style list, and both
+// are contract decisions this item did not take.
+function withEffectStyleId(document, node) {
+  if (document && node && typeof node.effectStyleId === "string") {
+    document.effectStyleId = node.effectStyleId;
+  }
+  return document;
+}
+
 async function getNodeInfo(nodeId) {
   if (nodeId === figma.root.id || nodeId === "0:0") {
     throw new Error(
@@ -1413,7 +1441,7 @@ async function getNodeInfo(nodeId) {
     format: "JSON_REST_V1",
   });
 
-  return await filterFigmaNode(response.document);
+  return await filterFigmaNode(withEffectStyleId(response.document, node));
 }
 
 async function getNodesInfo(nodeIds) {
@@ -1442,7 +1470,9 @@ async function getNodesInfo(nodeIds) {
         });
         return {
           nodeId: node.id,
-          document: await filterFigmaNode(response.document),
+          document: await filterFigmaNode(
+            withEffectStyleId(response.document, node)
+          ),
         };
       })
     );
@@ -1633,7 +1663,9 @@ async function readMyDesign() {
         });
         return {
           nodeId: node.id,
-          document: await filterFigmaNode(response.document),
+          document: await filterFigmaNode(
+            withEffectStyleId(response.document, node)
+          ),
         };
       })
     );

@@ -41,7 +41,10 @@ if (!options.channel) {
 // moves both runtime identities and the capability fingerprint.
 const expectedRuntime = {
   serverBuildId: "r2-server-fa007eb01947",
-  pluginBuildId: "r2-plugin-741db0eb6bd9",
+  // Moved by the read-source repair: JSON_REST_V1 never carried `effectStyleId`, so the
+  // reading is attached from the plugin node before filtering. `code.js` alone changed —
+  // serverBuildId, the fingerprint, the schema and the tool count all held.
+  pluginBuildId: "r2-plugin-e577688241c0",
   schemaVersion: "1.9.0",
   fingerprint:
     "sha256:e36831b708e28c627858e48f73e7140642b6e296ebb75f4819232c8d00cf28fd",

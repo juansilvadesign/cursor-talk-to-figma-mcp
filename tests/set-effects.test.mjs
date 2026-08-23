@@ -320,6 +320,50 @@ test("the repaired read filter exposes effects, style, clipping, and render-boun
   });
 });
 
+// 🔴 These two exist because the live gate on channel `jnpnc1hg` failed on a field this
+// suite reported green. The export models REST, and REST has no `effectStyleId`; the
+// reading has to come from the plugin node. Pin BOTH halves — that the fake export does
+// not invent the field, and that the read still returns it — or the next harness change
+// can quietly restore the fiction and the only instrument left is a live channel.
+test("the JSON_REST_V1 export does not carry effectStyleId, so the read must source it from the plugin node", async () => {
+  const harness = await loadPluginHarness();
+  const exported = await harness
+    .getNode(STYLED_FRAME)
+    .exportAsync({ format: "JSON_REST_V1" });
+
+  assert.equal(
+    Object.hasOwn(exported.document, "effectStyleId"),
+    false,
+    "the fake export must not invent a field the real JSON_REST_V1 never returns",
+  );
+  assert.deepEqual(
+    exported.document.styles,
+    { effect: `REST-KEY:${EFFECT_STYLE_ID}` },
+    "REST carries a bound effect style under `styles`, in its own id space",
+  );
+
+  const read = await harness.command("get_node_info", { nodeId: STYLED_FRAME });
+  assert.equal(read.effectStyleId, EFFECT_STYLE_ID);
+  assert.notEqual(
+    read.effectStyleId,
+    exported.document.styles.effect,
+    "the published reading is the plugin id, the one set_effects' receipt reports",
+  );
+});
+
+test("an unbound carrier reports effectStyleId as \"\" rather than omitting the observation", async () => {
+  const harness = await loadPluginHarness();
+  const read = await harness.command("get_node_info", { nodeId: RECTANGLE });
+
+  assert.equal(Object.hasOwn(read, "effectStyleId"), true);
+  assert.equal(read.effectStyleId, "");
+  assert.equal(
+    Object.hasOwn(read, "styles"),
+    false,
+    "REST omits `styles` when nothing is bound, and nothing invents it",
+  );
+});
+
 test("both filter copies explicitly preserve the four R2.7 read fields", async () => {
   const [server, plugin] = await Promise.all([
     readFile(path.join(root, "src/talk_to_figma_mcp/server.ts"), "utf8"),

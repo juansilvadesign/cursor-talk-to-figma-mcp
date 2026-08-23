@@ -207,6 +207,14 @@ function createFixtureRuntime(fixture, options) {
         key === "parent" ||
         key === "children" ||
         key === "loadMs" ||
+        // ⛔ `effectStyleId` is a PLUGIN-node property and the real JSON_REST_V1 export
+        // has never carried it — measured 2026-08-23 on a bound frame, an unbound frame
+        // and a bound child alike. The effects model made it enumerable on the fake node,
+        // and serializing the node's own properties then injected it into the fake export
+        // for free, so every offline test read a field the live channel never returned.
+        // That is what left the plugin filter's `effectStyleId` branch dead against real
+        // input while the suite stayed green. The export models REST; REST has `styles`.
+        key === "effectStyleId" ||
         typeof value === "function"
       ) {
         continue;
@@ -218,6 +226,13 @@ function createFixtureRuntime(fixture, options) {
     // exported response without claiming every real export includes or recomputes it.
     if ((options.includeAbsoluteRenderBoundsInExport || []).includes(node.id)) {
       result.absoluteRenderBounds = clone(node.absoluteRenderBounds);
+    }
+    // REST expresses a bound effect style here, and omits `styles` entirely when nothing
+    // is bound. ⛔ The value is deliberately NOT the plugin's id: the real export uses a
+    // file-local key ("6052:226") where the plugin uses "S:0a45cd18…,", so a harness that
+    // reused one string would let a test assert an equality the platform never makes.
+    if (typeof node.effectStyleId === "string" && node.effectStyleId !== "") {
+      result.styles = { effect: `REST-KEY:${node.effectStyleId}` };
     }
     if (Array.isArray(node.children)) {
       result.children = node.children.map(serializeNode);

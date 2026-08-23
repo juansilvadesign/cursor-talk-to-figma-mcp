@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-364f8001f2d1",
+  "buildId": "r2-plugin-2741d7f5f374",
   "apiVersion": "1.9.0",
   "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -71,6 +71,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_focus",
     "set_selections",
     "set_image_fill",
+    "create_node_from_svg",
     "rename_node",
     "create_section",
     "set_parent"
@@ -82,6 +83,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
@@ -446,6 +448,8 @@ async function handleCommand(command, params) {
       return await setSelections(params);
     case "set_image_fill":
       return await setImageFill(params);
+    case "create_node_from_svg":
+      return await createNodeFromSvg(params);
     case "rename_node":
       return await renameNode(params);
     case "create_section":
@@ -2192,8 +2196,211 @@ async function setStrokeColor(params) {
   };
 }
 
+// ⛔ **CROP IS THE ONE SCALE MODE THAT NEEDS A SECOND ARGUMENT**, and until R2.7 Phase 2 it
+// silently did without one. MEASURED live 2026-08-23 (page `R2.7 P2 CROP probe`): writing
+// `scaleMode: "CROP"` with no `imageTransform` is **accepted** by Figma and stored with the
+// identity matrix `[[1,0,0],[0,1,0]]`, which `JSON_REST_V1` reports as `scaleMode: "STRETCH"`
+// — a DIFFERENT ID SPACE for the same stored state, the third time this fork has been bitten
+// by one. An identity transform maps the whole image onto the whole box, so the render is a
+// **stretch**: a 200×100 probe squashed into a 100×100 node kept BOTH its edge markers, where
+// a real `FILL` centre-crop dropped both. The old receipt echoed the requested `"CROP"` back,
+// so the caller was told *crop* and shown a *distortion*.
+//
+// ⭐ **Reading the mode back would NOT have caught this** — the plugin node answers `"CROP"`
+// too, so both vocabularies agree while the pixels disagree. The field that discriminates a
+// crop from a stretch is the **transform**, never the mode name. That is why the receipt below
+// reports `imageTransform` read off the node, and why a bare `CROP` is now refused rather than
+// quietly defaulted: a discarded value reads as an applied one.
+const IMAGE_TRANSFORM_ROWS = 2;
+const IMAGE_TRANSFORM_COLUMNS = 3;
+
+// Validates and normalizes a caller-supplied 2×3 image transform. Runs entirely in the
+// validation phase — every throw here has written nothing anywhere.
+function validateImageTransform(imageTransform, scaleMode) {
+  if (imageTransform === undefined || imageTransform === null) {
+    if (scaleMode === "CROP") {
+      throw new Error(
+        "scaleMode CROP requires imageTransform, a 2x3 matrix naming WHICH region to crop to, and wrote nothing. " +
+          "Figma accepts a bare CROP but stores the identity matrix [[1,0,0],[0,1,0]], which maps the whole image onto " +
+          "the whole node and renders a STRETCH, not a crop — measured live 2026-08-23. Pass imageTransform, or use " +
+          "scaleMode FILL/FIT/TILE if a stretch is what you meant."
+      );
+    }
+    return null;
+  }
+
+  // ⛔ Supplying a transform with any other mode would be SILENTLY DISCARDED by Figma —
+  // `imageTransform` is read only for CROP. Same rule as `create_text`'s fontWeight ×
+  // fontFamily and `set_fill`'s color.a × opacity: refuse the pair, never pick a winner.
+  if (scaleMode !== "CROP") {
+    throw new Error(
+      `imageTransform only applies to scaleMode CROP; received scaleMode ${JSON.stringify(
+        scaleMode
+      )} and wrote nothing. Figma reads the transform for CROP alone, so supplying both would discard one silently.`
+    );
+  }
+
+  if (!Array.isArray(imageTransform) || imageTransform.length !== IMAGE_TRANSFORM_ROWS) {
+    throw new Error(
+      `imageTransform must be an array of ${IMAGE_TRANSFORM_ROWS} rows; received ${JSON.stringify(
+        imageTransform
+      )} and wrote nothing`
+    );
+  }
+
+  const normalized = [];
+  for (let row = 0; row < IMAGE_TRANSFORM_ROWS; row++) {
+    const values = imageTransform[row];
+    if (!Array.isArray(values) || values.length !== IMAGE_TRANSFORM_COLUMNS) {
+      throw new Error(
+        `imageTransform[${row}] must be an array of ${IMAGE_TRANSFORM_COLUMNS} numbers; received ${JSON.stringify(
+          values
+        )} and wrote nothing`
+      );
+    }
+    const rowValues = [];
+    for (let column = 0; column < IMAGE_TRANSFORM_COLUMNS; column++) {
+      const value = values[column];
+      if (typeof value !== "number" || !isFinite(value)) {
+        throw new Error(
+          `imageTransform[${row}][${column}] must be a finite number; received ${JSON.stringify(
+            value
+          )} and wrote nothing`
+        );
+      }
+      rowValues.push(value);
+    }
+    normalized.push(rowValues);
+  }
+  return normalized;
+}
+
+// Figma hands back a readonly Transform; JSON needs plain arrays.
+function readImageTransform(paint) {
+  if (!paint || !paint.imageTransform) return null;
+  const rows = [];
+  for (let row = 0; row < paint.imageTransform.length; row++) {
+    rows.push(Array.prototype.slice.call(paint.imageTransform[row]));
+  }
+  return rows;
+}
+
+// R2.7 Phase 2 — `create_node_from_svg`.
+//
+// ⛔ **THIS TOOL IS NOT IDEMPOTENT AND SAYS SO IN ITS OWN RECEIPT.** `figma.createNodeFromSvg`
+// appends a fresh subtree every call, so running the same request twice leaves two copies in
+// the file. The plan's rule for this item was that the duplication is *stated rather than
+// silent*, which is why `duplicatesOnRerun: true` is a permanent field of the reply and not a
+// line in the docs: a caller retrying after a timeout needs the warning at the call site.
+//
+// ⛔ **THE INPUT IS BOUNDED, and the bound is on the SVG, not on the node count.** Figma gives
+// no way to preflight how many nodes a document will expand into, so the only honest ceiling
+// is the source length. The count is reported AFTER the fact — a reading, never a promise.
+const MAX_SVG_SOURCE_LENGTH = 512 * 1024;
+
+// Counts the created subtree, root included. `createNodeFromSvg` returns one FrameNode whose
+// depth is the SVG's, so this is a reading of what actually landed rather than a prediction.
+function countSubtree(node) {
+  let total = 1;
+  if ("children" in node && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      total += countSubtree(child);
+    }
+  }
+  return total;
+}
+
+async function createNodeFromSvg(params) {
+  const { svg, x = 0, y = 0, name, parentId } = params || {};
+
+  if (typeof svg !== "string" || svg.length === 0) {
+    throw new Error(
+      "create_node_from_svg requires svg, a non-empty string of SVG source, and created nothing"
+    );
+  }
+  if (svg.length > MAX_SVG_SOURCE_LENGTH) {
+    throw new Error(
+      `create_node_from_svg refused ${svg.length} characters of SVG: this fork's ceiling is ${MAX_SVG_SOURCE_LENGTH}. ` +
+        "The limit is on the SOURCE because Figma offers no way to preflight how many nodes it will expand into, and created nothing"
+    );
+  }
+  for (const [label, value] of [["x", x], ["y", y]]) {
+    if (typeof value !== "number" || !isFinite(value)) {
+      throw new Error(
+        `create_node_from_svg requires ${label} to be a finite number; received ${JSON.stringify(
+          value
+        )} and created nothing`
+      );
+    }
+  }
+
+  // ⛔ VALIDATE-ALL-THEN-CREATE, the rule `create_text` established: the parent is resolved
+  // BEFORE `createNodeFromSvg`, because on a create tool a late refusal leaves an orphan node
+  // in the document rather than a half-written one.
+  let parent = figma.currentPage;
+  if (parentId) {
+    parent = await figma.getNodeByIdAsync(parentId);
+    if (!parent) {
+      throw new Error(`Parent node not found with ID: ${parentId} — created nothing`);
+    }
+    if (!("appendChild" in parent)) {
+      throw new Error(
+        `create_node_from_svg cannot parent into ${parentId}: a ${parent.type} accepts no children, and created nothing`
+      );
+    }
+  }
+
+  let node;
+  try {
+    node = figma.createNodeFromSvg(svg);
+  } catch (error) {
+    // Figma's own parser is the authority on what SVG is; this fork does not second-guess it.
+    throw new Error(
+      `Figma rejected the SVG source and created nothing: ${error.message}`
+    );
+  }
+
+  node.x = x;
+  node.y = y;
+  if (name !== undefined) {
+    if (typeof name !== "string" || name.length === 0) {
+      // ⚠️ The node already exists by this point, so a refusal here must REMOVE it — a
+      // half-created node is exactly what validate-all-then-create exists to prevent, and
+      // `name` is the one field that cannot be checked before Figma has parsed the source.
+      node.remove();
+      throw new Error(
+        `create_node_from_svg requires name to be a non-empty string when supplied; received ${JSON.stringify(
+          name
+        )} and removed the node it had created`
+      );
+    }
+    node.name = name;
+  }
+  if (parentId) {
+    parent.appendChild(node);
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    parentId: node.parent ? node.parent.id : null,
+    // A reading taken after the fact, not a prediction — see the comment on countSubtree.
+    createdNodeCount: countSubtree(node),
+    svgSourceLength: svg.length,
+    // ⛔ Permanent and always true. Idempotency is DEFERRED, not absent-by-oversight: a
+    // caller who retries this request after a timeout gets a second copy, and the reply is
+    // where that has to be said.
+    duplicatesOnRerun: true,
+  };
+}
+
 async function setImageFill(params) {
-  const { nodeId, imageBase64, scaleMode = "FILL" } = params || {};
+  const { nodeId, imageBase64, scaleMode = "FILL", imageTransform } = params || {};
 
   if (!nodeId) {
     throw new Error("Missing nodeId parameter");
@@ -2209,6 +2416,10 @@ async function setImageFill(params) {
       `Invalid scaleMode: ${scaleMode}. Must be one of: ${validScaleModes.join(", ")}`
     );
   }
+
+  // ⛔ VALIDATE-ALL-THEN-WRITE. The transform is checked before the node is resolved and
+  // long before `createImage`, so a bad matrix cannot leave an orphaned image in the file.
+  const requestedTransform = validateImageTransform(imageTransform, scaleMode);
 
   const node = await figma.getNodeByIdAsync(nodeId);
   if (!node) {
@@ -2230,13 +2441,15 @@ async function setImageFill(params) {
     );
   }
 
-  node.fills = [
-    {
-      type: "IMAGE",
-      imageHash: image.hash,
-      scaleMode: scaleMode,
-    },
-  ];
+  const paint = {
+    type: "IMAGE",
+    imageHash: image.hash,
+    scaleMode: scaleMode,
+  };
+  if (requestedTransform) {
+    paint.imageTransform = requestedTransform;
+  }
+  node.fills = [paint];
 
   let imageWidth;
   let imageHeight;
@@ -2248,11 +2461,31 @@ async function setImageFill(params) {
     // Size lookup is informational only
   }
 
+  // ⭐ READ BACK off the node rather than echoing the request. `scaleMode` alone cannot
+  // falsify itself here (see the block above), so the transform travels with it — that is
+  // the reading a caller needs to tell a crop from a stretch.
+  const appliedPaint = Array.isArray(node.fills) ? node.fills[0] : null;
+  const appliedTransform = readImageTransform(appliedPaint);
+  // ⛔ NO SILENT FALLBACK TO THE REQUEST. An earlier draft read
+  // `appliedPaint.scaleMode ? appliedPaint.scaleMode : scaleMode`, which quietly reprinted the
+  // caller's own argument whenever the node could not be read — turning an unreadable node
+  // into a confident echo, indistinguishable from a real reading. `null` plus an explicit
+  // readability flag is the same shape `set_opacity` uses, and it cannot be mistaken for a
+  // measurement. See [[feedback_a_silent_default_is_byte_identical_to_a_decision]].
+  const scaleModeReadable =
+    !!appliedPaint && typeof appliedPaint.scaleMode === "string";
+
   return {
     id: node.id,
     name: node.name,
     imageHash: image.hash,
-    scaleMode: scaleMode,
+    scaleMode: scaleModeReadable ? appliedPaint.scaleMode : null,
+    scaleModeReadable: scaleModeReadable,
+    imageTransform: appliedTransform,
+    // `caller` is the only reachable value while a bare CROP is refused; `none` covers every
+    // non-CROP mode. ⛔ Recorded as a fact about the current refusal, not a permanent one —
+    // if the refusal is ever relaxed, a `platform-default` reading becomes possible here.
+    imageTransformSource: requestedTransform ? "caller" : "none",
     imageWidth: imageWidth,
     imageHeight: imageHeight,
   };
@@ -9300,6 +9533,12 @@ const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   create_component_instance:
     "v1 is mutate-only; creates arrive later as a new op kind",
   create_connections: "v1 is mutate-only; creates arrive later as a new op kind",
+  // R2.7 Phase 2. Excluded on the mutate-only rule like every other create_*, and the plan
+  // named the exclusion before the tool existed. ⚠️ It is also the create_* with the
+  // strongest independent reason: the tool is NOT idempotent, so a retried batch would
+  // duplicate whole subtrees rather than re-apply one field.
+  create_node_from_svg:
+    "v1 is mutate-only; creates arrive later as a new op kind — and this one duplicates its whole subtree on rerun, so a retried batch would multiply nodes",
   export_node_as_image:
     "binary payloads have their own bounded contract and belong nowhere near a 200-item receipt",
   join_channel: "connection plumbing stays distinct from document commands",

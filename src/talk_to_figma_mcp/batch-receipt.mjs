@@ -126,6 +126,12 @@ export const EXCLUDED_BATCH_OPERATIONS = Object.freeze({
   create_component_instance:
     "v1 is mutate-only; creates arrive later as a new op kind",
   create_connections: "v1 is mutate-only; creates arrive later as a new op kind",
+  // R2.7 Phase 2. Excluded on the mutate-only rule like every other create_*, and the plan
+  // named the exclusion before the tool existed. ⚠️ It is also the create_* with the
+  // strongest independent reason: the tool is NOT idempotent, so a retried batch would
+  // duplicate whole subtrees rather than re-apply one field.
+  create_node_from_svg:
+    "v1 is mutate-only; creates arrive later as a new op kind — and this one duplicates its whole subtree on rerun, so a retried batch would multiply nodes",
   export_node_as_image:
     "binary payloads have their own bounded contract and belong nowhere near a 200-item receipt",
   join_channel: "connection plumbing stays distinct from document commands",

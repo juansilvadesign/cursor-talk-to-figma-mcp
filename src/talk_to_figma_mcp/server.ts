@@ -4272,6 +4272,7 @@ type FigmaCommand =
   | "set_effects"
   | "set_opacity"
   | "set_blend_mode"
+  | "create_node_from_svg"
   | "get_reactions"
   | "set_default_connector"
   | "create_connections"
@@ -4660,6 +4661,14 @@ type CommandParams = {
     nodeId: string;
     imageBase64: string;
     scaleMode?: "FILL" | "FIT" | "CROP" | "TILE";
+    imageTransform?: number[][];
+  };
+  create_node_from_svg: {
+    svg: string;
+    x?: number;
+    y?: number;
+    name?: string;
+    parentId?: string;
   };
   rename_node: {
     nodeId: string;
@@ -4951,10 +4960,58 @@ function sendCommandToFigma(
   });
 }
 
+server.tool(
+  "create_node_from_svg",
+  "Create a Figma node tree from SVG source, using Figma's own SVG parser. Returns one FrameNode containing the parsed subtree. IMPORTANT: this tool is NOT idempotent — every call appends a fresh copy, so retrying after a timeout leaves two subtrees in the file; the reply carries duplicatesOnRerun to say so at the call site. The input is bounded by SVG source length rather than by node count, because Figma offers no way to preflight how many nodes a document expands into; createdNodeCount in the reply is a reading taken afterwards, never a prediction. This tool is deliberately absent from apply_batch's allowlist: a retried batch would multiply whole subtrees rather than re-apply one field.",
+  {
+    svg: z
+      .string()
+      .min(1)
+      .max(
+        512 * 1024,
+        "SVG source exceeds this fork's 512KB ceiling; the limit is on the source because node count cannot be preflighted"
+      )
+      .describe("SVG source to parse. Figma's parser is the authority on what is valid"),
+    x: z.number().optional().describe("X position of the created frame (default: 0)"),
+    y: z.number().optional().describe("Y position of the created frame (default: 0)"),
+    name: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Optional name for the created frame; Figma's own default is kept when omitted"),
+    parentId: z
+      .string()
+      .optional()
+      .describe("Optional parent node ID. Defaults to the current page"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("create_node_from_svg", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating node from SVG: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Set Image Fill Tool
 server.tool(
   "set_image_fill",
-  "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills)",
+  "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills). IMPORTANT: scaleMode CROP requires imageTransform, a 2x3 matrix naming which region to crop to. Figma accepts a bare CROP but stores the identity matrix, which maps the whole image onto the whole node and renders a STRETCH rather than a crop — measured live 2026-08-23 — so a CROP without a transform is refused instead of silently degrading. Supplying imageTransform with any other scaleMode is also refused, because Figma reads it for CROP alone and would discard it. The reply reports scaleMode, imageTransform and imageTransformSource read back off the node rather than echoed from the request; scaleMode is null with scaleModeReadable false when the node's fills cannot be read.",
   {
     nodeId: z.string().describe("The ID of the node to fill"),
     imagePath: z
@@ -4979,8 +5036,15 @@ server.tool(
       .enum(["FILL", "FIT", "CROP", "TILE"])
       .optional()
       .describe("How the image fills the node (default: FILL)"),
+    imageTransform: z
+      .array(z.array(z.number()).length(3))
+      .length(2)
+      .optional()
+      .describe(
+        "2x3 matrix naming WHICH region a CROP maps the node onto. REQUIRED for scaleMode CROP and refused for every other mode. Figma accepts a bare CROP but stores the identity matrix [[1,0,0],[0,1,0]], which renders a STRETCH rather than a crop"
+      ),
   },
-  async ({ nodeId, imagePath, imageUrl, imageBase64, scaleMode }: any) => {
+  async ({ nodeId, imagePath, imageUrl, imageBase64, scaleMode, imageTransform }: any) => {
     try {
       const sources = [imagePath, imageUrl, imageBase64].filter(
         (source) => source !== undefined && source !== ""
@@ -5013,22 +5077,45 @@ server.tool(
         nodeId,
         imageBase64: base64Data,
         scaleMode: scaleMode || "FILL",
+        ...(imageTransform === undefined ? {} : { imageTransform }),
       });
       const typedResult = result as {
         name: string;
         imageHash: string;
+        scaleMode?: string | null;
+        scaleModeReadable?: boolean;
+        imageTransform?: number[][] | null;
+        imageTransformSource?: string;
         imageWidth?: number;
         imageHeight?: number;
       };
       const sizeInfo = typedResult.imageWidth
         ? ` (${typedResult.imageWidth}x${typedResult.imageHeight})`
         : "";
+      // ⛔ The mode is quoted from the RECEIPT, not from the request. This line used to print
+      // `scaleMode || "FILL"` — the caller's own argument — so it said CROP even when Figma
+      // had stored a stretch. Several gates parse this line; it must not narrate an intent.
+      // ⛔ And an unreadable mode prints as `unreadable`, never as the request: falling back
+      // to the argument here would reinstate the same echo one layer up.
+      const appliedMode = typedResult.scaleModeReadable
+        ? typedResult.scaleMode
+        : "unreadable";
+      const transformInfo = typedResult.imageTransform
+        ? `, imageTransform: ${JSON.stringify(typedResult.imageTransform)} (${typedResult.imageTransformSource || "unknown"})`
+        : "";
+      // ⛔ THE PROSE LINE IS HISTORICAL AND SEVERAL GATES PARSE IT, so it is preserved
+      // verbatim in shape and the receipt is APPENDED underneath — `create_text`'s pattern,
+      // for the same reason. ⭐ Without this the transform was only reachable by regexing an
+      // English sentence, which is not "reporting" it: a receipt no consumer can parse is a
+      // receipt in name only, and the whole point of the CROP repair is that the transform is
+      // the field that distinguishes a crop from a stretch.
       return {
         content: [
           {
             type: "text",
-            text: `Set image fill of node "${typedResult.name}"${sizeInfo} with scale mode ${scaleMode || "FILL"
-              }, imageHash: ${typedResult.imageHash}`,
+            text:
+              `Set image fill of node "${typedResult.name}"${sizeInfo} with scale mode ${appliedMode}${transformInfo}, imageHash: ${typedResult.imageHash}\n` +
+              JSON.stringify(typedResult),
           },
         ],
       };

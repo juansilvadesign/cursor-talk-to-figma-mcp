@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-d95951a3ce93",
-  "pluginBuildId": "r2-plugin-364f8001f2d1",
+  "serverBuildId": "r2-server-2ca49b0a4fd1",
+  "pluginBuildId": "r2-plugin-2741d7f5f374",
   "serverSchemaVersion": "1.9.0",
   "pluginApiVersion": "1.9.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
+  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -102,6 +102,7 @@ var RUNTIME_METADATA = {
     "set_focus",
     "set_selections",
     "set_image_fill",
+    "create_node_from_svg",
     "rename_node",
     "create_section",
     "set_parent"
@@ -113,6 +114,7 @@ var RUNTIME_METADATA = {
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
@@ -179,6 +181,7 @@ var RUNTIME_METADATA = {
     "create_component_instance",
     "create_connections",
     "create_frame",
+    "create_node_from_svg",
     "create_page",
     "create_rectangle",
     "create_section",
@@ -3908,8 +3911,44 @@ function sendCommandToFigma(command, params = {}, timeoutMs = 3e4) {
   });
 }
 server.tool(
+  "create_node_from_svg",
+  "Create a Figma node tree from SVG source, using Figma's own SVG parser. Returns one FrameNode containing the parsed subtree. IMPORTANT: this tool is NOT idempotent \u2014 every call appends a fresh copy, so retrying after a timeout leaves two subtrees in the file; the reply carries duplicatesOnRerun to say so at the call site. The input is bounded by SVG source length rather than by node count, because Figma offers no way to preflight how many nodes a document expands into; createdNodeCount in the reply is a reading taken afterwards, never a prediction. This tool is deliberately absent from apply_batch's allowlist: a retried batch would multiply whole subtrees rather than re-apply one field.",
+  {
+    svg: import_zod.z.string().min(1).max(
+      512 * 1024,
+      "SVG source exceeds this fork's 512KB ceiling; the limit is on the source because node count cannot be preflighted"
+    ).describe("SVG source to parse. Figma's parser is the authority on what is valid"),
+    x: import_zod.z.number().optional().describe("X position of the created frame (default: 0)"),
+    y: import_zod.z.number().optional().describe("Y position of the created frame (default: 0)"),
+    name: import_zod.z.string().min(1).optional().describe("Optional name for the created frame; Figma's own default is kept when omitted"),
+    parentId: import_zod.z.string().optional().describe("Optional parent node ID. Defaults to the current page")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("create_node_from_svg", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating node from SVG: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
   "set_image_fill",
-  "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills)",
+  "Fill a node in Figma with an image from a local file path, a URL, or base64 data (replaces the node's existing fills). IMPORTANT: scaleMode CROP requires imageTransform, a 2x3 matrix naming which region to crop to. Figma accepts a bare CROP but stores the identity matrix, which maps the whole image onto the whole node and renders a STRETCH rather than a crop \u2014 measured live 2026-08-23 \u2014 so a CROP without a transform is refused instead of silently degrading. Supplying imageTransform with any other scaleMode is also refused, because Figma reads it for CROP alone and would discard it. The reply reports scaleMode, imageTransform and imageTransformSource read back off the node rather than echoed from the request; scaleMode is null with scaleModeReadable false when the node's fills cannot be read.",
   {
     nodeId: import_zod.z.string().describe("The ID of the node to fill"),
     imagePath: import_zod.z.string().optional().describe(
@@ -3921,9 +3960,12 @@ server.tool(
     imageBase64: import_zod.z.string().optional().describe(
       "Base64-encoded image data, with or without a data: URI prefix (only when the image exists nowhere else)"
     ),
-    scaleMode: import_zod.z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image fills the node (default: FILL)")
+    scaleMode: import_zod.z.enum(["FILL", "FIT", "CROP", "TILE"]).optional().describe("How the image fills the node (default: FILL)"),
+    imageTransform: import_zod.z.array(import_zod.z.array(import_zod.z.number()).length(3)).length(2).optional().describe(
+      "2x3 matrix naming WHICH region a CROP maps the node onto. REQUIRED for scaleMode CROP and refused for every other mode. Figma accepts a bare CROP but stores the identity matrix [[1,0,0],[0,1,0]], which renders a STRETCH rather than a crop"
+    )
   },
-  async ({ nodeId, imagePath, imageUrl, imageBase64, scaleMode }) => {
+  async ({ nodeId, imagePath, imageUrl, imageBase64, scaleMode, imageTransform }) => {
     try {
       const sources = [imagePath, imageUrl, imageBase64].filter(
         (source) => source !== void 0 && source !== ""
@@ -3951,15 +3993,19 @@ server.tool(
       const result = await sendCommandToFigma("set_image_fill", {
         nodeId,
         imageBase64: base64Data,
-        scaleMode: scaleMode || "FILL"
+        scaleMode: scaleMode || "FILL",
+        ...imageTransform === void 0 ? {} : { imageTransform }
       });
       const typedResult = result;
       const sizeInfo = typedResult.imageWidth ? ` (${typedResult.imageWidth}x${typedResult.imageHeight})` : "";
+      const appliedMode = typedResult.scaleModeReadable ? typedResult.scaleMode : "unreadable";
+      const transformInfo = typedResult.imageTransform ? `, imageTransform: ${JSON.stringify(typedResult.imageTransform)} (${typedResult.imageTransformSource || "unknown"})` : "";
       return {
         content: [
           {
             type: "text",
-            text: `Set image fill of node "${typedResult.name}"${sizeInfo} with scale mode ${scaleMode || "FILL"}, imageHash: ${typedResult.imageHash}`
+            text: `Set image fill of node "${typedResult.name}"${sizeInfo} with scale mode ${appliedMode}${transformInfo}, imageHash: ${typedResult.imageHash}
+` + JSON.stringify(typedResult)
           }
         ]
       };

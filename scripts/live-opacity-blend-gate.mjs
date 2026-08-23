@@ -51,6 +51,15 @@ const expectedRuntime = {
   toolCount: 64,
 };
 
+// Figma stores layer opacity as a 32-bit float, so a written 0.35 reads back as
+// Math.fround(0.35) === 0.3499999940395355. Asserting the STORED value rather than the
+// requested double is stricter, not looser: an echoing receipt would hand back exactly
+// 0.35 and fail here, so this assertion is itself the live echo detector. Measured on
+// channel shtlklfy 2026-08-23 — the offline harness stores a plain double and so cannot
+// produce this reading in either direction, which is why only a live run could find it.
+const REQUESTED_OPACITY = 0.35;
+const STORED_OPACITY = Math.fround(REQUESTED_OPACITY);
+
 const LAYER_BLEND_MODES = [
   "PASS_THROUGH",
   "NORMAL",
@@ -336,7 +345,7 @@ try {
   // red-over-blue scene gives a separate result that an echo cannot fabricate.
   const opaqueScene = await renderBytes(scene, "3-scene-opaque");
   const controlBefore = await renderBytes(control, "3-control-before");
-  const opacityReceipt = (await callJson("set_opacity", { nodeId: target, opacity: 0.35 })).value;
+  const opacityReceipt = (await callJson("set_opacity", { nodeId: target, opacity: REQUESTED_OPACITY })).value;
   const transparentScene = await renderBytes(scene, "3-scene-opacity-035");
   const controlAfterOpacity = await renderBytes(control, "3-control-after-opacity");
   record.checks.opacity = {
@@ -353,8 +362,20 @@ try {
     controlAfterSha: controlAfterOpacity.sha256,
     pixelsChanged: opaqueScene.sha256 !== transparentScene.sha256,
     controlHeld: controlBefore.sha256 === controlAfterOpacity.sha256,
+    requestedOpacity: REQUESTED_OPACITY,
+    storedOpacity: STORED_OPACITY,
+    quantizedByPlatform: opacityReceipt.opacity !== REQUESTED_OPACITY,
   };
-  assert.equal(opacityReceipt.opacity, 0.35);
+  assert.equal(
+    opacityReceipt.opacity,
+    STORED_OPACITY,
+    "opacity read-back is not Figma's float32-stored value — an exact 0.35 here would mean the receipt echoed the request instead of re-reading the node",
+  );
+  assert.equal(
+    record.checks.opacity.quantizedByPlatform,
+    true,
+    "the receipt returned the requested double unchanged, which no float32 store can produce",
+  );
   assert.equal(opacityReceipt.opacityReadable, true);
   assert.equal(opacityReceipt.changed, true);
   assert.equal(record.checks.opacity.pixelsChanged, true, "opacity write did not change rendered scene bytes");
@@ -363,7 +384,7 @@ try {
   // Restore opacity before the blend measurement. The receipt must show the preceding
   // .35, which prevents a handler from inventing both receipts independently.
   const restoreOpacity = (await callJson("set_opacity", { nodeId: target, opacity: 1 })).value;
-  assert.equal(restoreOpacity.previousOpacity, 0.35);
+  assert.equal(restoreOpacity.previousOpacity, STORED_OPACITY);
   assert.equal(restoreOpacity.opacity, 1);
 
   // 4. Layer blend mode resolves against the blue sibling. Normal, MULTIPLY and SCREEN

@@ -170,13 +170,32 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — R2.7 Phase 1 (**1.1 and 1.2 GATED + COMMITTED; 1.3 OFFLINE-GATED**)
+## ▶ Current session — R2.7 Phase 1 (**1.1, 1.2 and 1.3 ALL LIVE-GATED**)
 
-**▶ Item 1.3, `set_opacity` / `set_blend_mode`, is implemented.**
-⚠️ It remains **ADDITIVE ONLY**: `1.9.0` was spent by 1.2 and `1.10.0` belongs to R3-A, so
-there is **no bump left in R2.7**. The 64-tool / 343-test build leaves stable read results
-unchanged; its fresh live opacity/blend gate is prepared but still needs a DEV-plugin reload
-and live channel.
+✅✅ **ITEM 1.3 `set_opacity` / `set_blend_mode` IS BUILT AND LIVE-GATED — 2026-08-23.**
+`live-opacity-blend-gate.mjs` PASSED on channel **`shtlklfy`**, **run twice**, both runs on a
+fresh scratch page and agreeing on every measured value. Pair `r2-server-d95951a3ce93` ↔
+`r2-plugin-364f8001f2d1`, `1.9.0`, **64 tools**, offline **343/343**, `bun run verify` green.
+⚠️ **ADDITIVE ONLY held, and it is now MEASURED**: `get_node_info` grew neither `opacity` nor
+`blendMode`, before or after the writes — `1.9.0` was spent by 1.2 and `1.10.0` is R3-A's, so
+R2.7 has no bump left. Opacity moved the scene's rendered bytes while an untouched control
+held byte-identical; NORMAL/MULTIPLY/SCREEN rendered as three distinct byte streams; all four
+refusals arrived from their declared layer with the document unchanged. Full record →
+[`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.3 live gate*.
+🟡 **UNCOMMITTED** — the gate repair below is in the working tree. ⛔ Committing is the
+owner's act.
+
+🔴 **THE GATE'S FIRST RUN FAILED AND THE TOOL WAS RIGHT.** `set_opacity` returned
+`0.3499999940395355` where the gate asserted `0.35` — exactly `Math.fround(0.35)`, because
+**Figma stores layer opacity as a float32** and the handler writes then re-reads the node.
+⭐ The failure is *positive evidence the read-back is real*: only an echo could have returned
+exactly `0.35`. The assertion now pins `Math.fround(0.35)`, which is **stricter** — a
+known-bad rerun showed the **original** assertion PASSED an echoing receipt while the new one
+rejects it, along with a discarded write and a wrong rounding. ⛔ No tolerance was introduced.
+🔴 No offline test could have caught it: the fake node stores a plain double, so the harness
+cannot model float32 in either direction. ⏳ Quantizing the harness on write is open and cheap.
+⭐ The repair moved **no pin** — `scripts/` and `tests/` feed neither build ID — so nothing
+was staled and the gate stays out of `GATES_PINNED_TO_AN_EARLIER_RELEASE`.
 
 ✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**
 (`e394e38` build + `b531d68` read-source repair). `live-effects-gate.mjs` PASSED on channel

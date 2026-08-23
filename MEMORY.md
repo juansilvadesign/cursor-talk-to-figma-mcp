@@ -20,10 +20,43 @@ type: project
   `bun run verify` green, 2 mutants killed. All **six** gate sections ran; five semantic
   refusals all from the **handler** layer with `documentUntouched: true`; `null` clears.
   Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.2 live gate*.
-  **▶ CURRENT: item 1.3 `set_opacity` / `set_blend_mode` is BUILT + OFFLINE-GATED** —
-  `1.9.0` remains held because 1.2 spent it and `1.10.0` is R3-A's. The 64-tool / 343-test
-  build adds only additive-preview write tools; the live opacity/blend gate awaits a fresh
-  DEV-plugin reload and live channel.
+- ✅✅ **ITEM 1.3 `set_opacity` / `set_blend_mode` IS BUILT AND LIVE-GATED — 2026-08-23.**
+  `live-opacity-blend-gate.mjs` PASSED on channel **`shtlklfy`**, **run twice**, each on a
+  fresh scratch page (`6055:7`, `6055:12`) and agreeing on every measured value. Pair
+  `r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`, `1.9.0`, **64 tools**, fingerprint
+  `sha256:9b7abf64…1dacb4`. Offline **343/343**, `bun run verify` green. Opacity moved the
+  scene's bytes while an untouched control held byte-identical; NORMAL/MULTIPLY/SCREEN
+  rendered as **three distinct byte streams**; `PASS_THROUGH` accepted on the frame; all
+  four refusals arrived from their **declared** layer (2 schema, 2 handler) with the scene
+  unchanged; both runs deleted the page and a separate read confirmed the file's own six
+  pages. ⚠️ **ADDITIVE-ONLY is now MEASURED, not just intended** — `get_node_info` grew
+  neither `opacity` nor `blendMode`, before or after the writes. `1.10.0` stays R3-A's.
+  Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.3 live gate*.
+  🟡 **UNCOMMITTED** — the gate repair is in the working tree; committing is the owner's act.
+
+- 🔴 **1.3's GATE FAILED ITS FIRST RUN AND THE TOOL WAS RIGHT — Figma stores layer opacity
+  as a FLOAT32.** `set_opacity` returned `0.3499999940395355` where the gate asserted
+  `0.35`; that value is exactly `Math.fround(0.35)`, and `code.js:8752-54` writes then
+  **re-reads the node**, so the receipt was honestly reporting what the platform stored.
+  ⭐ **The failure is positive evidence the read-back is real** — an echo is the only
+  implementation that could have returned exactly `0.35`. ⭐ **The repair made the gate
+  STRICTER and that was PROVED:** it now pins `Math.fround(0.35)`, which is itself the live
+  echo detector because `Math.fround(0.35) !== 0.35`. A known-bad rerun scored four receipts
+  — the real read-back passes; an echo, a discarded write and a plausible-but-wrong rounding
+  all fail — and showed **the ORIGINAL assertion PASSED the echo**. The old line was not
+  merely wrong about the platform, it was the **weaker** of the two and would have accepted
+  the one defect this item's design says is impossible. ⛔ No tolerance was introduced.
+  🔴 **No offline test could have found it and none was wrong:** the harness's fake node
+  stores a plain JS double, so `0.35` round-trips there in either direction. Notably
+  `set-opacity-blend-mode.test.mjs:62` says so in its own comment (*"without assuming any
+  platform normalization"*) and proves anti-echo with a discard-write mutant instead — the
+  **live gate** then assumed the exact opposite. ⏳ Quantizing the harness on write is open
+  and cheap; no current offline assertion depends on a non-representable opacity read-back.
+  ⭐ **The repair moved NO pin** — `buildContract()` reads only `server.ts`, `code.js`,
+  `ui.html`, `manifest.json`, `package.json`, `release.json`, so `scripts/` and `tests/` feed
+  neither build ID. Nothing was staled; the gate stays out of the declared-stale list.
+  See [[feedback_an_instrument_pinned_to_the_implementation]] and
+  [[feedback_loosening_a_gate_needs_a_known_bad_rerun]].
 
 - 🔴 **THE GATE'S FIRST RUN FAILED, AND IT WAS A REAL DEFECT: `JSON_REST_V1` NEVER CARRIED
   `effectStyleId`.** Decision ① scoped the repair as "add four fields to `filterFigmaNode` in

@@ -24,10 +24,15 @@ type: project
   `compatible`, 60 tools. Scratch page deleted and baseline restored (6 pages, current page
   `0:1`) on **all eight** runs. Their five entries are **deleted** from
   `tests/live-gate-pins.test.mjs`; 287/287 offline, `bun run verify` passed.
-  Next = **R2.6 acceptance** (promotes the four layout tools `additive-preview` → `stable`,
-  which moves the contract → the server build → ⛔ re-pin and re-run again), or R2.7.
-  🟡 **This MEMORY.md is uncommitted**, as are the 6 gate/test files from this session —
-  owner's call was to leave them so. ⛔ Stage explicit paths — peer sessions write this repo.
+  ✅✅✅ **AND R2.6 IS ACCEPTED — 2026-08-22.** The four layout tools are promoted
+  `additive-preview` → `stable`; **6/6 gates re-pinned and re-run green on the promoted
+  build** `r2-server-975ccb3ce8b9`, channel `sa6ggz00`. 287/287, `bun run verify` passed.
+  Record → [`docs/R2.6-LAYOUT.md`](docs/R2.6-LAYOUT.md).
+  Next = **R2.7 (visuals)**, then R2 acceptance at its end.
+  🟡 **Uncommitted:** MEMORY.md, `.gitignore`, `contracts/public-contract.json`, `dist/*`,
+  `scripts/contract-lib.mjs`, the 6 gate scripts, `src/.../runtime-metadata.ts`,
+  `tests/contract.test.mjs`, and the new `docs/R2.6-LAYOUT.md`.
+  ⛔ Stage explicit paths — peer sessions write this repo.
 - ⭐🔴 **A PIN EDIT DOES NOT MOVE THE BUILD — the standing warning in this file was WRONG,
   and it is what made the backlog look unworkable.** This file said "⚠️ Each re-pin moves
   `serverBuildId`, so re-derive", which implies re-pinning gate 1 stales gate 2's fresh pin
@@ -310,12 +315,51 @@ type: project
   exercising it, and their first reports had been produced by a different version of the
   file. Eight live runs total, all green. New output verified true: **3** remaining
   declared gates, and `publishedStability: additive-preview`.
-- **Next step:** ▶ **R2.6 acceptance** — promotes `set_layout_child`, `set_constraints`,
-  `set_size_limits`, `set_clips_content` from `additive-preview` → `stable`. ⛔ **The
-  promotion moves the contract and therefore `serverBuildId`, so every gate must be
-  re-pinned and re-run AGAIN on the promoted build** — R2.4 acceptance did exactly this,
-  and accepting a build no gate has seen is the defect this release spent three phases
-  closing. ⚠️ Three OLDER gates remain declared stale and were **not** in this session's
+- ✅✅✅ **R2.6 ACCEPTED — 2026-08-22.** All four layout tools promoted
+  `additive-preview` → `stable` in `scripts/contract-lib.mjs` (entries **deleted**, never
+  commented — `getResultStability` falls through to `stable` and a leftover entry silently
+  holds a tool back). Accepted pair **`r2-server-975ccb3ce8b9` ↔ `r2-plugin-1eee5a6f3bd9`**,
+  `1.8.0`, `sha256:f229f6ec…`, 60 tools. Full record → `docs/R2.6-LAYOUT.md`
+  (⚠️ needed a `!docs/R2.6-LAYOUT.md` line in `.gitignore` — `docs/*` is ignored and every
+  acceptance doc is allowlisted individually; without it the record would never be committed
+  and nothing would say so).
+  ⭐ **PREDICTED THEN CONFIRMED — only `serverBuildId` moved** (`fb30663ee0f1` →
+  `975ccb3ce8b9`). Promotion rewrites `contractPayload.tools` but touches no `capabilityId`,
+  no schema and no `code.js`, so `pluginBuildId`, the fingerprint, the schema and the tool
+  count ALL HELD. That is 2.3's most dangerous shape. ⭐ Operator consequence, the **inverse**
+  of every layout item: **the DEV plugin did NOT need re-running.**
+  🔴 **AND THE TRAP FIRED FOR REAL, which is the best evidence CC4 has ever had.**
+  `bun run contract:generate` writes the metadata but does **not** rebuild `dist/`, so the
+  first five gate runs hit a `dist/server.js` still on the old build — **all five refused at
+  `assertRuntime`, naming the build ID, before touching the document.** ⛔ A fingerprint-only
+  check would have run all five against a stale server and reported green on a build nobody
+  promoted. Fix: `bun run build` after `contract:generate`.
+- 🔴 **CC7 IS NOW MEASURED, having only ever been ASSERTED — and it cost a false alarm.**
+  The batch gate's clamp check failed **twice reproducibly** at 1990/1991 ms against a
+  1750 ms tolerance, then passed at **1008 ms** once Figma was foregrounded. Everything
+  structural was identical across all four runs — same frames (0/33/67/100), same 5
+  succeeded / 10 skipped, `budgetExhausted: true` — **only the plugin's own elapsed time
+  moved, and by exactly 2×.** A backgrounded tab throttles the plugin's sleeps.
+  ⛔ **The tolerance was never touched.** Relaxing 1750 → 2000 would have gone green and
+  permanently destroyed the check's ability to see a real clamp failure, and the throttling
+  would have stayed invisible. ⭐ A *reproducible* failure is not automatically a defect in
+  the thing under test — here it was a defect in the CONDITIONS, and the discriminator was
+  free. See [[feedback_loosening_a_gate_needs_a_known_bad_rerun]].
+- 🔴 **Promotion made the CC1 meta-test fail, and it was an instrument pinned to the
+  implementation.** `tests/contract.test.mjs`'s "guard observed FAILING" test hardcoded
+  `set_clips_content` as its victim and asserted that tool was `additive-preview` — so the
+  correct promotion made the probe declare itself worthless. ⛔ Worse, after the promotion
+  **no real tool is both `additive-preview` and absent from every baseline**, so there was no
+  replacement victim; re-pointing it would only reset the trap. ✅ Fixed by **synthesizing**
+  a victim name no baseline can ever carry, plus a negative leg so the guard cannot pass by
+  flagging everything. See [[feedback_an_instrument_pinned_to_the_implementation]].
+- **Next step:** ▶ **R2.7 — visuals**, then **R2 acceptance** at its end (which needs a
+  representative component/page fixture that does not exist yet). ⛔ **R2.7 MUST FREEZE BOTH
+  R2.5 AND R2.6 as baselines** — the CC3 gap is now **seven** tools wide
+  (`get_available_fonts`, `check_fonts`, `set_text_style` + the four layout tools), all
+  `stable` with no baseline vouching for them, parked in `ACCEPTED_SINCE_LAST_BASELINE`.
+  Widening it 3 → 7 was a recorded choice, not an oversight.
+  ⚠️ Three OLDER gates remain declared stale and were **not** in this session's
   scope: `live-export-gate` (R2.1), `live-create-page-gate` (R2.2), `live-plugin-data-gate`
   (R2.4).
 - **Key paths / IDs:** `src/cursor_mcp_plugin/code.js` → `setLayoutChild` +
@@ -400,8 +444,16 @@ r2-server-2fa65a5749e2  ↔  r2-plugin-045a95955905   (sha256:b5cbf7b1…)      
 r2-server-92dc135f665b  ↔  r2-plugin-3f7c7cd69133   (sha256:1865d817…)         ← R2.6 2.1, GATED 08-22
 r2-server-06f75969aa1d  ↔  r2-plugin-e82230c1bbb1   (sha256:8ceaf9d2…)         ← R2.6 2.2, GATED 08-22
 r2-server-a9e8d5b3bf78  ↔  r2-plugin-1fb9729971a3   (sha256:89be6e6c…)         ← R2.6 2.3, GATED 08-22
-r2-server-fb30663ee0f1  ↔  r2-plugin-1eee5a6f3bd9   (sha256:f229f6ec…)         ← HEAD, R2.6 2.4, ALL SIX GATES GREEN 08-22
+r2-server-fb30663ee0f1  ↔  r2-plugin-1eee5a6f3bd9   (sha256:f229f6ec…)         ← R2.6 2.4, all six gates green 08-22
+r2-server-975ccb3ce8b9  ↔  r2-plugin-1eee5a6f3bd9   (sha256:f229f6ec…)         ← HEAD, R2.6 ACCEPTED 08-22, 6/6 gates green
 ```
+
+⭐ **Note the last two lines share a plugin AND a fingerprint.** R2.6 acceptance moved
+`serverBuildId` alone — the promotion rewrites `contractPayload.tools`, which that hash
+covers, while `capabilityIds`, the schema and `code.js` are all untouched. ⛔ Only the
+server build ID distinguishes the accepted build from the one before it; a stale
+`dist/server.js` is invisible to every other pin, and this is not hypothetical — it
+happened during acceptance and the preflight caught it five times in a row.
 
 ⛔ **HEAD is item 2.4**, and as of 2026-08-22 it is the first build in this release that
 **every runnable gate has actually passed on** — `live-clips-content` (`u2k66m3w`) plus the

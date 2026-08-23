@@ -108,6 +108,24 @@ const ACCEPTED_SINCE_LAST_BASELINE = [
   "get_available_fonts",
   "check_fonts",
   "set_text_style",
+  // ⭐ R2.6's four layout tools, promoted `additive-preview` → `stable` at R2.6 acceptance
+  // on 2026-08-22, after each had passed its own live gate on the build it ran on
+  // (`mzg3tlfl` / `2bcdtr5b` / `o2vws4ph` / `u2k66m3w`) and all four were re-pinned and
+  // re-run together on `sa6ggz00`. `stable` here is a decision that was made, recorded and
+  // earned — the opposite of falling through the default — so they belong here rather than
+  // failing the guard.
+  //
+  // 🔴 **This list growing 3 → 7 widens the CC3 gap rather than closing it, and that is a
+  // deliberate, recorded choice, not an oversight.** The rule is that each release freezes
+  // the previous contract as a baseline; R2.5 was never frozen, and now R2.6 is accepted
+  // without R2.5 or R2.6 being frozen either. Seven `stable` tools therefore have no
+  // baseline vouching for them. ⛔ Freezing a baseline changes the replay set every future
+  // release is checked against, which is its own decision with its own verification — it
+  // is owed to R2.7, and R2.7 must freeze BOTH R2.5 and R2.6 to empty this list.
+  "set_layout_child",
+  "set_constraints",
+  "set_size_limits",
+  "set_clips_content",
 ];
 
 async function frozenToolNames() {
@@ -156,31 +174,52 @@ test("the CC1 guard is observed FAILING when a new tool falls through to `stable
   // be watched, because the defect it pins was invisible for three items precisely by
   // producing a contract that looks correct. So the guard is RUN against a contract
   // mutated into the exact shape it exists to catch, rather than re-stating its condition.
+  // 🔴 This test used to name `set_clips_content` as its victim and assert that tool was
+  // `additive-preview` — an instrument pinned to the IMPLEMENTATION rather than to the
+  // question. R2.6 acceptance promoted `set_clips_content` to `stable`, which is exactly
+  // the change the guard exists to permit, and the meta-test failed on it: a correct act
+  // made the probe declare itself worthless. Worse, after that promotion NO real tool is
+  // both `additive-preview` and absent from every baseline, so there was no replacement
+  // victim to name — re-pointing it at another tool would only reset the same trap.
+  //
+  // ⭐ The fix is to stop borrowing a real tool at all. The victim is SYNTHESIZED: a name
+  // no baseline can ever carry, injected as `stable`. That encodes the question — "does
+  // the guard name a tool that fell through the default?" — and it cannot be falsified by
+  // any future promotion. See feedback_an_instrument_pinned_to_the_implementation.
   const built = await buildContract();
   const everFrozen = await frozenToolNames();
 
-  const victim = built.contract.tools.find(
-    (tool) => tool.name === "set_clips_content",
-  );
-  assert.equal(
-    victim.resultStability,
-    "additive-preview",
-    "set_clips_content must ship additive-preview per CC1",
-  );
+  const victimName = "__cc1_probe_tool_that_no_baseline_carries__";
   assert.ok(
-    !everFrozen.has("set_clips_content"),
-    "and it must be absent from every baseline, or this test proves nothing",
+    !everFrozen.has(victimName),
+    "the synthesized victim must be absent from every baseline, or this test proves nothing",
   );
 
   const fellThrough = structuredClone(built.contract);
-  fellThrough.tools.find(
-    (tool) => tool.name === "set_clips_content",
-  ).resultStability = "stable";
+  fellThrough.tools.push({
+    ...built.contract.tools[0],
+    name: victimName,
+    resultStability: "stable",
+  });
 
   assert.deepEqual(
     bornFrozenTools(fellThrough, everFrozen),
-    ["set_clips_content"],
+    [victimName],
     "the guard must name the tool that fell through the default",
+  );
+
+  // ⛔ And the negative leg, or the test above passes for a guard that flags EVERYTHING:
+  // the same synthesized tool at `additive-preview` must NOT be reported.
+  const compliant = structuredClone(built.contract);
+  compliant.tools.push({
+    ...built.contract.tools[0],
+    name: victimName,
+    resultStability: "additive-preview",
+  });
+  assert.deepEqual(
+    bornFrozenTools(compliant, everFrozen),
+    [],
+    "the guard must not flag a new tool that correctly ships additive-preview",
   );
 });
 

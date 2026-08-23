@@ -107,9 +107,21 @@ if (!options.channel) {
 // `scripts/` is hashed by NEITHER. So re-pinning these five cannot stale each other, and
 // the standing worry that "each re-pin moves `serverBuildId`" was wrong — what staled each
 // gate was the *item* landing above it, never the pin.
+//
+// ⛔ RE-PINNED AGAIN 2026-08-22 for **R2.6 ACCEPTANCE** — the promotion of the four layout
+// tools `additive-preview` → `stable`. ⚠️ A FIFTH PIN SHAPE, and it is 2.3's dangerous one:
+// **ONLY `serverBuildId` moved** (`fb30663ee0f1` → `975ccb3ce8b9`). The promotion rewrites
+// `contractPayload.tools`, which `serverBuildId` hashes — but it touches no `capabilityId`,
+// no schema version and no `code.js`, so the fingerprint, the schema, the tool count AND
+// `pluginBuildId` all HELD. ⛔ A fingerprint check alone would wave this stale build
+// straight through; the build ID is the only pin that catches it, which is why CC4 pins it.
+//
+// ⭐ Operator consequence, and it is the OPPOSITE of every layout item: the DEV plugin does
+// **NOT** need re-running — the plugin half did not move. Only an interactive MCP session
+// needs a respawn, and the gate spawns its own server from `dist/server.js`.
 const expectedRuntime = {
   release: "R2",
-  serverBuildId: "r2-server-fb30663ee0f1",
+  serverBuildId: "r2-server-975ccb3ce8b9",
   pluginBuildId: "r2-plugin-1eee5a6f3bd9",
   schemaVersion: "1.8.0",
   fingerprint:

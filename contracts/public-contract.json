@@ -2048,7 +2048,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_clips_content",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2097,7 +2097,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_constraints",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2440,7 +2440,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_layout_child",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2870,7 +2870,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_size_limits",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",

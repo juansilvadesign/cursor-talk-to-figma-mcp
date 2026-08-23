@@ -112,10 +112,19 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
   // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
   // pins the rule so R2.7's tools cannot repeat it silently.
-  "set_layout_child",
-  "set_constraints",
-  "set_size_limits",
-  "set_clips_content",
+  //
+  // ⭐ **PROMOTED AT R2.6 ACCEPTANCE, 2026-08-22.** The four were held at
+  // `additive-preview` on the stated condition that their reply shapes had never been
+  // judged by real Figma. Each earned it on its own live gate — `set_layout_child`
+  // (`mzg3tlfl`), `set_constraints` (`2bcdtr5b`), `set_size_limits` (`o2vws4ph`),
+  // `set_clips_content` (`u2k66m3w`) — and all four were then re-pinned and re-run once
+  // more on `sa6ggz00` against the 2.4 build, green. The entries are GONE rather than
+  // commented out, because `getResultStability` falls through to `stable` and a leftover
+  // entry silently holds a tool back at the weaker level.
+  //
+  // ⛔ This promotion rewrites `contractPayload.tools`, which feeds `serverBuildId` — so
+  // every gate is re-pinned and RE-RUN on the promoted build. Accepting a build no gate
+  // has seen is the defect R2.4 spent three phases closing.
 ]);
 
 // ⭐ R2.5's three tools — `get_available_fonts`, `check_fonts` and `set_text_style` —

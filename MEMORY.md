@@ -14,9 +14,10 @@ type: project
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Next step:** **R3-A (`1.10.0`)** — the variable-write half, planned in detail at
-  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md); its entry point is **Phase 1.1**
-  (Phase 0 is discharged). ⛔ First: **the owner commits this session's 21 files.**
+- **Next step:** **R3-A (`1.10.0`)** — Phase 1.1 (`hasVariableWriteApi`) is implemented and
+  offline-gated; continue at **Phase 1.2** (`get_variable_capabilities`) in
+  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md). ⛔ First: **the owner commits
+  this session's files.**
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -25,12 +26,15 @@ type: project
   Offline **370/370**, `verify` green. Record → `docs/R2.7-VISUALS.md` § *R2 ACCEPTANCE*.
 - **Key paths:** `docs/R2.7-VISUALS.md` § *R2 ACCEPTANCE* · `TASKS.md:1492` ·
   `scripts/r2-acceptance-fixture.mjs` (+ its offline test) ·
-  `tests/live-gate-pins.test.mjs` (ledger now back to **three**) ·
-  `src/cursor_mcp_plugin/code.js` (`EFFECT_FIELD_RULES`). 370/370, 65 tools, `1.9.0`.
-- **Open / blockers:** 🟡 **21 files uncommitted.** Three owner decisions still open:
+  `tests/live-gate-pins.test.mjs` (**three** older gates plus **ten** R2 gates awaiting the
+  R3-A re-pin/run) · `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`). **371/371**
+  after Phase 1.1; 65 tools, `1.9.0`.
+- **Open / blockers:** 🟡 **Phase 1.1's diff is uncommitted.** Three owner decisions still open:
   ① the three R2.1/R2.2/R2.4 gates (declined twice); ② the `set_fill` gradient `color` drop
   (`code.js:8047`); ③ whether the offline harness should model Figma's effect union — it
-  cannot today, and that is what let the `set_effects` defect sit green.
+  cannot today, and that is what let the `set_effects` defect sit green. Phase 1.1 moved the
+  plugin build ID, so the ten R2 gates must be re-pinned and run on a disposable live channel
+  before any result is quoted for this artifact.
 - **Don't forget:** ⛔ **The relay is STOPPED** — `bun socket` (port 3055) before any live
   work, and it died mid-session once already, so check `ss -ltn | grep 3055` rather than
   assuming. ⛔ A **live Figma channel from Juan** is required before any gate can run; an

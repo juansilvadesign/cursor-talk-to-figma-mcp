@@ -1,6 +1,7 @@
 # Variable-Write Plan — the variable half of R3
 
-> **Status: Phase 0 DISCHARGED — Phases 1–4 not started.** Cut 2026-08-07 from a real
+> **Status: Phase 0 DISCHARGED; Phase 1.1 IMPLEMENTED and offline-gated 2026-08-24 —
+> Phases 1.2–4 not started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -114,9 +115,11 @@ Writes need an honest, *pre-flight* answer about what this file and this Figma p
 actually permit. R3 requires *"explicit Figma-plan capability responses"*, and the read
 layer already established the pattern to mirror: `hasVariablesApi()` in `code.js` L631.
 
-- [ ] **1.1 Extend the guard to the write API.** `hasVariablesApi()` currently checks only
-      the three read entry points. Add a sibling `hasVariableWriteApi()` asserting
-      `createVariable`, `createVariableCollection`, `createVariableAlias`.
+- [x] **1.1 Extend the guard to the write API.** `hasVariablesApi()` currently checks only
+      the three read entry points. Added sibling `hasVariableWriteApi()` asserting
+      `createVariable`, `createVariableCollection`, and `createVariableAlias`.
+      ✅ Offline-gated 2026-08-24 in `tests/variable-write-capability.test.mjs`: read support
+      alone returns false, while removal of any one write entry point refuses the capability.
 - [ ] **1.2 Add `get_variable_capabilities`** (read tool, cheap, no mutation). Returns:
       whether the write API exists · whether the document is editable · the current
       **mode ceiling** and how many modes each local collection already uses · per-collection

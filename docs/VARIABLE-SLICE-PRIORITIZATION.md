@@ -1,6 +1,7 @@
 # Variable Slice Prioritization — cutting R3-A ahead of R2.7
 
-> **Status: PLANNED 2026-08-22. Not started.** This document does two things: it records the
+> **Status: IN PROGRESS 2026-08-24 — Phase 1.1 is implemented and offline-gated.** This
+> document does two things: it records the
 > evidence that closes the "should we wait for the official Figma MCP instead?" question,
 > and it specifies the exact `TASKS.md` / `ROADMAP.md` edits that move the variable write
 > surface from "someday, inside R3" to "the next release after R2.6 closes."

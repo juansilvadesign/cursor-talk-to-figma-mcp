@@ -10,7 +10,7 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.3 ✅ LIVE-VALIDATED, ceiling observed = 10)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.3 ✅ LIVE-VALIDATED + ten-gate re-pin ✅ PAID)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
@@ -31,11 +31,20 @@ type: project
   (a refusal mutates nothing), `mode:null`, `modeCeiling {value:10, status:"observed"}`, and
   Figma's message verbatim — `in addMode: Limited to 10 modes only`. Runtime measured
   `compatible`, zero issues. Record → `docs/VARIABLE-WRITE-PLAN.md` § *1.3*.
-- **Next step:** the public 67-tool change makes the ten formerly current R2 gates stale;
-  they are declared stale rather than re-pinned without a new run. **Re-pin + re-run those ten
-  against `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`**, then Phase 2. 🟡
-  Everything from this session is **uncommitted** — the owner owns commits and should stage
-  explicit paths, never `git add -A`.
+- **✅✅ AND THE TEN-GATE RE-PIN IS PAID — 2026-08-24, channel `hdejcpog`.** The same TEN
+  re-pinned to `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a` (`1.11.0`, 67 tools,
+  fingerprint `sha256:6a68b351…deb6428`) and **re-run once each — ALL TEN PASSED**, every
+  verdict read from its own `report.json` `success` (⚠️ `live-batch-gate` still prints no
+  `PASSED` line). A separate read confirmed **zero** scratch/gate pages left. Pins proved
+  CHECKED in **both** directions this pass: `verify` went RED on the stale declaration, and a
+  bogus `r3-a-plugin-000000000000` copy exited 1 naming both ids with no page created. The
+  ledger is back to the **three** R2.1/R2.2/R2.4 entries. Offline **378/378**, `dist/`
+  byte-identical.
+- **Next step:** **Phase 2 — the variable write tools** (`docs/VARIABLE-WRITE-PLAN.md`
+  § *Phase 2*), not yet started; the owner stopped the session before that build-box. ⛔ All
+  Phase 2 tools are **local-only**: `remote: true` collections must be refused with a typed
+  refusal, never silently skipped. 🟡 This session's re-pin + doc changes are **uncommitted** —
+  the owner owns commits and should stage explicit paths, never `git add -A`.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to

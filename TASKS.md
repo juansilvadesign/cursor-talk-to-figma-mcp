@@ -170,7 +170,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅ **R2 ACCEPTED; R3-A PHASE 1.3 IS LIVE-VALIDATED (ceiling observed = 10).**
+## ▶ Current session — ✅ **R3-A PHASE 1.3 LIVE-VALIDATED (ceiling = 10) + TEN-GATE RE-PIN PAID.**
 
 ✅ **R3-A Phase 1.3 `add_variable_mode` — 2026-08-24.** The new public
 additive-preview write moves the release to **R3-A / `1.11.0` / 67 tools**:
@@ -245,9 +245,15 @@ fired at 4 modes on the inference that `knownGoodAtLeast: 4` was the cap; it mea
 the add succeeded, and the gate correctly failed rather than scoring a non-refusal as a pass.
 Reports are gitignored; the committed record is `docs/VARIABLE-WRITE-PLAN.md` § *1.3*.
 
+✅✅ **THE TEN-GATE RE-PIN IS PAID — 2026-08-24, channel `hdejcpog`.** Re-pinned to
+`r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a` (`1.11.0`, 67 tools) and re-run once
+each — **ALL TEN PASSED**, verdicts read from each `report.json` `success`, zero scratch pages
+left, pins proved checked in both the stale-declaration and `assertRuntime` directions. The
+ledger is back to the three R2.1/R2.2/R2.4 entries. Offline **378/378**.
+
 ⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phases 1.2
-and 1.3 are recorded inside the plan. The ten stale R2 gates still need their re-pin/re-run
-against the 67-tool pair.
+and 1.3 are recorded inside the plan. **Phase 2 (the variable write tools) is NOT started** —
+the session was stopped before that build-box. The three R2.1/R2.2/R2.4 gates remain declined.
 
 ### Previous — R2 acceptance
 

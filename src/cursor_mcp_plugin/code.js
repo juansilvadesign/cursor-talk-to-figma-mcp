@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-4aa3214c4754",
-  "apiVersion": "1.12.0",
-  "serverSchemaVersion": "1.12.0",
+  "buildId": "r3-a-plugin-02cca8304cfb",
+  "apiVersion": "1.13.0",
+  "serverSchemaVersion": "1.13.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
+  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -3801,6 +3801,12 @@ const VARIABLE_WRITE_RESOLVED_TYPES = new Set([
   "BOOLEAN",
 ]);
 
+// Private plugin data is the last identity layer for variables. The key is deliberately
+// internal and versioned; its VALUE is caller-owned opaque data, so this plugin compares it
+// only for exact equality and never parses, trims, normalizes, or echoes it back.
+const VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY =
+  "talk-to-figma.resource-identity.v1";
+
 function variableWriteErrorMessage(error) {
   return error && typeof error.message === "string" ? error.message : String(error);
 }
@@ -3847,6 +3853,349 @@ function variableWriteRefusal(code, message, details = {}) {
     outcome: "refused",
     ...details,
     refusal: { code, message },
+  };
+}
+
+// `create_variable` is the one variable command that can be safely re-run. Every receipt
+// carries these two fields, including a fresh create (`created:true`, `matchedBy:null`), so
+// a caller never has to make a second read to distinguish a new resource from a reused one.
+function variableCreateRefusal(code, message, details = {}) {
+  return variableWriteRefusal(code, message, {
+    created: false,
+    matchedBy: null,
+    ...details,
+  });
+}
+
+function hasSuppliedCreateVariableField(params, field) {
+  return Boolean(
+    params &&
+      Object.prototype.hasOwnProperty.call(params, field) &&
+      params[field] !== undefined
+  );
+}
+
+function readCreateVariableIdentityInputs(command, params) {
+  const hasId = hasSuppliedCreateVariableField(params, "id");
+  const hasIdentityKey = hasSuppliedCreateVariableField(params, "identityKey");
+
+  if (
+    hasId &&
+    (typeof params.id !== "string" || params.id.trim().length === 0)
+  ) {
+    throw new Error(
+      `${command} requires id to be a non-empty variable ID when supplied and wrote nothing`
+    );
+  }
+  if (
+    hasIdentityKey &&
+    (typeof params.identityKey !== "string" || params.identityKey.length === 0)
+  ) {
+    throw new Error(
+      `${command} requires identityKey to be a non-empty opaque string when supplied and wrote nothing`
+    );
+  }
+
+  return {
+    // `null` means the layer was not supplied. Do not trim identityKey: whitespace and every
+    // other byte are caller-owned identity data, not this plugin's naming convention.
+    id: hasId ? params.id : null,
+    identityKey: hasIdentityKey ? params.identityKey : null,
+  };
+}
+
+async function loadLocalVariablesForIdentity(command) {
+  if (
+    !figma.variables ||
+    typeof figma.variables.getLocalVariablesAsync !== "function"
+  ) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_inventory_unavailable",
+        `${command} wrote nothing: this Figma runtime cannot list local variables, so it cannot safely rule out an existing identity`
+      ),
+    };
+  }
+
+  const variables = [];
+  for (const resolvedType of VARIABLE_WRITE_RESOLVED_TYPES) {
+    let listed;
+    try {
+      listed = await figma.variables.getLocalVariablesAsync(resolvedType);
+    } catch (error) {
+      return {
+        refusal: variableCreateRefusal(
+          "identity_inventory_unreadable",
+          `${command} wrote nothing: local ${resolvedType} variables could not be listed, so it cannot safely rule out an existing identity: ${variableWriteErrorMessage(error)}`
+        ),
+      };
+    }
+    if (!Array.isArray(listed)) {
+      return {
+        refusal: variableCreateRefusal(
+          "identity_inventory_unreadable",
+          `${command} wrote nothing: local ${resolvedType} variable inventory was not an array, so it cannot safely rule out an existing identity`
+        ),
+      };
+    }
+    for (const variable of listed) {
+      // getLocalVariablesAsync is documented as local-only. Keep the guard anyway: accepting
+      // a remote object from a malformed host result would turn a negative inventory claim
+      // into an accidental library mutation later in the handler.
+      if (variable && !variable.remote) {
+        if (typeof variable.id === "string") {
+          variableCache.set(variable.id, Promise.resolve(variable));
+        }
+        variables.push(variable);
+      }
+    }
+  }
+
+  return { variables };
+}
+
+async function resolveExistingVariableForCreate(
+  command,
+  { id, identityKey, collection, name, resolvedType }
+) {
+  // Layer 1: an explicit ID is authoritative, but the variable must still belong to the
+  // collection this create call is scoped to. A stale/wrong ID must never silently fall
+  // through to a name match and create a second resource.
+  if (id !== null) {
+    const result = await resolveVariableForWrite(command, id);
+    if (result.refusal) {
+      return {
+        refusal: {
+          ...result.refusal,
+          created: false,
+          matchedBy: null,
+        },
+      };
+    }
+    const variable = result.variable;
+    if (variable.variableCollectionId !== collection.id) {
+      return {
+        refusal: variableCreateRefusal(
+          "id_collection_mismatch",
+          `${command} wrote nothing: explicit variable ${variable.id} belongs to collection ${String(variable.variableCollectionId)}, not requested local collection ${collection.id}`,
+          {
+            variable: variableWriteVariableSummary(variable),
+            collection: variableWriteCollectionSummary(collection),
+          }
+        ),
+      };
+    }
+    return { variable, matchedBy: "id" };
+  }
+
+  const inventoryResult = await loadLocalVariablesForIdentity(command);
+  if (inventoryResult.refusal) return inventoryResult;
+  const candidates = inventoryResult.variables.filter(
+    (variable) => variable.variableCollectionId === collection.id
+  );
+
+  // Layer 2: Figma's natural key is an exact name inside an exact collection. A malformed
+  // host result with duplicate names is ambiguous rather than permission to pick whichever
+  // entry happened to be listed first.
+  const nameMatches = candidates.filter((variable) => variable.name === name);
+  if (nameMatches.length > 1) {
+    return {
+      refusal: variableCreateRefusal(
+        "name_identity_ambiguous",
+        `${command} wrote nothing: ${nameMatches.length} local variables named ${JSON.stringify(name)} exist in collection ${collection.id}; exact-name identity is ambiguous`,
+        { collection: variableWriteCollectionSummary(collection) }
+      ),
+    };
+  }
+  if (nameMatches.length === 1) {
+    const variable = nameMatches[0];
+    if (variable.resolvedType !== resolvedType) {
+      return {
+        refusal: variableCreateRefusal(
+          "name_type_conflict",
+          `${command} wrote nothing: local variable ${variable.id} named ${JSON.stringify(name)} already resolves to ${String(variable.resolvedType)}, not requested ${resolvedType}`,
+          {
+            variable: variableWriteVariableSummary(variable),
+            collection: variableWriteCollectionSummary(collection),
+            requestedResolvedType: resolvedType,
+          }
+        ),
+      };
+    }
+    return { variable, matchedBy: "name" };
+  }
+
+  // Layer 3: identityKey is private plugin data on a variable in this exact local collection.
+  // Its content remains opaque: the only question asked is whether the stored string is byte
+  // identical to what the caller supplied.
+  if (identityKey !== null) {
+    const identityMatches = [];
+    for (const variable of candidates) {
+      if (typeof variable.getPluginData !== "function") {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_api_unavailable",
+            `${command} wrote nothing: variable ${String(variable.id)} cannot read private plugin data, so identityKey cannot safely rule out an existing resource`,
+            {
+              variable: variableWriteVariableSummary(variable),
+              collection: variableWriteCollectionSummary(collection),
+            }
+          ),
+        };
+      }
+      let storedIdentityKey;
+      try {
+        storedIdentityKey = variable.getPluginData(
+          VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+        );
+      } catch (error) {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_unreadable",
+            `${command} wrote nothing: variable ${String(variable.id)} private plugin data could not be read, so identityKey cannot safely rule out an existing resource: ${variableWriteErrorMessage(error)}`,
+            {
+              variable: variableWriteVariableSummary(variable),
+              collection: variableWriteCollectionSummary(collection),
+            }
+          ),
+        };
+      }
+      if (typeof storedIdentityKey !== "string") {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_unreadable",
+            `${command} wrote nothing: variable ${String(variable.id)} returned non-string private plugin data, so identityKey cannot safely rule out an existing resource`,
+            {
+              variable: variableWriteVariableSummary(variable),
+              collection: variableWriteCollectionSummary(collection),
+            }
+          ),
+        };
+      }
+      if (storedIdentityKey === identityKey) {
+        identityMatches.push(variable);
+      }
+    }
+    if (identityMatches.length > 1) {
+      return {
+        refusal: variableCreateRefusal(
+          "identity_key_ambiguous",
+          `${command} wrote nothing: ${identityMatches.length} local variables in collection ${collection.id} carry the supplied opaque identityKey`,
+          { collection: variableWriteCollectionSummary(collection) }
+        ),
+      };
+    }
+    if (identityMatches.length === 1) {
+      return { variable: identityMatches[0], matchedBy: "identityKey" };
+    }
+  }
+
+  return { variable: null, matchedBy: null };
+}
+
+function ensureVariableIdentityKey(command, variable, identityKey) {
+  if (identityKey === null) return { status: "not_requested" };
+  if (
+    typeof variable.getPluginData !== "function" ||
+    typeof variable.setPluginData !== "function"
+  ) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_api_unavailable",
+        `${command} cannot store identityKey on local variable ${String(variable.id)} because this Figma runtime does not expose private plugin data methods`,
+        { variable: variableWriteVariableSummary(variable) }
+      ),
+    };
+  }
+
+  let storedIdentityKey;
+  try {
+    storedIdentityKey = variable.getPluginData(
+      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+    );
+  } catch (error) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_unreadable",
+        `${command} cannot read identityKey on local variable ${String(variable.id)}: ${variableWriteErrorMessage(error)}`,
+        { variable: variableWriteVariableSummary(variable) }
+      ),
+    };
+  }
+  if (typeof storedIdentityKey !== "string") {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_unreadable",
+        `${command} cannot read identityKey on local variable ${String(variable.id)} because Figma returned a non-string value`,
+        { variable: variableWriteVariableSummary(variable) }
+      ),
+    };
+  }
+  if (storedIdentityKey === identityKey) {
+    return { status: "already_stored" };
+  }
+  if (storedIdentityKey !== "") {
+    // Never overwrite a different caller's opaque identity. Matching by name/ID is not a
+    // license to claim a resource that is already tagged for another idempotent workflow.
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_conflict",
+        `${command} wrote nothing: local variable ${String(variable.id)} already has a different opaque identityKey; it was not overwritten`,
+        { variable: variableWriteVariableSummary(variable) }
+      ),
+    };
+  }
+
+  try {
+    variable.setPluginData(VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY, identityKey);
+  } catch (error) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_failed",
+        message: `${command} created or matched local variable ${String(variable.id)}, but Figma refused to store its identityKey: ${variableWriteErrorMessage(error)}`,
+      },
+    };
+  }
+
+  try {
+    storedIdentityKey = variable.getPluginData(
+      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+    );
+  } catch (error) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_unverified",
+        message: `${command} created or matched local variable ${String(variable.id)} and attempted to store identityKey, but could not read it back: ${variableWriteErrorMessage(error)}`,
+      },
+    };
+  }
+  if (storedIdentityKey !== identityKey) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_unverified",
+        message: `${command} created or matched local variable ${String(variable.id)} and attempted to store identityKey, but the stored opaque value did not match the caller's value`,
+      },
+    };
+  }
+  return { status: "stored" };
+}
+
+function createVariableIdentityUnconfirmedReceipt({
+  variable,
+  collection,
+  created,
+  matchedBy,
+  refusal,
+}) {
+  return {
+    success: false,
+    outcome: "identity_unconfirmed",
+    created,
+    matchedBy,
+    variable: variableWriteVariableSummary(variable),
+    collection: variableWriteCollectionSummary(collection),
+    partialApplicationPossible: true,
+    refusal,
   };
 }
 
@@ -4353,12 +4702,65 @@ async function createVariable(params) {
       `${command} requires resolvedType COLOR, FLOAT, STRING or BOOLEAN and wrote nothing`
     );
   }
+  const identityInputs = readCreateVariableIdentityInputs(command, params);
   const collectionResult = await resolveVariableCollectionForWrite(
     command,
     collectionId
   );
-  if (collectionResult.refusal) return collectionResult.refusal;
+  if (collectionResult.refusal) {
+    return {
+      ...collectionResult.refusal,
+      created: false,
+      matchedBy: null,
+    };
+  }
   const collection = collectionResult.collection;
+
+  const existingResult = await resolveExistingVariableForCreate(command, {
+    ...identityInputs,
+    collection,
+    name,
+    resolvedType,
+  });
+  if (existingResult.refusal) return existingResult.refusal;
+  if (existingResult.variable) {
+    const identityResult = ensureVariableIdentityKey(
+      command,
+      existingResult.variable,
+      identityInputs.identityKey
+    );
+    if (identityResult.refusal) {
+      return {
+        ...identityResult.refusal,
+        created: false,
+        matchedBy: existingResult.matchedBy,
+        collection: variableWriteCollectionSummary(collection),
+      };
+    }
+    if (identityResult.unconfirmed) {
+      return createVariableIdentityUnconfirmedReceipt({
+        variable: existingResult.variable,
+        collection,
+        created: false,
+        matchedBy: existingResult.matchedBy,
+        refusal: identityResult.unconfirmed,
+      });
+    }
+    variableCache.set(
+      existingResult.variable.id,
+      Promise.resolve(existingResult.variable)
+    );
+    return {
+      success: true,
+      outcome: "matched",
+      created: false,
+      matchedBy: existingResult.matchedBy,
+      identityKeyStatus: identityResult.status,
+      variable: variableWriteVariableSummary(existingResult.variable),
+      collection: variableWriteCollectionSummary(collection),
+    };
+  }
+
   if (!figma.variables || typeof figma.variables.createVariable !== "function") {
     throw new Error(
       `${command} wrote nothing: this Figma runtime does not support createVariable()`
@@ -4371,7 +4773,7 @@ async function createVariable(params) {
     // Resolving it first also makes the local-only refusal happen before any create call.
     variable = figma.variables.createVariable(name, collection, resolvedType);
   } catch (error) {
-    return variableWriteRefusal(
+    return variableCreateRefusal(
       "figma_refusal",
       `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
       { collection: variableWriteCollectionSummary(collection) }
@@ -4383,6 +4785,8 @@ async function createVariable(params) {
     return {
       success: false,
       outcome: "unverified",
+      created: null,
+      matchedBy: null,
       collection: variableWriteCollectionSummary(collection),
       partialApplicationPossible: true,
       refusal: {
@@ -4393,9 +4797,35 @@ async function createVariable(params) {
   }
 
   variableCache.set(variable.id, Promise.resolve(variable));
+  const identityResult = ensureVariableIdentityKey(
+    command,
+    variable,
+    identityInputs.identityKey
+  );
+  if (identityResult.refusal) {
+    return createVariableIdentityUnconfirmedReceipt({
+      variable,
+      collection,
+      created: true,
+      matchedBy: null,
+      refusal: identityResult.refusal.refusal,
+    });
+  }
+  if (identityResult.unconfirmed) {
+    return createVariableIdentityUnconfirmedReceipt({
+      variable,
+      collection,
+      created: true,
+      matchedBy: null,
+      refusal: identityResult.unconfirmed,
+    });
+  }
   return {
     success: true,
     outcome: "created",
+    created: true,
+    matchedBy: null,
+    identityKeyStatus: identityResult.status,
     variable: variableWriteVariableSummary(variable),
     collection: variableWriteCollectionSummary(collection),
   };
@@ -4434,14 +4864,13 @@ async function deleteVariable(params) {
     };
   }
 
-  // ⛔ Figma commits variable.remove() at the END of the current execution frame: an in-frame
-  // getVariableByIdAsync still resolves the variable that was just removed. Reading that as
-  // "the deletion did not happen" made removalObserved:true UNREACHABLE on the real platform
-  // while the offline harness — which spliced the variable out so the next lookup missed —
-  // kept the path green. Live evidence, channel hvq0orwg 2026-08-24: three deletes all
-  // reported delete_not_observed, and a later frame showed all three genuinely gone.
-  // So: probe independent signals, name the one that observed the removal, and when none can
-  // observe it in this frame, say exactly that instead of claiming success OR failure.
+  // ⛔ Figma's getVariableByIdAsync stays stale inside the deleting frame, so reading that as
+  // "the deletion did not happen" made removalObserved:true UNREACHABLE live while the old
+  // harness (which removed it from lookup immediately) kept the path green. That is only
+  // half of the platform story: live evidence on hxpwe1ej (2026-08-24) showed that the
+  // owning collection's variableIds membership DOES update in-frame, and it observed all
+  // three successful deletes. So probe independent signals, name the one that observed the
+  // removal, and defer explicitly only when none can distinguish removal from a no-op.
   const observation = {
     lookupResolved: null,
     removedFlag: null,

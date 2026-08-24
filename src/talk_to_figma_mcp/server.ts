@@ -2046,12 +2046,13 @@ server.tool(
   }
 );
 
-// R3-A Phase 2 — a direct create into one exact existing local collection. Duplicate/name
-// reconciliation belongs to Phase 3 identity work, so this tool never infers ownership or
-// silently reuses a same-named variable.
+// R3-A Phase 3 — create-or-match into one exact existing local collection. Identity is
+// deliberately layered: an explicit id is authoritative, otherwise exact collection/name,
+// otherwise an opaque caller-owned private-plugin-data key. The plugin reports whether it
+// matched or created so a rerun is auditable without a second read.
 server.tool(
   "create_variable",
-  "[Exact existing local variable collection, caller-requested write] Create one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. The collection is resolved before the create call and a remote collection returns a typed refusal without calling Figma. This is a direct create, not an upsert: the tool does not de-duplicate by name or infer a consumer identity key; that later Phase 3 contract must be explicit.",
+  "[Exact existing local variable collection, idempotent caller-requested write] Create or match one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. Resolution is fixed: supplied id first; otherwise exact collectionId + name; otherwise supplied opaque identityKey stored as this plugin's private data in the same collection. A wrong explicit id never falls through to create, duplicate name/key matches are refused, and a different existing identityKey is never overwritten. Every receipt carries created and matchedBy: a fresh create is created:true/matchedBy:null; an existing resource is created:false with matchedBy id, name, or identityKey. identityKey is compared byte-for-byte only and is never parsed, normalized, or echoed. The collection is resolved before any write; remote resources return a typed refusal without calling Figma.",
   {
     collectionId: z
       .string()
@@ -2064,6 +2065,16 @@ server.tool(
     resolvedType: z
       .enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"])
       .describe("Figma variable type for the new variable"),
+    id: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Optional exact local variable ID; when supplied it is the first identity layer and must belong to collectionId"),
+    identityKey: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Optional opaque caller-owned string for idempotent identity; stored privately on a newly created or matching untagged variable and never interpreted or returned"),
   },
   async (args: any) => {
     try {

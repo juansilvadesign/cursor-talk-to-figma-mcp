@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-0d303490d152",
-  "pluginBuildId": "r3-a-plugin-6ed0aab0ecdc",
-  "serverSchemaVersion": "1.10.0",
-  "pluginApiVersion": "1.10.0",
+  "serverBuildId": "r3-a-server-af8987322467",
+  "pluginBuildId": "r3-a-plugin-b5ee1c0b619a",
+  "serverSchemaVersion": "1.11.0",
+  "pluginApiVersion": "1.11.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
+  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -45,6 +45,7 @@ var RUNTIME_METADATA = {
     "get_local_components",
     "get_variables",
     "get_variable_capabilities",
+    "add_variable_mode",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -87,6 +88,7 @@ var RUNTIME_METADATA = {
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
@@ -155,6 +157,7 @@ var RUNTIME_METADATA = {
     "relay.channel@1"
   ],
   "supportedTools": [
+    "add_variable_mode",
     "apply_batch",
     "check_fonts",
     "clone_node",
@@ -1879,6 +1882,36 @@ server.tool(
           {
             type: "text",
             text: `Error getting variable capabilities: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "add_variable_mode",
+  "[Exact local variable collection, caller-requested write] Add one named mode to an existing local variable collection. This is not a plan-ceiling probe: it makes exactly one collection.addMode(name) call for this request and never creates a temporary collection or mode, nor calls removeMode. If Figma refuses at its pricing-tier mode limit, the receipt keeps Figma's refusal text verbatim and reports the pre-call known-good mode count; modeCeiling.value is populated only from Figma's own `in addMode: Limited to N modes only` message, never from a hardcoded plan table. A successful write returns Figma's mode ID and a post-call collection count.",
+  {
+    collectionId: z.string().min(1).describe("ID of the existing local variable collection to change"),
+    name: z.string().min(1).describe("Name of the mode to add; this is a real document write, not a probe")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("add_variable_mode", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error adding variable mode: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

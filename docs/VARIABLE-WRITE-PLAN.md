@@ -1,9 +1,9 @@
 # Variable-Write Plan — the variable half of R3
 
-> **Status: Phase 0 DISCHARGED; Phase 1.1 IMPLEMENTED, offline-gated, and its plugin-artifact
-> move PAID LIVE on 2026-08-24 (channel `chvza8ab`); Phase 1.2 LIVE-VALIDATED; Phase 1.3
-> IMPLEMENTED and offline-gated on 2026-08-24, awaiting its first real ceiling refusal —
-> Phases 2–4 not started.** Cut 2026-08-07 from a real
+> **Status: Phase 0 DISCHARGED; Phases 1.1–1.3 LIVE-VALIDATED; R3-A's Phase 2 three-tool
+> slice is IMPLEMENTED and release-offline-gated at `1.12.0`; its first live run is pending an
+> owner-confirmed disposable target — the remaining Phase 2 surface and Phases 3–4 are not
+> started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -347,6 +347,48 @@ published library and must be rejected with a typed refusal, never silently skip
 - [ ] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
       explicit `confirm: true`. `TASKS.md` C5 already names *"explicit destructive
       boundaries"* as a fork responsibility.
+
+### ✅ R3-A Phase 2 build — first three tools, live acceptance still owed
+
+The scheduled, plan-independent slice is now implemented: `set_variable_value`,
+`create_variable`, and `delete_variable`. It deliberately stays within existing local
+collections and modes; it does not claim the rest of this broader Phase 2 table is done.
+
+- `set_variable_value` accepts exactly one of raw `value` or `aliasOf`. Raw COLOR is strict
+  RGBA 0–1 (no hex form); FLOAT, STRING, and BOOLEAN match the resolved type. Local alias
+  targets must have the same type, and self/cyclic or unreadable alias chains are refused
+  before a setter call.
+- `create_variable` resolves the existing local collection object before calling Figma's
+  current `createVariable(name, collection, resolvedType)` API. It is direct create, never
+  an identity-based upsert.
+- `delete_variable` requires literal `confirm: true` and follows `remove()` with a direct
+  lookup. It reports `unverified` plus `partialApplicationPossible` rather than claiming a
+  deletion whose absence cannot be observed.
+- `tests/variable-write.test.mjs` covers typed raw values (including `0`, `false`, and alpha
+  `0`), strict-color rejection, aliases/cycles, remote refusals, destructive confirmation,
+  and post-delete observation. The existing variable-capability suite remains green.
+- **Release gate passed — 2026-08-24:** `bun run verify` passed **388/388** and rebuilt the
+  70-tool `dist/` pair. Generated identity is `r3-a-server-df1893278585` ↔
+  `r3-a-plugin-ef3d88deef54`, schema `1.12.0`, fingerprint
+  `sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a`;
+  `dist/server.js` is `sha256:4048c91b…c3b8f80`.
+
+⛔ **Live acceptance is deliberately not claimed yet.** Run
+`scripts/live-variable-write-gate.mjs` only with an existing local collection in an
+owner-confirmed disposable Figma file:
+
+```sh
+node scripts/live-variable-write-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --collection-id=<existing-local-collection-id> \
+  --disposable-target=true
+```
+
+The gate creates, aliases, changes, and deletes variables; its cleanup is best-effort, so a
+channel alone is not evidence that a real file is safe. The Phase 1.3
+`live-variable-mode-gate.mjs` now requires the same explicit acknowledgement and still has
+**no cleanup path by design**: it may leave a caller-requested mode behind when the collection
+is not actually at its ceiling. Both gates require a disposable target on every invocation.
 
 ## Phase 3 — resource identity
 

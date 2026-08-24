@@ -286,6 +286,9 @@ The MCP server provides the following tools for interacting with Figma:
 - `get_variables` - Get document-wide variable collections, modes, and resolved values
 - `get_variable_capabilities` - Read-only variable-write preflight: reports whether the required write APIs exist, each collection's `isRemote` and `modeCount`, plus the observed editor context. Figma exposes neither a read-only file-permission check nor a numeric mode-limit API, so it reports those facts as unknown rather than creating and deleting a mode to guess
 - `add_variable_mode` - Add one named mode to an existing local variable collection. This performs the caller's requested `addMode()` write exactly once; a Figma pricing-tier refusal is returned verbatim, and a numeric limit is reported only when Figma's own message states it — never guessed from a plan table or a temporary create/delete probe
+- `set_variable_value` - Set one existing local variable's value in one existing mode. Supply exactly one typed raw `value` or same-type local `aliasOf`; COLOR is strict RGBA 0–1 (no hex), and self/cyclic alias graphs are refused before a write
+- `create_variable` - Create one COLOR, FLOAT, STRING, or BOOLEAN variable in an existing local collection. This is a direct create, not an upsert or name-based reconciliation
+- `delete_variable` - Permanently remove one existing local variable only with literal `confirm: true`. The result is verified by a follow-up lookup; an unobservable removal is reported as unverified rather than success
 - `get_node_variables` - Resolve every design token in a node subtree — both variable bindings and style references
 - `create_component_instance` - Create an instance of a component
 - `get_instance_overrides` - Extract override properties from a selected component instance

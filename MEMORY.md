@@ -10,21 +10,22 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.3 ✅ LIVE-VALIDATED + ten-gate re-pin ✅ PAID)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 2 ✅ BUILT / FOCUSED-OFFLINE-GATED; live target pending)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Now:** **R3-A (`1.11.0`) Phase 1.3 is implemented, offline-gated, and ✅ LIVE-VALIDATED (PASSED TWICE).**
-  `add_variable_mode` targets one exact local collection and makes one caller-requested
-  `addMode(name)` call — never a temporary create/delete probe. On Figma's first ceiling
-  refusal it returns the platform message verbatim, the pre-call known-good mode count, and a
-  numeric `modeCeiling` only when Figma itself supplied it. Phase 1.2 remains live-validated
-  and fixed; its record remains in [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md)
-  § *1.2* and `docs/evidence/r3a-1.2-live/report.md`.
-- **Current identity:** **67 tools**, R3-A `1.11.0`,
-  **`r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`**, fingerprint
-  `sha256:6a68b351…deb6428`; `bun run verify` passed **378/378** and rebuilt
-  `dist/server.js` `sha256:a0e41990…15002`.
+- **Now:** **R3-A (`1.12.0`) Phase 2's first three-tool slice is implemented and
+  focused-offline-gated; do not call it live-validated yet.** `set_variable_value`,
+  `create_variable`, and `delete_variable` are local-only and use exact IDs. Raw values are
+  type-checked, aliases are same-type and cycle-checked before writing, create is direct (not
+  upsert), and delete requires `confirm: true` plus observed absence. Phase 1.2/1.3 remain
+  live-validated; their record remains in
+  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md).
+- **Current generated identity:** **70 tools**, R3-A `1.12.0`,
+  **`r3-a-server-df1893278585` ↔ `r3-a-plugin-ef3d88deef54`**, fingerprint
+  `sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a`.
+  **`bun run verify` passed 388/388** and rebuilt `dist/server.js`
+  `sha256:4048c91b…c3b8f80`; this is the first locally verified artifact for the identity.
 - **✅ Phase 1.3 live gate is PAID — 2026-08-24, channel `hdejcpog`** (a disposable copy of a
   real design-system file), collection `VariableCollectionId:17050:370` *"8. Dimensions"*.
   `scripts/live-variable-mode-gate.mjs` **PASSED TWICE**, byte-identical: `modeCount 10 → 10`
@@ -40,11 +41,15 @@ type: project
   bogus `r3-a-plugin-000000000000` copy exited 1 naming both ids with no page created. The
   ledger is back to the **three** R2.1/R2.2/R2.4 entries. Offline **378/378**, `dist/`
   byte-identical.
-- **Next step:** **Phase 2 — the variable write tools** (`docs/VARIABLE-WRITE-PLAN.md`
-  § *Phase 2*), not yet started; the owner stopped the session before that build-box. ⛔ All
-  Phase 2 tools are **local-only**: `remote: true` collections must be refused with a typed
-  refusal, never silently skipped. 🟡 This session's re-pin + doc changes are **uncommitted** —
-  the owner owns commits and should stage explicit paths, never `git add -A`.
+- **Next action after the local release gate:** live-validate the slice only with an
+  owner-confirmed disposable Figma target. Invoke
+  `scripts/live-variable-write-gate.mjs --channel=<DEV-plugin-channel-for-a-disposable-file>
+  --collection-id=<existing-local-collection-id> --disposable-target=true`. The Phase 1.3
+  mode gate now requires the same explicit acknowledgement and has **no cleanup by design**;
+  the new write gate performs only best-effort cleanup. A channel (for example,
+  `--channel=vuhd2git`) is transport, not proof that its file is disposable. 🟡 This session's
+  changes are **uncommitted** — the owner owns commits and should stage explicit paths, never
+  `git add -A`.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -69,10 +74,12 @@ type: project
   `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`) ·
   `docs/evidence/r3a-1.1-repin/` (ten reports, ⚠️ **gitignored, no second copy**).
   **378/378**; 67 tools, `1.11.0`.
-- **Open / blockers:** 🟡 Phase 1.3 source, tests, generated contract/runtime and `dist` are
-  uncommitted; the owner must commit explicit paths. The first **live** ceiling refusal still
-  requires a user-supplied channel and a disposable at-ceiling collection. The ten R2 gates
-  are now explicitly stale; three older R2.1/R2.2/R2.4 gates remain declined twice. Remaining owner decisions: ① the `set_fill` gradient `color`
+- **Open / blockers:** 🟡 Phase 2 source, tests, generated contract/runtime, docs, and the
+  rebuilt `dist` are uncommitted; the owner must commit explicit paths. The first **live**
+  variable-write run requires a user-supplied channel, an existing local collection, and an
+  explicitly confirmed disposable file. The Phase 1.3 mode gate and the ten earlier R2 gates
+  are explicitly stale against `1.12.0`; three older R2.1/R2.2/R2.4 gates remain declined
+  twice. Remaining owner decisions: ① the `set_fill` gradient `color`
   drop (`code.js:8047`); ② whether the offline harness should model Figma's effect union —
   it cannot today, and that is what let the `set_effects` defect sit green. ⏳ R3-A still has
   no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2 is recorded in the plan.

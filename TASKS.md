@@ -170,7 +170,25 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅ **R3-A PHASE 1.3 LIVE-VALIDATED (ceiling = 10) + TEN-GATE RE-PIN PAID.**
+## ▶ Current session — ✅ **R3-A PHASE 2 BUILT / FOCUSED-OFFLINE-GATED; LIVE TARGET PENDING.**
+
+✅ **R3-A Phase 2 first slice — 2026-08-24.** The release now has **70 tools** at
+**`1.12.0`**: `set_variable_value`, `create_variable`, and `delete_variable` work only on
+exact local variables, collections, and modes. The setter supports typed raw values or a
+same-type local alias, rejects cycles before Figma sees a write, and returns an observed
+readback. Create is direct (not an upsert); delete requires literal `confirm: true` and only
+claims deletion after a follow-up lookup confirms absence. The focused offline suites cover
+raw type validation, alias/cycle guards, remote refusals, destructive confirmation, and an
+unverified removal. **`bun run verify` passed 388/388** and rebuilt `dist/` for
+`r3-a-server-df1893278585` ↔ `r3-a-plugin-ef3d88deef54` (`1.12.0`; `dist/server.js`
+`sha256:4048c91b…c3b8f80`).
+
+⛔ **Live Phase 2 acceptance remains owed.** `scripts/live-variable-write-gate.mjs` now
+requires all of `--channel=<DEV-plugin-channel-for-a-disposable-file>`,
+`--collection-id=<existing-local-collection-id>`, and `--disposable-target=true`. It creates
+and deletes variables, so cleanup is deliberately only best-effort. The Phase 1.3 mode gate
+now requires the same acknowledgement and still has no cleanup by design. Do not infer that a
+channel is disposable: the owner must explicitly confirm the target file each time.
 
 ✅ **R3-A Phase 1.3 `add_variable_mode` — 2026-08-24.** The new public
 additive-preview write moves the release to **R3-A / `1.11.0` / 67 tools**:
@@ -252,8 +270,9 @@ left, pins proved checked in both the stale-declaration and `assertRuntime` dire
 ledger is back to the three R2.1/R2.2/R2.4 entries. Offline **378/378**.
 
 ⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phases 1.2
-and 1.3 are recorded inside the plan. **Phase 2 (the variable write tools) is NOT started** —
-the session was stopped before that build-box. The three R2.1/R2.2/R2.4 gates remain declined.
+and 1.3 are recorded inside the plan. **The broader Phase 2 surface is not started; its
+implemented three-tool R3-A slice still needs a live run on an explicitly disposable target.**
+The three R2.1/R2.2/R2.4 gates remain declined.
 
 ### Previous — R2 acceptance
 

@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-af8987322467",
-  "pluginBuildId": "r3-a-plugin-b5ee1c0b619a",
-  "serverSchemaVersion": "1.11.0",
-  "pluginApiVersion": "1.11.0",
+  "serverBuildId": "r3-a-server-214dd61cca06",
+  "pluginBuildId": "r3-a-plugin-4aa3214c4754",
+  "serverSchemaVersion": "1.12.0",
+  "pluginApiVersion": "1.12.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
+  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -46,6 +46,9 @@ var RUNTIME_METADATA = {
     "get_variables",
     "get_variable_capabilities",
     "add_variable_mode",
+    "set_variable_value",
+    "create_variable",
+    "delete_variable",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -100,8 +103,10 @@ var RUNTIME_METADATA = {
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
+    "figma.command.create_variable@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
+    "figma.command.delete_variable@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -154,6 +159,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
+    "figma.command.set_variable_value@1",
     "relay.channel@1"
   ],
   "supportedTools": [
@@ -169,8 +175,10 @@ var RUNTIME_METADATA = {
     "create_rectangle",
     "create_section",
     "create_text",
+    "create_variable",
     "delete_multiple_nodes",
     "delete_node",
+    "delete_variable",
     "export_node_as_image",
     "get_annotations",
     "get_available_fonts",
@@ -223,7 +231,8 @@ var RUNTIME_METADATA = {
     "set_size_limits",
     "set_stroke_color",
     "set_text_content",
-    "set_text_style"
+    "set_text_style",
+    "set_variable_value"
   ],
   "supportedPrompts": [
     "annotation_conversion_strategy",
@@ -1912,6 +1921,121 @@ server.tool(
           {
             type: "text",
             text: `Error adding variable mode: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_variable_value",
+  "[Exact local variable and mode, caller-requested write] Set one existing local variable's value for one mode. Pass exactly one of value or aliasOf: raw COLOR values are RGBA objects with 0\u20131 r/g/b and optional a (hex strings are not accepted), FLOAT is a finite number, STRING is a string, and BOOLEAN is true/false; aliasOf is an existing local variable ID of the same resolved type. The handler rejects self-aliases and every resolvable alias cycle before writing, then reads Figma's stored value back. Remote source variables, remote collections, and remote alias chains return a typed refusal and are never silently skipped. This R3-A slice supports COLOR, FLOAT, STRING and BOOLEAN only.",
+  {
+    variableId: z.string().min(1).describe("ID of the existing local variable to change"),
+    modeId: z.string().min(1).describe("ID of an existing mode in that variable's local collection"),
+    value: z.union([
+      z.string().describe("Raw STRING value"),
+      z.number().finite().describe("Raw finite FLOAT value"),
+      z.boolean().describe("Raw BOOLEAN value"),
+      z.object({
+        r: z.number().min(0).max(1).describe("Red channel, 0\u20131"),
+        g: z.number().min(0).max(1).describe("Green channel, 0\u20131"),
+        b: z.number().min(0).max(1).describe("Blue channel, 0\u20131"),
+        a: z.number().min(0).max(1).optional().describe("Alpha channel, 0\u20131; defaults to 1")
+      }).strict().describe("Raw COLOR value as RGBA floats; no hex-string form")
+    ]).optional().describe("Raw value; supply this XOR aliasOf"),
+    aliasOf: z.string().min(1).optional().describe("Existing local variable ID to alias; supply this XOR value")
+  },
+  async (args2) => {
+    const hasValue = Object.prototype.hasOwnProperty.call(args2, "value") && args2.value !== void 0;
+    const hasAlias = Object.prototype.hasOwnProperty.call(args2, "aliasOf") && args2.aliasOf !== void 0;
+    if (hasValue === hasAlias) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error setting variable value: provide exactly one of value or aliasOf; no request was sent to Figma"
+          }
+        ]
+      };
+    }
+    try {
+      const result = await sendCommandToFigma("set_variable_value", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting variable value: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "create_variable",
+  "[Exact existing local variable collection, caller-requested write] Create one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. The collection is resolved before the create call and a remote collection returns a typed refusal without calling Figma. This is a direct create, not an upsert: the tool does not de-duplicate by name or infer a consumer identity key; that later Phase 3 contract must be explicit.",
+  {
+    collectionId: z.string().min(1).describe("ID of the existing local collection that will own the new variable"),
+    name: z.string().min(1).describe("Name for the new variable; this is a real document write"),
+    resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Figma variable type for the new variable")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("create_variable", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating variable: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "delete_variable",
+  "[Exact local variable, destructive caller-requested write] Permanently remove one existing local variable. confirm must be literal true; without it no Figma call is made. Remote variables return a typed refusal. Figma commits the removal at the END of the plugin execution frame, so after remove() the handler probes independent in-frame signals and names the one that observed the absence; when none can, it reports outcome removal_unconfirmed with verificationDeferred and partialApplicationPossible instead of claiming deletion. A real deletion and a no-op remove() are indistinguishable from inside that frame, so confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    variableId: z.string().min(1).describe("ID of the existing local variable to permanently remove"),
+    confirm: z.literal(true).describe("Required explicit destructive confirmation; must be true, not merely truthy")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("delete_variable", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting variable: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

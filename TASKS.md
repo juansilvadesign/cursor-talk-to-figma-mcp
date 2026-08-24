@@ -170,7 +170,59 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅✅ **R2 ACCEPTANCE IS CLOSED. R2.7 IS DONE.**
+## ▶ Current session — ✅ **R2 ACCEPTED; R3-A PHASE 1.2 IS BUILT AND OFFLINE-GATED.**
+
+✅ **R3-A Phase 1.2 `get_variable_capabilities` — 2026-08-24.** The new zero-argument,
+document-scoped read tool registers on both server and plugin, moving the release to
+**R3-A / `1.10.0` / 66 tools**:
+`r3-a-server-12c88b765a45` ↔ `r3-a-plugin-122b65ca30e9`, fingerprint
+`sha256:b367651f…751279`. It reports API presence, `isRemote`/`modeCount` per collection,
+and the facts Figma cannot expose without mutating: `document.editable:null` when file ACL
+is unobservable and `modeCeiling.value:null` until an actual `addMode()` refusal. The payload
+also names the observable editor context and the current `knownGoodAtLeast` mode count, so
+unknown never masquerades as permission or a plan limit. Offline **373/373**, `bun run
+verify` green, and `dist/server.js` rebuilt (`sha256:ea7581c8…7356d3`).
+
+⛔ **Not live-gated yet.** This public command moved both build IDs, the schema,
+fingerprint, and tool count, so all ten current R2 gates are explicitly declared stale in
+`tests/live-gate-pins.test.mjs`. They must be re-pinned **and re-run** after the DEV plugin
+reload and MCP-server respawn; no pin was edited to fabricate a run. ▶ **Next implementation
+phase = 1.3, honest mode-ceiling refusal reporting; live R3-A evidence remains pending a
+supplied Figma channel.**
+
+✅✅ **R3-A PHASE 1.1 RE-PIN + RE-RUN — 2026-08-24, channel `chvza8ab`.** Phase 1.1
+(`hasVariableWriteApi()` in `code.js`) regenerated `pluginBuildId`
+`0ace9ed58f34` → **`a34d76fc6bc6`**, staling the same **TEN** gates R2 acceptance had just
+cleared. They were re-pinned in one pass and **re-run once each — ALL TEN PASSED**, no new
+defects: fresh scratch page each, six-page baseline restored each, confirmed by a separate
+read afterwards. Offline **371/371**, `bun run verify` green, `dist/` rebuilt
+**byte-identical** (`sha256:94ba5c47…e027a`). Ledger back to the three R2.1/R2.2/R2.4 gates;
+the two R3-A constants and the `currentGates === 0` branch are **deleted**. Record →
+[`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md) § *1.1*.
+🟡 **UNCOMMITTED — 14 files** (10 gates + the pins test + the plan + `MEMORY.md` + this file).
+⛔ Committing is the owner's act.
+
+⭐ **A PIN SHAPE THIS PROJECT HAD NOT RECORDED: only `pluginBuildId` moved.** 1.1 registers no
+MCP tool and no `capabilityId`, and touches neither `server.ts` nor the contract, so
+`serverBuildId`, the schema `1.9.0`, the fingerprint and the 65-tool count **all four HELD**.
+It is the exact inverse of R2.6 acceptance (server-only), and ⛔ **the operator consequence
+flips with the direction** — plugin-only means *reload the DEV plugin*, server-only means
+*respawn the MCP session and do NOT reload*. ⛔ Neither side is visible to a fingerprint
+check by construction: in a single-sided move the capability surface really **is** identical
+and one running artifact is not. The reload was **MEASURED** first, via live
+`get_runtime_info` → `plugin.buildId`, never off `compatibility: "compatible"`.
+🔴 **The pins were proved CHECKED, not merely present, in both directions:** a throwaway copy
+of `live-clips-content-gate.mjs` pinned to `r2-plugin-000000000000` refused at
+`assertRuntime` — exit 1, naming both ids, no baseline read, no scratch page created — and
+the offline pins test went red on one drifted undeclared pin, naming the file, then green on
+restore. Ten greens whose refusal leg never fires measure the inputs, not the pins.
+⚠️ **The ten reports are GITIGNORED** (`docs/evidence/r3a-1.1-repin/` falls under `docs/*`),
+so they have no second copy — the committed record is the ledger comment in
+`tests/live-gate-pins.test.mjs`.
+⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2
+is recorded inside the plan. The live re-pin/run and Phase 1.3 remain open.
+
+### Previous — R2 acceptance
 
 ✅✅ **R2 ACCEPTANCE CLOSED — 2026-08-23/24, channels `w113vf7y` then `6cbroncs`.**
 The representative fixture PASSED **twice** on `w113vf7y` (fresh scratch page each run,
@@ -182,7 +234,7 @@ The representative fixture PASSED **twice** on `w113vf7y` (fresh scratch page ea
 the `R2_ACCEPTANCE_REPIN_PENDING` list and the `currentGates === 0` branch are **deleted** —
 the ledger is back to the three R2.1/R2.2/R2.4 gates. Record →
 [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *R2 ACCEPTANCE*.
-🟡 **UNCOMMITTED** — 21 files. ⛔ Committing is the owner's act.
+✅ **COMMITTED by the owner** as `d8c488e` + `726f8a4` + `5e452ed`.
 
 🔴 **THE FIXTURE FOUND A DEFECT IN A TOOL ALREADY PROMOTED TO `stable`.** `set_effects`
 advertises `visible` and `blendMode` as `.optional()`; **Figma requires** both on shadows and

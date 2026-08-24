@@ -1,7 +1,8 @@
 # Variable-Write Plan — the variable half of R3
 
-> **Status: Phase 0 DISCHARGED; Phase 1.1 IMPLEMENTED and offline-gated 2026-08-24 —
-> Phases 1.2–4 not started.** Cut 2026-08-07 from a real
+> **Status: Phase 0 DISCHARGED; Phase 1.1 IMPLEMENTED, offline-gated, and its plugin-artifact
+> move PAID LIVE on 2026-08-24 (channel `chvza8ab`); Phase 1.2 IMPLEMENTED and offline-gated
+> on 2026-08-24 — Phases 1.3–4 not started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -120,10 +121,59 @@ layer already established the pattern to mirror: `hasVariablesApi()` in `code.js
       `createVariable`, `createVariableCollection`, and `createVariableAlias`.
       ✅ Offline-gated 2026-08-24 in `tests/variable-write-capability.test.mjs`: read support
       alone returns false, while removal of any one write entry point refuses the capability.
-- [ ] **1.2 Add `get_variable_capabilities`** (read tool, cheap, no mutation). Returns:
-      whether the write API exists · whether the document is editable · the current
-      **mode ceiling** and how many modes each local collection already uses · per-collection
-      `isRemote`. This is what lets a client fail *before* a partial write.
+
+      ✅✅ **AND ITS PLUGIN-ARTIFACT MOVE IS PAID — 2026-08-24, channel `chvza8ab`.** 1.1
+      rewrites `code.js`, so the regenerated `pluginBuildId`
+      (`0ace9ed58f34` → `a34d76fc6bc6`) staled all **ten** gates that R2 acceptance had just
+      re-pinned. They were re-pinned in one pass and **re-run once each — ALL TEN PASSED**,
+      each on a fresh scratch page of the same six-page file, each restoring that baseline;
+      a separate read after the pass confirmed the file's own six pages. Offline **371/371**,
+      `bun run verify` green, and the rebuild came out **byte-identical** (`dist/server.js`
+      `sha256:94ba5c47…e027a`) — a pin edit still does not move the build.
+
+      ⭐ **A pin shape this project had not recorded: only `pluginBuildId` moved.** 1.1 adds
+      no MCP tool and no `capabilityId`, and `server.ts`/`contractPayload` are untouched, so
+      `serverBuildId`, the schema (`1.9.0`), the fingerprint (`sha256:f636ecab…6142fc0`) and
+      the 65-tool count all HELD — the exact inverse of R2.6 acceptance, where only
+      `serverBuildId` moved. ⛔ It is also the shape a fingerprint check waves straight
+      through, and in the opposite direction from R2.6's: here the capability surface really
+      **is** identical, and the artifact running inside Figma is not.
+
+      ⭐ **Nothing in that pass was assumed.** The DEV-plugin reload was MEASURED first — live
+      `get_runtime_info` reported `plugin.buildId: "r2-plugin-a34d76fc6bc6"`, never
+      `compatibility: "compatible"`, which only says the two RUNNING halves agree with each
+      other — and all ten reports carry that same id. The pins were then proved **checked**
+      rather than merely present, in both directions: a throwaway copy of
+      `live-clips-content-gate.mjs` pinned to `r2-plugin-000000000000` refused at
+      `assertRuntime` (exit 1, naming both ids, no baseline read, no scratch page created,
+      the file untouched), and the offline pins test went red on a single drifted undeclared
+      pin — naming the file — and green again on restore.
+
+      ⚠️ **Reports are LOCAL-ONLY.** `docs/evidence/r3a-1.1-repin/` sits under the `docs/*`
+      ignore rule, so the ten `report.json` files have no second copy anywhere; the ledger
+      entry in `tests/live-gate-pins.test.mjs` is the committed record of this pass.
+- [x] **1.2 Add `get_variable_capabilities`** (read tool, cheap, no mutation). Public,
+      document-scoped `additive-preview` read tool at R3-A `1.10.0`: reports separate
+      `readApiAvailable`, `writeApiAvailable`, and `collectionInventoryAvailable`; every
+      returned collection has `{id, name, key, defaultModeId, isRemote, modeCount}`.
+      `modeCeiling.value` is deliberately `null` with `status:"unknown"` and a
+      `knownGoodAtLeast` maximum from local collections: Figma exposes the numeric limit only
+      by refusing `addMode()`, and this read does not create/delete a mode to discover it.
+      Similarly, `document.editable` is `false` only for a known no-write editor context and
+      otherwise `null`; `editorContextAllowsWrites` reports the observed editor/mode while
+      Figma's unexposed file-permission check stays honestly unknown. A missing or rejected
+      inventory returns `complete:false` and `collectionCount:null`, never a false zero.
+
+      ✅ Offline-gated in `tests/variable-write-capability.test.mjs`: all three write entries
+      can exist without being called; the normal collection inventory produces the two-mode
+      lower bound; unavailable/failed inventory and Dev Inspect context remain explicit.
+      `bun run verify` passed **373/373** and rebuilt the 66-tool R3-A pair
+      `r3-a-server-12c88b765a45` ↔ `r3-a-plugin-122b65ca30e9`
+      (`sha256:b367651f…751279`; `dist/server.js`
+      `sha256:ea7581c8…7356d3`). ⛔ **Offline only:** the ten R2 gates are declared stale,
+      not re-pinned, until the DEV plugin is reloaded and a supplied Figma channel permits a
+      coherent live re-run. This is what lets a client preflight known facts before a partial
+      write without pretending the unobservable facts are known.
 - [ ] **1.3 Probe the mode ceiling honestly.** ⚠️ **Multiple modes per collection are a paid
       Figma-plan feature and `addMode()` throws when the ceiling is hit.** Do **not** hardcode
       a plan→limit table — plan tiers change and the fork cannot see billing. Report the

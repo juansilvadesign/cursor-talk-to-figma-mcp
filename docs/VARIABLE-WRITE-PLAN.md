@@ -446,7 +446,7 @@ normalization, or echo in a receipt.
 **Release/offline identity:** `R3-A` `1.13.0`, 70 tools,
 `r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`, fingerprint
 `sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`.
-`bun run verify` passed **394/394** and rebuilt `dist/server.js`
+`bun run verify` passed **395/395** and rebuilt `dist/server.js`
 `sha256:7493a32a…6822d309`.
 The Phase 2 gate remains evidence for its paid `1.12.0` build, not this new plugin source.
 `scripts/live-variable-identity-gate.mjs` is the new **unrun**, disposable-target-only live

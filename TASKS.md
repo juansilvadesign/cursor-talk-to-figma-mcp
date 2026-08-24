@@ -183,7 +183,7 @@ is exact opaque plugin data, never parsed, normalized, or echoed. The release is
 `live-variable-identity-gate.mjs` is pinned but **unrun**: reload the DEV plugin and use it
 only against an owner-confirmed disposable file. The pending `deleteVariable` comment fix
 travelled in this same source change and now names in-frame collection membership as the
-working removal signal. **`bun run verify` passed 394/394** and rebuilt `dist/server.js`
+working removal signal. **`bun run verify` passed 395/395** and rebuilt `dist/server.js`
 `sha256:7493a32a…6822d309`; the explicit commit remains the owner's act.
 
 ✅ **R3-A Phase 2 first slice — 2026-08-24.** The release now has **70 tools** at

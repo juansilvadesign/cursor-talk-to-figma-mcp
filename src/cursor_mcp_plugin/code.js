@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-0ace9ed58f34",
+  "buildId": "r2-plugin-a34d76fc6bc6",
   "apiVersion": "1.9.0",
   "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
@@ -1168,6 +1168,15 @@ function hasVariablesApi() {
     figma.variables.getLocalVariablesAsync &&
     figma.variables.getLocalVariableCollectionsAsync &&
     figma.variables.getVariableByIdAsync
+  );
+}
+
+function hasVariableWriteApi() {
+  return Boolean(
+    figma.variables &&
+    figma.variables.createVariable &&
+    figma.variables.createVariableCollection &&
+    figma.variables.createVariableAlias
   );
 }
 

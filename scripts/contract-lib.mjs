@@ -88,6 +88,7 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_local_components",
   "get_variables",
   "get_variable_capabilities",
+  "add_variable_mode",
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
@@ -194,6 +195,9 @@ const TOOL_SCOPES = {
   get_local_components: "document_or_selected_pages",
   get_variables: "document",
   get_variable_capabilities: "document",
+  // A mode belongs to one collection; the handler resolves that exact ID and never scans
+  // the document or manufactures a disposable resource to learn its plan ceiling.
+  add_variable_mode: "variable_collection",
   get_node_variables: "node_subtree",
   // Neither reads the document at all — the subject is the machine running Figma.
   // ⛔ The fallback below is "node", which would have been wrong and silent.

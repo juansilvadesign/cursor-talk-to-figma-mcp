@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-6ed0aab0ecdc",
-  "apiVersion": "1.10.0",
-  "serverSchemaVersion": "1.10.0",
+  "buildId": "r3-a-plugin-b5ee1c0b619a",
+  "apiVersion": "1.11.0",
+  "serverSchemaVersion": "1.11.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
+  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -36,6 +36,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "get_local_components",
     "get_variables",
     "get_variable_capabilities",
+    "add_variable_mode",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -78,6 +79,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
@@ -336,6 +338,8 @@ async function handleCommand(command, params) {
       return await getVariables(params);
     case "get_variable_capabilities":
       return await getVariableCapabilities();
+    case "add_variable_mode":
+      return await addVariableMode(params);
     case "get_node_variables":
       return await getNodeVariables(params);
     case "get_available_fonts":
@@ -1242,6 +1246,38 @@ function unknownModeCeiling(knownGoodAtLeast) {
     knownGoodAtLeast,
     limitation:
       "Figma exposes the mode limit only when addMode() is refused. This read-only probe intentionally does not create or delete a mode to discover it.",
+  };
+}
+
+// Unlike get_variable_capabilities(), this evidence comes from the caller's requested
+// mutation. A successful add proves one more mode works, but it cannot reveal the numeric
+// limit; discovering that with a throwaway create/remove would pollute the document and its
+// undo history.
+function unobservedModeCeilingAfterAdd(knownGoodAtLeast) {
+  return {
+    value: null,
+    status: "unknown",
+    knownGoodAtLeast,
+    limitation:
+      "Figma accepted this caller-requested addMode() call, so it did not reveal the numeric mode limit. No separate create/delete probe was performed.",
+  };
+}
+
+// The Plugin API documents this exact refusal text. Extract only the number Figma itself
+// reported; there is deliberately no plan-to-limit table in this fork, because the plugin
+// cannot inspect billing and plan limits can change independently of its code.
+function observedModeCeilingFromRefusal(knownGoodAtLeast, refusal) {
+  const match = /^in addMode: Limited to (\d+) modes only\.?$/.exec(refusal);
+  const value = match ? Number(match[1]) : null;
+  const observed = Number.isSafeInteger(value) && value >= 0;
+
+  return {
+    value: observed ? value : null,
+    status: observed ? "observed" : "unknown",
+    knownGoodAtLeast,
+    limitation: observed
+      ? "The numeric mode ceiling was observed only in Figma's direct refusal of this caller-requested addMode() call. No create/delete probe was performed."
+      : "addMode() refused this caller-requested write, but the refusal did not state a numeric mode ceiling. No create/delete probe was performed.",
   };
 }
 
@@ -3626,6 +3662,119 @@ async function getVariableCapabilities() {
     localCollectionCount: localCollections.length,
     collections: collectionPayloads,
     limitations: [REMOTE_COLLECTION_INVENTORY_LIMITATION, document.limitation],
+  };
+}
+
+// R3-A Phase 1.3. This is an add command, not a capability probe: it calls addMode exactly
+// once because the caller asked to add this named mode. If Figma says the collection is at
+// its plan ceiling, the raw platform message is returned verbatim with the mode count that
+// was already known before the call. We never create a temporary mode and never call
+// removeMode to manufacture that observation.
+async function addVariableMode(params) {
+  const { collectionId, name } = params || {};
+  if (typeof collectionId !== "string" || collectionId.trim().length === 0) {
+    throw new Error("add_variable_mode requires a non-empty collectionId and wrote nothing");
+  }
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error("add_variable_mode requires a non-empty name and wrote nothing");
+  }
+  if (
+    !figma.variables ||
+    typeof figma.variables.getVariableCollectionByIdAsync !== "function"
+  ) {
+    throw new Error(
+      "add_variable_mode wrote nothing: this Figma runtime cannot resolve variable collections by ID"
+    );
+  }
+
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    collectionId
+  );
+  if (!collection) {
+    throw new Error(
+      `add_variable_mode wrote nothing: variable collection ${collectionId} was not found`
+    );
+  }
+  if (collection.remote) {
+    throw new Error(
+      `add_variable_mode wrote nothing: variable collection ${collectionId} is remote and cannot be modified`
+    );
+  }
+  if (!Array.isArray(collection.modes)) {
+    throw new Error(
+      `add_variable_mode wrote nothing: variable collection ${collectionId} has no readable modes array`
+    );
+  }
+  if (typeof collection.addMode !== "function") {
+    throw new Error(
+      `add_variable_mode wrote nothing: variable collection ${collectionId} does not support addMode()`
+    );
+  }
+
+  const modeCountBefore = collection.modes.length;
+  let modeId;
+  try {
+    // The only mutation in this handler. It is intentionally not wrapped in an optimistic
+    // create/remove "probe"; a caller who asks to add a mode either gets that mode or the
+    // actual Figma refusal.
+    modeId = collection.addMode(name);
+  } catch (error) {
+    // Figma owns this Error object. Do not rely on instanceof here: host/VM realm
+    // boundaries can make a real Error fail that check and turn its exact message into
+    // "Error: …", which is no longer the platform refusal we promised to preserve.
+    const refusal =
+      error && typeof error.message === "string" ? error.message : String(error);
+    let modeCountAfter = null;
+    try {
+      modeCountAfter = Array.isArray(collection.modes)
+        ? collection.modes.length
+        : null;
+    } catch (_) {
+      // The known-good count remains the pre-call observation. Do not obscure Figma's
+      // original refusal with a secondary read failure.
+    }
+
+    return {
+      success: false,
+      outcome: "refused",
+      collection: {
+        id: collection.id,
+        name: collection.name,
+        key: collection.key,
+        modeCountBefore,
+        modeCountAfter,
+      },
+      mode: null,
+      modeCeiling: observedModeCeilingFromRefusal(
+        modeCountBefore,
+        refusal
+      ),
+      // This is intentionally the unmodified Figma error message. Consumers can retain it
+      // as evidence even if Figma changes its plan names or wording later.
+      refusal,
+    };
+  }
+
+  const modesAfter = Array.isArray(collection.modes) ? collection.modes : [];
+  const createdMode = modesAfter.find((mode) => mode.modeId === modeId) || null;
+  const modeCountAfter = modesAfter.length;
+
+  return {
+    success: true,
+    outcome: "created",
+    collection: {
+      id: collection.id,
+      name: collection.name,
+      key: collection.key,
+      modeCountBefore,
+      modeCountAfter,
+    },
+    mode: {
+      id: modeId,
+      name: createdMode ? createdMode.name : null,
+      nameReadable: Boolean(createdMode),
+    },
+    modeCeiling: unobservedModeCeilingAfterAdd(modeCountBefore + 1),
   };
 }
 

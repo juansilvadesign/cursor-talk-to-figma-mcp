@@ -2,12 +2,12 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-0d303490d152",
-  "pluginBuildId": "r3-a-plugin-6ed0aab0ecdc",
-  "serverSchemaVersion": "1.10.0",
-  "pluginApiVersion": "1.10.0",
+  "serverBuildId": "r3-a-server-af8987322467",
+  "pluginBuildId": "r3-a-plugin-b5ee1c0b619a",
+  "serverSchemaVersion": "1.11.0",
+  "pluginApiVersion": "1.11.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
+  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -34,6 +34,7 @@ export const RUNTIME_METADATA = {
     "get_local_components",
     "get_variables",
     "get_variable_capabilities",
+    "add_variable_mode",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -76,6 +77,7 @@ export const RUNTIME_METADATA = {
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
@@ -144,6 +146,7 @@ export const RUNTIME_METADATA = {
     "relay.channel@1"
   ],
   "supportedTools": [
+    "add_variable_mode",
     "apply_batch",
     "check_fonts",
     "clone_node",

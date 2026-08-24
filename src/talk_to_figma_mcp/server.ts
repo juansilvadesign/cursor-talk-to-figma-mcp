@@ -1929,6 +1929,44 @@ server.tool(
   }
 );
 
+// Add Variable Mode Tool
+server.tool(
+  "add_variable_mode",
+  "[Exact local variable collection, caller-requested write] Add one named mode to an existing local variable collection. This is not a plan-ceiling probe: it makes exactly one collection.addMode(name) call for this request and never creates a temporary collection or mode, nor calls removeMode. If Figma refuses at its pricing-tier mode limit, the receipt keeps Figma's refusal text verbatim and reports the pre-call known-good mode count; modeCeiling.value is populated only from Figma's own `in addMode: Limited to N modes only` message, never from a hardcoded plan table. A successful write returns Figma's mode ID and a post-call collection count.",
+  {
+    collectionId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing local variable collection to change"),
+    name: z
+      .string()
+      .min(1)
+      .describe("Name of the mode to add; this is a real document write, not a probe"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("add_variable_mode", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error adding variable mode: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Node Variables Tool
 server.tool(
   "get_node_variables",
@@ -4271,6 +4309,7 @@ type FigmaCommand =
   | "get_local_components"
   | "get_variables"
   | "get_variable_capabilities"
+  | "add_variable_mode"
   | "get_node_variables"
   | "get_available_fonts"
   | "check_fonts"
@@ -4451,6 +4490,10 @@ type CommandParams = {
     types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;
   };
   get_variable_capabilities: Record<string, never>;
+  add_variable_mode: {
+    collectionId: string;
+    name: string;
+  };
   get_node_variables: { nodeId: string };
   get_available_fonts: {
     family?: string;

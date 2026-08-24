@@ -36,7 +36,7 @@ var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
   "serverBuildId": "r2-server-a0afdc880ab0",
-  "pluginBuildId": "r2-plugin-0ace9ed58f34",
+  "pluginBuildId": "r2-plugin-a34d76fc6bc6",
   "serverSchemaVersion": "1.9.0",
   "pluginApiVersion": "1.9.0",
   "relayProtocolVersion": "1",

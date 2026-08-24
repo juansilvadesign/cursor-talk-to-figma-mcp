@@ -117,9 +117,18 @@ test("the current contract stays backwards compatible with every frozen release 
 // name, and now a baseline carries them. R2.6 was the last release in which the CC1 repair
 // cost nothing; that window is closed by this file.
 //
-// ⚠️ Expected to stay EMPTY. It fills for exactly one window — a release's acceptance until
-// the next release's freeze — and a name that lingers past that window is the smell.
-const ACCEPTED_SINCE_LAST_BASELINE = [];
+// R2 acceptance now promotes the five additive-preview tools below. The representative
+// fixture is prepared, but its live Figma execution and the resulting re-pin are still
+// intentionally pending a supplied channel. This list records the contract exception; it
+// is not a claim that those live gates have already passed. The next accepted frozen
+// baseline must absorb these names and return this list to empty.
+const ACCEPTED_SINCE_LAST_BASELINE = [
+  "create_node_from_svg",
+  "set_blend_mode",
+  "set_effects",
+  "set_fill",
+  "set_opacity",
+];
 
 async function frozenToolNames() {
   const baselineDir = path.join(root, "contracts/baselines");

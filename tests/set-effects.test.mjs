@@ -389,11 +389,11 @@ test("both filter copies explicitly preserve the four R2.7 read fields", async (
   }
 });
 
-test("the public contract pins the supported types, preview status, scope, and batch absence", async () => {
+test("the public contract pins the supported types, stable status, scope, and batch absence", async () => {
   const built = await buildContract();
   const tool = built.contract.tools.find((entry) => entry.name === "set_effects");
   assert.ok(tool, "set_effects must be registered");
-  assert.equal(tool.resultStability, "additive-preview");
+  assert.equal(tool.resultStability, "stable");
   assert.equal(tool.direction, "write");
   assert.equal(tool.scope, "node");
   assert.equal(tool.progress.pluginUpdates, "none");

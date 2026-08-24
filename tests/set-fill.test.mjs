@@ -594,15 +594,14 @@ test("the paint count and stop count are bounded", async () => {
 // Contract-level pins
 // ---------------------------------------------------------------------------
 
-test("set_fill ships additive-preview, per CC1", async () => {
-  // ⛔ Load-bearing in a way it was not for any R2.6 tool: the CC3 freeze landed first this
-  // release, so `contracts/baselines/` carries R2.5 and R2.6 and the free walk-back is
-  // GONE. A tool that falls through to `stable` here is frozen on a reply shape no live
-  // gate has judged, permanently.
+test("set_fill is stable after the R2 acceptance promotion", async () => {
+  // The release's disposable component/page fixture exercises the real write alongside
+  // typography, effects, batch editing and read-back. Its live run is still required to
+  // accept R2, but the public-contract promotion itself must not be silently undone.
   const built = await buildContract();
   const tool = built.contract.tools.find((entry) => entry.name === "set_fill");
   assert.ok(tool, "set_fill must be registered");
-  assert.equal(tool.resultStability, "additive-preview");
+  assert.equal(tool.resultStability, "stable");
   assert.equal(tool.direction, "write");
   assert.equal(tool.scope, "node");
 });

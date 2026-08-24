@@ -2,8 +2,8 @@
  * R2.7 item 1.3 — node-layer opacity and blend mode.
  *
  * 1.2 already spent the only R2.7 public-contract bump. The important assertion here is
- * therefore twofold: these are new additive-preview write tools with direct read-back
- * receipts, and neither property leaks into stable get_node_info as a side effect.
+ * therefore twofold: these stable write tools retain direct read-back receipts, and neither
+ * property leaks into stable get_node_info as a side effect.
  */
 
 import assert from "node:assert/strict";
@@ -171,7 +171,7 @@ test("the stable get_node_info result stays unchanged; only the new receipts exp
   }
 });
 
-test("the public contract declares two additive node writes while schema 1.9.0 holds", async () => {
+test("the public contract declares two stable node writes while schema 1.9.0 holds", async () => {
   const built = await buildContract();
   const opacityTool = built.contract.tools.find((entry) => entry.name === "set_opacity");
   const blendTool = built.contract.tools.find((entry) => entry.name === "set_blend_mode");
@@ -179,7 +179,7 @@ test("the public contract declares two additive node writes while schema 1.9.0 h
   assert.ok(opacityTool, "set_opacity must be registered");
   assert.ok(blendTool, "set_blend_mode must be registered");
   for (const tool of [opacityTool, blendTool]) {
-    assert.equal(tool.resultStability, "additive-preview");
+    assert.equal(tool.resultStability, "stable");
     assert.equal(tool.direction, "write");
     assert.equal(tool.scope, "node");
     assert.equal(tool.progress.pluginUpdates, "none");

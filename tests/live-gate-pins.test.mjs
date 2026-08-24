@@ -6,6 +6,27 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+// R3-A Phase 1.1 changes the direct DEV-plugin artifact, so its regenerated
+// `pluginBuildId` stales every gate that R2 acceptance re-pinned and ran. Re-pinning any
+// of them now would assert a live run that has not happened. Keep the exact ten-name set
+// explicit until the R3-A acceptance pass can reload the DEV plugin and re-run it on a
+// disposable channel.
+const R3_A_PHASE_1_1_REPIN_PENDING = Object.freeze([
+  "live-batch-gate.mjs",
+  "live-text-style-gate.mjs",
+  "live-layout-gate.mjs",
+  "live-constraints-gate.mjs",
+  "live-size-limits-gate.mjs",
+  "live-clips-content-gate.mjs",
+  "live-fill-gate.mjs",
+  "live-effects-gate.mjs",
+  "live-opacity-blend-gate.mjs",
+  "live-svg-crop-gate.mjs",
+]);
+
+const R3_A_PHASE_1_1_STALE_REASON =
+  "R2 acceptance build, schema 1.9.0, 65 tools. Staled by R3-A Phase 1.1 moving pluginBuildId; re-pin and re-run with R3-A acceptance.";
+
 // ✅✅ **THE R2 ACCEPTANCE RE-PIN IS DONE — 2026-08-24, channel `6cbroncs`.** All TEN were
 // re-pinned to `r2-server-a0afdc880ab0` ↔ `r2-plugin-0ace9ed58f34`, schema 1.9.0,
 // fingerprint `sha256:f636ecab…6142fc0`, 65 tools, and all ten RE-RUN once each on one
@@ -48,6 +69,16 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
+  // ⛔ R3-A Phase 1.1 is intentionally an offline-only foundation: it establishes the
+  // plugin API guard before a public variable command exists. The ten R2 gates remain
+  // valid evidence for their recorded build, but cannot be quoted as evidence for this
+  // newly generated plugin artifact until their one-pass R3-A re-pin/run.
+  ...Object.fromEntries(
+    R3_A_PHASE_1_1_REPIN_PENDING.map((name) => [
+      name,
+      R3_A_PHASE_1_1_STALE_REASON,
+    ]),
+  ),
   // ✅ THE R2.7 BACKLOG IS CLEARED — 2026-08-23, channel `3az2oicz`.
   //
   // EIGHT entries lived here at once, and they arrived in three waves. Item 1.1 (`set_fill`)
@@ -166,8 +197,28 @@ test("every live gate either pins THIS build or declares the release it belongs 
     );
   }
 
-  assert.ok(
-    currentGates >= 1,
-    "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
-  );
+  if (currentGates === 0) {
+    // Normally this is a release-blocking failure: a current gate is what proves a live
+    // build is runnable. R3-A Phase 1.1 is the intentionally narrow exception while no
+    // disposable live channel is available. Pin every affected script as stale rather than
+    // pretending a plugin-artifact move did not happen, then remove this branch when the
+    // one-pass R3-A re-pin/run finishes.
+    assert.equal(
+      R3_A_PHASE_1_1_REPIN_PENDING.length,
+      10,
+      "the R3-A Phase 1.1 exception must name all ten affected scripts, including SVG/CROP",
+    );
+    assert.deepEqual(
+      R3_A_PHASE_1_1_REPIN_PENDING.filter(
+        (name) => !Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, name),
+      ),
+      [],
+      "every R3-A gate awaiting a channel must be declared stale rather than silently unrunnable",
+    );
+  } else {
+    assert.ok(
+      currentGates >= 1,
+      "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
+    );
+  }
 });

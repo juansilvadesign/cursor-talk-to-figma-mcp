@@ -1,9 +1,9 @@
 # Variable-Write Plan — the variable half of R3
 
 > **Status: Phase 0 DISCHARGED; Phases 1.1–1.3 LIVE-VALIDATED; R3-A's Phase 2 three-tool
-> slice is LIVE-ACCEPTED at `1.12.0`; Phase 3 resource identity is IMPLEMENTED and
-> release-offline-gated at `1.13.0`, with its target-explicit live acceptance still pending an
-> owner-confirmed disposable file. The remaining Phase 2 surface is not started.** Cut 2026-08-07 from a real
+> slice is LIVE-ACCEPTED at `1.12.0`; Phase 3 resource identity is LIVE-ACCEPTED at `1.13.0`
+> — passed twice on channel `lkm6ne6h`, 2026-08-24. The remaining Phase 2 surface is not
+> started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -448,26 +448,30 @@ normalization, or echo in a receipt.
 `sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`.
 `bun run verify` passed **395/395** and rebuilt `dist/server.js`
 `sha256:7493a32a…6822d309`.
-The Phase 2 gate remains evidence for its paid `1.12.0` build, not this new plugin source.
-`scripts/live-variable-identity-gate.mjs` is the new **unrun**, disposable-target-only live
-instrument: it proves all three match layers, the type-conflict refusal, exactly one resource,
-and fresh-frame cleanup of the variable it created.
+The Phase 2 gate remains evidence for its paid `1.12.0` build, not this plugin source.
+✅ `scripts/live-variable-identity-gate.mjs` is **PAID** — it passed **twice** on channel
+`lkm6ne6h` against `Starter File - PsiAtiva - Disposable`, collection
+`VariableCollectionId:17048:9` *"_Primitives"*, proving all three match layers plus the
+explicit-`id` layer, the `name_type_conflict` refusal, exactly one resource per rerun, and
+fresh-frame cleanup of the variable it created. Full record →
+[`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md) § *R3-A PHASE 3 ACCEPTANCE*.
 
 ## Phase 4 — tests, dist, and the pin
 
 - [x] **4.1 Offline fixtures** for: alias resolution, a mode-ceiling refusal, a remote-variable
       refusal, a cycle refusal, and an additive rerun. The real-`code.js` VM/stub now also
       models `Variable` private plugin data and exercises the identity negative paths.
-- [ ] **4.2 Live acceptance on a disposable file** — ⛔ **never** on a real design-system file.
-      Record server + plugin identity in the acceptance note, per *"Local runtime honesty."*
+- [x] **4.2 Live acceptance on a disposable file** — ⛔ **never** on a real design-system file.
+      ✅ PAID 2026-08-24 on `lkm6ne6h`, twice, against an owner-confirmed disposable file.
+      Server + plugin identity recorded in the acceptance note, per *"Local runtime honesty."*
 - [x] **4.3 Rebuild `dist/`.** ⚠️ Load-bearing: `.mcp.json` points at the fork's
       `dist/server.js`, and upstream's published npm package does **not** contain the fork's
       tools. `bun run verify` rebuilt the pair; its explicit commit remains the owner's act.
 - [x] **4.4 Re-run the Phase 0 parity test.** Command count holds at 70 and the contract test
       proves dispatcher/server parity after the existing command's schema grew.
 - [x] **4.5 Assign a new pin** and let consumers adopt it on their own schedule. The Phase 3
-      identity gate pins the exact `1.13.0` pair above; it must be **run** before that pin can
-      be quoted as live evidence.
+      identity gate pins the exact `1.13.0` pair above and has now **been run** — twice — so
+      that pin is quotable as live evidence rather than a source-edit claim.
 
 ## Acceptance
 

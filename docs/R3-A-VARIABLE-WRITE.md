@@ -1,12 +1,83 @@
-# R3-A Phase 2 — the variable-write slice
+# R3-A Phases 2–3 — the variable-write slice
 
 The record doc for the first three variable **write** tools: `set_variable_value`,
 `create_variable`, and `delete_variable`. Phase 1's read/probe work is recorded in
-[`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) §§ *1.1–1.3*; this file owns Phase 2.
+[`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) §§ *1.1–1.3*; this file owns Phase 2
+(the three write tools) and Phase 3 (layered resource identity for `create_variable`).
 
 > ⚠️ The gate in this document **creates, aliases, rewrites and deletes real variables**.
 > Every invocation requires `--disposable-target=true`, and a channel is transport, not
 > evidence that the file behind it is disposable.
+
+## ✅✅ R3-A PHASE 3 ACCEPTANCE — PAID 2026-08-24, channel `lkm6ne6h`
+
+`scripts/live-variable-identity-gate.mjs` **PASSED TWICE**, same verdict structure both
+times, against `Starter File - PsiAtiva - Disposable` (owner-confirmed disposable).
+
+| | run 1 | run 2 |
+|---|---|---|
+| started | `2026-08-24T21:47:29Z` | `2026-08-24T21:47:59Z` |
+| verdict (read from `report.json` `success`) | PASSED | PASSED |
+| created variable | `VariableID:31011:115` | `VariableID:31011:116` |
+| `matchedBy` sequence | `null → name → identityKey → id` | `null → name → identityKey → id` |
+| type-conflict refusal | `name_type_conflict` | `name_type_conflict` |
+| `sameNameCount` after fresh read | 1 | 1 |
+| delete `observedBy` | `removalObserved: true` | `removalObserved: true` |
+| `stillOwed` | `[]` | `[]` |
+
+- **Runtime:** `r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`, schema `1.13.0`,
+  **70 tools**, fingerprint
+  `sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`,
+  `compatibility: compatible`, zero issues. `dist/server.js`
+  `sha256:7493a32a…6822d309`, `code.js` `sha256:6d772a51…fcb7f10d`.
+- **Target:** `VariableCollectionId:17048:9` *"_Primitives"*, `defaultModeId 17048:0`,
+  **1 mode** — chosen for the smallest blast radius. ⛔ Unlike the Phase 2 write gate, this
+  gate asserts nothing about mode isolation, so a single-mode target costs it no coverage.
+- **Post-run state:** an independent read **from a different client session** (not the
+  gate's own cleanup assertion) found **0** leftover `__R3A Identity Gate` variables;
+  `_Primitives` holds exactly its 7 original `File/*` entries, document STRING count 18.
+
+Each run resolves the same variable four ways and refuses a fifth: create (`matchedBy:
+null`, `identityKeyStatus: "stored"`), exact name, opaque `identityKey` **under a different
+requested name**, explicit `id`, then a `COLOR` request against the existing `STRING` name.
+
+### What the run proves that the offline harness could not
+
+- **The identity fallback does not rename.** The `identityKey` leg deliberately requests
+  `"<name> renamed intent"` and the post-run fresh read still returns the **original** name.
+  A resolver that matched and then applied the requested name would pass every
+  `matchedBy` assertion and silently rewrite a real design-system token.
+- **The opaque key survives a real Figma round-trip.** `identityKey` is
+  `"  r3a://identity/<stamp> — opaque  "` — leading/trailing spaces, a URI-ish body, an
+  em dash. Live Figma stored and returned it byte-exact, so the *only* legal operation on a
+  caller-owned key stays exact string equality.
+- **`identityKeyStatus` distinguishes `stored` from `already_stored`.** Run 1's create
+  reports `stored`; every subsequent match reports `already_stored`. A resolver that
+  re-wrote the key on each match would be byte-identical on the receipt Juan reads.
+- 🔴 **`delete_variable` now reports `removalObserved: true` live.** This is the Phase 2
+  defect's fix, exercised on real Figma for the first time: the post-`remove()` check reads
+  **collection membership**, which updates in-frame, instead of `getVariableByIdAsync`,
+  which Figma answers with a stale object inside the deleting frame. Both cleanups also
+  proved absence on a later frame (`absentAfterFreshRead: true`), so the success path and
+  the cross-frame path agree rather than one covering for the other.
+
+### ⚠️ Pre-existing gate debris found in this file — NOT from this run
+
+The independent read found **6 leftover modes** in `VariableCollectionId:17050:370`
+*"8. Dimensions"*: `R3A-GATE-DELETE-ME` and `R3A-FILL-1` … `R3A-FILL-5` (`31001:0`–`31001:5`),
+on top of the four real `Mobile/Tablet/Laptop/Desktop` modes.
+
+- They are residue of the **Phase 1.3 mode-ceiling gate**, which had to push the collection
+  to 10 modes to make Figma emit `in addMode: Limited to 10 modes only`. They are not
+  variables and this gate never touches modes — the Phase 3 runs above created and deleted
+  exactly one STRING variable each, in `_Primitives`.
+- ⛔ **This fork exposes no mode-removal tool.** `add_variable_mode` is documented as never
+  calling `removeMode`, and there is no `delete_variable_mode`. The debris can only be
+  cleared **by hand in Figma**.
+- ⚠️ Consequence: *"8. Dimensions"* is pinned at the 10-mode ceiling by junk, so
+  `get_variable_capabilities` honestly reports `modeCount: 10` for it and any real
+  `add_variable_mode` against that collection will be refused until the modes are deleted.
+  ⭐ A refusal there would be a **true** ceiling report about a **false** ceiling cause.
 
 ## ✅ R3-A PHASE 2 ACCEPTANCE — PAID 2026-08-24, channel `hxpwe1ej`
 
@@ -109,19 +180,35 @@ refused alias cycle is held to the same standard.
 ```sh
 bun socket                                    # relay on 3055, required
 # reload the DEV plugin in Figma first — that is what moves pluginBuildId
+# Phase 2 — the three write tools
 node scripts/live-variable-write-gate.mjs \
   --channel=<DEV-plugin-channel-for-a-disposable-file> \
   --collection-id=<existing-local-MULTI-mode-collection-id> \
   --disposable-target=true
+
+# Phase 3 — layered resource identity
+node scripts/live-variable-identity-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --collection-id=<existing-local-collection-id> \
+  --disposable-target=true
 ```
 
-Prefer a **multi-mode** collection: on a single-mode target the isolation assertions are
-vacuous. Cleanup is best-effort and only drops a variable from its retry list once absence is
-**proven** by the cross-frame re-read.
+For the **Phase 2** gate prefer a **multi-mode** collection: on a single-mode target the
+isolation assertions are vacuous. Cleanup is best-effort and only drops a variable from its
+retry list once absence is **proven** by the cross-frame re-read.
+
+The **Phase 3** gate asserts nothing about modes, so prefer the *smallest* collection
+available — a single-mode target is the smaller blast radius at no cost in coverage.
+
+⛔ Read the verdict from the report's `success` field, not from the printed line, and
+confirm cleanup with a read from a **separate** client session: the gate asserting its own
+cleanup is the instrument checking its own precondition.
 
 ## Offline coverage
 
-`bun run verify` — **391/391**, 70 tools, `dist/` pair rebuilt.
+`bun run verify` — **395/395**, 70 tools, `dist/` pair rebuilt **byte-identical** to the
+`sha256:7493a32a…6822d309` the Phase 3 gate recorded in its `artifactHashes`, so the live
+run and the offline suite provably exercised the same build.
 `tests/variable-write.test.mjs` now includes the leg that would have caught the defect:
 
 - *a `remove()` that does nothing is indistinguishable IN-FRAME and is caught only by the
@@ -140,7 +227,17 @@ in-frame signal a modelled platform exposes. The default `"none"` is the conserv
   identity change. It now names the live fact that the lookup is stale **but collection
   membership updates in-frame** — the observation that makes the success path reachable.
   It was not shipped as a comment-only plugin rebuild.
-- ⏳ The `removal_unconfirmed` deferral path is offline-covered but live-unexercised.
+- ✅ **Phase 3's live identity gate is PAID** — twice on `lkm6ne6h`, see the acceptance
+  section above. `create_variable`'s four-layer resolution and its `name_type_conflict`
+  refusal are live evidence, not harness behaviour.
+- ✅ **`delete_variable`'s success path is live-proven.** `removalObserved: true` on both
+  cleanups is the first live confirmation of the Phase 2 defect fix.
+- ⏳ The `removal_unconfirmed` deferral path is offline-covered but live-unexercised. Phase 3
+  did not reach it: `collection_membership` answered on every delete, which is exactly the
+  branch that makes the deferral rare.
+- ⚠️ **6 leftover Phase 1.3 modes sit in *"8. Dimensions"* on the disposable starter file**
+  and no tool in this fork can remove them — see the Phase 3 acceptance section. Hand
+  deletion in Figma is the only route.
 - ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) (modes,
   collections, bindings) is untouched. Phase 3 resource identity is implemented and
   offline-gated at `1.13.0`; its disposable-file live gate remains unrun.

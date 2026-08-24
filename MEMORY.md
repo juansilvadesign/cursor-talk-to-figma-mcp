@@ -10,7 +10,7 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 3 resource identity built, offline-gated)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 3 LIVE-ACCEPTED on `lkm6ne6h`)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
@@ -21,7 +21,32 @@ type: project
   `create_variable` is a create-or-match resolver: explicit id → exact collection/name →
   opaque private plugin-data identity key → create. It reports `{created, matchedBy}`, refuses
   ambiguity/incomplete inventory rather than risking a duplicate, and never parses or
-  overwrites an opaque identity key. Its fresh live gate is unrun.
+  overwrites an opaque identity key.
+- **✅✅ R3-A PHASE 3 IS LIVE-ACCEPTED — 2026-08-24, channel `lkm6ne6h`.**
+  `scripts/live-variable-identity-gate.mjs` **PASSED TWICE** against
+  `Starter File - PsiAtiva - Disposable` (owner-confirmed), collection
+  `VariableCollectionId:17048:9` *"_Primitives"* (1 mode, smallest blast radius — this gate
+  asserts nothing about modes, so a single-mode target costs it no coverage). Both runs
+  resolved one variable four ways — `null → name → identityKey → id` — and refused a fifth
+  with `name_type_conflict`; `sameNameCount` stayed **1**, `stillOwed` `[]`.
+  ⭐ The `identityKey` leg requests a **different** name on purpose and the fresh read still
+  returns the original: a resolver that matched-then-renamed would pass every `matchedBy`
+  assertion while silently rewriting a real token. The opaque key
+  (`"  r3a://identity/<stamp> — opaque  "`, padded, em-dashed) round-tripped byte-exact.
+  🔴 **`delete_variable` reported `removalObserved: true` live for the first time** — the
+  Phase 2 defect fix, exercised on real Figma; both cleanups ALSO proved
+  `absentAfterFreshRead`, so the in-frame and cross-frame signals agree rather than one
+  covering for the other. An independent read **from a separate client session** confirmed
+  zero leftovers. Record → `docs/R3-A-VARIABLE-WRITE.md` § *R3-A PHASE 3 ACCEPTANCE*.
+  Evidence → `docs/evidence/r3a-phase3-identity-run{1,2}/report.json` (⚠️ **gitignored**;
+  mirrored to this session's scratchpad only).
+- **⚠️ Found in passing — 6 leftover modes in `VariableCollectionId:17050:370` *"8.
+  Dimensions"*** on that file: `R3A-GATE-DELETE-ME` + `R3A-FILL-1…5` (`31001:0`–`31001:5`),
+  residue of the **Phase 1.3** mode-ceiling gate, which had to reach 10 modes to make Figma
+  emit its refusal. ⛔ **This fork has no mode-removal tool** (`add_variable_mode` is
+  documented as never calling `removeMode`; no `delete_variable_mode` exists) — hand deletion
+  in Figma is the only route. ⭐ Until then that collection sits at the ceiling, so a real
+  `add_variable_mode` there gets a **true** ceiling refusal from a **false** ceiling cause.
 - **Current generated identity:** **70 tools**, R3-A `1.13.0`,
   **`r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`**, fingerprint
   `sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`.
@@ -55,12 +80,13 @@ type: project
   updates in-frame**. ⛔ The obvious hypothesis — *"commits at frame end, nothing is
   observable"* — was wrong in its load-bearing half; a fix pinned to the lookup would have been
   permanently deferred and one pinned to `.removed` would have been a second dead path.
-- **Next action:** reload the DEV plugin and run
-  `scripts/live-variable-identity-gate.mjs` only with an owner-confirmed disposable Figma
-  channel/collection. ⛔ It creates and deletes a variable; never point it at a real
-  design-system file. The `deleteVariable` comment correction is **paid** in the same Phase 3
-  `code.js` change, and now states the live fact that membership updates in-frame. ⚠️ The
-  `removal_unconfirmed` deferral path remains offline-covered but **live-unexercised**.
+- **Next action:** **owner commits** `docs/R3-A-VARIABLE-WRITE.md` +
+  `docs/VARIABLE-WRITE-PLAN.md` (the Phase 3 acceptance record — the code itself is already
+  committed at `3bbbfab`). Then either ① start the remaining Phase 2 surface (collections,
+  modes, bindings), or ② hand-delete the 6 leftover modes above. ⚠️ The
+  `removal_unconfirmed` deferral path remains offline-covered but **live-unexercised** —
+  Phase 3 did not reach it because `collection_membership` answered on every delete, which is
+  precisely the branch that makes the deferral rare.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -85,10 +111,12 @@ type: project
   `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`) ·
   `docs/evidence/r3a-1.1-repin/` (ten reports, ⚠️ **gitignored, no second copy**).
   **378/378**; 67 tools, `1.11.0`.
-- **Open / blockers:** 🟡 Phase 3 source, tests, generated contract/runtime, docs, and rebuilt
-  `dist` are uncommitted; the owner must commit explicit paths. The new **live** identity gate
-  requires a user-supplied channel, an existing local collection, a DEV-plugin reload, and an
-  explicitly confirmed disposable file. The Phase 2 variable-write gate and earlier historical
+- **Open / blockers:** 🟢 Phase 3 source, tests, generated contract/runtime and rebuilt
+  `dist` ARE committed (`3bbbfab`); only the two acceptance **docs** are dirty. ✅ `bun run
+  verify` re-confirmed **395/395** this session and rebuilt `dist/server.js`
+  **byte-identical** to `sha256:7493a32a…`, which is the same hash the gate recorded in its
+  `artifactHashes` — the live run and the offline suite provably exercised one build. The
+  Phase 2 variable-write gate and earlier historical
   gates are explicitly stale against `1.13.0`; three R2.1/R2.2/R2.4 gates remain declined
   twice. Remaining owner decisions: ① the `set_fill` gradient `color` drop (`code.js:8047`);
   ② whether the offline harness should model Figma's effect union. R3-A now has its own record

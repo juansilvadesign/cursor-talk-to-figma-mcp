@@ -285,6 +285,7 @@ The MCP server provides the following tools for interacting with Figma:
 - `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list; scope with `pages` and bound with `timeBudgetMs` on large documents. Summary mode also clusters components into `authoringSessions` by node-id prefix, so a bulk-pasted vendor kit is distinguishable from hand-authored work
 - `get_variables` - Get document-wide variable collections, modes, and resolved values
 - `get_variable_capabilities` - Read-only variable-write preflight: reports whether the required write APIs exist, each collection's `isRemote` and `modeCount`, plus the observed editor context. Figma exposes neither a read-only file-permission check nor a numeric mode-limit API, so it reports those facts as unknown rather than creating and deleting a mode to guess
+- `add_variable_mode` - Add one named mode to an existing local variable collection. This performs the caller's requested `addMode()` write exactly once; a Figma pricing-tier refusal is returned verbatim, and a numeric limit is reported only when Figma's own message states it — never guessed from a plan table or a temporary create/delete probe
 - `get_node_variables` - Resolve every design token in a node subtree — both variable bindings and style references
 - `create_component_instance` - Create an instance of a component
 - `get_instance_overrides` - Extract override properties from a selected component instance

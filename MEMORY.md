@@ -10,35 +10,32 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.2 LIVE + ten-gate re-pin PAID)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.3 ✅ LIVE-VALIDATED, ceiling observed = 10)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Now:** **R3-A (`1.10.0`) Phase 1.2 is LIVE-VALIDATED, FIXED, and its ten-gate re-pin is
-  PAID.** `get_variable_capabilities` ran live on channel `mlag5jfc`, agreed with the
-  independent `get_variables` path on every collection id/key/mode count, and held its honest
-  unknowns (`modeCeiling.value` stayed `null` rather than promoting the local max of 3;
-  `document.editable` stayed `null` in a file the owner can plainly edit). 🔴 **The live pass
-  found what the offline gate could not:** `isRemote` could never be `true` — the inventory
-  comes from `getLocalVariableCollectionsAsync()`, which returns LOCAL collections only, so
-  `false` was the field's only reachable value and `localCollectionCount` could never differ
-  from `collectionCount`. Fixed in the same session, **before** any re-pin: every branch now
-  declares `remoteCollectionInventoryAvailable: false` with a limitation, and the tool
-  description says it on the surface a client reads. Record →
-  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md) § *1.2*,
-  `docs/evidence/r3a-1.2-live/report.md` + `docs/evidence/r3a-1.2-repin/README.md`.
-- **Current identity:** **66 tools**, R3-A `1.10.0`,
-  **`r3-a-server-0d303490d152` ↔ `r3-a-plugin-6ed0aab0ecdc`**, fingerprint
-  `sha256:b367651f…751279`; `bun run verify` passed **375/375** and rebuilt
-  `dist/server.js` `sha256:ba1bce45…97e1ef`.
-- **Next step:** Phase **1.3** (surface the first real `addMode()` ceiling refusal without
-  speculative create/delete probing). ✅ The ten R2 gates are **no longer stale** — re-pinned
-  to the pair above and re-run once each on channel `6a07fm2h`, **ALL TEN PASSED**, each on a
-  fresh scratch page of the six-page `SYD (SaveYourDay) - Spaceapps` file, baseline restored
-  and re-read after. The `GATES_PINNED_TO_AN_EARLIER_RELEASE` ledger is back to the **three**
-  R2.1/R2.2/R2.4 gates, and the `R3_A_PHASE_1_2_REPIN_PENDING` set + its `currentGates === 0`
-  branch are deleted. 🟡 Everything from this session is **uncommitted** — the owner owns
-  commits and should stage explicit paths, never `git add -A`.
+- **Now:** **R3-A (`1.11.0`) Phase 1.3 is implemented, offline-gated, and ✅ LIVE-VALIDATED (PASSED TWICE).**
+  `add_variable_mode` targets one exact local collection and makes one caller-requested
+  `addMode(name)` call — never a temporary create/delete probe. On Figma's first ceiling
+  refusal it returns the platform message verbatim, the pre-call known-good mode count, and a
+  numeric `modeCeiling` only when Figma itself supplied it. Phase 1.2 remains live-validated
+  and fixed; its record remains in [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md)
+  § *1.2* and `docs/evidence/r3a-1.2-live/report.md`.
+- **Current identity:** **67 tools**, R3-A `1.11.0`,
+  **`r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`**, fingerprint
+  `sha256:6a68b351…deb6428`; `bun run verify` passed **378/378** and rebuilt
+  `dist/server.js` `sha256:a0e41990…15002`.
+- **✅ Phase 1.3 live gate is PAID — 2026-08-24, channel `hdejcpog`** (a disposable copy of a
+  real design-system file), collection `VariableCollectionId:17050:370` *"8. Dimensions"*.
+  `scripts/live-variable-mode-gate.mjs` **PASSED TWICE**, byte-identical: `modeCount 10 → 10`
+  (a refusal mutates nothing), `mode:null`, `modeCeiling {value:10, status:"observed"}`, and
+  Figma's message verbatim — `in addMode: Limited to 10 modes only`. Runtime measured
+  `compatible`, zero issues. Record → `docs/VARIABLE-WRITE-PLAN.md` § *1.3*.
+- **Next step:** the public 67-tool change makes the ten formerly current R2 gates stale;
+  they are declared stale rather than re-pinned without a new run. **Re-pin + re-run those ten
+  against `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`**, then Phase 2. 🟡
+  Everything from this session is **uncommitted** — the owner owns commits and should stage
+  explicit paths, never `git add -A`.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -53,19 +50,20 @@ type: project
   and the `currentGates === 0` exception branch is deleted. Record →
   `docs/VARIABLE-WRITE-PLAN.md` § *1.1* and the ledger comment in
   `tests/live-gate-pins.test.mjs`.
-- **Key paths:** `docs/VARIABLE-WRITE-PLAN.md` § *1.2* ·
-  `src/cursor_mcp_plugin/code.js` (`getVariableCapabilities`) ·
-  `src/talk_to_figma_mcp/server.ts` (`get_variable_capabilities`) ·
-  `tests/variable-write-capability.test.mjs` · `tests/live-gate-pins.test.mjs` ·
+- **Key paths:** `docs/VARIABLE-WRITE-PLAN.md` § *1.3* ·
+  `src/cursor_mcp_plugin/code.js` (`addVariableMode`) ·
+  `src/talk_to_figma_mcp/server.ts` (`add_variable_mode`) ·
+  `scripts/live-variable-mode-gate.mjs` · `tests/variable-write-capability.test.mjs` ·
+  `tests/live-gate-pins.test.mjs` ·
   `docs/R2.7-VISUALS.md` § *R2 ACCEPTANCE* · `TASKS.md:1492` ·
   `scripts/r2-acceptance-fixture.mjs` (+ its offline test) ·
   `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`) ·
   `docs/evidence/r3a-1.1-repin/` (ten reports, ⚠️ **gitignored, no second copy**).
-  **373/373**; 66 tools, `1.10.0`.
-- **Open / blockers:** 🟡 The Phase 1.1 re-pin files, Phase 1.2, its `isRemote` fix and the
-  ten-gate re-pin are ALL uncommitted — source, tests, generated contract/runtime and `dist`
-  output; the owner must commit explicit paths. ✅ The ten R2 gates are current and green;
-  three older R2.1/R2.2/R2.4 gates remain declined twice. Remaining owner decisions: ① the `set_fill` gradient `color`
+  **378/378**; 67 tools, `1.11.0`.
+- **Open / blockers:** 🟡 Phase 1.3 source, tests, generated contract/runtime and `dist` are
+  uncommitted; the owner must commit explicit paths. The first **live** ceiling refusal still
+  requires a user-supplied channel and a disposable at-ceiling collection. The ten R2 gates
+  are now explicitly stale; three older R2.1/R2.2/R2.4 gates remain declined twice. Remaining owner decisions: ① the `set_fill` gradient `color`
   drop (`code.js:8047`); ② whether the offline harness should model Figma's effect union —
   it cannot today, and that is what let the `set_effects` defect sit green. ⏳ R3-A still has
   no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2 is recorded in the plan.
@@ -82,6 +80,28 @@ type: project
   running plugin. ⛔ Sequence any plugin/server fix **before** a gate re-pin, never after,
   or the whole set is re-staled and pays twice. ⛔ **Committing is the owner's act.**
   ⛔ Never `git add -A` — peer sessions write this repo.
+
+### 🔴 The observed mode ceiling is 10 — a number in NO cited Figma plan tier — 2026-08-24
+
+Phase 1.3's live gate observed `in addMode: Limited to 10 modes only` on channel `hdejcpog`.
+The widely-repeated Figma tiers are **1 / 4 / 40**; the real file answered **10**.
+
+- ⭐ This is the plan's *"do not hardcode a plan→limit table"* rule being **paid, not merely
+  asserted**. Any table the fork could have shipped would have been wrong for this file. Only
+  deriving `N` from Figma's own refusal string produced the right number.
+- ⛔ **`knownGoodAtLeast: 4` means AT LEAST 4 — it is not the ceiling.** The first live attempt
+  fired at this same collection while it held 4 modes, reasoning that 4 was the cap because no
+  local collection exceeded 4. The add **succeeded** and left a real mode behind. Two
+  collections independently capping at 4 was *usage*, not *limit* — the same shape as
+  [[feedback_agreement_with_a_known_partial_range_corroborates_the_partiality]]. The tool's own
+  `limitation` string had already said the ceiling is knowable only from a refusal.
+- ⭐ **The tool was honest on the path that failed the gate**: `outcome:"created"`,
+  `knownGoodAtLeast` raised 4 → 5, `modeCeiling.value` still `null`, and no cleanup. The gate
+  refused to score a non-refusal as a pass — see [[feedback_a_gate_refusal_is_an_expected_outcome]]
+  for the inverse shape, where a refusal is the PASS condition.
+- ⛔ Reaching a real ceiling needs an **out-of-band setup instrument on a disposable file**; it
+  is deliberately NOT in this repo, because the tool must never self-probe a ceiling. Ask the
+  owner for a disposable target rather than inferring one from a read.
 
 ### ⭐ A THIRD pin shape: BOTH build IDs moved and the fingerprint HELD — 2026-08-24
 

@@ -170,7 +170,26 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅ **R2 ACCEPTED; R3-A PHASE 1.2 IS BUILT AND OFFLINE-GATED.**
+## ▶ Current session — ✅ **R2 ACCEPTED; R3-A PHASE 1.3 IS LIVE-VALIDATED (ceiling observed = 10).**
+
+✅ **R3-A Phase 1.3 `add_variable_mode` — 2026-08-24.** The new public
+additive-preview write moves the release to **R3-A / `1.11.0` / 67 tools**:
+`r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`, fingerprint
+`sha256:6a68b351…deb6428`. It makes exactly one caller-requested
+`collection.addMode(name)` call on an exact local collection. If Figma refuses at its ceiling,
+the receipt keeps the raw message verbatim, reports the pre-call known-good mode count, and
+only derives a numeric limit from Figma's own `in addMode: Limited to N modes only` message.
+It has no plan table, temporary mode/collection, or `removeMode` cleanup path. Offline
+**378/378**, `bun run verify` green, `dist/server.js` rebuilt
+(`sha256:a0e41990…15002`).
+
+⛔ **Live refusal still owed.** `scripts/live-variable-mode-gate.mjs` requires a supplied
+channel plus a disposable local collection already at its real ceiling. It performs no setup
+or cleanup; if the one requested add succeeds, it intentionally leaves that real mode in
+place and fails instead of manufacturing a delete. The public command moved both runtime
+artifacts, so the ten R2 gates are explicitly declared stale in
+`tests/live-gate-pins.test.mjs`; no pin was edited to fabricate a run. Reload the DEV plugin
+and respawn the MCP server before the live gate, then measure both build IDs.
 
 ✅ **R3-A Phase 1.2 `get_variable_capabilities` — 2026-08-24.** The new zero-argument,
 document-scoped read tool registers on both server and plugin, moving the release to
@@ -183,12 +202,10 @@ also names the observable editor context and the current `knownGoodAtLeast` mode
 unknown never masquerades as permission or a plan limit. Offline **373/373**, `bun run
 verify` green, and `dist/server.js` rebuilt (`sha256:ea7581c8…7356d3`).
 
-⛔ **Not live-gated yet.** This public command moved both build IDs, the schema,
-fingerprint, and tool count, so all ten current R2 gates are explicitly declared stale in
-`tests/live-gate-pins.test.mjs`. They must be re-pinned **and re-run** after the DEV plugin
-reload and MCP-server respawn; no pin was edited to fabricate a run. ▶ **Next implementation
-phase = 1.3, honest mode-ceiling refusal reporting; live R3-A evidence remains pending a
-supplied Figma channel.**
+✅ **Subsequently live-validated and re-pinned.** The Phase 1.2 record below documents its
+later live validation and ten-gate re-run. Phase 1.3's new public command now stales those
+same gates again; its first real ceiling refusal and the next re-pin/run remain pending a
+supplied Figma channel.
 
 ✅✅ **R3-A PHASE 1.1 RE-PIN + RE-RUN — 2026-08-24, channel `chvza8ab`.** Phase 1.1
 (`hasVariableWriteApi()` in `code.js`) regenerated `pluginBuildId`
@@ -219,8 +236,18 @@ restore. Ten greens whose refusal leg never fires measure the inputs, not the pi
 ⚠️ **The ten reports are GITIGNORED** (`docs/evidence/r3a-1.1-repin/` falls under `docs/*`),
 so they have no second copy — the committed record is the ledger comment in
 `tests/live-gate-pins.test.mjs`.
-⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2
-is recorded inside the plan. The live re-pin/run and Phase 1.3 remain open.
+✅ **The Phase 1.3 live ceiling refusal is PAID — 2026-08-24, channel `hdejcpog`**, collection
+`VariableCollectionId:17050:370` *"8. Dimensions"*. The gate **PASSED TWICE**, byte-identical:
+`modeCount 10 → 10`, `mode:null`, `modeCeiling {value:10, status:"observed"}`, Figma's message
+verbatim `in addMode: Limited to 10 modes only`. 🔴 **10 appears in no cited Figma plan tier
+(1/4/40)** — the "never hardcode a plan→limit table" rule paid for itself. ⚠️ The first attempt
+fired at 4 modes on the inference that `knownGoodAtLeast: 4` was the cap; it means *at least*,
+the add succeeded, and the gate correctly failed rather than scoring a non-refusal as a pass.
+Reports are gitignored; the committed record is `docs/VARIABLE-WRITE-PLAN.md` § *1.3*.
+
+⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phases 1.2
+and 1.3 are recorded inside the plan. The ten stale R2 gates still need their re-pin/re-run
+against the 67-tool pair.
 
 ### Previous — R2 acceptance
 

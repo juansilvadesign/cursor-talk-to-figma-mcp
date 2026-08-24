@@ -1,8 +1,9 @@
 # Variable-Write Plan — the variable half of R3
 
 > **Status: Phase 0 DISCHARGED; Phase 1.1 IMPLEMENTED, offline-gated, and its plugin-artifact
-> move PAID LIVE on 2026-08-24 (channel `chvza8ab`); Phase 1.2 IMPLEMENTED and offline-gated
-> on 2026-08-24 — Phases 1.3–4 not started.** Cut 2026-08-07 from a real
+> move PAID LIVE on 2026-08-24 (channel `chvza8ab`); Phase 1.2 LIVE-VALIDATED; Phase 1.3
+> IMPLEMENTED and offline-gated on 2026-08-24, awaiting its first real ceiling refusal —
+> Phases 2–4 not started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -257,12 +258,59 @@ layer already established the pattern to mirror: `hasVariablesApi()` in `code.js
       and the normal non-vacuity assertion is restored. The ledger is back to the **three**
       R2.1/R2.2/R2.4 gates.
 
-- [ ] **1.3 Probe the mode ceiling honestly.** ⚠️ **Multiple modes per collection are a paid
+- [x] **1.3 Probe the mode ceiling honestly.** ⚠️ **Multiple modes per collection are a paid
       Figma-plan feature and `addMode()` throws when the ceiling is hit.** Do **not** hardcode
       a plan→limit table — plan tiers change and the fork cannot see billing. Report the
       *observed* ceiling: report known-good (existing mode count) and surface the thrown
       error verbatim on the first refusal. ⛔ Never probe by speculatively creating and
       deleting a mode in a user's real file.
+
+      ✅ **Implementation + offline gate — 2026-08-24.** Public additive-preview write
+      `add_variable_mode` (`R3-A 1.11.0`, 67 tools) resolves the exact local collection and
+      makes exactly one caller-requested `collection.addMode(name)` call. A successful add
+      reports the created mode and keeps `modeCeiling.value:null`: success proves only one
+      more mode is good, not the numeric ceiling. A Figma refusal returns a structured
+      `{success:false, outcome:"refused", refusal}` receipt, preserves the raw Figma message
+      unchanged, and reports `modeCountBefore` as the known-good count. The numeric ceiling
+      becomes `status:"observed"` only when that raw message itself is Figma's
+      `in addMode: Limited to N modes only`; there is no plan table or fallback guess.
+      The handler creates no temporary collection/mode and never calls `removeMode`.
+
+      `tests/variable-write-capability.test.mjs` proves both the single requested add and
+      Figma-shaped first refusal (including zero cleanup calls); `bun run verify` passed
+      **378/378**. The ten prior R2 gates are declared stale rather than re-pinned without a
+      new live run.
+
+      ✅ **LIVE-VALIDATED — 2026-08-24, channel `hdejcpog`** (a disposable copy of a real
+      design-system file), collection `VariableCollectionId:17050:370` *"8. Dimensions"*,
+      against `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a` (`1.11.0`, 67 tools,
+      fingerprint `sha256:6a68b351…deb6428`, `dist/server.js`
+      `sha256:a0e41990…15002`), `compatibility: compatible`, zero issues.
+      `scripts/live-variable-mode-gate.mjs` **PASSED TWICE**, byte-identical both runs:
+      `modeCount 10 → 10` (the refusal mutated nothing), `mode: null`,
+      `modeCeiling {value: 10, status: "observed", knownGoodAtLeast: 10}`, and Figma's
+      message preserved verbatim as `in addMode: Limited to 10 modes only`.
+
+      🔴 **THE OBSERVED CEILING IS 10 — a number that appears in NO commonly-cited Figma plan
+      tier** (the widely-repeated tiers are 1 / 4 / 40). This is the plan's "do not hardcode a
+      plan→limit table" rule being **paid, not merely asserted**: any table this fork could
+      have shipped would have been wrong for this file, and only deriving `N` from Figma's own
+      refusal string produced the right answer.
+
+      ⚠️ **The first live attempt FAILED, and correctly.** It was fired at the same collection
+      while it still held 4 modes, on the inference that `knownGoodAtLeast: 4` plus "no local
+      collection exceeds 4" meant the ceiling was 4. `knownGoodAtLeast` means *at least* — and
+      `get_variable_capabilities` states in its own `limitation` string that the ceiling is
+      knowable only from a refusal. The add **succeeded**, the gate refused to score a
+      non-refusal as a pass, and it left the created mode in place exactly as designed. The
+      tool's receipt was honest throughout: `outcome:"created"`, `knownGoodAtLeast` raised
+      4 → 5, and `modeCeiling.value` still `null` with *"Figma accepted this caller-requested
+      addMode() call, so it did not reveal the numeric mode limit."* Reaching a genuine
+      ceiling required an explicit out-of-band setup instrument on a disposable file; that
+      filler is **not** in this repo, because the tool itself must never self-probe a ceiling.
+
+      ⚠️ **Reports are LOCAL-ONLY.** `docs/evidence/r3a-1.3-live/` and `…-run2/` sit under the
+      `docs/*` ignore rule and have no second copy; this plan entry is the committed record.
 
 ## Phase 2 — the variable write tools
 

@@ -43,6 +43,7 @@ function createFixtureRuntime(fixture, options) {
   const storage = new Map();
   const clock = { now: 0 };
   let dynamicId = 1;
+  let dynamicVariableId = 1;
 
   const containers = new Set([
     "DOCUMENT",
@@ -848,12 +849,60 @@ function createFixtureRuntime(fixture, options) {
   }
 
   const collections = fixture.variables.collections.map((item) => clone(item));
-  const variables = fixture.variables.items.map((item) => {
+  const variables = [];
+
+  // ⛔ Figma commits variable.remove() at the END of the execution frame: an in-frame
+  // getVariableByIdAsync still resolves the variable. This harness used to splice it out
+  // immediately, so the handler's "the lookup missed, therefore it is deleted" branch was
+  // reachable offline and UNREACHABLE live — which is precisely how delete_not_observed
+  // shipped green. The harness frame is one command; `variableRemovalSignal` selects which
+  // in-frame signal, if any, the modeled platform exposes, and "none" (the default) is the
+  // conservative real-Figma case where nothing flips until the frame ends.
+  const variableRemovalSignal = options.variableRemovalSignal || "none";
+  const pendingVariableRemovals = [];
+  const membershipHidden = new Set();
+
+  function commitVariableRemovals() {
+    while (pendingVariableRemovals.length > 0) {
+      const pending = pendingVariableRemovals.pop();
+      const index = variables.indexOf(pending);
+      if (index !== -1) variables.splice(index, 1);
+      membershipHidden.delete(pending.id);
+    }
+  }
+
+  // Non-enumerable so it stays out of clone()/JSON replies; the plugin reads it by name.
+  function attachVariableIds(collection) {
+    Object.defineProperty(collection, "variableIds", {
+      enumerable: false,
+      configurable: true,
+      get() {
+        return variables
+          .filter(
+            (variable) =>
+              variable.variableCollectionId === collection.id &&
+              !membershipHidden.has(variable.id),
+          )
+          .map((variable) => variable.id);
+      },
+    });
+  }
+
+  for (const collection of collections) attachVariableIds(collection);
+
+  // Variable writes use the real Plugin API shape rather than a request echo: variables
+  // are mutable objects, alias values are ordinary values, and remove() makes the next
+  // lookup miss. The fixture intentionally models only the semantics the R3-A slice
+  // needs; the live gate remains responsible for Figma's own defaults and permissions.
+  function makeVariable(item) {
     const variable = clone(item);
+    variable.remote = Boolean(variable.remote);
+    variable.valuesByMode = clone(variable.valuesByMode || {});
     variable.resolveForConsumer = () => {
       const collection = collections.find(
         (candidate) => candidate.id === variable.variableCollectionId,
       );
+      if (!collection) throw new Error(`Missing collection ${variable.variableCollectionId}`);
       let value = variable.valuesByMode[collection.defaultModeId];
       const visited = new Set([variable.id]);
       while (value?.type === "VARIABLE_ALIAS") {
@@ -865,8 +914,69 @@ function createFixtureRuntime(fixture, options) {
       }
       return { value: clone(value), resolvedType: variable.resolvedType };
     };
+
+    variable.setValueForMode = (modeId, value) => {
+      const collection = collections.find(
+        (candidate) => candidate.id === variable.variableCollectionId,
+      );
+      if (!collection) throw new Error(`Missing collection ${variable.variableCollectionId}`);
+      if (variable.remote || collection.remote) {
+        throw new Error("Cannot write a remote variable");
+      }
+      if (!collection.modes.some((mode) => mode.modeId === modeId)) {
+        throw new Error(`Mode ${modeId} does not belong to collection ${collection.id}`);
+      }
+      variable.valuesByMode[modeId] = clone(value);
+    };
+
+    variable.remove = () => {
+      if (variable.remote) throw new Error("Cannot remove a remote variable");
+      const index = variables.indexOf(variable);
+      if (index === -1) throw new Error(`Variable ${variable.id} is already removed`);
+      if (variableRemovalSignal === "lookup_missed") {
+        variables.splice(index, 1);
+        return;
+      }
+      if (variableRemovalSignal === "removed_flag") variable.removed = true;
+      if (variableRemovalSignal === "collection_membership") {
+        membershipHidden.add(variable.id);
+      }
+      if (!pendingVariableRemovals.includes(variable)) {
+        pendingVariableRemovals.push(variable);
+      }
+    };
+
     return variable;
-  });
+  }
+
+  for (const item of fixture.variables.items) {
+    variables.push(makeVariable(item));
+  }
+
+  function createFixtureVariable(name, collection, resolvedType) {
+    if (!collection || typeof collection !== "object") {
+      throw new Error("createVariable requires a VariableCollection object");
+    }
+    if (!collections.includes(collection)) {
+      throw new Error("createVariable requires a collection from this document");
+    }
+    if (collection.remote) {
+      throw new Error("Cannot create a variable in a remote collection");
+    }
+    const sequence = dynamicVariableId++;
+    const variable = makeVariable({
+      id: `VariableID:900:${sequence}`,
+      name,
+      key: `fixture-variable-key-${sequence}`,
+      description: "",
+      resolvedType,
+      scopes: [],
+      variableCollectionId: collection.id,
+      valuesByMode: {},
+    });
+    variables.push(variable);
+    return variable;
+  }
   const styles = fixture.styles;
   // Remote (library) styles resolve by ID but are deliberately absent from every
   // getLocal*StylesAsync loader — that is exactly how Figma behaves on a file that
@@ -1025,14 +1135,45 @@ function createFixtureRuntime(fixture, options) {
         if (options.variableTypeErrors?.includes(type)) {
           throw new Error(`${type} variables unavailable`);
         }
-        return variables.filter((variable) => variable.resolvedType === type);
+        return variables.filter(
+          (variable) => !variable.remote && variable.resolvedType === type,
+        );
       },
-      getLocalVariableCollectionsAsync: async () => collections,
+      getLocalVariableCollectionsAsync: async () =>
+        collections.filter((collection) => !collection.remote),
       getVariableByIdAsync: async (id) =>
         variables.find((variable) => variable.id === id) || null,
       getVariableCollectionByIdAsync: async (id) =>
         collections.find((collection) => collection.id === id) || null,
+      createVariable: (name, collection, resolvedType) =>
+        createFixtureVariable(name, collection, resolvedType),
+      createVariableCollection: (name) => {
+        const sequence = dynamicVariableId++;
+        const modeId = `mode-created-${sequence}`;
+        const collection = {
+          id: `VariableCollectionId:900:${sequence}`,
+          name,
+          key: `fixture-collection-key-${sequence}`,
+          defaultModeId: modeId,
+          remote: false,
+          modes: [{ modeId, name: "Mode 1" }],
+        };
+        attachVariableIds(collection);
+        collections.push(collection);
+        return collection;
+      },
+      createVariableAlias: (variable) => {
+        if (!variable || typeof variable.id !== "string") {
+          throw new Error("createVariableAlias requires a Variable object");
+        }
+        return { type: "VARIABLE_ALIAS", id: variable.id };
+      },
     };
+    if (options.variableWriteApi === false) {
+      delete figma.variables.createVariable;
+      delete figma.variables.createVariableCollection;
+      delete figma.variables.createVariableAlias;
+    }
   }
   if (options.stylesApi === false) {
     delete figma.getStyleByIdAsync;
@@ -1054,6 +1195,7 @@ function createFixtureRuntime(fixture, options) {
     loadedFonts,
     clock,
     plain: clone,
+    commitFrame: commitVariableRemovals,
   };
 }
 
@@ -1112,7 +1254,11 @@ export async function loadPluginHarness(options = {}) {
 
   return {
     async command(name, params = {}) {
-      return runtime.plain(await context.handleCommand(name, params));
+      const reply = runtime.plain(await context.handleCommand(name, params));
+      // Commit AFTER the reply is built: that ordering is the whole difference between
+      // what the handler can see in-frame and what the caller sees on its next call.
+      runtime.commitFrame();
+      return reply;
     },
     getNode(id) {
       return runtime.nodes.get(id) || null;

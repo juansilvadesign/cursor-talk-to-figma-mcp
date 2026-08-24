@@ -5,7 +5,7 @@ import { buildContract } from "../scripts/contract-lib.mjs";
 import { loadPluginHarness } from "./helpers/plugin-harness.mjs";
 
 test("R3-A 1.1 — variable writes require every Plugin API write entry point", async () => {
-  const harness = await loadPluginHarness();
+  const harness = await loadPluginHarness({ variableWriteApi: false });
   const hasVariablesApi = harness.globals("hasVariablesApi");
   const hasVariableWriteApi = harness.globals("hasVariableWriteApi");
   const figma = harness.globals("figma");

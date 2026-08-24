@@ -428,13 +428,13 @@ test("the public contract pins the supported types, stable status, scope, and ba
   assert.equal(V1_BATCH_OPERATIONS.length, 15, "CC8 keeps the allowlist at 15 through R2.7");
 });
 
-test("the R3-A mode-ceiling write keeps all three 1.11.0 version fields together", async () => {
+test("the R3-A Phase 2 variable-write slice keeps all three 1.12.0 version fields together", async () => {
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.11.0");
-  assert.equal(release.serverSchemaVersion, "1.11.0");
-  assert.equal(release.pluginApiVersion, "1.11.0");
+  assert.equal(release.publicContractVersion, "1.12.0");
+  assert.equal(release.serverSchemaVersion, "1.12.0");
+  assert.equal(release.pluginApiVersion, "1.12.0");
 });
 
 /**

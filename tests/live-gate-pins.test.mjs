@@ -48,6 +48,32 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
+  // R3-A Phase 2 moves both runtime artifacts to 1.12.0. The earlier Phase 1.3 gate set
+  // must be re-pinned and re-run as a set before its results are quoted again. Every run
+  // needs an owner-supplied disposable Figma target; `live-variable-mode-gate.mjs` has no
+  // cleanup by design, while the Phase 2 write gate cleans up only best-effort.
+  "live-batch-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-clips-content-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-constraints-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-effects-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-fill-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-layout-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-opacity-blend-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-size-limits-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-svg-crop-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-text-style-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
+  "live-variable-mode-gate.mjs":
+    "R3-A Phase 1.3, schema 1.11.0. Its no-cleanup ceiling probe must be re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
   // ✅✅ **THE R3-A PHASE 1.3 RE-PIN IS DONE — 2026-08-24, channel `hdejcpog`.** The same
   // TEN were re-pinned to `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`, schema
   // 1.11.0, fingerprint `sha256:6a68b351…deb6428`, 67 tools, and RE-RUN once each on one
@@ -261,4 +287,13 @@ test("every live gate either pins THIS build or declares the release it belongs 
     currentGates >= 1,
     "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
   );
+});
+
+test("R3-A variable live gates require an explicit disposable-target acknowledgement", async () => {
+  for (const name of ["live-variable-mode-gate.mjs", "live-variable-write-gate.mjs"]) {
+    const source = await readFile(path.join(root, "scripts", name), "utf8");
+    assert.match(source, /--disposable-target=true/);
+    assert.match(source, /options\["disposable-target"\] !== "true"/);
+    assert.match(source, /disposable Figma file/);
+  }
 });

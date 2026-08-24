@@ -21,9 +21,10 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   );
   assert.deepEqual(parityErrors(built.surface), []);
   assert.deepEqual(compatibilityErrors(snapshot, built.contract), []);
-  // 66 → 67 at R3-A Phase 1.3 (`add_variable_mode`). The literal is a tripwire, not
+  // 67 → 70 at R3-A Phase 2 (`set_variable_value`, `create_variable`,
+  // `delete_variable`). The literal is a tripwire, not
   // bookkeeping: it is here so a tool arriving or vanishing cannot pass unremarked.
-  assert.equal(snapshot.tools.length, 67);
+  assert.equal(snapshot.tools.length, 70);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));

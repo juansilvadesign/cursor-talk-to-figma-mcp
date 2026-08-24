@@ -10,28 +10,35 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.2)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 1.2 LIVE + ten-gate re-pin PAID)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Now:** **R3-A (`1.10.0`) Phase 1.2** (`get_variable_capabilities`) is implemented and
-  offline-gated. It reports the observed variable write API, collection inventory and editor
-  context without writing: actual file ACL is `document.editable:null` when Figma cannot
-  expose it, and the numeric `modeCeiling.value` is `null` rather than guessed from a plan
-  table. Every collection reports `isRemote` + `modeCount`; `knownGoodAtLeast` is the current
-  local maximum. Missing/refused inventory is `complete:false` with null counts, never a
-  false empty document. Record → [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md)
-  § *1.2*.
+- **Now:** **R3-A (`1.10.0`) Phase 1.2 is LIVE-VALIDATED, FIXED, and its ten-gate re-pin is
+  PAID.** `get_variable_capabilities` ran live on channel `mlag5jfc`, agreed with the
+  independent `get_variables` path on every collection id/key/mode count, and held its honest
+  unknowns (`modeCeiling.value` stayed `null` rather than promoting the local max of 3;
+  `document.editable` stayed `null` in a file the owner can plainly edit). 🔴 **The live pass
+  found what the offline gate could not:** `isRemote` could never be `true` — the inventory
+  comes from `getLocalVariableCollectionsAsync()`, which returns LOCAL collections only, so
+  `false` was the field's only reachable value and `localCollectionCount` could never differ
+  from `collectionCount`. Fixed in the same session, **before** any re-pin: every branch now
+  declares `remoteCollectionInventoryAvailable: false` with a limitation, and the tool
+  description says it on the surface a client reads. Record →
+  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md) § *1.2*,
+  `docs/evidence/r3a-1.2-live/report.md` + `docs/evidence/r3a-1.2-repin/README.md`.
 - **Current identity:** **66 tools**, R3-A `1.10.0`,
-  `r3-a-server-12c88b765a45` ↔ `r3-a-plugin-122b65ca30e9`, fingerprint
-  `sha256:b367651f…751279`; `bun run verify` passed **373/373** and rebuilt
-  `dist/server.js` `sha256:ea7581c8…7356d3`.
+  **`r3-a-server-0d303490d152` ↔ `r3-a-plugin-6ed0aab0ecdc`**, fingerprint
+  `sha256:b367651f…751279`; `bun run verify` passed **375/375** and rebuilt
+  `dist/server.js` `sha256:ba1bce45…97e1ef`.
 - **Next step:** Phase **1.3** (surface the first real `addMode()` ceiling refusal without
-  speculative create/delete probing). ⛔ The ten R2 gates are now explicitly stale because
-  Phase 1.2 moves both build IDs, schema, fingerprint, and tool count. A supplied live Figma
-  channel is needed to reload the DEV plugin, respawn the MCP server, then re-pin **and
-  re-run** them; no pin-only edit represents a live result. The owner still owns commits and
-  should review explicit paths — never `git add -A`.
+  speculative create/delete probing). ✅ The ten R2 gates are **no longer stale** — re-pinned
+  to the pair above and re-run once each on channel `6a07fm2h`, **ALL TEN PASSED**, each on a
+  fresh scratch page of the six-page `SYD (SaveYourDay) - Spaceapps` file, baseline restored
+  and re-read after. The `GATES_PINNED_TO_AN_EARLIER_RELEASE` ledger is back to the **three**
+  R2.1/R2.2/R2.4 gates, and the `R3_A_PHASE_1_2_REPIN_PENDING` set + its `currentGates === 0`
+  branch are deleted. 🟡 Everything from this session is **uncommitted** — the owner owns
+  commits and should stage explicit paths, never `git add -A`.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -55,10 +62,10 @@ type: project
   `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`) ·
   `docs/evidence/r3a-1.1-repin/` (ten reports, ⚠️ **gitignored, no second copy**).
   **373/373**; 66 tools, `1.10.0`.
-- **Open / blockers:** 🟡 The Phase 1.1 re-pin files remain uncommitted and Phase 1.2 adds
-  source, generated contract/runtime and `dist` output; the owner must commit explicit paths.
-  The ten R2 gates now await one coherent R3-A live re-pin/run; three older R2.1/R2.2/R2.4
-  gates remain declined twice. Remaining owner decisions: ① the `set_fill` gradient `color`
+- **Open / blockers:** 🟡 The Phase 1.1 re-pin files, Phase 1.2, its `isRemote` fix and the
+  ten-gate re-pin are ALL uncommitted — source, tests, generated contract/runtime and `dist`
+  output; the owner must commit explicit paths. ✅ The ten R2 gates are current and green;
+  three older R2.1/R2.2/R2.4 gates remain declined twice. Remaining owner decisions: ① the `set_fill` gradient `color`
   drop (`code.js:8047`); ② whether the offline harness should model Figma's effect union —
   it cannot today, and that is what let the `set_effects` defect sit green. ⏳ R3-A still has
   no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2 is recorded in the plan.
@@ -66,11 +73,44 @@ type: project
   work, and it died mid-session once already, so check `ss -ltn | grep 3055` rather than
   assuming. ⛔ A **live Figma channel from Juan** is required before any gate can run; an
   agent cannot obtain one. ⛔ `contract:generate` does **not** rebuild `dist/` — run
-  `bun run build`, or every gate refuses at `assertRuntime`. ⛔ `code.js` changes need the
+  `bun run build`, or every gate refuses at `assertRuntime`; and `build` itself REFUSES while
+  the runtime metadata is stale (*"after reviewing the public change"*), so `contract:generate`
+  is the review step, not a formality. ⛔ Respawning the MCP server (`/mcp` reconnect) is what
+  moves a rebuilt `serverBuildId` into the process serving the session — three older server
+  processes can be alive at once, so MEASURE with `get_runtime_info`. ⛔ `code.js` changes need the
   **DEV plugin reloaded in Figma**, and the reload is what moves `pluginBuildId` into the
   running plugin. ⛔ Sequence any plugin/server fix **before** a gate re-pin, never after,
   or the whole set is re-staled and pays twice. ⛔ **Committing is the owner's act.**
   ⛔ Never `git add -A` — peer sessions write this repo.
+
+### ⭐ A THIRD pin shape: BOTH build IDs moved and the fingerprint HELD — 2026-08-24
+
+The 1.2 `isRemote` fix changed a public tool **description** and the result **payload**, so
+`serverBuildId` (`12c88b765a45` → `0d303490d152`) and `pluginBuildId` (`122b65ca30e9` →
+`6ed0aab0ecdc`) both moved — while `capabilityFingerprint` (`sha256:b367651f…751279`),
+schema `1.10.0` and the 66-tool count were all **byte-identical across it**.
+
+- ⛔ `scripts/contract-lib.mjs:591` computes the fingerprint as
+  `sha256(canonicalJson({serverSchemaVersion, capabilityIds}))` — it hashes **neither tool
+  descriptions nor result shapes**. A public, client-facing contract change is therefore
+  invisible to it *by construction*, and the sentence telling a caller how to read `isRemote`
+  is exactly such a change. See [[feedback_a_fingerprint_only_covers_what_it_hashes]].
+- ⭐ The set is now complete in three directions: R2.6 moved **only** `serverBuildId`, R3-A
+  1.1 moved **only** `pluginBuildId`, and this moved **both** with the fingerprint saying
+  "identical". The build IDs are the only pin that caught any of them.
+- 🔴 **The live pass is what found the defect the offline gate structurally could not.**
+  `isRemote:false` was the only value that path can return, so the green assertion was a
+  probe at the default — [[feedback_a_probe_at_the_default_value_proves_nothing]]. The fork
+  had already recorded the same shape one layer down for styles (`code.js:1084`,
+  *"get_styles only lists LOCAL styles"*) and 1.2 reintroduced it without the honesty.
+- ⭐ **Both new assertions were mutation-tested against the SOURCE** (`code.js`, not `dist/`):
+  dropping the declared field and neutering the local filter each went RED, and the source
+  restored byte-identical — [[feedback_mutation_test_must_target_the_source_not_the_artifact]].
+- ⚠️ **`live-batch-gate` prints no `PASSED` line**; it signals `success: true` inside its JSON
+  report. Its exit 0 is not a verdict — read the `report.json`.
+- ⚠️ **A second standing exception had to be deleted, not reworded:**
+  `R3_A_PHASE_1_2_REPIN_PENDING` and its `currentGates === 0` branch described a tree where
+  no gate pinned the current build, and the re-run ended that tree.
 
 ### ⭐ A pin shape this project had not recorded: only `pluginBuildId` moved — 2026-08-24
 

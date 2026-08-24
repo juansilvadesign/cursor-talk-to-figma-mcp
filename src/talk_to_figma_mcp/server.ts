@@ -1903,7 +1903,7 @@ server.tool(
 // Get Variable Capabilities Tool
 server.tool(
   "get_variable_capabilities",
-  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. Each returned collection carries isRemote and modeCount.",
+  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. The inventory is LOCAL-ONLY and remoteCollectionInventoryAvailable is always false: Figma returns only this file's own collections, so every returned collection carries isRemote:false plus modeCount, and seeing no library collection here is NOT evidence that the file references none.",
   {},
   async () => {
     try {

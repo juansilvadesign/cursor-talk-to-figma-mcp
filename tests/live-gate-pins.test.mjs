@@ -48,31 +48,42 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
-  // R3-A Phase 1.2 registers get_variable_capabilities and spends the release's 1.10.0
-  // contract version. That moves both build IDs, the schema, fingerprint and tool count;
-  // every R2 gate must be re-pinned AND re-run before it can be called evidence about this
-  // build. A pin-only edit is expressly not a rerun, so these stay declared until a live
-  // Figma channel is supplied and the coherent pass happens.
-  "live-batch-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-clips-content-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-constraints-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-effects-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-fill-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-layout-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-opacity-blend-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-size-limits-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-svg-crop-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
-  "live-text-style-gate.mjs":
-    "R3-A Phase 1.2 pending: re-pin and re-run after get_variable_capabilities on the 1.10.0 build.",
+  // ✅✅ **THE R3-A PHASE 1.2 RE-PIN IS DONE — 2026-08-24, channel `6a07fm2h`.** The same
+  // TEN were re-pinned to `r3-a-server-0d303490d152` ↔ `r3-a-plugin-6ed0aab0ecdc`, schema
+  // 1.10.0, fingerprint `sha256:b367651f…751279`, 66 tools, and RE-RUN once each on one
+  // channel. **All ten PASSED**, each on a fresh scratch page of the six-page file
+  // `SYD (SaveYourDay) - Spaceapps`, each restoring that baseline; a separate read after
+  // the pass confirmed the file's own six pages. Their entries are DELETED rather than
+  // reworded — the declaration and the run travelled together, which is the whole rule.
+  //
+  // ⭐ **The build this pass pinned is NOT the build Phase 1.2 first shipped.** The live
+  // validation of `get_variable_capabilities` on channel `mlag5jfc` found that `isRemote`
+  // could never be `true`: the inventory comes from `getLocalVariableCollectionsAsync()`,
+  // which returns LOCAL collections only, so the field's observed `false` was its only
+  // reachable value and `localCollectionCount` could never differ from `collectionCount`.
+  // Fixing that (a declared `remoteCollectionInventoryAvailable: false` plus the limitation,
+  // in every branch) moved BOTH ids off `12c88b765a45` ↔ `122b65ca30e9` BEFORE this re-pin —
+  // ⛔ a plugin/server fix is sequenced before a re-pin, never after, or the set re-stales
+  // and pays twice.
+  //
+  // ⭐ **A THIRD pin shape: both build IDs moved and the fingerprint HELD.** That fix
+  // changed a public tool description and the result payload, yet `capabilityFingerprint`,
+  // schema 1.10.0 and the 66-tool count were all byte-identical across it —
+  // `scripts/contract-lib.mjs:591` hashes only `{serverSchemaVersion, capabilityIds}`, so
+  // descriptions and result shapes are outside it by construction. R2.6 moved only the
+  // server id; R3-A 1.1 moved only the plugin id; this moved both while the fingerprint
+  // said "identical". The build IDs are again the only pin that caught it.
+  //
+  // ⭐ **The pins were proved CHECKED, not merely present.** A throwaway copy of
+  // `live-clips-content-gate.mjs` pinned to `r3-a-plugin-000000000000` refused at
+  // `assertRuntime` — exit 1, naming both ids, no scratch page created, the six-page file
+  // untouched — and this very test went RED first, in the *stale declaration* direction:
+  // with the ten re-pinned but still declared, it named `live-batch-gate.mjs` and refused.
+  //
+  // ⚠️ Three of the ten reports state "13 gate(s) are declared as pinned to an earlier
+  // release". That was TRUE WHEN THEY RAN — these ten entries were still in this file. It
+  // is 3 from here on. A count read out of a report is a reading of the tree at run time,
+  // not a standing fact.
   // ✅✅ **THE R3-A PHASE 1.1 RE-PIN IS DONE — 2026-08-24, channel `chvza8ab`.** The same
   // TEN were re-pinned to `r2-server-a0afdc880ab0` ↔ `r2-plugin-a34d76fc6bc6`, schema
   // 1.9.0, fingerprint `sha256:f636ecab…6142fc0`, 65 tools, and RE-RUN once each on one
@@ -220,39 +231,14 @@ test("every live gate either pins THIS build or declares the release it belongs 
     );
   }
 
-  // The Phase 1.2 tool is offline-verified but has not yet had a supplied live channel.
-  // Its public registration moves every build identity, so the ten R2 gates are all stale
-  // together. This named, exact exception lets the offline release gate distinguish an
-  // honest pending re-pin from a forgotten one; once any R3-A gate is actually re-run, delete
-  // the ten declarations and restore the normal non-vacuity branch below.
-  const R3_A_PHASE_1_2_REPIN_PENDING = new Set([
-    "live-batch-gate.mjs",
-    "live-clips-content-gate.mjs",
-    "live-constraints-gate.mjs",
-    "live-effects-gate.mjs",
-    "live-fill-gate.mjs",
-    "live-layout-gate.mjs",
-    "live-opacity-blend-gate.mjs",
-    "live-size-limits-gate.mjs",
-    "live-svg-crop-gate.mjs",
-    "live-text-style-gate.mjs",
-  ]);
-  if (R3_A_PHASE_1_2_REPIN_PENDING.size > 0) {
-    assert.equal(
-      currentGates,
-      0,
-      "R3-A Phase 1.2's pending set must cover every formerly-current gate; do not leave one falsely pinned to this build.",
-    );
-    for (const name of R3_A_PHASE_1_2_REPIN_PENDING) {
-      assert.ok(
-        Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, name),
-        `${name} is pending an R3-A Phase 1.2 re-pin but is not declared as such`,
-      );
-    }
-  } else {
-    assert.ok(
-      currentGates >= 1,
-      "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
-    );
-  }
+  // ⚠️ The `R3_A_PHASE_1_2_REPIN_PENDING` set and the `currentGates === 0` branch that
+  // consumed it are GONE, not commented out. They existed only to describe a tree in which
+  // no gate pinned the current build, and after the 2026-08-24 re-pin/re-run on channel
+  // `6a07fm2h` that is no longer this tree. A standing exception outlives its cause
+  // silently, which is the failure this file exists to catch — the same deletion R3-A
+  // Phase 1.1 made for the same reason.
+  assert.ok(
+    currentGates >= 1,
+    "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
+  );
 });

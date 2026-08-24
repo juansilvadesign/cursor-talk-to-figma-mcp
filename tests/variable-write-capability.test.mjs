@@ -122,3 +122,69 @@ test("R3-A 1.2 — capability preflight refuses to overstate inaccessible invent
   assert.deepEqual(partial.collections, []);
   assert.match(partial.limitations.join("\n"), /collection inventory refused/);
 });
+
+test("R3-A 1.2 — the preflight declares that library collections are not enumerable", async () => {
+  const harness = await loadPluginHarness();
+  const capabilities = await harness.command("get_variable_capabilities");
+
+  // ⛔ `isRemote:false` on every row is the ONLY value this path can ever report —
+  // getLocalVariableCollectionsAsync() returns local collections only — so observing it
+  // corroborates nothing. The payload has to say that out loud, or a client reads an empty
+  // remote result as "this file uses no library variables".
+  assert.equal(capabilities.remoteCollectionInventoryAvailable, false);
+  assert.match(
+    capabilities.limitations.join("\n"),
+    /returns only this file's local collections/i,
+  );
+  assert.match(capabilities.limitations.join("\n"), /NOT evidence/);
+
+  // Every branch declares it, including the two that can answer nothing.
+  const unsupported = await loadPluginHarness({ variablesApi: false });
+  const unavailable = await unsupported.command("get_variable_capabilities");
+  assert.equal(unavailable.remoteCollectionInventoryAvailable, false);
+  assert.match(
+    unavailable.limitations.join("\n"),
+    /not enumerable by this preflight/i,
+  );
+
+  const unreadable = await loadPluginHarness();
+  unreadable.globals("figma").variables.getLocalVariableCollectionsAsync = async () => {
+    throw new Error("collection inventory refused");
+  };
+  const refused = await unreadable.command("get_variable_capabilities");
+  assert.equal(refused.remoteCollectionInventoryAvailable, false);
+  assert.match(
+    refused.limitations.join("\n"),
+    /not enumerable by this preflight/i,
+  );
+});
+
+test("R3-A 1.2 — the remote filter is a defensive branch, not dead code", async () => {
+  // ⛔ This fixture is a shape Figma is NOT expected to produce. A `remote: true` row cannot
+  // appear in getLocalVariableCollectionsAsync()'s result today, and the live pass on channel
+  // `mlag5jfc` observed none — it could not have. It is stubbed here for exactly one reason:
+  // to prove the per-collection `isRemote` and the local filter are load-bearing if Figma
+  // ever widens that getter. ⛔ Never read this green as evidence that remote collections DO
+  // reach the inventory.
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+  figma.variables.getLocalVariableCollectionsAsync = async () => [
+    ...localCollections,
+    {
+      id: "collection-remote",
+      name: "Library",
+      key: "library-key",
+      defaultModeId: "mode-a",
+      remote: true,
+      modes: [{ id: "mode-a" }, { id: "mode-b" }, { id: "mode-c" }],
+    },
+  ];
+
+  const capabilities = await harness.command("get_variable_capabilities");
+  assert.equal(capabilities.collectionCount, 2);
+  assert.equal(capabilities.localCollectionCount, 1);
+  assert.equal(capabilities.collections.at(-1).isRemote, true);
+  // The 3-mode REMOTE collection must not raise the LOCAL lower bound.
+  assert.equal(capabilities.modeCeiling.knownGoodAtLeast, 2);
+});

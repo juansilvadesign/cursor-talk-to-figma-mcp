@@ -174,6 +174,89 @@ layer already established the pattern to mirror: `hasVariablesApi()` in `code.js
       not re-pinned, until the DEV plugin is reloaded and a supplied Figma channel permits a
       coherent live re-run. This is what lets a client preflight known facts before a partial
       write without pretending the unobservable facts are known.
+      ✅ **LIVE-VALIDATED — 2026-08-24, channel `mlag5jfc`**, file `SYD (SaveYourDay) -
+      Spaceapps` (the same six-page file R2 acceptance and 1.1 used). Runtime was MEASURED,
+      not assumed: `plugin.buildId: "r3-a-plugin-122b65ca30e9"` and
+      `server.buildId: "r3-a-server-12c88b765a45"` — ⛔ never
+      `compatibility: "compatible"`, which only says the two RUNNING halves agree with each
+      other. Every claim was cross-checked against `get_variables`, a genuinely separate
+      handler (`code.js:3315`, its own `getLocalVariableCollectionsAsync()` call at `:3395`,
+      sharing no fork helper with `:3544`): both collection ids, keys, `defaultModeId`s and
+      mode counts agreed, `knownGoodAtLeast: 3` = max(3,1), and the returned ids are
+      **file-specific**, so the relay round-trip is proven and nothing is an echo of the
+      request (`{}`). The honest-unknowns held under real conditions: `modeCeiling.value`
+      stayed `null` rather than promoting the local max of 3, and `document.editable` stayed
+      `null` in a file the operator can plainly edit. `writeApiAvailable: true` remains an
+      observation that the entry points EXIST — its refusal legs are offline-only, by design.
+      Record → `docs/evidence/r3a-1.2-live/report.md` (⚠️ gitignored, no second copy).
+
+      🔴 **AND THE LIVE PASS FOUND WHAT THE OFFLINE GATE COULD NOT: `isRemote` can never be
+      `true` on this path.** The inventory comes from `getLocalVariableCollectionsAsync()`,
+      which Figma documents as *"Returns all local variable collections in the current
+      file"* — library collections excluded, in every file, not just this one. So
+      `isRemote` was structurally always `false`, `localCollectionCount` could never differ
+      from `collectionCount`, and the filter at `code.js:3597` could never remove an element.
+      ⛔ Observing `isRemote:false` therefore corroborated nothing — it was the field's only
+      reachable value, offline too (the sole assertion was `isRemote: false`; the one
+      `remote:true` fixture in the suite is a library *style*). Same family as
+      [[feedback_a_probe_at_the_default_value_proves_nothing]]. It mattered because Phase 2
+      refuses `remote: true` collections with a typed refusal: a client that preflighted,
+      saw everything local and concluded "no library collections here" had been misled by an
+      inventory that never contained them. ⭐ The fork had already recorded this exact shape
+      one layer down for styles (`code.js:1084`, *"get_styles only lists LOCAL styles"*);
+      1.2 reintroduced it without inheriting the honesty.
+
+      ✅ **FIXED in the same session, before any gate re-pin** (⛔ a plugin/server fix is
+      sequenced BEFORE a re-pin, never after, or the whole set re-stales and pays twice).
+      `remoteCollectionInventoryAvailable: false` is now declared in **every** branch with a
+      limitation naming the constraint, the tool description says the same on the surface a
+      client reads, and `isRemote` + the filter are kept as the documented defensive branch.
+      Both new assertions were mutation-tested against the SOURCE: dropping the field and
+      neutering the filter each went RED, and `code.js` restored byte-identical.
+      `bun run verify` **375/375**.
+
+      ⭐ **A THIRD pin shape — both build IDs moved and the fingerprint HELD.**
+      `r3-a-server-12c88b765a45` → **`r3-a-server-0d303490d152`** and
+      `r3-a-plugin-122b65ca30e9` → **`r3-a-plugin-6ed0aab0ecdc`**, while
+      `capabilityFingerprint` (`sha256:b367651f…751279`), schema `1.10.0` and the 66-tool
+      count ALL held. `scripts/contract-lib.mjs:591` hashes only
+      `{serverSchemaVersion, capabilityIds}` — **not descriptions, not result shapes** — so a
+      public contract change is invisible to it by construction. R2.6 moved only the server
+      id; 1.1 moved only the plugin id; this moved both and the fingerprint still said
+      "identical". See [[feedback_a_fingerprint_only_covers_what_it_hashes]].
+
+      ✅✅ **AND THE TEN-GATE RE-PIN IS PAID — 2026-08-24, channel `6a07fm2h`.** Both halves
+      were MEASURED on the fixed build first (`r3-a-server-0d303490d152` ↔
+      `r3-a-plugin-6ed0aab0ecdc`), `get_variable_capabilities` was re-run and returned the
+      amended payload (`remoteCollectionInventoryAvailable: false` + its limitation) over the
+      same two collections, and then the same **TEN** gates were re-pinned to that pair
+      (schema `1.10.0`, fingerprint `sha256:b367651f…751279`, 66 tools) and **RE-RUN once
+      each — ALL TEN PASSED**, each on a fresh scratch page of the six-page file, each
+      restoring that baseline; a separate read after the pass confirmed the file's own six
+      pages. Offline **375/375**, `bun run verify` green, `dist/` rebuilt **byte-identical**
+      (`sha256:ba1bce45…`) — a pin edit still does not move the build. Record →
+      `docs/evidence/r3a-1.2-repin/README.md`.
+
+      ⭐ **The pins were proved CHECKED in BOTH directions**, and one of them fired for real
+      rather than as a probe: with the ten re-pinned but still declared, the pins test went
+      RED naming `live-batch-gate.mjs` — the *stale declaration* arm. A throwaway copy pinned
+      to `r3-a-plugin-000000000000` refused at `assertRuntime` (exit 1, both ids named, **no
+      scratch page created**), and a drifted undeclared pin went red naming
+      `live-effects-gate.mjs`, green again on restore.
+
+      ⚠️ **`live-batch-gate` prints no `PASSED` line** — it signals `success: true` inside its
+      JSON report. ⛔ Its exit 0 was not read as a verdict; all ten verdicts were taken from
+      each gate's own `report.json`. ⚠️ Three reports state *"13 gate(s) are declared as
+      pinned to an earlier release"*: true WHEN THEY RAN, since the ten declarations were
+      still in the file. It is **3** from here on. A count read out of a report is a reading
+      of the tree at run time, not a standing fact.
+
+      ⚠️ **A second standing exception was deleted, not reworded.** The
+      `R3_A_PHASE_1_2_REPIN_PENDING` set and its `currentGates === 0` branch existed only to
+      describe a tree in which no gate pinned the current build; the re-run ended that tree,
+      and the normal non-vacuity assertion is restored. The ledger is back to the **three**
+      R2.1/R2.2/R2.4 gates.
+
 - [ ] **1.3 Probe the mode ceiling honestly.** ⚠️ **Multiple modes per collection are a paid
       Figma-plan feature and `addMode()` throws when the ceiling is hit.** Do **not** hardcode
       a plan→limit table — plan tiers change and the fork cannot see billing. Report the

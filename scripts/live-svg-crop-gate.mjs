@@ -79,16 +79,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  // ⭐ Moved by the description repair this gate's own §1 forced: the CROP/STRETCH warning
-  // lived only on the `imageTransform` parameter, so a caller reading the tool description
-  // never met it. `server.ts` alone changed, so `pluginBuildId` HELD and the fingerprint held
-  // with it — a description is not part of the capability surface it hashes.
-  serverBuildId: "r2-server-a0afdc880ab0",
-  pluginBuildId: "r2-plugin-a34d76fc6bc6",
-  schemaVersion: "1.9.0",
+  serverBuildId: "r3-a-server-0d303490d152",
+  pluginBuildId: "r3-a-plugin-6ed0aab0ecdc",
+  schemaVersion: "1.10.0",
   fingerprint:
-    "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
-  toolCount: 65,
+    "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
+  toolCount: 66,
 };
 
 // 40×20. Black bar at x<4, white bar at x>=36, red/blue split at the middle. The EDGE markers

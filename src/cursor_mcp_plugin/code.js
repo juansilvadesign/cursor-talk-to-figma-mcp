@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-122b65ca30e9",
+  "buildId": "r3-a-plugin-6ed0aab0ecdc",
   "apiVersion": "1.10.0",
   "serverSchemaVersion": "1.10.0",
   "relayProtocolVersion": "1",
@@ -3541,6 +3541,18 @@ async function getVariables(params) {
 // R3-A Phase 1.2. This is deliberately an inventory-only preflight: its purpose is to
 // tell a caller what is knowable before a write, not to perform a speculative create/remove
 // probe that changes a real document or its undo history.
+// ⛔ The inventory below is LOCAL-ONLY, and that is a property of the Figma API, not of any
+// one file: getLocalVariableCollectionsAsync() "returns all local variable collections in
+// the current file" — library collections are never in it. So `isRemote` can only ever be
+// false here and `localCollectionCount` can never differ from `collectionCount`. Reporting
+// that out loud is the whole point: a client that preflights, sees no remote collection and
+// concludes the file references no library variables has been misled by an inventory that
+// never contained them. Same shape already recorded for styles at `readStyleValue` — that
+// get_styles lists only LOCAL styles. The per-collection `isRemote` and the filter below are
+// kept deliberately: they are the defensive branch if Figma ever widens this getter.
+const REMOTE_COLLECTION_INVENTORY_LIMITATION =
+  "Library (remote) variable collections are not enumerable by this preflight: figma.variables.getLocalVariableCollectionsAsync() returns only this file's local collections. collectionCount and localCollectionCount therefore describe local collections only, and every returned collection is local; the absence of a remote collection here is NOT evidence that this file references no library variables.";
+
 async function getVariableCapabilities() {
   const readApiAvailable = hasVariablesApi();
   const writeApiAvailable = hasVariableWriteApi();
@@ -3554,6 +3566,7 @@ async function getVariableCapabilities() {
     readApiAvailable,
     writeApiAvailable,
     collectionInventoryAvailable,
+    remoteCollectionInventoryAvailable: false,
     document,
     modeCeiling: unknownModeCeiling(null),
     collectionCount: null,
@@ -3567,6 +3580,7 @@ async function getVariableCapabilities() {
       ...base,
       limitations: [
         "Variable collection inventory is not available in this Figma version. Collection mode counts and remote status are unknown.",
+        REMOTE_COLLECTION_INVENTORY_LIMITATION,
         document.limitation,
       ],
     };
@@ -3580,6 +3594,7 @@ async function getVariableCapabilities() {
       ...base,
       limitations: [
         `Variable collections could not be read: ${error.message || String(error)}`,
+        REMOTE_COLLECTION_INVENTORY_LIMITATION,
         document.limitation,
       ],
     };
@@ -3610,7 +3625,7 @@ async function getVariableCapabilities() {
     collectionCount: collectionPayloads.length,
     localCollectionCount: localCollections.length,
     collections: collectionPayloads,
-    limitations: [document.limitation],
+    limitations: [REMOTE_COLLECTION_INVENTORY_LIMITATION, document.limitation],
   };
 }
 

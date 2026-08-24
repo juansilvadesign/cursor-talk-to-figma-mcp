@@ -35,8 +35,8 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-12c88b765a45",
-  "pluginBuildId": "r3-a-plugin-122b65ca30e9",
+  "serverBuildId": "r3-a-server-0d303490d152",
+  "pluginBuildId": "r3-a-plugin-6ed0aab0ecdc",
   "serverSchemaVersion": "1.10.0",
   "pluginApiVersion": "1.10.0",
   "relayProtocolVersion": "1",
@@ -1882,7 +1882,7 @@ server.tool(
 );
 server.tool(
   "get_variable_capabilities",
-  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. Each returned collection carries isRemote and modeCount.",
+  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. The inventory is LOCAL-ONLY and remoteCollectionInventoryAvailable is always false: Figma returns only this file's own collections, so every returned collection carries isRemote:false plus modeCount, and seeing no library collection here is NOT evidence that the file references none.",
   {},
   async () => {
     try {

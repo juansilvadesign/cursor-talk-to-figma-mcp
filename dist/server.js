@@ -12,13 +12,13 @@ import path from "path";
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R2",
-  "serverBuildId": "r2-server-a0afdc880ab0",
-  "pluginBuildId": "r2-plugin-a34d76fc6bc6",
-  "serverSchemaVersion": "1.9.0",
-  "pluginApiVersion": "1.9.0",
+  "release": "R3-A",
+  "serverBuildId": "r3-a-server-12c88b765a45",
+  "pluginBuildId": "r3-a-plugin-122b65ca30e9",
+  "serverSchemaVersion": "1.10.0",
+  "pluginApiVersion": "1.10.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
+  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -44,6 +44,7 @@ var RUNTIME_METADATA = {
     "get_styles",
     "get_local_components",
     "get_variables",
+    "get_variable_capabilities",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -114,6 +115,7 @@ var RUNTIME_METADATA = {
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
     "figma.command.get_styles@1",
+    "figma.command.get_variable_capabilities@1",
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
@@ -181,6 +183,7 @@ var RUNTIME_METADATA = {
     "get_runtime_info",
     "get_selection",
     "get_styles",
+    "get_variable_capabilities",
     "get_variables",
     "join_channel",
     "move_node",
@@ -1849,6 +1852,33 @@ server.tool(
           {
             type: "text",
             text: `Error getting variables: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "get_variable_capabilities",
+  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. Each returned collection carries isRemote and modeCount.",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma("get_variable_capabilities", {});
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting variable capabilities: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

@@ -1,10 +1,10 @@
 {
-  "release": "R2",
-  "publicContractVersion": "1.9.0",
-  "serverSchemaVersion": "1.9.0",
+  "release": "R3-A",
+  "publicContractVersion": "1.10.0",
+  "serverSchemaVersion": "1.10.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
+  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
   "capabilities": [
     "figma.command.apply_batch@1",
     "figma.command.check_fonts@1",
@@ -34,6 +34,7 @@
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
     "figma.command.get_styles@1",
+    "figma.command.get_variable_capabilities@1",
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
@@ -109,6 +110,7 @@
       "get_styles",
       "get_local_components",
       "get_variables",
+      "get_variable_capabilities",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -176,6 +178,7 @@
       "get_styles",
       "get_local_components",
       "get_variables",
+      "get_variable_capabilities",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -243,6 +246,7 @@
       "get_styles",
       "get_local_components",
       "get_variables",
+      "get_variable_capabilities",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -1731,6 +1735,25 @@
         "pluginUpdates": "per_resource_with_heartbeat"
       },
       "pluginCommand": "get_styles",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "get_variable_capabilities",
+      "description": "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. Each returned collection carries isRemote and modeCount.",
+      "direction": "read",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_variable_capabilities",
       "resultStability": "additive-preview"
     },
     {

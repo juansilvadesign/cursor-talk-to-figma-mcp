@@ -185,7 +185,8 @@ the missing piece was `imageTransform`, whose absence renders a **stretch** repo
 finding on a second field, and the identity matrix could not have revealed it.
 🔴 **The gate ledger is back to NINE** (the eight, plus `live-opacity-blend` for the first
 time). ⛔ Re-pinned and re-run ONCE at R2 acceptance, after promotion moves `serverBuildId`.
-🟡 **UNCOMMITTED.** ⛔ Committing is the owner's act.
+✅ **COMMITTED 2026-08-23** — `7f43017` (tools) + `5ad4239` (tests + live gate) + `64f85b0`
+(records). Tree clean, HEAD `64f85b0`.
 
 ✅ **The eight-gate re-pin was paid earlier the same day** on channel `3az2oicz` — see the debt
 block below. ⚠️ It closed **Phase 1**, not the release; Phase 2 re-staled the set within hours.
@@ -200,8 +201,10 @@ R2.7 has no bump left. Opacity moved the scene's rendered bytes while an untouch
 held byte-identical; NORMAL/MULTIPLY/SCREEN rendered as three distinct byte streams; all four
 refusals arrived from their declared layer with the document unchanged. Full record →
 [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *1.3 live gate*.
-🟡 **UNCOMMITTED** — the gate repair below is in the working tree. ⛔ Committing is the
-owner's act.
+✅ **COMMITTED as `9037f94`** (gate repair + records), on top of `7037c24`. ⚠️ This line read
+*"🟡 UNCOMMITTED — the gate repair below is in the working tree"*, which was true when written
+and stayed on the page after the commit landed — the same stale-status-marker shape this
+tracker keeps catching. Corrected 2026-08-23.
 
 🔴 **THE GATE'S FIRST RUN FAILED AND THE TOOL WAS RIGHT.** `set_opacity` returned
 `0.3499999940395355` where the gate asserted `0.35` — exactly `Math.fround(0.35)`, because

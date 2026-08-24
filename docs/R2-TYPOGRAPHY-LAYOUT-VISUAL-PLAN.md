@@ -979,14 +979,21 @@ had never been run. This is what a first run buys, and one of the three was a fa
 
 ### Phase 3 — R2 acceptance
 
-- [ ] **3.1 Build the representative component/page fixture.** R2's acceptance criterion —
-      *"a generic client can build and edit a representative component/page fixture with
-      typed batch outcomes and no hidden dependency on a consumer repository"* — names an
-      artifact that does not exist yet. It is created here.
+- [x] **3.1 Build the representative component/page fixture.** ✅ **PREPARED 2026-08-23;
+      unrun.** [`scripts/r2-acceptance-fixture.mjs`](../scripts/r2-acceptance-fixture.mjs)
+      creates a disposable page and a frame-based UI card using only fork tools — auto
+      layout, real Inter typography, a gradient, effect, opacity/blend accent, SVG icon,
+      typed `apply_batch` edit, read-back, PNG export and `finally` cleanup. It does not
+      borrow a Figma `COMPONENT` node: creating ComponentNodes is R3 work, and borrowing
+      one from a connected file would create the hidden dependency this criterion forbids.
 - [ ] **3.2 Drive it end to end**: create a page, build an auto-layout component with real
       typography, gradients and effects, edit it, and read it back — using only fork tools.
-- [ ] **3.3 Promote every new tool `additive-preview` → `stable`** as the acceptance act,
-      per the R1 and R2.4 precedent.
+- [x] **3.3 Promote every new tool `additive-preview` → `stable`** ✅ **PREPARED
+      2026-08-23.** `set_fill`, `set_effects`, `set_opacity`, `set_blend_mode`, and
+      `create_node_from_svg` are stable in the generated public contract; the fixture's
+      offline guard pins the exact five. ⚠️ This moves `serverBuildId` only and is not a
+      live result. The live channel must still drive 3.2 and the re-pin pass before R2 is
+      accepted.
 - [ ] **3.4 Accept R2**, and only then consider the allowlist extension deferred by D3.
 
 ---

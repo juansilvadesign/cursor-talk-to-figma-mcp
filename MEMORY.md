@@ -12,7 +12,27 @@ type: project
 
 ## ▶ Resume (checkpoint 2026-08-23)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals, Phase 1 OPEN**
+- **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals; PHASE 1 AND PHASE 2
+  BOTH CLOSED. Only R2 acceptance remains.**
+- **Next step:** **R2 ACCEPTANCE** — build the representative component/page fixture
+  (`TASKS.md:1476`, the release's last unchecked box), drive it end to end, promote the
+  **five** `additive-preview` tools → `stable` in `scripts/contract-lib.mjs`
+  (`set_fill`, `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`),
+  then the **ONE** nine-gate re-pin + re-run. **R3-A (`1.10.0`) follows.**
+- **Key paths:** `docs/R2.7-VISUALS.md` § *Phase 2* · `TASKS.md:1476` ·
+  `scripts/contract-lib.mjs` (`ADDITIVE_PREVIEW_RESULTS`) ·
+  `tests/live-gate-pins.test.mjs` (the nine declared-stale gates) ·
+  `scripts/live-svg-crop-gate.mjs`. HEAD `64f85b0`, tree clean, 363/363, 65 tools, `1.9.0`.
+- **Open / blockers:** a **live Figma channel from Juan** is required before any gate can run
+  — an agent cannot obtain one. Two owner decisions declined 2026-08-23 and still open:
+  ① the three R2.1/R2.2/R2.4 gates; ② the `set_fill` gradient `color` drop (`code.js:8047`).
+- **Don't forget:** ⛔ promotion rewrites `contractPayload.tools`, so it **moves
+  `serverBuildId`** — the nine-gate re-pin belongs AFTER it, never before, or it pays twice.
+  ⛔ `contract:generate` does **not** rebuild `dist/`; run `bun run build` or every gate
+  refuses at `assertRuntime`. ⛔ `code.js` changes need the **DEV plugin reloaded in Figma**.
+  ⛔ Committing is the owner's act. ⛔ Never `git add -A` — peer sessions write this repo.
+
+### Superseded resume detail (Phase 1, kept for the record)
 - ✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**
   (`e394e38` build + `b531d68` read-source repair). `live-effects-gate.mjs` PASSED on channel
   `5982svqp`, **run twice**, pair `r2-server-fa007eb01947` ↔ `r2-plugin-e577688241c0`,
@@ -57,7 +77,7 @@ type: project
   stake in it.
   ⛔ Nothing in the gates' `stillOwed` lists was closed and none of it is new — a re-pin
   re-establishes that a gate still passes on this build; it does not widen what the gate covers.
-  🟡 **UNCOMMITTED** — 9 code files + these records. ⛔ Committing is the owner's act.
+  ✅ **COMMITTED by the owner 2026-08-23** (`2999bfd` re-pin + `0db6175` records).
   ⚠️ This closed **PHASE 1**, not the release — R2.7 still owed two build items, which landed
   hours later as Phase 2 and re-staled all eight plus a ninth.
 
@@ -85,7 +105,8 @@ type: project
   matching 2 and 3 times; both died re-anchored. A blocked bad mutation is not a killed one.
   🔴 **The gate ledger is back to NINE** — the eight plus `live-opacity-blend`, staled for the
   first time. ⛔ Re-pin + re-run ONCE at R2 acceptance, after promotion moves `serverBuildId`.
-  🟡 **UNCOMMITTED.** ⛔ Committing is the owner's act.
+  ✅ **COMMITTED by the owner 2026-08-23** as `7f43017` (tools) + `5ad4239` (tests/gate) +
+  `64f85b0` (records). Tree clean at checkpoint, HEAD `64f85b0`.
   ▶ **NEXT = R2 ACCEPTANCE, the last R2.7 item**: build the representative component/page
   fixture, drive it end to end, promote the **five** `additive-preview` tools (`set_fill`,
   `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`) → `stable`, then the

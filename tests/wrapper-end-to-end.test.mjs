@@ -325,3 +325,52 @@ test(
     });
   },
 );
+
+/**
+ * R3-A Phase 3 — this is deliberately over the same stdio/WebSocket path as a real client.
+ * The plugin-level identity tests prove resolution; this one proves the new optional fields
+ * neither disappear in the Zod wrapper nor leak the opaque key back into a receipt.
+ */
+test(
+  "create_variable preserves opaque layered identity through the MCP wrapper",
+  { timeout: 30000 },
+  async () => {
+    await withLiveStack(async ({ client }) => {
+      const identityKey = "  wrapper://identity/42 — opaque  ";
+      const firstArgs = {
+        collectionId: "collection-1",
+        name: "Wrapper/Identity",
+        resolvedType: "STRING",
+        identityKey,
+      };
+
+      const first = receipt(await client.callTool({
+        name: "create_variable",
+        arguments: firstArgs,
+      }));
+      assert.equal(first.success, true);
+      assert.equal(first.created, true);
+      assert.equal(first.matchedBy, null);
+      assert.equal(first.identityKeyStatus, "stored");
+      assert.doesNotMatch(JSON.stringify(first), /wrapper:\/\/identity\/42/);
+
+      const nameMatch = receipt(await client.callTool({
+        name: "create_variable",
+        arguments: firstArgs,
+      }));
+      assert.equal(nameMatch.success, true);
+      assert.equal(nameMatch.created, false);
+      assert.equal(nameMatch.matchedBy, "name");
+      assert.equal(nameMatch.variable.id, first.variable.id);
+
+      const identityMatch = receipt(await client.callTool({
+        name: "create_variable",
+        arguments: { ...firstArgs, name: "Wrapper/Renamed-Intent" },
+      }));
+      assert.equal(identityMatch.success, true);
+      assert.equal(identityMatch.created, false);
+      assert.equal(identityMatch.matchedBy, "identityKey");
+      assert.equal(identityMatch.variable.id, first.variable.id);
+    });
+  },
+);

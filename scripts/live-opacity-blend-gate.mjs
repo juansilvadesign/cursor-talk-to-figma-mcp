@@ -53,12 +53,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-0d303490d152",
-  pluginBuildId: "r3-a-plugin-6ed0aab0ecdc",
-  schemaVersion: "1.10.0",
+  serverBuildId: "r3-a-server-af8987322467",
+  pluginBuildId: "r3-a-plugin-b5ee1c0b619a",
+  schemaVersion: "1.11.0",
   fingerprint:
-    "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
-  toolCount: 66,
+    "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
+  toolCount: 67,
 };
 
 // Figma stores layer opacity as a 32-bit float, so a written 0.35 reads back as

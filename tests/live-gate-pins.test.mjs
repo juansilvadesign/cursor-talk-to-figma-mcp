@@ -11,8 +11,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // the pin rule; they are the complete set that must be re-pinned and run once when that
 // channel arrives. The first nine were stale after Phase 2. Promotion then changed only
 // serverBuildId, which also staled Phase 2's own SVG/CROP gate — a tenth script that the
-// earlier nine-gate checklist did not count. The representative fixture is prepared in
-// scripts/r2-acceptance-fixture.mjs and has not been run.
+// earlier nine-gate checklist did not count.
+//
+// ✅ The representative fixture HAS now been run — 2026-08-23, channel `w113vf7y`, PASSED
+// twice on the promoted build `r2-server-a0afdc880ab0` ↔ `r2-plugin-2741d7f5f374`, every
+// measured value agreeing across runs including a byte-identical export. This comment
+// previously ended "and has not been run", which stayed true only until it was.
+// ⛔ The ten below are still owed: the fixture is the acceptance ACT, not the re-pin.
 const R2_ACCEPTANCE_REPIN_PENDING = Object.freeze([
   "live-batch-gate.mjs",
   "live-text-style-gate.mjs",

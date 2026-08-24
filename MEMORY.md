@@ -10,27 +10,72 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-23)
+## ▶ Resume (checkpoint 2026-08-24)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork` — **R2.7 visuals; PHASE 1 AND PHASE 2
-  BOTH CLOSED. Only R2 acceptance remains.**
-- **Next step:** **R2 ACCEPTANCE** — build the representative component/page fixture
-  (`TASKS.md:1476`, the release's last unchecked box), drive it end to end, promote the
-  **five** `additive-preview` tools → `stable` in `scripts/contract-lib.mjs`
-  (`set_fill`, `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`),
-  then the **ONE** nine-gate re-pin + re-run. **R3-A (`1.10.0`) follows.**
-- **Key paths:** `docs/R2.7-VISUALS.md` § *Phase 2* · `TASKS.md:1476` ·
-  `scripts/contract-lib.mjs` (`ADDITIVE_PREVIEW_RESULTS`) ·
-  `tests/live-gate-pins.test.mjs` (the nine declared-stale gates) ·
-  `scripts/live-svg-crop-gate.mjs`. HEAD `64f85b0`, tree clean, 363/363, 65 tools, `1.9.0`.
-- **Open / blockers:** a **live Figma channel from Juan** is required before any gate can run
-  — an agent cannot obtain one. Two owner decisions declined 2026-08-23 and still open:
-  ① the three R2.1/R2.2/R2.4 gates; ② the `set_fill` gradient `color` drop (`code.js:8047`).
-- **Don't forget:** ⛔ promotion rewrites `contractPayload.tools`, so it **moves
-  `serverBuildId`** — the nine-gate re-pin belongs AFTER it, never before, or it pays twice.
-  ⛔ `contract:generate` does **not** rebuild `dist/`; run `bun run build` or every gate
-  refuses at `assertRuntime`. ⛔ `code.js` changes need the **DEV plugin reloaded in Figma**.
-  ⛔ Committing is the owner's act. ⛔ Never `git add -A` — peer sessions write this repo.
+- **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
+  R2.7 IS DONE. R2 IS ACCEPTED.**
+- **Next step:** **R3-A (`1.10.0`)** — the variable-write half, planned in detail at
+  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md); its entry point is **Phase 1.1**
+  (Phase 0 is discharged). ⛔ First: **the owner commits this session's 21 files.**
+- **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
+  (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
+  tools promoted to `stable`, then all **TEN** stale gates re-pinned to
+  `r2-server-a0afdc880ab0` ↔ `r2-plugin-0ace9ed58f34` (65 tools, `1.9.0`, fingerprint
+  `sha256:f636ecab…6142fc0`) and **re-run once each on `6cbroncs` — ALL TEN PASSED.**
+  Offline **370/370**, `verify` green. Record → `docs/R2.7-VISUALS.md` § *R2 ACCEPTANCE*.
+- **Key paths:** `docs/R2.7-VISUALS.md` § *R2 ACCEPTANCE* · `TASKS.md:1492` ·
+  `scripts/r2-acceptance-fixture.mjs` (+ its offline test) ·
+  `tests/live-gate-pins.test.mjs` (ledger now back to **three**) ·
+  `src/cursor_mcp_plugin/code.js` (`EFFECT_FIELD_RULES`). 370/370, 65 tools, `1.9.0`.
+- **Open / blockers:** 🟡 **21 files uncommitted.** Three owner decisions still open:
+  ① the three R2.1/R2.2/R2.4 gates (declined twice); ② the `set_fill` gradient `color` drop
+  (`code.js:8047`); ③ whether the offline harness should model Figma's effect union — it
+  cannot today, and that is what let the `set_effects` defect sit green.
+- **Don't forget:** ⛔ **The relay is STOPPED** — `bun socket` (port 3055) before any live
+  work, and it died mid-session once already, so check `ss -ltn | grep 3055` rather than
+  assuming. ⛔ A **live Figma channel from Juan** is required before any gate can run; an
+  agent cannot obtain one. ⛔ `contract:generate` does **not** rebuild `dist/` — run
+  `bun run build`, or every gate refuses at `assertRuntime`. ⛔ `code.js` changes need the
+  **DEV plugin reloaded in Figma**, and the reload is what moves `pluginBuildId` into the
+  running plugin. ⛔ Sequence any plugin/server fix **before** a gate re-pin, never after,
+  or the whole set is re-staled and pays twice. ⛔ **Committing is the owner's act.**
+  ⛔ Never `git add -A` — peer sessions write this repo.
+
+### 🔴 The acceptance fixture found what ten green gates could not — 2026-08-23
+
+`set_effects` advertises `visible` and `blendMode` as `.optional()`. **Figma requires** both on
+shadows and `visible` on blurs, so a minimal `DROP_SHADOW` — the shape a generic client writes
+from reading the schema — was **refused outright**. The tool had already been promoted to
+`stable`.
+
+- ⛔ **A schema `.optional()` is a claim about the PLATFORM, not just about the validator.**
+  This one was wider than what Figma accepts, and nothing mechanical could see the gap.
+- ⭐ **The gate was green because it only ever sent the shapes its author already knew worked.**
+  Its one successful shadow supplies both fields; its omission probes are refused by the fork's
+  **own handler** and never reach Figma, so the platform's union validation was never
+  exercised. Same family as [[feedback_a_fingerprint_only_covers_what_it_hashes]] and
+  [[feedback_consistency_gate_is_not_a_correctness_gate]].
+- 🔴 **The offline harness cannot model that union at all** — a pre-existing test asserted a
+  stored `{type:"LAYER_BLUR",radius:11}` that real Figma would have refused. Same shape as the
+  `effectStyleId` fake-export finding: the double accepted what the channel never would.
+- ✅ Fixed in the per-type `EFFECT_FIELD_RULES` table, applied LAST so a supplied
+  `visible: false` still wins; blurs default `visible` only, because a blur has **no**
+  `blendMode` and sending one comes back as an unrecognized key. 3/3 mutants killed.
+- ✅ `live-effects-gate.mjs` gained a minimal-effect-of-each-type section — the probe that
+  would have caught it — and it passed live on all four types.
+- ⛔ **Sequenced BEFORE the re-pin.** The fix moves `pluginBuildId`, which would have re-staled
+  all ten the instant after re-pinning; ordering it first paid the ten-gate price **once**.
+
+### ⛔ Five R2.6 layout tools answer in PROSE, with no receipt — 2026-08-23
+
+`set_layout_mode`, `set_padding`, `set_axis_align`, `set_item_spacing`, `set_layout_sizing`.
+Everything R2.7 added returns `JSON.stringify(result)`. The fixture declares the shape **per
+tool** rather than parsing with a try-JSON-then-prose fallback — a fallback would let a tool
+that today returns a receipt quietly degrade to prose and still pass, which is a green that has
+stopped asking the question. `callJson` refuses prose, `callProse` refuses a receipt, and an
+offline test re-reads `server.ts` every run so the declaration cannot rot.
+⭐ The prose carries one real read-back: it echoes the node's **name**, so the fixture pins that
+each call named the node it actually wrote.
 
 ### Superseded resume detail (Phase 1, kept for the record)
 - ✅✅ **ITEM 1.2 `set_effects` IS BUILT, GATED AND COMMITTED — 2026-08-23**

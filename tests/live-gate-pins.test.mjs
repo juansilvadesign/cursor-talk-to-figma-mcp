@@ -6,30 +6,22 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// R2 acceptance promotion is deliberately waiting on one thing this repository cannot
-// manufacture: a live DEV-plugin channel. The ten names below are not a hand-wave around
-// the pin rule; they are the complete set that must be re-pinned and run once when that
-// channel arrives. The first nine were stale after Phase 2. Promotion then changed only
-// serverBuildId, which also staled Phase 2's own SVG/CROP gate — a tenth script that the
-// earlier nine-gate checklist did not count.
+// ✅✅ **THE R2 ACCEPTANCE RE-PIN IS DONE — 2026-08-24, channel `6cbroncs`.** All TEN were
+// re-pinned to `r2-server-a0afdc880ab0` ↔ `r2-plugin-0ace9ed58f34`, schema 1.9.0,
+// fingerprint `sha256:f636ecab…6142fc0`, 65 tools, and all ten RE-RUN once each on one
+// channel. All ten PASSED. Their entries below are DELETED rather than reworded — the
+// declaration and the run travelled together, which is the whole rule.
 //
-// ✅ The representative fixture HAS now been run — 2026-08-23, channel `w113vf7y`, PASSED
-// twice on the promoted build `r2-server-a0afdc880ab0` ↔ `r2-plugin-2741d7f5f374`, every
-// measured value agreeing across runs including a byte-identical export. This comment
-// previously ended "and has not been run", which stayed true only until it was.
-// ⛔ The ten below are still owed: the fixture is the acceptance ACT, not the re-pin.
-const R2_ACCEPTANCE_REPIN_PENDING = Object.freeze([
-  "live-batch-gate.mjs",
-  "live-text-style-gate.mjs",
-  "live-layout-gate.mjs",
-  "live-constraints-gate.mjs",
-  "live-size-limits-gate.mjs",
-  "live-clips-content-gate.mjs",
-  "live-fill-gate.mjs",
-  "live-effects-gate.mjs",
-  "live-opacity-blend-gate.mjs",
-  "live-svg-crop-gate.mjs",
-]);
+// ⚠️ The list that stood here (`R2_ACCEPTANCE_REPIN_PENDING`) and the `currentGates === 0`
+// branch that consumed it are both gone: they existed only to describe a tree where no gate
+// pinned the current build, and that is no longer this tree. A standing exception outlives
+// its cause silently, which is the failure this file exists to catch.
+//
+// ⭐ The acceptance fixture ran FIRST, on 2026-08-23/channel `w113vf7y`, and it is what
+// found the `set_effects` defect that this build fixes — two schema-`.optional()` fields
+// Figma actually requires. The gates were green across that entire defect, because the only
+// effect shapes they ever sent were the shapes that already worked. `live-effects-gate.mjs`
+// now sends a minimal effect of each of the four types for exactly that reason.
 
 /**
  * ⛔ **Editing a gate is not exercising it.**
@@ -90,51 +82,21 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   // re-run together whenever their results are next quoted. Folding them into this pass was
   // put to the owner on 2026-08-23 and declined — the scope was the eight.
   //
-  // 🔴 **AND THE BACKLOG IS BACK AT NINE — staled by R2.7 PHASE 2, same day, hours later.**
-  // The `set_image_fill` CROP repair changed `code.js` and `server.ts`, moving both build IDs
-  // beneath every gate that had just been re-pinned. ⚠️ **The ninth is new to the set:**
-  // `live-opacity-blend-gate.mjs` was the one gate NOT in the end-of-Phase-1 eight — it pinned
-  // that build and had been run on it — so Phase 2 is the change that finally staled it.
+  // ✅✅ **AND THE BACKLOG ROSE TO TEN AND WAS THEN CLEARED — 2026-08-24, `6cbroncs`.**
+  // Phase 2's `set_image_fill` CROP repair re-staled the eight and pulled in a ninth
+  // (`live-opacity-blend-gate.mjs`, until then never declared); the acceptance stability
+  // promotion moved `serverBuildId` again and pulled in a tenth (`live-svg-crop-gate.mjs`).
+  // All ten were re-pinned and re-run once each, on one channel, and all ten PASSED.
   //
-  // ⛔ NOT RE-PINNED, and the rule is the same one as every previous time: a change that can
-  // re-run only its own gate cannot honestly re-pin nine. ⭐ **This is the cost the owner
-  // chose with eyes open.** Phase 2 was sequenced BEFORE R2 acceptance precisely so the
-  // promotion of `additive-preview` → `stable` (which rewrites `contractPayload.tools` and so
-  // moves `serverBuildId` again) lands first and the whole set is re-pinned and re-run ONCE,
-  // at acceptance, rather than once per stage.
+  // ⚠️ Those ten were green on `3az2oicz`/`shtlklfy`/`sdg5mr5m` against builds this tree no
+  // longer produces. Nothing about those results is withdrawn — they simply could not be
+  // quoted forward, which is the entire reason this ledger exists.
   //
-  // ⚠️ All nine were green on `3az2oicz` against the end-of-Phase-1 build
-  // (`r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`) — eight in the re-pin pass and
-  // `live-opacity-blend` on `shtlklfy` before it. Nothing about those results is withdrawn;
-  // they are results about a build this tree no longer produces.
-  "live-batch-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-text-style-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-layout-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-constraints-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-size-limits-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-clips-content-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-fill-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  "live-effects-gate.mjs":
-    "End-of-R2.7-Phase-1 build, schema 1.9.0, 64 tools. Green on 3az2oicz; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  // ⭐ The ninth, and the first time this gate has ever been declared. It pinned the
-  // end-of-Phase-1 build and was run on it (`shtlklfy`, twice), which is exactly why it sat
-  // out the eight-gate re-pin. Phase 2 staled it like all the others.
-  "live-opacity-blend-gate.mjs":
-    "R2.7 item 1.3 build, schema 1.9.0, 64 tools. Green on shtlklfy, run twice; staled by Phase 2's set_image_fill CROP repair moving both build IDs. Re-pin and re-run with the R2 acceptance set.",
-  // Phase 2's own gate was current until the acceptance promotion changed
-  // `contractPayload.tools`. The plugin, fingerprint, schema and tool count still match;
-  // `serverBuildId` alone proves the server artifact is no longer the one that produced the
-  // recorded CROP renders. The R2 fixture does not exercise CROP's transform matrix, so it
-  // cannot honestly supersede this gate.
-  "live-svg-crop-gate.mjs":
-    "R2.7 Phase 2 build, schema 1.9.0, 65 tools. Green on sdg5mr5m twice; staled by the R2 acceptance stability promotion moving serverBuildId only. Re-pin and re-run with the complete R2 acceptance set.",
+  // 🔴 **AND THE RE-RUN EARNED ITS KEEP.** The pass did not merely reproduce nine old greens:
+  // `set_effects` was found broken FIRST by the acceptance fixture, not by any gate here, and
+  // the fix moved `pluginBuildId` one more time before the re-pin. ⭐ Every gate had been
+  // green straight through that defect, because a gate only ever sends the shapes its author
+  // already knew worked. A green gate is evidence about ITS INPUTS.
 });
 
 function readPins(source) {
@@ -204,28 +166,8 @@ test("every live gate either pins THIS build or declares the release it belongs 
     );
   }
 
-  if (currentGates === 0) {
-    // Normally this is a release-blocking failure: a current gate is what proves a live
-    // build is runnable. R2 acceptance is the intentionally narrow exception while a live
-    // channel is unavailable. Pin every affected script as stale rather than pretending a
-    // metadata-only server move did not happen, then remove this branch when the one-pass
-    // re-pin/run finishes.
-    assert.equal(
-      R2_ACCEPTANCE_REPIN_PENDING.length,
-      10,
-      "the R2 acceptance exception must name all ten affected scripts, including SVG/CROP",
-    );
-    assert.deepEqual(
-      R2_ACCEPTANCE_REPIN_PENDING.filter(
-        (name) => !Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, name),
-      ),
-      [],
-      "every R2 acceptance gate awaiting a channel must be declared stale rather than silently unrunnable",
-    );
-  } else {
-    assert.ok(
-      currentGates >= 1,
-      "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
-    );
-  }
+  assert.ok(
+    currentGates >= 1,
+    "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
+  );
 });

@@ -46,12 +46,12 @@ const expectedRuntime = {
   // is false of this pin: item 1.3 moved BOTH build IDs and the fingerprint, and the tool
   // count went 62 → 64. Deleted rather than reworded, because a stale note about which pins
   // moved is the same class of lie as a stale pin.
-  serverBuildId: "r2-server-d95951a3ce93",
-  pluginBuildId: "r2-plugin-364f8001f2d1",
+  serverBuildId: "r2-server-a0afdc880ab0",
+  pluginBuildId: "r2-plugin-0ace9ed58f34",
   schemaVersion: "1.9.0",
   fingerprint:
-    "sha256:9b7abf647c2737391aec8486049081b8456d6c20563724c2c549446bda1dacb4",
-  toolCount: 64,
+    "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
+  toolCount: 65,
 };
 
 const serverPath = options.server
@@ -340,6 +340,49 @@ try {
       effects: summarizeEffects(receipt.effects),
     },
   };
+
+  // 2b. The shapes this gate never used to send: every OMITTED optional field.
+  //
+  // 🔴 This section exists because the gate was green while the tool was broken. Its one
+  // successful shadow above supplies `visible` and `blendMode`, and its field-omission
+  // probes are all refused by the handler before they ever reach Figma — so the platform's
+  // own union validation was never exercised, and `set_effects` shipped `stable` while a
+  // DROP_SHADOW omitting either field was refused outright. Measured 2026-08-23 by the R2
+  // acceptance fixture, not by this gate.
+  //
+  // ⭐ The lesson is not "add a case": the gate only ever sent the shapes that worked, so
+  // its green was evidence about its own inputs. A minimal effect of each type is the shape
+  // a generic client writes from reading the schema, so that is what has to be sent.
+  const minimalWrites = {
+    DROP_SHADOW: { type: "DROP_SHADOW", color: { r: 0, g: 0, b: 0, a: 0.3 }, offset: { x: 0, y: 2 }, radius: 4 },
+    INNER_SHADOW: { type: "INNER_SHADOW", color: { r: 0, g: 0, b: 0, a: 0.3 }, offset: { x: 0, y: 2 }, radius: 4 },
+    LAYER_BLUR: { type: "LAYER_BLUR", radius: 5 },
+    BACKGROUND_BLUR: { type: "BACKGROUND_BLUR", radius: 5 },
+  };
+  record.checks.omittedOptionals = {};
+  for (const [type, effect] of Object.entries(minimalWrites)) {
+    const minimal = (await callJson("set_effects", { nodeId: target, effects: [effect] })).value;
+    const stored = (await readNode(target))?.effects?.[0];
+    // The platform must ACCEPT it, and the fields it requires must be present on the node.
+    assert.equal(minimal.effectCount, 1, `a minimal ${type} was not accepted by Figma`);
+    assert.equal(stored?.type, type);
+    assert.equal(stored?.visible, true, `${type} must carry the platform-required visible`);
+    const isShadow = type === "DROP_SHADOW" || type === "INNER_SHADOW";
+    assert.equal(
+      stored?.blendMode,
+      isShadow ? "NORMAL" : undefined,
+      `${type} blendMode must be filled for shadows and absent for blurs`,
+    );
+    record.checks.omittedOptionals[type] = {
+      sent: effect,
+      storedVisible: stored?.visible,
+      storedBlendMode: stored?.blendMode ?? null,
+    };
+  }
+
+  // Restore the section-2 shadow so the refusal probes below compare against the state they
+  // were written for, rather than against whatever this section left behind.
+  await callJson("set_effects", { nodeId: target, effects: [requested] });
 
   // 3. Five semantic refusals. All have to be handled after Zod because each depends on a
   // sibling field, a missing sibling, an unknown key preserved by passthrough, or the node.

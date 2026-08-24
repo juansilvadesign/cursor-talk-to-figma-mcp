@@ -81,7 +81,10 @@ test("writes all four supported effect types and reads the stored array back", a
   assert.deepEqual(result.previous, []);
   assert.equal(result.previousReadable, true);
   assert.deepEqual(result.effects, [
-    { ...DROP, color: { ...RED, a: 1 } },
+    // DROP is the one member here that omits visible/blendMode, so it is the one that
+    // carries the platform-required defaults. The other three supply their own and must
+    // come back exactly as sent.
+    { ...DROP, color: { ...RED, a: 1 }, visible: true, blendMode: "NORMAL" },
     {
       type: "INNER_SHADOW",
       color: BLUE,
@@ -110,7 +113,9 @@ test("null clears every effect while preserving a readable previous array", asyn
     effects: null,
   });
 
-  assert.deepEqual(result.previous, [{ ...DROP, color: { ...RED, a: 1 } }]);
+  assert.deepEqual(result.previous, [
+    { ...DROP, color: { ...RED, a: 1 }, visible: true, blendMode: "NORMAL" },
+  ]);
   assert.equal(result.previousReadable, true);
   assert.deepEqual(result.effects, []);
   assert.equal(result.effectCount, 0);
@@ -309,7 +314,8 @@ test("the repaired read filter exposes effects, style, clipping, and render-boun
   });
   const read = await harness.command("get_node_info", { nodeId: STYLED_FRAME });
 
-  assert.deepEqual(read.effects, [{ type: "LAYER_BLUR", radius: 11 }]);
+  // A blur carries the platform-required `visible` and no blendMode.
+  assert.deepEqual(read.effects, [{ type: "LAYER_BLUR", radius: 11, visible: true }]);
   assert.equal(read.effectStyleId, EFFECT_STYLE_ID);
   assert.equal(read.clipsContent, true);
   assert.deepEqual(read.absoluteRenderBounds, {
@@ -429,4 +435,87 @@ test("the R2.7 result-shape repair spends all three 1.9.0 version fields togethe
   assert.equal(release.publicContractVersion, "1.9.0");
   assert.equal(release.serverSchemaVersion, "1.9.0");
   assert.equal(release.pluginApiVersion, "1.9.0");
+});
+
+/**
+ * ⛔ Figma's effect union is STRICTER than this fork's schema, and the gap shipped `stable`.
+ *
+ * Measured live on 2026-08-23 (channel `w113vf7y`) while running the R2 acceptance fixture:
+ * a DROP_SHADOW that omitted `visible` and `blendMode` — both `.optional()` in this tool's
+ * own schema — was refused by the platform with "Required value missing" on each. The
+ * live-effects gate never saw it, because its one successful shadow supplies both fields and
+ * its field-omission probe is refused earlier by this handler and never reaches Figma.
+ *
+ * ⭐ So a green gate was evidence about its inputs, not about the tool: the only shapes the
+ * gate ever sent were the shapes that happened to work.
+ */
+test("the two platform-required effect fields are filled when the caller omits them", async () => {
+  const harness = await loadPluginHarness();
+
+  await harness.command("set_effects", {
+    nodeId: RECTANGLE,
+    effects: [clone(DROP)],
+  });
+  const [shadow] = harness.getNode(RECTANGLE).effects;
+  assert.equal(shadow.visible, true, "an omitted visible must be filled, not left undefined");
+  assert.equal(shadow.blendMode, "NORMAL", "an omitted blendMode must be filled for a shadow");
+
+  // A blur has no blendMode in Figma's union at all — filling one would be refused as an
+  // unrecognized key, so the default must NOT be shared across effect types.
+  await harness.command("set_effects", {
+    nodeId: RECTANGLE,
+    effects: [{ type: "LAYER_BLUR", radius: 6 }],
+  });
+  const [blur] = harness.getNode(RECTANGLE).effects;
+  assert.equal(blur.visible, true, "a blur still requires visible");
+  assert.ok(
+    !Object.hasOwn(blur, "blendMode"),
+    "a blur must never be given a blendMode — the platform refuses the key",
+  );
+});
+
+test("a supplied effect field always beats its default", async () => {
+  const harness = await loadPluginHarness();
+
+  // `visible: false` is the value a default would silently eat, and eating it would turn a
+  // requested hidden shadow into a drawn one — a discarded write reading as an applied one.
+  await harness.command("set_effects", {
+    nodeId: RECTANGLE,
+    effects: [{ ...clone(DROP), visible: false, blendMode: "MULTIPLY" }],
+  });
+  const [shadow] = harness.getNode(RECTANGLE).effects;
+  assert.equal(shadow.visible, false);
+  assert.equal(shadow.blendMode, "MULTIPLY");
+});
+
+test("every effect default is a field its own type actually allows", async () => {
+  const source = await readFile(
+    path.join(root, "src/cursor_mcp_plugin/code.js"),
+    "utf8",
+  );
+  const table = source.slice(
+    source.indexOf("const EFFECT_FIELD_RULES"),
+    source.indexOf("function cloneEffects"),
+  );
+  assert.ok(table.length > 0, "the effect rules table was not found");
+
+  // The table is the ownership rule, so the invariant is asserted against the table itself:
+  // a default outside `allowed` would write a key the platform refuses for that type.
+  for (const type of ["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]) {
+    const entry = table.slice(table.indexOf(`${type}: Object.freeze({`));
+    const allowed = entry.slice(entry.indexOf("allowed:"), entry.indexOf("defaults:"));
+    const defaults = entry.slice(entry.indexOf("defaults:"), entry.indexOf("}),", entry.indexOf("defaults:")));
+    assert.match(defaults, /visible: true/, `${type} must default visible`);
+    for (const field of [...defaults.matchAll(/(\w+):\s/g)].map((match) => match[1])) {
+      if (field === "defaults") continue;
+      assert.ok(
+        allowed.includes(`"${field}"`),
+        `${type} defaults ${field}, which is not in its allowed list`,
+      );
+    }
+  }
+  assert.ok(
+    !table.slice(table.indexOf("LAYER_BLUR")).match(/defaults: Object\.freeze\(\{[^}]*blendMode/),
+    "a blur must not default a blendMode",
+  );
 });

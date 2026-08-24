@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R2",
-  "buildId": "r2-plugin-2741d7f5f374",
+  "buildId": "r2-plugin-0ace9ed58f34",
   "apiVersion": "1.9.0",
   "serverSchemaVersion": "1.9.0",
   "relayProtocolVersion": "1",
@@ -8612,6 +8612,18 @@ const MAX_EFFECTS = 16;
 // plugin can name cross-type fields, missing required fields, and unknown fields rather
 // than silently dropping one. Do not replace this with type-specific branches: a missing
 // table entry must be able to fail a mutation test.
+//
+// ⛔ `defaults` exists because Figma's effect union is STRICTER than this fork's schema, and
+// that was measured live (2026-08-23, channel `w113vf7y`) rather than read off the docs. A
+// DROP_SHADOW omitting `visible` or `blendMode` is refused by the platform with "Required
+// value missing" — so two fields this fork advertises as `.optional()` could not actually be
+// omitted, and a generic client following the published schema hit a wall. Filling them here
+// is what makes the word "optional" true.
+//
+// ⚠️ The split is NOT cosmetic: blurs require `visible` but have no `blendMode` at all, and
+// sending one would come back as an unrecognized key. That is why the defaults live per type
+// in this table and not in one shared object — and why `defaults ⊆ allowed` is asserted by a
+// test rather than trusted to review.
 const EFFECT_FIELD_RULES = Object.freeze({
   DROP_SHADOW: Object.freeze({
     required: Object.freeze(["color", "offset", "radius"]),
@@ -8619,20 +8631,24 @@ const EFFECT_FIELD_RULES = Object.freeze({
       "type", "color", "offset", "radius", "spread", "visible", "blendMode",
       "showShadowBehindNode",
     ]),
+    defaults: Object.freeze({ visible: true, blendMode: "NORMAL" }),
   }),
   INNER_SHADOW: Object.freeze({
     required: Object.freeze(["color", "offset", "radius"]),
     allowed: Object.freeze([
       "type", "color", "offset", "radius", "spread", "visible", "blendMode",
     ]),
+    defaults: Object.freeze({ visible: true, blendMode: "NORMAL" }),
   }),
   LAYER_BLUR: Object.freeze({
     required: Object.freeze(["radius"]),
     allowed: Object.freeze(["type", "radius", "visible"]),
+    defaults: Object.freeze({ visible: true }),
   }),
   BACKGROUND_BLUR: Object.freeze({
     required: Object.freeze(["radius"]),
     allowed: Object.freeze(["type", "radius", "visible"]),
+    defaults: Object.freeze({ visible: true }),
   }),
 });
 
@@ -8803,6 +8819,15 @@ function buildEffect(input, index) {
       );
     }
     effect.showShadowBehindNode = input.showShadowBehindNode;
+  }
+
+  // Applied LAST and only where the caller said nothing. A supplied value must win —
+  // defaulting over an explicit `visible: false` would silently discard a write, which is
+  // the same "a discarded value reads as an applied one" failure this tool refuses
+  // elsewhere. Every filled field is reported back through the receipt's node read-back,
+  // so a default is visible to the caller rather than an invisible substitution.
+  for (const field of Object.keys(rule.defaults)) {
+    if (effect[field] === undefined) effect[field] = rule.defaults[field];
   }
   return effect;
 }

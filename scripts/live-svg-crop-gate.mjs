@@ -73,8 +73,8 @@ const expectedRuntime = {
   // lived only on the `imageTransform` parameter, so a caller reading the tool description
   // never met it. `server.ts` alone changed, so `pluginBuildId` HELD and the fingerprint held
   // with it — a description is not part of the capability surface it hashes.
-  serverBuildId: "r2-server-2ca49b0a4fd1",
-  pluginBuildId: "r2-plugin-2741d7f5f374",
+  serverBuildId: "r2-server-a0afdc880ab0",
+  pluginBuildId: "r2-plugin-0ace9ed58f34",
   schemaVersion: "1.9.0",
   fingerprint:
     "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",

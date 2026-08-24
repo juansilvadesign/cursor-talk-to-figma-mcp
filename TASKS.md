@@ -170,9 +170,43 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — R2.7 **PHASE 2 BUILT AND GATED**; only R2 acceptance remains
+## ▶ Current session — ✅✅ **R2 ACCEPTANCE IS CLOSED. R2.7 IS DONE.**
 
-✅✅ **PHASE 2 IS DONE — 2026-08-23, channel `sdg5mr5m`, `live-svg-crop-gate.mjs` run twice**,
+✅✅ **R2 ACCEPTANCE CLOSED — 2026-08-23/24, channels `w113vf7y` then `6cbroncs`.**
+The representative fixture PASSED **twice** on `w113vf7y` (fresh scratch page each run,
+`6056:129` / `6056:138`), every measured value agreeing including a **byte-identical export
+`sha256`**; both runs restored the page baseline. All five R2.7 tools are `stable`. Then the
+**TEN** stale gates were re-pinned to `r2-server-a0afdc880ab0` ↔ `r2-plugin-0ace9ed58f34`,
+65 tools, and **re-run once each on `6cbroncs` — ALL TEN PASSED**, no new defects. Offline
+**370/370**, `bun run verify` green, rebuild reproduced both build IDs. The ten declarations,
+the `R2_ACCEPTANCE_REPIN_PENDING` list and the `currentGates === 0` branch are **deleted** —
+the ledger is back to the three R2.1/R2.2/R2.4 gates. Record →
+[`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *R2 ACCEPTANCE*.
+🟡 **UNCOMMITTED** — 21 files. ⛔ Committing is the owner's act.
+
+🔴 **THE FIXTURE FOUND A DEFECT IN A TOOL ALREADY PROMOTED TO `stable`.** `set_effects`
+advertises `visible` and `blendMode` as `.optional()`; **Figma requires** both on shadows and
+`visible` on blurs, so the minimal effect a generic client writes from the schema was refused
+outright — the exact claim R2 acceptance makes. ⛔ The published schema was **wider than the
+platform accepts**; the refusal was clean and the document untouched.
+⭐ **Every gate was green straight through it.** `live-effects-gate`'s one successful shadow
+supplies both fields, and its omission probes are refused by the fork's OWN handler before
+reaching Figma — so the platform's union validation was never exercised. **A green gate is
+evidence about its inputs.** The offline harness cannot model that union at all, and one
+pre-existing test asserted a stored blur shape real Figma would have refused.
+✅ Fixed in the per-type `EFFECT_FIELD_RULES` table (blurs default `visible` only — a blur has
+no `blendMode`, and sending one returns as an unrecognized key), applied LAST so an explicit
+`visible: false` still wins. 3/3 mutants killed, control survived. `live-effects-gate.mjs`
+gained the minimal-effect section that would have caught it, and it passed live on all four
+types. ⛔ Sequenced BEFORE the re-pin, so the ten-gate price was paid **once**, not twice.
+
+⛔ **FIVE R2.6 LAYOUT TOOLS ANSWER IN PROSE, NOT A RECEIPT** — `set_layout_mode`,
+`set_padding`, `set_axis_align`, `set_item_spacing`, `set_layout_sizing`. The fixture declares
+the reply shape **per tool**; a try-JSON-then-prose fallback would let a receipt-returning tool
+quietly degrade to prose and still pass. An offline test re-reads `server.ts` each run so the
+declaration cannot rot. ⭐ The prose does echo the node's name, which the fixture pins.
+
+✅✅ **PHASE 2 WAS DONE — 2026-08-23, channel `sdg5mr5m`, `live-svg-crop-gate.mjs` run twice**,
 fresh scratch page each time, renders byte-identical across runs. `create_node_from_svg` +
 the `set_image_fill` CROP repair. Pair `r2-server-2ca49b0a4fd1` ↔ `r2-plugin-2741d7f5f374`,
 schema **HELD at `1.9.0`**, **65 tools**, offline **363/363**, `verify` green, 10/10 + 8/8
@@ -1510,12 +1544,19 @@ at 15**; and **full scope** — SVG import, the crop fix, the atomicity debt, an
             transform on any non-CROP mode, and a receipt reporting the transform read off the
             node. ⭐ The escape hatch was never taken: it was measured first, exactly as this
             line required.
-      - [ ] Build the representative component/page fixture R2 acceptance names, drive it
+      - [x] Build the representative component/page fixture R2 acceptance names, drive it
             end to end, then promote every new tool `additive-preview` → `stable`.
-            ⏳ **THE ONLY R2.7 ITEM LEFT.** Five tools await promotion: `set_fill`,
-            `set_effects`, `set_opacity`, `set_blend_mode`, `create_node_from_svg`.
-            ⛔ Promotion rewrites `contractPayload.tools` and so moves `serverBuildId` — the
-            **nine** stale gates are re-pinned and re-run ONCE on the promoted build, after it.
+            ✅✅ **DONE 2026-08-23/24.** Fixture PASSED **twice** on `w113vf7y`, fresh page each
+            time, every value agreeing including a byte-identical export `sha256`. All five
+            tools promoted. Then all **TEN** stale gates re-pinned and re-run once each on
+            `6cbroncs` — **all ten PASSED**. Offline 370/370, `verify` green.
+            🔴 **The fixture found a defect the gates could not**: `set_effects` advertised
+            `visible`/`blendMode` as `.optional()` while Figma **requires** them, so the minimal
+            effect a generic client writes was refused — the exact claim acceptance makes.
+            Fixed in the per-type table (blurs get `visible` only; a blur has no `blendMode`),
+            sequenced BEFORE the re-pin so the ten-gate price was paid once.
+            ⭐ Every gate was green throughout, because each only ever sent shapes already known
+            to work. Record → [`docs/R2.7-VISUALS.md`](docs/R2.7-VISUALS.md) § *R2 ACCEPTANCE*.
 - [ ] Keep each narrow tool independently usable; no framework or scene vocabulary in
       its schema.
 

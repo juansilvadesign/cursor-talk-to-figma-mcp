@@ -1,10 +1,10 @@
 {
   "release": "R3-A",
-  "publicContractVersion": "1.12.0",
-  "serverSchemaVersion": "1.12.0",
+  "publicContractVersion": "1.13.0",
+  "serverSchemaVersion": "1.13.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
+  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -1213,7 +1213,7 @@
     {
       "kind": "tool",
       "name": "create_variable",
-      "description": "[Exact existing local variable collection, caller-requested write] Create one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. The collection is resolved before the create call and a remote collection returns a typed refusal without calling Figma. This is a direct create, not an upsert: the tool does not de-duplicate by name or infer a consumer identity key; that later Phase 3 contract must be explicit.",
+      "description": "[Exact existing local variable collection, idempotent caller-requested write] Create or match one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. Resolution is fixed: supplied id first; otherwise exact collectionId + name; otherwise supplied opaque identityKey stored as this plugin's private data in the same collection. A wrong explicit id never falls through to create, duplicate name/key matches are refused, and a different existing identityKey is never overwritten. Every receipt carries created and matchedBy: a fresh create is created:true/matchedBy:null; an existing resource is created:false with matchedBy id, name, or identityKey. identityKey is compared byte-for-byte only and is never parsed, normalized, or echoed. The collection is resolved before any write; remote resources return a typed refusal without calling Figma.",
       "direction": "write",
       "scope": "variable_collection",
       "inputSchema": {
@@ -1238,6 +1238,16 @@
               "BOOLEAN"
             ],
             "description": "Figma variable type for the new variable"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional exact local variable ID; when supplied it is the first identity layer and must belong to collectionId"
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional opaque caller-owned string for idempotent identity; stored privately on a newly created or matching untagged variable and never interpreted or returned"
           }
         },
         "required": [

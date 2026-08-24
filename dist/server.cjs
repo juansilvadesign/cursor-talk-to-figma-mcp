@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-214dd61cca06",
-  "pluginBuildId": "r3-a-plugin-4aa3214c4754",
-  "serverSchemaVersion": "1.12.0",
-  "pluginApiVersion": "1.12.0",
+  "serverBuildId": "r3-a-server-c3d335284ec5",
+  "pluginBuildId": "r3-a-plugin-02cca8304cfb",
+  "serverSchemaVersion": "1.13.0",
+  "pluginApiVersion": "1.13.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
+  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -2005,11 +2005,13 @@ server.tool(
 );
 server.tool(
   "create_variable",
-  "[Exact existing local variable collection, caller-requested write] Create one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. The collection is resolved before the create call and a remote collection returns a typed refusal without calling Figma. This is a direct create, not an upsert: the tool does not de-duplicate by name or infer a consumer identity key; that later Phase 3 contract must be explicit.",
+  "[Exact existing local variable collection, idempotent caller-requested write] Create or match one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. Resolution is fixed: supplied id first; otherwise exact collectionId + name; otherwise supplied opaque identityKey stored as this plugin's private data in the same collection. A wrong explicit id never falls through to create, duplicate name/key matches are refused, and a different existing identityKey is never overwritten. Every receipt carries created and matchedBy: a fresh create is created:true/matchedBy:null; an existing resource is created:false with matchedBy id, name, or identityKey. identityKey is compared byte-for-byte only and is never parsed, normalized, or echoed. The collection is resolved before any write; remote resources return a typed refusal without calling Figma.",
   {
     collectionId: import_zod.z.string().min(1).describe("ID of the existing local collection that will own the new variable"),
     name: import_zod.z.string().min(1).describe("Name for the new variable; this is a real document write"),
-    resolvedType: import_zod.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Figma variable type for the new variable")
+    resolvedType: import_zod.z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("Figma variable type for the new variable"),
+    id: import_zod.z.string().min(1).optional().describe("Optional exact local variable ID; when supplied it is the first identity layer and must belong to collectionId"),
+    identityKey: import_zod.z.string().min(1).optional().describe("Optional opaque caller-owned string for idempotent identity; stored privately on a newly created or matching untagged variable and never interpreted or returned")
   },
   async (args2) => {
     try {

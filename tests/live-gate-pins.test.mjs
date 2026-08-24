@@ -48,6 +48,30 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
+  // R3-A Phase 1.3 adds a public command and changes both runtime artifacts. These ten
+  // gates last ran on the 66-tool Phase 1.2 pair; editing their pins without executing
+  // them again would fabricate a live result. The new mode-ceiling gate is the one current
+  // runnable gate for this 67-tool build until a supplied Figma channel runs the set.
+  "live-batch-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-clips-content-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-constraints-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-effects-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-fill-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-layout-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-opacity-blend-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-size-limits-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-svg-crop-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
+  "live-text-style-gate.mjs":
+    "R3-A Phase 1.2, schema 1.10.0. Last run before add_variable_mode; re-pin and re-run before its result is quoted against Phase 1.3.",
   // ✅✅ **THE R3-A PHASE 1.2 RE-PIN IS DONE — 2026-08-24, channel `6a07fm2h`.** The same
   // TEN were re-pinned to `r3-a-server-0d303490d152` ↔ `r3-a-plugin-6ed0aab0ecdc`, schema
   // 1.10.0, fingerprint `sha256:b367651f…751279`, 66 tools, and RE-RUN once each on one

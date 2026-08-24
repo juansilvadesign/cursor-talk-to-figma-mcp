@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { buildContract } from "../scripts/contract-lib.mjs";
 import { loadPluginHarness } from "./helpers/plugin-harness.mjs";
 
 test("R3-A 1.1 — variable writes require every Plugin API write entry point", async () => {
@@ -52,6 +53,19 @@ test("R3-A 1.2 — variable capability preflight reports observed facts without 
       throw new Error(`${method} must not be called by a capability read`);
     };
   }
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  let addModeCalls = 0;
+  let removeModeCalls = 0;
+  collection.addMode = () => {
+    addModeCalls += 1;
+    throw new Error("addMode must not be called by a capability read");
+  };
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("removeMode must not be called by a capability read");
+  };
 
   const capabilities = await harness.command("get_variable_capabilities");
 
@@ -88,6 +102,8 @@ test("R3-A 1.2 — variable capability preflight reports observed facts without 
   assert.equal(capabilities.document.permissionVerified, false);
   assert.match(capabilities.document.limitation, /no mutation was attempted/i);
   assert.equal(writeCalls, 0);
+  assert.equal(addModeCalls, 0);
+  assert.equal(removeModeCalls, 0);
 });
 
 test("R3-A 1.2 — capability preflight refuses to overstate inaccessible inventory or editability", async () => {
@@ -187,4 +203,134 @@ test("R3-A 1.2 — the remote filter is a defensive branch, not dead code", asyn
   assert.equal(capabilities.collections.at(-1).isRemote, true);
   // The 3-mode REMOTE collection must not raise the LOCAL lower bound.
   assert.equal(capabilities.modeCeiling.knownGoodAtLeast, 2);
+});
+
+test("R3-A 1.3 — add_variable_mode changes exactly the caller-requested collection and never probes by removing", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  const modeCountBefore = collection.modes.length;
+  let addModeCalls = 0;
+  let removeModeCalls = 0;
+  let unrelatedWriteCalls = 0;
+
+  collection.addMode = (name) => {
+    addModeCalls += 1;
+    const modeId = "mode-high-contrast";
+    collection.modes.push({ modeId, name });
+    return modeId;
+  };
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("add_variable_mode must never remove a mode after adding one");
+  };
+  for (const method of [
+    "createVariable",
+    "createVariableCollection",
+    "createVariableAlias",
+  ]) {
+    figma.variables[method] = () => {
+      unrelatedWriteCalls += 1;
+      throw new Error(`${method} is not part of add_variable_mode`);
+    };
+  }
+
+  const receipt = await harness.command("add_variable_mode", {
+    collectionId: "collection-1",
+    name: "High contrast",
+  });
+
+  assert.equal(receipt.success, true);
+  assert.equal(receipt.outcome, "created");
+  assert.deepEqual(receipt.collection, {
+    id: "collection-1",
+    name: "Foundation",
+    key: "foundation-key",
+    modeCountBefore,
+    modeCountAfter: modeCountBefore + 1,
+  });
+  assert.deepEqual(receipt.mode, {
+    id: "mode-high-contrast",
+    name: "High contrast",
+    nameReadable: true,
+  });
+  assert.deepEqual(receipt.modeCeiling, {
+    value: null,
+    status: "unknown",
+    knownGoodAtLeast: modeCountBefore + 1,
+    limitation:
+      "Figma accepted this caller-requested addMode() call, so it did not reveal the numeric mode limit. No separate create/delete probe was performed.",
+  });
+  assert.equal(addModeCalls, 1);
+  assert.equal(removeModeCalls, 0);
+  assert.equal(unrelatedWriteCalls, 0);
+  assert.equal(collection.modes.length, modeCountBefore + 1);
+});
+
+test("R3-A 1.3 — add_variable_mode returns Figma's first ceiling refusal verbatim without a cleanup mutation", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  const modeCountBefore = collection.modes.length;
+  // Deliberately unlike the fixture's current count: this proves the reported ceiling is
+  // parsed from Figma's own refusal, not guessed from a collection count or a plan table.
+  const observedLimit = 37;
+  const refusal = `in addMode: Limited to ${observedLimit} modes only`;
+  let addModeCalls = 0;
+  let removeModeCalls = 0;
+
+  collection.addMode = () => {
+    addModeCalls += 1;
+    throw new Error(refusal);
+  };
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("add_variable_mode must never remove a failed mode");
+  };
+
+  const receipt = await harness.command("add_variable_mode", {
+    collectionId: "collection-1",
+    name: "Dark",
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.outcome, "refused");
+  assert.deepEqual(receipt.collection, {
+    id: "collection-1",
+    name: "Foundation",
+    key: "foundation-key",
+    modeCountBefore,
+    modeCountAfter: modeCountBefore,
+  });
+  assert.equal(receipt.mode, null);
+  assert.deepEqual(receipt.modeCeiling, {
+    value: observedLimit,
+    status: "observed",
+    knownGoodAtLeast: modeCountBefore,
+    limitation:
+      "The numeric mode ceiling was observed only in Figma's direct refusal of this caller-requested addMode() call. No create/delete probe was performed.",
+  });
+  assert.equal(receipt.refusal, refusal);
+  assert.equal(addModeCalls, 1);
+  assert.equal(removeModeCalls, 0);
+  assert.equal(collection.modes.length, modeCountBefore);
+});
+
+test("R3-A 1.3 — the public schema declares add_variable_mode as an additive preview write", async () => {
+  const built = await buildContract();
+  const tool = built.contract.tools.find(
+    (entry) => entry.name === "add_variable_mode",
+  );
+
+  assert.ok(tool, "add_variable_mode must be registered");
+  assert.equal(tool.direction, "write");
+  assert.equal(tool.scope, "variable_collection");
+  assert.equal(tool.resultStability, "additive-preview");
+  assert.deepEqual(tool.inputSchema.required, ["collectionId", "name"]);
+  assert.match(tool.description, /never creates a temporary collection or mode/i);
+  assert.match(tool.description, /refusal text verbatim/i);
 });

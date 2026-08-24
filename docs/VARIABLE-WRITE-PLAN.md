@@ -348,7 +348,7 @@ published library and must be rejected with a typed refusal, never silently skip
       explicit `confirm: true`. `TASKS.md` C5 already names *"explicit destructive
       boundaries"* as a fork responsibility.
 
-### ✅ R3-A Phase 2 build — first three tools, live acceptance still owed
+### ✅✅ R3-A Phase 2 — first three tools, LIVE ACCEPTANCE PAID 2026-08-24
 
 The scheduled, plan-independent slice is now implemented: `set_variable_value`,
 `create_variable`, and `delete_variable`. It deliberately stays within existing local
@@ -361,21 +361,37 @@ collections and modes; it does not claim the rest of this broader Phase 2 table 
 - `create_variable` resolves the existing local collection object before calling Figma's
   current `createVariable(name, collection, resolvedType)` API. It is direct create, never
   an identity-based upsert.
-- `delete_variable` requires literal `confirm: true` and follows `remove()` with a direct
-  lookup. It reports `unverified` plus `partialApplicationPossible` rather than claiming a
-  deletion whose absence cannot be observed.
+- `delete_variable` requires literal `confirm: true` and follows `remove()` by probing
+  several independent signals, reporting **which one** observed the absence. ⛔ Its first
+  implementation asked only `getVariableByIdAsync`, which Figma answers with a **stale**
+  object in the deleting frame — so the success branch was unreachable live while the
+  offline harness kept it green. Live-measured on `hxpwe1ej`: the lookup resolves, there is
+  no `removed` flag, and **collection membership** is what updates in-frame. When no signal
+  can observe it, the receipt is `removal_unconfirmed` with `verificationDeferred` — never a
+  success, because a real deletion and a no-op `remove()` are identical from inside that
+  frame. Full record → [`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md).
 - `tests/variable-write.test.mjs` covers typed raw values (including `0`, `false`, and alpha
   `0`), strict-color rejection, aliases/cycles, remote refusals, destructive confirmation,
   and post-delete observation. The existing variable-capability suite remains green.
-- **Release gate passed — 2026-08-24:** `bun run verify` passed **388/388** and rebuilt the
-  70-tool `dist/` pair. Generated identity is `r3-a-server-df1893278585` ↔
-  `r3-a-plugin-ef3d88deef54`, schema `1.12.0`, fingerprint
+- **Release gate passed — 2026-08-24:** `bun run verify` passed **391/391** and rebuilt the
+  70-tool `dist/` pair. Generated identity is `r3-a-server-214dd61cca06` ↔
+  `r3-a-plugin-4aa3214c4754`, schema `1.12.0`, fingerprint
   `sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a`;
-  `dist/server.js` is `sha256:4048c91b…c3b8f80`.
+  `dist/server.js` is `sha256:8e4cf3e5…b80c6f2`. ⚠️ The fingerprint is **unchanged** across the
+  delete-contract rewrite — it does not hash tool descriptions, so the moved **build ids**
+  are what re-staled the gates.
 
-⛔ **Live acceptance is deliberately not claimed yet.** Run
-`scripts/live-variable-write-gate.mjs` only with an existing local collection in an
-owner-confirmed disposable Figma file:
+✅ **Live acceptance is PAID — 2026-08-24, channel `hxpwe1ej`**, target
+`VariableCollectionId:17050:370` *"8. Dimensions"* (10 modes). The gate **PASSED TWICE**
+with the same verdict structure, all three deletes observed via `collection_membership`, no
+write leaked into any of the 9 non-target modes, zero cleanup retries, and a fresh-frame
+read afterwards found **0** leftovers. Evidence and the defect story →
+[`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md).
+
+⛔ **Re-running is still target-explicit.** Run `scripts/live-variable-write-gate.mjs` only
+with an existing local collection in an owner-confirmed disposable Figma file — and prefer a
+**multi-mode** collection, because on a single-mode target "wrote the mode I named" and
+"wrote every mode" are the same bytes and the isolation assertions prove nothing:
 
 ```sh
 node scripts/live-variable-write-gate.mjs \

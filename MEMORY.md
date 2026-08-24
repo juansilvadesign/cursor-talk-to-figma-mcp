@@ -10,22 +10,24 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 2 ✅ BUILT / FOCUSED-OFFLINE-GATED; live target pending)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 2 ✅✅ LIVE-ACCEPTED on `hxpwe1ej`)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Now:** **R3-A (`1.12.0`) Phase 2's first three-tool slice is implemented and
-  focused-offline-gated; do not call it live-validated yet.** `set_variable_value`,
-  `create_variable`, and `delete_variable` are local-only and use exact IDs. Raw values are
-  type-checked, aliases are same-type and cycle-checked before writing, create is direct (not
-  upsert), and delete requires `confirm: true` plus observed absence. Phase 1.2/1.3 remain
-  live-validated; their record remains in
-  [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md).
+- **Now:** **R3-A (`1.12.0`) Phase 2 is LIVE-ACCEPTED.** `set_variable_value`,
+  `create_variable`, and `delete_variable` are local-only, exact-ID, type-checked,
+  cycle-guarded, direct-create, and confirm-gated. The live gate **PASSED TWICE** on channel
+  `hxpwe1ej` against `VariableCollectionId:17050:370` *"8. Dimensions"* (10 modes): 9
+  non-target modes compared per write with **zero leaks**, all three deletes observed via
+  `collection_membership`, zero cleanup retries, **0** leftovers on a fresh-frame re-read.
+  Record → [`docs/R3-A-VARIABLE-WRITE.md`](docs/R3-A-VARIABLE-WRITE.md) (R3-A finally has its
+  own record doc; ⛔ it needed a `!docs/…` negation because `.gitignore` allowlists `docs/*`).
 - **Current generated identity:** **70 tools**, R3-A `1.12.0`,
-  **`r3-a-server-df1893278585` ↔ `r3-a-plugin-ef3d88deef54`**, fingerprint
+  **`r3-a-server-214dd61cca06` ↔ `r3-a-plugin-4aa3214c4754`**, fingerprint
   `sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a`.
-  **`bun run verify` passed 388/388** and rebuilt `dist/server.js`
-  `sha256:4048c91b…c3b8f80`; this is the first locally verified artifact for the identity.
+  **`bun run verify` passed 391/391**; `dist/server.js` `sha256:8e4cf3e5…19e0`.
+  ⚠️ The fingerprint did **not** move across the whole `delete_variable` contract rewrite —
+  it does not hash tool descriptions — so the **build ids** are what re-staled the gates.
 - **✅ Phase 1.3 live gate is PAID — 2026-08-24, channel `hdejcpog`** (a disposable copy of a
   real design-system file), collection `VariableCollectionId:17050:370` *"8. Dimensions"*.
   `scripts/live-variable-mode-gate.mjs` **PASSED TWICE**, byte-identical: `modeCount 10 → 10`
@@ -41,15 +43,23 @@ type: project
   bogus `r3-a-plugin-000000000000` copy exited 1 naming both ids with no page created. The
   ledger is back to the **three** R2.1/R2.2/R2.4 entries. Offline **378/378**, `dist/`
   byte-identical.
-- **Next action after the local release gate:** live-validate the slice only with an
-  owner-confirmed disposable Figma target. Invoke
-  `scripts/live-variable-write-gate.mjs --channel=<DEV-plugin-channel-for-a-disposable-file>
-  --collection-id=<existing-local-collection-id> --disposable-target=true`. The Phase 1.3
-  mode gate now requires the same explicit acknowledgement and has **no cleanup by design**;
-  the new write gate performs only best-effort cleanup. A channel (for example,
-  `--channel=vuhd2git`) is transport, not proof that its file is disposable. 🟡 This session's
-  changes are **uncommitted** — the owner owns commits and should stage explicit paths, never
-  `git add -A`.
+- **🔴 The live gate found a real defect — `delete_variable` could NEVER report success.**
+  Its post-`remove()` check asked only `getVariableByIdAsync`, which Figma answers with a
+  **stale** object inside the deleting frame, so `removalObserved: true` was unreachable live
+  while the harness (*"remove() makes the next lookup miss"*) kept it green — the first run on
+  `hvq0orwg` failed with three `delete_not_observed` receipts for variables already gone.
+  Fixed by probing independent signals and naming the one that fired. **Live-measured:** the
+  lookup is stale, `Variable` exposes **no** `removed` flag, and **collection membership
+  updates in-frame**. ⛔ The obvious hypothesis — *"commits at frame end, nothing is
+  observable"* — was wrong in its load-bearing half; a fix pinned to the lookup would have been
+  permanently deferred and one pinned to `.removed` would have been a second dead path.
+- **Next action:** commit the three dirty doc files, then **R3-A Phase 3 (resource identity)**
+  in [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md). ⏳ **Fold the pending
+  `deleteVariable` comment fix into that same `code.js` change** — it still says only that
+  Figma commits at frame end and omits that membership updates in-frame. `pluginBuildId`
+  hashes the **whole** plugin source, so a comment-only edit would re-stale the just-paid gate
+  and cost another DEV-plugin reload plus two live runs. ⚠️ The `removal_unconfirmed` deferral
+  path is offline-covered but **live-unexercised**.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to

@@ -170,7 +170,7 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅ **R3-A PHASE 2 BUILT / FOCUSED-OFFLINE-GATED; LIVE TARGET PENDING.**
+## ▶ Current session — ✅✅ **R3-A PHASE 2 ACCEPTED — LIVE GATE PAID TWICE ON `hxpwe1ej`.**
 
 ✅ **R3-A Phase 2 first slice — 2026-08-24.** The release now has **70 tools** at
 **`1.12.0`**: `set_variable_value`, `create_variable`, and `delete_variable` work only on
@@ -179,15 +179,37 @@ same-type local alias, rejects cycles before Figma sees a write, and returns an 
 readback. Create is direct (not an upsert); delete requires literal `confirm: true` and only
 claims deletion after a follow-up lookup confirms absence. The focused offline suites cover
 raw type validation, alias/cycle guards, remote refusals, destructive confirmation, and an
-unverified removal. **`bun run verify` passed 388/388** and rebuilt `dist/` for
-`r3-a-server-df1893278585` ↔ `r3-a-plugin-ef3d88deef54` (`1.12.0`; `dist/server.js`
-`sha256:4048c91b…c3b8f80`).
+unverified removal. **`bun run verify` passed 391/391** and rebuilt `dist/` for
+`r3-a-server-214dd61cca06` ↔ `r3-a-plugin-4aa3214c4754` (`1.12.0`; `dist/server.js`
+`sha256:8e4cf3e5…19e0`). ⚠️ The `delete_variable` sentence above describes the FIRST
+implementation, which the live gate disproved — see the acceptance block below.
 
-⛔ **Live Phase 2 acceptance remains owed.** `scripts/live-variable-write-gate.mjs` now
-requires all of `--channel=<DEV-plugin-channel-for-a-disposable-file>`,
+✅✅ **Live Phase 2 acceptance is PAID — 2026-08-24, channel `hxpwe1ej`**, collection
+`VariableCollectionId:17050:370` *"8. Dimensions"* (10 modes). `live-variable-write-gate.mjs`
+**PASSED TWICE**: all three deletes observed via `collection_membership`, no write leaked into
+any of the **9** non-target modes, zero cleanup retries, and a fresh-frame read found **0**
+leftovers. Full record → [`docs/R3-A-VARIABLE-WRITE.md`](docs/R3-A-VARIABLE-WRITE.md).
+
+🔴 **The live gate found a real defect: `delete_variable` could never report success.** Its
+post-`remove()` check asked only `figma.variables.getVariableByIdAsync`, which Figma answers
+with a **stale** object inside the deleting frame — so `removalObserved: true` was unreachable
+live while the offline harness (*"remove() makes the next lookup miss"*) kept it green. The
+first live run on `hvq0orwg` failed with three `delete_not_observed` receipts for variables
+that were in fact **already gone**. Fixed by probing independent signals and naming the one
+that fired; live-measured: the lookup is stale, `Variable` has **no** `removed` flag, and
+**collection membership updates in-frame**. When nothing can observe it the receipt is
+`removal_unconfirmed` + `verificationDeferred`, never a success — a real delete and a no-op
+`remove()` are identical from inside that frame. ⚠️ That deferral path is offline-covered but
+**live-unexercised**.
+
+⛔ **Re-running is still target-explicit.** `scripts/live-variable-write-gate.mjs` requires all
+of `--channel=<DEV-plugin-channel-for-a-disposable-file>`,
 `--collection-id=<existing-local-collection-id>`, and `--disposable-target=true`. It creates
-and deletes variables, so cleanup is deliberately only best-effort. The Phase 1.3 mode gate
-now requires the same acknowledgement and still has no cleanup by design. Do not infer that a
+and deletes variables, so cleanup is deliberately only best-effort — and it now drops a
+variable from its retry list only once absence is **proven** by the cross-frame re-read. Prefer
+a **multi-mode** collection: on a single-mode target "wrote the mode I named" and "wrote every
+mode" are the same bytes, so the isolation assertions prove nothing. The Phase 1.3 mode gate
+requires the same acknowledgement and still has no cleanup by design. Do not infer that a
 channel is disposable: the owner must explicitly confirm the target file each time.
 
 ✅ **R3-A Phase 1.3 `add_variable_mode` — 2026-08-24.** The new public

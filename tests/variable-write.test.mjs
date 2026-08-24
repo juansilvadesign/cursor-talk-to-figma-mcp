@@ -12,7 +12,7 @@ async function variable(harness, id) {
   return await harness.globals("figma").variables.getVariableByIdAsync(id);
 }
 
-test("R3-A Phase 2 — create_variable targets the resolved local collection object and reports the created variable", async () => {
+test("R3-A Phase 3 — create_variable targets the resolved local collection object and reports a fresh created identity", async () => {
   const harness = await loadPluginHarness();
 
   const receipt = await harness.command("create_variable", {
@@ -23,6 +23,9 @@ test("R3-A Phase 2 — create_variable targets the resolved local collection obj
 
   assert.equal(receipt.success, true);
   assert.equal(receipt.outcome, "created");
+  assert.equal(receipt.created, true);
+  assert.equal(receipt.matchedBy, null);
+  assert.equal(receipt.identityKeyStatus, "not_requested");
   assert.equal(receipt.collection.id, "collection-1");
   assert.equal(receipt.collection.remote, false);
   assert.equal(receipt.variable.name, "Family/Accent");
@@ -34,6 +37,173 @@ test("R3-A Phase 2 — create_variable targets the resolved local collection obj
   assert.ok(created, "the returned ID must resolve to the resource Figma created");
   assert.equal(created.name, "Family/Accent");
   assert.equal(created.resolvedType, "STRING");
+});
+
+test("R3-A Phase 3 — layered identity creates once, then resolves name, opaque plugin-data identity, and explicit ID without duplication", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const opaqueIdentity = "  caller://catalog/42 — do not normalize  ";
+  const firstArgs = {
+    collectionId: "collection-1",
+    name: "Identity/Original",
+    resolvedType: "STRING",
+    identityKey: opaqueIdentity,
+  };
+
+  const first = await harness.command("create_variable", firstArgs);
+  assert.equal(first.success, true);
+  assert.equal(first.outcome, "created");
+  assert.equal(first.created, true);
+  assert.equal(first.matchedBy, null);
+  assert.equal(first.identityKeyStatus, "stored");
+
+  // The key must remain a caller-owned opaque byte string, including leading/trailing
+  // whitespace. Reach it through the Variable API rather than a fixture-only field.
+  const created = await variable(harness, first.variable.id);
+  const pluginDataKey = created
+    .getPluginDataKeys()
+    .find((key) => /resource-identity/.test(key));
+  assert.ok(pluginDataKey, "the new variable must carry private identity data");
+  assert.equal(created.getPluginData(pluginDataKey), opaqueIdentity);
+
+  const nameMatch = await harness.command("create_variable", firstArgs);
+  assert.equal(nameMatch.success, true);
+  assert.equal(nameMatch.outcome, "matched");
+  assert.equal(nameMatch.created, false);
+  assert.equal(nameMatch.matchedBy, "name");
+  assert.equal(nameMatch.identityKeyStatus, "already_stored");
+  assert.equal(nameMatch.variable.id, first.variable.id);
+
+  // A different requested name makes the natural-key layer miss. The same opaque key then
+  // finds the original resource without renaming it or creating a second variable.
+  const identityMatch = await harness.command("create_variable", {
+    ...firstArgs,
+    name: "Identity/Renamed-Intent",
+  });
+  assert.equal(identityMatch.success, true);
+  assert.equal(identityMatch.created, false);
+  assert.equal(identityMatch.matchedBy, "identityKey");
+  assert.equal(identityMatch.variable.id, first.variable.id);
+  assert.equal((await variable(harness, first.variable.id)).name, "Identity/Original");
+
+  const idMatch = await harness.command("create_variable", {
+    ...firstArgs,
+    id: first.variable.id,
+  });
+  assert.equal(idMatch.success, true);
+  assert.equal(idMatch.created, false);
+  assert.equal(idMatch.matchedBy, "id");
+  assert.equal(idMatch.variable.id, first.variable.id);
+
+  const sameName = (await figma.variables.getLocalVariablesAsync("STRING")).filter(
+    (candidate) => candidate.variableCollectionId === "collection-1" && candidate.name === "Identity/Original",
+  );
+  assert.equal(sameName.length, 1, "four additive calls must still own one resource");
+});
+
+test("R3-A Phase 3 — uncertain or conflicting identity never falls through to a duplicate create", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const originalCreate = figma.variables.createVariable;
+  let createCalls = 0;
+  figma.variables.createVariable = (...args) => {
+    createCalls += 1;
+    return originalCreate.apply(figma.variables, args);
+  };
+
+  const nameTypeConflict = await harness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Color/Primary",
+    resolvedType: "STRING",
+  });
+  assert.equal(nameTypeConflict.success, false);
+  assert.equal(nameTypeConflict.refusal.code, "name_type_conflict");
+  assert.equal(nameTypeConflict.created, false);
+  assert.equal(nameTypeConflict.matchedBy, null);
+
+  const unknownId = await harness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Identity/Must-Not-Create",
+    resolvedType: "STRING",
+    id: "VariableID:does-not-exist",
+  });
+  assert.equal(unknownId.success, false);
+  assert.equal(unknownId.refusal.code, "variable_not_found");
+  assert.equal(unknownId.created, false);
+  assert.equal(unknownId.matchedBy, null);
+
+  const keyed = await harness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Identity/Owned",
+    resolvedType: "STRING",
+    identityKey: "owner-a",
+  });
+  assert.equal(keyed.success, true);
+  assert.equal(keyed.created, true);
+
+  const conflictingKey = await harness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Identity/Owned",
+    resolvedType: "STRING",
+    identityKey: "owner-b",
+  });
+  assert.equal(conflictingKey.success, false);
+  assert.equal(conflictingKey.refusal.code, "identity_key_conflict");
+  assert.equal(conflictingKey.created, false);
+  assert.equal(conflictingKey.matchedBy, "name");
+  assert.equal(createCalls, 1, "only the first, unclaimed identity may create");
+});
+
+test("R3-A Phase 3 — incomplete identity inventory and an unverified post-create key are explicit rather than green", async () => {
+  const unreadableHarness = await loadPluginHarness({
+    variableTypeErrors: ["BOOLEAN"],
+  });
+  const unreadableFigma = unreadableHarness.globals("figma");
+  const originalUnreadableCreate = unreadableFigma.variables.createVariable;
+  let unreadableCreateCalls = 0;
+  unreadableFigma.variables.createVariable = (...args) => {
+    unreadableCreateCalls += 1;
+    return originalUnreadableCreate.apply(unreadableFigma.variables, args);
+  };
+
+  const unreadable = await unreadableHarness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Identity/Inventory-Blocked",
+    resolvedType: "STRING",
+  });
+  assert.equal(unreadable.success, false);
+  assert.equal(unreadable.refusal.code, "identity_inventory_unreadable");
+  assert.equal(unreadable.created, false);
+  assert.equal(unreadable.matchedBy, null);
+  assert.equal(unreadableCreateCalls, 0);
+
+  const writeHarness = await loadPluginHarness();
+  const writeFigma = writeHarness.globals("figma");
+  const originalWriteCreate = writeFigma.variables.createVariable;
+  writeFigma.variables.createVariable = (...args) => {
+    const created = originalWriteCreate.apply(writeFigma.variables, args);
+    created.setPluginData = () => {
+      throw new Error("plugin-data write denied");
+    };
+    return created;
+  };
+
+  const unconfirmed = await writeHarness.command("create_variable", {
+    collectionId: "collection-1",
+    name: "Identity/Write-Unconfirmed",
+    resolvedType: "STRING",
+    identityKey: "must-not-look-green",
+  });
+  assert.equal(unconfirmed.success, false);
+  assert.equal(unconfirmed.outcome, "identity_unconfirmed");
+  assert.equal(unconfirmed.created, true);
+  assert.equal(unconfirmed.matchedBy, null);
+  assert.equal(unconfirmed.partialApplicationPossible, true);
+  assert.equal(unconfirmed.refusal.code, "identity_key_write_failed");
+  assert.ok(
+    await variable(writeHarness, unconfirmed.variable.id),
+    "the receipt must acknowledge the real resource that exists despite failed identity storage",
+  );
 });
 
 test("R3-A Phase 2 — an unreadable create result is unverified, never presented as a clean refusal", async () => {
@@ -401,7 +571,7 @@ test("R3-A Phase 2 — a platform that drops collection membership in-frame is r
   assert.equal(await variable(harness, "var-space"), null);
 });
 
-test("R3-A Phase 2 — published schemas keep the three new receipts additive-preview and scoped", async () => {
+test("R3-A Phase 3 — published schemas keep variable writes additive-preview and expose layered create identity", async () => {
   const built = await buildContract();
   const byName = new Map(built.contract.tools.map((tool) => [tool.name, tool]));
   const setValue = byName.get("set_variable_value");
@@ -423,7 +593,11 @@ test("R3-A Phase 2 — published schemas keep the three new receipts additive-pr
   assert.equal(create.scope, "variable_collection");
   assert.equal(create.resultStability, "additive-preview");
   assert.deepEqual(create.inputSchema.required, ["collectionId", "name", "resolvedType"]);
-  assert.match(create.description, /not an upsert/i);
+  assert.equal(create.inputSchema.properties.id.type, "string");
+  assert.equal(create.inputSchema.properties.identityKey.type, "string");
+  assert.match(create.description, /Resolution is fixed/i);
+  assert.match(create.description, /created and matchedBy/i);
+  assert.match(create.description, /never parsed, normalized, or echoed/i);
 
   assert.equal(remove.direction, "write");
   assert.equal(remove.scope, "variable");

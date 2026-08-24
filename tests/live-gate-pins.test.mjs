@@ -48,6 +48,12 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
     "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
   "live-plugin-data-gate.mjs":
     "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
+  // R3-A Phase 3 changes create_variable's behavior and both runtime identities at 1.13.0.
+  // The Phase 2 gate remains valid evidence for its paid 1.12.0 build, but it cannot be
+  // quoted for this source until a disposable-target run re-pins it. Phase 3 has its own
+  // fresh identity gate pinned to the current build below instead of rewriting this receipt.
+  "live-variable-write-gate.mjs":
+    "R3-A Phase 2, schema 1.12.0. Last run against the paid Phase 2 build; re-pin and re-run only on an owner-confirmed disposable Figma file before quoting it for the Phase 3 source.",
   // R3-A Phase 2 moves both runtime artifacts to 1.12.0. The earlier Phase 1.3 gate set
   // must be re-pinned and re-run as a set before its results are quoted again. Every run
   // needs an owner-supplied disposable Figma target; `live-variable-mode-gate.mjs` has no
@@ -290,7 +296,11 @@ test("every live gate either pins THIS build or declares the release it belongs 
 });
 
 test("R3-A variable live gates require an explicit disposable-target acknowledgement", async () => {
-  for (const name of ["live-variable-mode-gate.mjs", "live-variable-write-gate.mjs"]) {
+  for (const name of [
+    "live-variable-mode-gate.mjs",
+    "live-variable-write-gate.mjs",
+    "live-variable-identity-gate.mjs",
+  ]) {
     const source = await readFile(path.join(root, "scripts", name), "utf8");
     assert.match(source, /--disposable-target=true/);
     assert.match(source, /options\["disposable-target"\] !== "true"/);

@@ -896,8 +896,24 @@ function createFixtureRuntime(fixture, options) {
   // needs; the live gate remains responsible for Figma's own defaults and permissions.
   function makeVariable(item) {
     const variable = clone(item);
+    // Variable implements PluginDataMixin in the real Plugin API. Keep its data private to
+    // this object (rather than exposing fixture-only JSON) so resource-identity tests prove
+    // the same get/set round trip the plugin uses on a real Variable.
+    const privatePluginData = new Map(
+      Object.entries(variable.pluginData || {}),
+    );
+    delete variable.pluginData;
     variable.remote = Boolean(variable.remote);
     variable.valuesByMode = clone(variable.valuesByMode || {});
+    variable.getPluginData = (key) => privatePluginData.get(key) ?? "";
+    variable.setPluginData = (key, value) => {
+      if (typeof key !== "string" || typeof value !== "string") {
+        throw new Error("Variable plugin data keys and values must be strings");
+      }
+      if (value === "") privatePluginData.delete(key);
+      else privatePluginData.set(key, value);
+    };
+    variable.getPluginDataKeys = () => [...privatePluginData.keys()];
     variable.resolveForConsumer = () => {
       const collection = collections.find(
         (candidate) => candidate.id === variable.variableCollectionId,

@@ -10,24 +10,26 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 2 ✅✅ LIVE-ACCEPTED on `hxpwe1ej`)
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 3 resource identity built, offline-gated)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**
-- **Now:** **R3-A (`1.12.0`) Phase 2 is LIVE-ACCEPTED.** `set_variable_value`,
-  `create_variable`, and `delete_variable` are local-only, exact-ID, type-checked,
-  cycle-guarded, direct-create, and confirm-gated. The live gate **PASSED TWICE** on channel
-  `hxpwe1ej` against `VariableCollectionId:17050:370` *"8. Dimensions"* (10 modes): 9
-  non-target modes compared per write with **zero leaks**, all three deletes observed via
-  `collection_membership`, zero cleanup retries, **0** leftovers on a fresh-frame re-read.
-  Record → [`docs/R3-A-VARIABLE-WRITE.md`](docs/R3-A-VARIABLE-WRITE.md) (R3-A finally has its
-  own record doc; ⛔ it needed a `!docs/…` negation because `.gitignore` allowlists `docs/*`).
-- **Current generated identity:** **70 tools**, R3-A `1.12.0`,
-  **`r3-a-server-214dd61cca06` ↔ `r3-a-plugin-4aa3214c4754`**, fingerprint
-  `sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a`.
-  **`bun run verify` passed 391/391**; `dist/server.js` `sha256:8e4cf3e5…19e0`.
-  ⚠️ The fingerprint did **not** move across the whole `delete_variable` contract rewrite —
-  it does not hash tool descriptions — so the **build ids** are what re-staled the gates.
+- **Now:** **R3-A Phase 2 (`1.12.0`) remains LIVE-ACCEPTED**: `set_variable_value`,
+  `create_variable`, and `delete_variable` passed twice on `hxpwe1ej` against a disposable
+  10-mode collection, with zero non-target leaks, three `collection_membership` deletes, and
+  no leftovers. **Phase 3 resource identity is now built and offline-gated at `1.13.0`.**
+  `create_variable` is a create-or-match resolver: explicit id → exact collection/name →
+  opaque private plugin-data identity key → create. It reports `{created, matchedBy}`, refuses
+  ambiguity/incomplete inventory rather than risking a duplicate, and never parses or
+  overwrites an opaque identity key. Its fresh live gate is unrun.
+- **Current generated identity:** **70 tools**, R3-A `1.13.0`,
+  **`r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`**, fingerprint
+  `sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`.
+  **`bun run verify` passed 394/394** and rebuilt `dist/server.js`
+  `sha256:7493a32a…6822d309`.
+  The Phase 2 gate is deliberately declared stale rather than re-pinned without a new run;
+  [`scripts/live-variable-identity-gate.mjs`](scripts/live-variable-identity-gate.mjs) pins
+  this pair and requires an owner-confirmed disposable file.
 - **✅ Phase 1.3 live gate is PAID — 2026-08-24, channel `hdejcpog`** (a disposable copy of a
   real design-system file), collection `VariableCollectionId:17050:370` *"8. Dimensions"*.
   `scripts/live-variable-mode-gate.mjs` **PASSED TWICE**, byte-identical: `modeCount 10 → 10`
@@ -53,13 +55,12 @@ type: project
   updates in-frame**. ⛔ The obvious hypothesis — *"commits at frame end, nothing is
   observable"* — was wrong in its load-bearing half; a fix pinned to the lookup would have been
   permanently deferred and one pinned to `.removed` would have been a second dead path.
-- **Next action:** commit the three dirty doc files, then **R3-A Phase 3 (resource identity)**
-  in [`docs/VARIABLE-WRITE-PLAN.md`](docs/VARIABLE-WRITE-PLAN.md). ⏳ **Fold the pending
-  `deleteVariable` comment fix into that same `code.js` change** — it still says only that
-  Figma commits at frame end and omits that membership updates in-frame. `pluginBuildId`
-  hashes the **whole** plugin source, so a comment-only edit would re-stale the just-paid gate
-  and cost another DEV-plugin reload plus two live runs. ⚠️ The `removal_unconfirmed` deferral
-  path is offline-covered but **live-unexercised**.
+- **Next action:** reload the DEV plugin and run
+  `scripts/live-variable-identity-gate.mjs` only with an owner-confirmed disposable Figma
+  channel/collection. ⛔ It creates and deletes a variable; never point it at a real
+  design-system file. The `deleteVariable` comment correction is **paid** in the same Phase 3
+  `code.js` change, and now states the live fact that membership updates in-frame. ⚠️ The
+  `removal_unconfirmed` deferral path remains offline-covered but **live-unexercised**.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`
   (fresh scratch page each run, byte-identical export `sha256`, page baseline restored), five
   tools promoted to `stable`, then all **TEN** stale gates re-pinned to
@@ -84,15 +85,14 @@ type: project
   `src/cursor_mcp_plugin/code.js` (`hasVariableWriteApi`) ·
   `docs/evidence/r3a-1.1-repin/` (ten reports, ⚠️ **gitignored, no second copy**).
   **378/378**; 67 tools, `1.11.0`.
-- **Open / blockers:** 🟡 Phase 2 source, tests, generated contract/runtime, docs, and the
-  rebuilt `dist` are uncommitted; the owner must commit explicit paths. The first **live**
-  variable-write run requires a user-supplied channel, an existing local collection, and an
-  explicitly confirmed disposable file. The Phase 1.3 mode gate and the ten earlier R2 gates
-  are explicitly stale against `1.12.0`; three older R2.1/R2.2/R2.4 gates remain declined
-  twice. Remaining owner decisions: ① the `set_fill` gradient `color`
-  drop (`code.js:8047`); ② whether the offline harness should model Figma's effect union —
-  it cannot today, and that is what let the `set_effects` defect sit green. ⏳ R3-A still has
-  no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phase 1.2 is recorded in the plan.
+- **Open / blockers:** 🟡 Phase 3 source, tests, generated contract/runtime, docs, and rebuilt
+  `dist` are uncommitted; the owner must commit explicit paths. The new **live** identity gate
+  requires a user-supplied channel, an existing local collection, a DEV-plugin reload, and an
+  explicitly confirmed disposable file. The Phase 2 variable-write gate and earlier historical
+  gates are explicitly stale against `1.13.0`; three R2.1/R2.2/R2.4 gates remain declined
+  twice. Remaining owner decisions: ① the `set_fill` gradient `color` drop (`code.js:8047`);
+  ② whether the offline harness should model Figma's effect union. R3-A now has its own record
+  doc, `docs/R3-A-VARIABLE-WRITE.md`.
 - **Don't forget:** ⛔ **The relay is STOPPED** — `bun socket` (port 3055) before any live
   work, and it died mid-session once already, so check `ss -ltn | grep 3055` rather than
   assuming. ⛔ A **live Figma channel from Juan** is required before any gate can run; an

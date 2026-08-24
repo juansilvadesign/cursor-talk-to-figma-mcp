@@ -136,11 +136,11 @@ in-frame signal a modelled platform exposes. The default `"none"` is the conserv
 
 ## Open debts
 
-- ⏳ A comment in `code.js` (`deleteVariable`) says Figma commits at frame end and the
-  in-frame lookup still resolves. True, but it omits that **membership does update in-frame**,
-  which is what actually makes the observation work. `pluginBuildId` hashes the whole plugin
-  source, so a comment-only edit would re-stale this gate and cost another reload plus two
-  live runs — **fold this into the next `code.js` change**, never on its own.
+- ✅ The `deleteVariable` comment correction travelled with R3-A Phase 3's real `code.js`
+  identity change. It now names the live fact that the lookup is stale **but collection
+  membership updates in-frame** — the observation that makes the success path reachable.
+  It was not shipped as a comment-only plugin rebuild.
 - ⏳ The `removal_unconfirmed` deferral path is offline-covered but live-unexercised.
 - ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) (modes,
-  collections, resource identity) is untouched by this slice.
+  collections, bindings) is untouched. Phase 3 resource identity is implemented and
+  offline-gated at `1.13.0`; its disposable-file live gate remains unrun.

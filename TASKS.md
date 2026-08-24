@@ -170,7 +170,21 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — ✅✅ **R3-A PHASE 2 ACCEPTED — LIVE GATE PAID TWICE ON `hxpwe1ej`.**
+## ▶ Current session — **R3-A PHASE 3 RESOURCE IDENTITY BUILT; LIVE GATE PENDING.**
+
+✅ **R3-A Phase 3 resource identity — 2026-08-24.** `create_variable` now resolves an
+existing local resource in fixed order — explicit `id`, then exact collection/name, then an
+opaque private `identityKey` — before creating. Every normal receipt says `{created,
+matchedBy}`; incomplete inventory, duplicate identities, key conflicts, and unverified key
+storage refuse or report uncertainty rather than creating a green duplicate. The identity key
+is exact opaque plugin data, never parsed, normalized, or echoed. The release is **R3-A /
+`1.13.0` / 70 tools**: `r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`, fingerprint
+`sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`. Its dedicated
+`live-variable-identity-gate.mjs` is pinned but **unrun**: reload the DEV plugin and use it
+only against an owner-confirmed disposable file. The pending `deleteVariable` comment fix
+travelled in this same source change and now names in-frame collection membership as the
+working removal signal. **`bun run verify` passed 394/394** and rebuilt `dist/server.js`
+`sha256:7493a32a…6822d309`; the explicit commit remains the owner's act.
 
 ✅ **R3-A Phase 2 first slice — 2026-08-24.** The release now has **70 tools** at
 **`1.12.0`**: `set_variable_value`, `create_variable`, and `delete_variable` work only on
@@ -1834,8 +1848,11 @@ design-system format—remains consumer work.
       ⛔ **The absence of creates must be pinned by a test**, exactly as R2.2 pinned
       `"reuse"` absent from `onDuplicate`; a deliberate omission that is not asserted
       reads as an oversight the next time someone extends the allowlist.
-- [ ] **R3 — resource identity:** plugin data, Figma keys/IDs, explicit caller key, or
-      a layered strategy?
+- [x] **R3 — resource identity:** layered in `create_variable` at R3-A `1.13.0`:
+      explicit local ID → exact local collection/name → opaque private-plugin-data
+      `identityKey` → create. Receipts carry `{created, matchedBy}`; ambiguity or unreadable
+      inventory refuses before a duplicate can be created. Offline-gated; the target-explicit
+      disposable-file live gate remains unrun.
 
 ## Inputs needed only when their release starts
 

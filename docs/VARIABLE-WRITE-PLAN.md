@@ -1,9 +1,9 @@
 # Variable-Write Plan — the variable half of R3
 
 > **Status: Phase 0 DISCHARGED; Phases 1.1–1.3 LIVE-VALIDATED; R3-A's Phase 2 three-tool
-> slice is IMPLEMENTED and release-offline-gated at `1.12.0`; its first live run is pending an
-> owner-confirmed disposable target — the remaining Phase 2 surface and Phases 3–4 are not
-> started.** Cut 2026-08-07 from a real
+> slice is LIVE-ACCEPTED at `1.12.0`; Phase 3 resource identity is IMPLEMENTED and
+> release-offline-gated at `1.13.0`, with its target-explicit live acceptance still pending an
+> owner-confirmed disposable file. The remaining Phase 2 surface is not started.** Cut 2026-08-07 from a real
 > consumer gap. Scope decided with the maintainer: **the full variable half of R3** —
 > collections, modes, variables, aliases, *and* node bindings.
 >
@@ -406,39 +406,68 @@ channel alone is not evidence that a real file is safe. The Phase 1.3
 **no cleanup path by design**: it may leave a caller-requested mode behind when the collection
 is not actually at its ceiling. Both gates require a disposable target on every invocation.
 
-## Phase 3 — resource identity
+## ✅ Phase 3 — resource identity, IMPLEMENTED + OFFLINE-GATED 2026-08-24
 
 This closes the standing open question *"R3 — resource identity: plugin data, Figma
-keys/IDs, explicit caller key, or a layered strategy?"* — the plan's proposed answer is
-**layered**, resolved in a fixed order and always reported back:
+keys/IDs, explicit caller key, or a layered strategy?"* with a **layered**
+`create_variable` resolver. It preserves the original required create fields and adds optional
+`id` and `identityKey`; resolution stops at the first conclusive layer:
 
-1. Explicit `id` when the caller supplies one → `matchedBy: "id"`.
-2. Else `collectionId` + exact variable `name` (the natural Figma key; names are unique
-   within a collection) → `matchedBy: "name"`.
-3. Else an optional caller-supplied `identityKey` stored via `setPluginData` →
-   `matchedBy: "identityKey"`.
+1. A supplied explicit `id` → `matchedBy: "id"`. It must resolve to a local variable in the
+   requested local `collectionId`; a bad ID never falls through to a name match or creates a
+   different resource.
+2. Otherwise, `collectionId` + exact `name` → `matchedBy: "name"`. A same-name variable of a
+   different type is a typed `name_type_conflict`, not a silent reuse.
+3. Otherwise, a supplied `identityKey` in private `Variable` plugin data in that same
+   collection → `matchedBy: "identityKey"`. Duplicate keys are an explicit ambiguity, never
+   a first-item choice.
+4. Only when all applicable layers find nothing does Figma receive `createVariable(...)`.
 
-- [ ] **3.1 Always return `matchedBy`.** A client must be able to tell an update from a
-      create without a second read.
-- [ ] **3.2 Prove additive reruns do not duplicate.** R3 requires this explicitly. Run the
-      same create twice with an `identityKey`; assert one resource and `created:false` on
-      the second pass.
-- [ ] **3.3 ⛔ Keep `identityKey` opaque.** It is a caller-chosen string. The fork must never
-      interpret its content or assume a consumer's naming scheme.
+Every normal `create_variable` receipt now carries both `created` and `matchedBy`: a fresh
+create is `{created:true, matchedBy:null}`, while a matched resource is
+`{created:false, matchedBy:"id"|"name"|"identityKey"}`. When an `identityKey` accompanies a
+fresh create or an exact id/name match with no existing tag, the fork writes it with
+`setPluginData` and reads it back. A different stored key is refused rather than overwritten.
+The key is a caller-owned opaque string: exact equality only — no parsing, trimming,
+normalization, or echo in a receipt.
+
+- [x] **3.1 Always return `matchedBy`.** `created` makes fresh/create versus match explicit;
+      `matchedBy` names the layer that resolved an existing resource.
+- [x] **3.2 Prove additive reruns do not duplicate offline.**
+      `tests/variable-write.test.mjs` creates one STRING variable with an opaque key, then
+      proves same-input name matching, renamed-intent key matching, and explicit-ID matching
+      all return the original ID with `created:false`; the collection still contains one
+      variable.
+- [x] **3.3 Keep `identityKey` opaque.** The harness asserts leading/trailing whitespace and
+      Unicode survive the private-data round trip. Inventory/key-read failures, key conflicts,
+      key ambiguity, and failed post-create key storage all refuse or report
+      `identity_unconfirmed` rather than minting a green duplicate.
+
+**Release/offline identity:** `R3-A` `1.13.0`, 70 tools,
+`r3-a-server-c3d335284ec5` ↔ `r3-a-plugin-02cca8304cfb`, fingerprint
+`sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff`.
+`bun run verify` passed **394/394** and rebuilt `dist/server.js`
+`sha256:7493a32a…6822d309`.
+The Phase 2 gate remains evidence for its paid `1.12.0` build, not this new plugin source.
+`scripts/live-variable-identity-gate.mjs` is the new **unrun**, disposable-target-only live
+instrument: it proves all three match layers, the type-conflict refusal, exactly one resource,
+and fresh-frame cleanup of the variable it created.
 
 ## Phase 4 — tests, dist, and the pin
 
-- [ ] **4.1 Offline fixtures** for: alias resolution, a mode-ceiling refusal, a remote-variable
-      refusal, a cycle refusal, and an additive rerun. Reuse the real-`code.js` VM/stub
-      approach `TASKS.md` 0.2 describes.
+- [x] **4.1 Offline fixtures** for: alias resolution, a mode-ceiling refusal, a remote-variable
+      refusal, a cycle refusal, and an additive rerun. The real-`code.js` VM/stub now also
+      models `Variable` private plugin data and exercises the identity negative paths.
 - [ ] **4.2 Live acceptance on a disposable file** — ⛔ **never** on a real design-system file.
       Record server + plugin identity in the acceptance note, per *"Local runtime honesty."*
-- [ ] **4.3 Rebuild and commit `dist/`.** ⚠️ Load-bearing: `.mcp.json` points at the fork's
+- [x] **4.3 Rebuild `dist/`.** ⚠️ Load-bearing: `.mcp.json` points at the fork's
       `dist/server.js`, and upstream's published npm package does **not** contain the fork's
-      tools. A source-only change ships nothing to the running agent.
-- [ ] **4.4 Re-run the Phase 0 parity test** — ten new commands are exactly the case it exists
-      to catch.
-- [ ] **4.5 Assign a new pin** and let consumers adopt it on their own schedule.
+      tools. `bun run verify` rebuilt the pair; its explicit commit remains the owner's act.
+- [x] **4.4 Re-run the Phase 0 parity test.** Command count holds at 70 and the contract test
+      proves dispatcher/server parity after the existing command's schema grew.
+- [x] **4.5 Assign a new pin** and let consumers adopt it on their own schedule. The Phase 3
+      identity gate pins the exact `1.13.0` pair above; it must be **run** before that pin can
+      be quoted as live evidence.
 
 ## Acceptance
 

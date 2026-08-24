@@ -423,10 +423,19 @@ maps `"" → null` (`code.js:8426`). Bound nodes join exactly; the empty case do
 ② **REST's `styles` map is unpublished**, so nested nodes carry `effects` but no effect-style
 reading. Measured to exist at depth; publishing it is a second id space and new surface.
 
-🔴 **A NEW DEBT AGAINST 1.1:** `set_fill` **silently drops `color` on a gradient**
-(`code.js:8047`) and the schema advertises the drop — the same "a discarded value reads as an
-applied one" rule the tool enforces on its other two pairs. ⛔ Not repaired: it costs a re-run
-of a gate that passed twice on `yoq962bg`. Owner's call when to pay it.
+🔴 **A NEW DEBT AGAINST 1.1:** `set_fill` **silently drops `color` on a gradient** and the
+schema advertises the drop — the same "a discarded value reads as an applied one" rule the
+tool enforces on its other two pairs.
+
+✅ **SCHEDULED 2026-08-24 — the reason for declining expired.** It was declined because it
+"costs a re-run of a gate that passed twice on `yoq962bg`". R3-A Phase 3 moved both build ids,
+so that gate is **already stale and already owes a re-run** — the price is now zero and the
+repair rides along with the post-modes-phase re-pin. ⭐ A cost that justified a "no" is not
+permanent; re-read it when the build moves.
+
+⚠️ **The old pointer `code.js:8047` is STALE** — Phase 3 added 457 lines and 8047 now lands
+inside `deleteNode`. `setFill` begins at `code.js:9976`; re-locate the drop there before
+repairing, and do not trust any line number in this file written before `3bbbfab`.
 
 ✅✅ **ITEM 1.1 `set_fill` IS BUILT, GATED AND COMMITTED 2026-08-23** — solid + all four
 gradients, `paints: Paint[]` or `null`, one nested colour shape, ending the `set_fill_color`
@@ -461,6 +470,10 @@ regex would narrow coverage silently; the parse was asserted separately at 5/5 o
 ⛔ **The `set_fill` gradient `color` drop was NOT repaired** — also put to the owner in the
 same round and declined; paying it later costs a second eight-gate re-run, which is now the
 known price rather than an unexamined one.
+
+✅ **BOTH REVERSED 2026-08-24.** The owner scheduled the gradient repair AND the three older
+R2.1/R2.2/R2.4 gates to ride along with the re-pin that follows the modes phase. Both "no"s
+rested on the cost of a re-run that is now owed regardless, so folding them in is free.
 
 ⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
 2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's

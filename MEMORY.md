@@ -80,11 +80,28 @@ type: project
   updates in-frame**. ⛔ The obvious hypothesis — *"commits at frame end, nothing is
   observable"* — was wrong in its load-bearing half; a fix pinned to the lookup would have been
   permanently deferred and one pinned to `.removed` would have been a second dead path.
-- **Next action:** **owner commits** `docs/R3-A-VARIABLE-WRITE.md` +
-  `docs/VARIABLE-WRITE-PLAN.md` (the Phase 3 acceptance record — the code itself is already
-  committed at `3bbbfab`). Then either ① start the remaining Phase 2 surface (collections,
-  modes, bindings), or ② hand-delete the 6 leftover modes above. ⚠️ The
-  `removal_unconfirmed` deferral path remains offline-covered but **live-unexercised** —
+- **Next action — DECIDED 2026-08-24, not yet started.** The next build-box phase is
+  **MODES, and it builds `remove_variable_mode`** (plan item **2.5**, unbuilt). ⭐ That tool is
+  the reason the 6 leftover modes are stuck: the thing that would clean them was never built,
+  so the debris and the plan item close together. ⛔ The build-box was **deliberately not
+  started** — scope it with a short interview first.
+- **⏳ THE 12-GATE RE-PIN IS OWED AND DELIBERATELY DEFERRED.** 15 gates are declared stale;
+  **12 are now UNRUNNABLE**, not merely unquotable — Phase 3 moved both build ids, so they
+  fail at `assertRuntime` before reaching a check (11 pinned at `1.11.0` incl.
+  `live-variable-mode-gate`, 1 at `1.12.0`). Re-pinning at `1.13.0` and then shipping the
+  modes phase at `1.14.0` would run the set **twice**, so it is paid ONCE after that phase.
+  ⚠️ The supporting argument — Phase 3's `code.js` diff touched only `createVariable`,
+  `deleteVariable`, the refusal helpers and the build-id header — is a **source diff, not
+  live evidence**, and "nothing else changed" is the exact class of claim those gates exist
+  to check. It is a cost judgement, logged as one.
+- **✅ TWO DECLINED DECISIONS REVERSED 2026-08-24 — both ride along with that re-pin:** the
+  `set_fill` gradient `color` drop, and the three older R2.1/R2.2/R2.4 gates. ⭐ Both "no"s
+  rested on *"it costs a gate re-run"* — a re-run that is now **owed regardless**, so the
+  stated price fell to zero. Re-read a cost-based refusal whenever the build moves.
+  ⚠️ `TASKS.md`'s `code.js:8047` pointer is **stale** (Phase 3 added 457 lines; 8047 now lands
+  in `deleteNode`). `setFill` starts at `code.js:9976`. ⛔ Distrust every line number in
+  `TASKS.md` written before `3bbbfab`.
+- ⚠️ The `removal_unconfirmed` deferral path remains offline-covered but **live-unexercised** —
   Phase 3 did not reach it because `collection_membership` answered on every delete, which is
   precisely the branch that makes the deferral rare.
 - **What closed it:** the representative fixture PASSED **twice** on channel `w113vf7y`

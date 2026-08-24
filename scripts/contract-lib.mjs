@@ -87,6 +87,7 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_styles",
   "get_local_components",
   "get_variables",
+  "get_variable_capabilities",
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
@@ -160,6 +161,7 @@ const READ_TOOLS = new Set([
   "get_styles",
   "get_local_components",
   "get_variables",
+  "get_variable_capabilities",
   "get_node_variables",
   "get_instance_overrides",
   "export_node_as_image",
@@ -191,6 +193,7 @@ const TOOL_SCOPES = {
   get_styles: "document",
   get_local_components: "document_or_selected_pages",
   get_variables: "document",
+  get_variable_capabilities: "document",
   get_node_variables: "node_subtree",
   // Neither reads the document at all — the subject is the machine running Figma.
   // ⛔ The fallback below is "node", which would have been wrong and silent.

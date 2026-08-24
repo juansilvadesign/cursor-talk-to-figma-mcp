@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R2",
-  "buildId": "r2-plugin-a34d76fc6bc6",
-  "apiVersion": "1.9.0",
-  "serverSchemaVersion": "1.9.0",
+  "release": "R3-A",
+  "buildId": "r3-a-plugin-122b65ca30e9",
+  "apiVersion": "1.10.0",
+  "serverSchemaVersion": "1.10.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",
+  "capabilityFingerprint": "sha256:b367651fc12a029309820aefc1613cb993c4e480678554ba9e692ebedb751279",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -35,6 +35,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "get_styles",
     "get_local_components",
     "get_variables",
+    "get_variable_capabilities",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -105,6 +106,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.get_runtime_info@1",
     "figma.command.get_selection@1",
     "figma.command.get_styles@1",
+    "figma.command.get_variable_capabilities@1",
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
@@ -332,6 +334,8 @@ async function handleCommand(command, params) {
       return await getLocalComponents(params);
     case "get_variables":
       return await getVariables(params);
+    case "get_variable_capabilities":
+      return await getVariableCapabilities();
     case "get_node_variables":
       return await getNodeVariables(params);
     case "get_available_fonts":
@@ -1178,6 +1182,67 @@ function hasVariableWriteApi() {
     figma.variables.createVariableCollection &&
     figma.variables.createVariableAlias
   );
+}
+
+function hasVariableCollectionInventoryApi() {
+  return Boolean(
+    figma.variables && figma.variables.getLocalVariableCollectionsAsync
+  );
+}
+
+// Figma exposes editorType/mode, but not the caller's file-level Can edit permission.
+// A read-only probe must not create-and-delete a resource merely to test it, so distinguish
+// the editor context we can observe from the permission we cannot. Dev/inspection contexts
+// are a known no-write context; a normal authoring context means a write may be attempted,
+// not that Figma has verified this user's permission.
+function getDocumentEditabilityCapability() {
+  const editorType =
+    typeof figma.editorType === "string" ? figma.editorType : null;
+  const mode = typeof figma.mode === "string" ? figma.mode : null;
+  const authoringEditors = new Set(["figma", "figjam", "slides", "buzz"]);
+  const editorContextAllowsWrites =
+    editorType === null || mode === null
+      ? null
+      : authoringEditors.has(editorType) && mode === "default";
+
+  if (editorContextAllowsWrites === false) {
+    return {
+      editable: false,
+      status: "not_editable_in_current_context",
+      editorType,
+      mode,
+      editorContextAllowsWrites,
+      permissionVerified: false,
+      limitation:
+        "The current Figma editor context does not permit normal document writes. No mutation was attempted.",
+    };
+  }
+
+  return {
+    // `null`, rather than `true`, is intentional: the Plugin API has no read-only
+    // file-permission check. A normal editor context is necessary but not sufficient.
+    editable: null,
+    status:
+      editorContextAllowsWrites === true
+        ? "file_permission_not_exposed"
+        : "editor_context_not_exposed",
+    editorType,
+    mode,
+    editorContextAllowsWrites,
+    permissionVerified: false,
+    limitation:
+      "Figma does not expose this user's file edit permission to the Plugin API. editorContextAllowsWrites reports only the running editor context; no mutation was attempted.",
+  };
+}
+
+function unknownModeCeiling(knownGoodAtLeast) {
+  return {
+    value: null,
+    status: "unknown",
+    knownGoodAtLeast,
+    limitation:
+      "Figma exposes the mode limit only when addMode() is refused. This read-only probe intentionally does not create or delete a mode to discover it.",
+  };
 }
 
 async function getVariableByIdCached(variableId) {
@@ -3470,6 +3535,82 @@ async function getVariables(params) {
     limitations,
     collections: collectionPayloads,
     errors,
+  };
+}
+
+// R3-A Phase 1.2. This is deliberately an inventory-only preflight: its purpose is to
+// tell a caller what is knowable before a write, not to perform a speculative create/remove
+// probe that changes a real document or its undo history.
+async function getVariableCapabilities() {
+  const readApiAvailable = hasVariablesApi();
+  const writeApiAvailable = hasVariableWriteApi();
+  const collectionInventoryAvailable = hasVariableCollectionInventoryApi();
+  const document = getDocumentEditabilityCapability();
+
+  const base = {
+    scope: "document",
+    supported: collectionInventoryAvailable,
+    complete: false,
+    readApiAvailable,
+    writeApiAvailable,
+    collectionInventoryAvailable,
+    document,
+    modeCeiling: unknownModeCeiling(null),
+    collectionCount: null,
+    localCollectionCount: null,
+    collections: [],
+    limitations: [],
+  };
+
+  if (!collectionInventoryAvailable) {
+    return {
+      ...base,
+      limitations: [
+        "Variable collection inventory is not available in this Figma version. Collection mode counts and remote status are unknown.",
+        document.limitation,
+      ],
+    };
+  }
+
+  let collections;
+  try {
+    collections = await figma.variables.getLocalVariableCollectionsAsync();
+  } catch (error) {
+    return {
+      ...base,
+      limitations: [
+        `Variable collections could not be read: ${error.message || String(error)}`,
+        document.limitation,
+      ],
+    };
+  }
+
+  const collectionPayloads = collections.map((collection) => ({
+    id: collection.id,
+    name: collection.name,
+    key: collection.key,
+    defaultModeId: collection.defaultModeId,
+    isRemote: Boolean(collection.remote),
+    modeCount: collection.modes.length,
+  }));
+  const localCollections = collectionPayloads.filter(
+    (collection) => !collection.isRemote
+  );
+  const knownGoodAtLeast =
+    localCollections.length > 0
+      ? Math.max(
+          ...localCollections.map((collection) => collection.modeCount)
+        )
+      : null;
+
+  return {
+    ...base,
+    complete: true,
+    modeCeiling: unknownModeCeiling(knownGoodAtLeast),
+    collectionCount: collectionPayloads.length,
+    localCollectionCount: localCollections.length,
+    collections: collectionPayloads,
+    limitations: [document.limitation],
   };
 }
 

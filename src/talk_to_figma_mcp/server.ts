@@ -1900,6 +1900,35 @@ server.tool(
   }
 );
 
+// Get Variable Capabilities Tool
+server.tool(
+  "get_variable_capabilities",
+  "[Document-wide, read-only preflight] Report the Variable API write surface, the running editor's write context, and local collection mode usage before a variable write. Figma does not expose a read-only file-permission check or a numeric mode-limit API, so document.editable and modeCeiling.value are explicitly null when unknown rather than guessed; no create/delete probe is performed. Each returned collection carries isRemote and modeCount.",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma("get_variable_capabilities", {});
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting variable capabilities: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Node Variables Tool
 server.tool(
   "get_node_variables",
@@ -4241,6 +4270,7 @@ type FigmaCommand =
   | "get_styles"
   | "get_local_components"
   | "get_variables"
+  | "get_variable_capabilities"
   | "get_node_variables"
   | "get_available_fonts"
   | "check_fonts"
@@ -4420,6 +4450,7 @@ type CommandParams = {
   get_variables: {
     types?: Array<"COLOR" | "FLOAT" | "STRING" | "BOOLEAN">;
   };
+  get_variable_capabilities: Record<string, never>;
   get_node_variables: { nodeId: string };
   get_available_fonts: {
     family?: string;

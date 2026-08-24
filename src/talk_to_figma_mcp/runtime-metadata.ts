@@ -2,12 +2,12 @@
 export const RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-af8987322467",
-  "pluginBuildId": "r3-a-plugin-b5ee1c0b619a",
-  "serverSchemaVersion": "1.11.0",
-  "pluginApiVersion": "1.11.0",
+  "serverBuildId": "r3-a-server-214dd61cca06",
+  "pluginBuildId": "r3-a-plugin-4aa3214c4754",
+  "serverSchemaVersion": "1.12.0",
+  "pluginApiVersion": "1.12.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
+  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -35,6 +35,9 @@ export const RUNTIME_METADATA = {
     "get_variables",
     "get_variable_capabilities",
     "add_variable_mode",
+    "set_variable_value",
+    "create_variable",
+    "delete_variable",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -89,8 +92,10 @@ export const RUNTIME_METADATA = {
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
+    "figma.command.create_variable@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
+    "figma.command.delete_variable@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -143,6 +148,7 @@ export const RUNTIME_METADATA = {
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
+    "figma.command.set_variable_value@1",
     "relay.channel@1"
   ],
   "supportedTools": [
@@ -158,8 +164,10 @@ export const RUNTIME_METADATA = {
     "create_rectangle",
     "create_section",
     "create_text",
+    "create_variable",
     "delete_multiple_nodes",
     "delete_node",
+    "delete_variable",
     "export_node_as_image",
     "get_annotations",
     "get_available_fonts",
@@ -212,7 +220,8 @@ export const RUNTIME_METADATA = {
     "set_size_limits",
     "set_stroke_color",
     "set_text_content",
-    "set_text_style"
+    "set_text_style",
+    "set_variable_value"
   ],
   "supportedPrompts": [
     "annotation_conversion_strategy",

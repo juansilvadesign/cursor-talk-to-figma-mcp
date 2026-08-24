@@ -9,9 +9,10 @@
  * caller-requested write whose Figma refusal is the evidence.
  *
  *   node scripts/live-variable-mode-gate.mjs \
- *     --channel=<DEV-plugin-channel> \
+ *     --channel=<DEV-plugin-channel-for-a-disposable-file> \
  *     --collection-id=<local-collection-id-at-ceiling> \
- *     --name=<requested-new-mode-name>
+ *     --name=<requested-new-mode-name> \
+ *     --disposable-target=true
  */
 
 import assert from "node:assert/strict";
@@ -35,10 +36,16 @@ const options = Object.fromEntries(
 for (const option of ["channel", "collection-id", "name"]) {
   if (!options[option]) {
     process.stderr.write(
-      "Usage: node scripts/live-variable-mode-gate.mjs --channel=<DEV-plugin-channel> --collection-id=<local-collection-id-at-ceiling> --name=<requested-new-mode-name> [--output-dir=<dir>] [--server=<dist-server-path>]\n",
+      "Usage: node scripts/live-variable-mode-gate.mjs --channel=<DEV-plugin-channel-for-a-disposable-file> --collection-id=<local-collection-id-at-ceiling> --name=<requested-new-mode-name> --disposable-target=true [--output-dir=<dir>] [--server=<dist-server-path>]\n",
     );
     process.exit(2);
   }
+}
+if (options["disposable-target"] !== "true") {
+  process.stderr.write(
+    "Refusing to run: pass --disposable-target=true only after the channel is connected to a disposable Figma file. This gate has no cleanup path by design and can leave a created mode behind when the collection is not at its ceiling.\n",
+  );
+  process.exit(2);
 }
 
 // Derived from runtime-metadata.ts after Phase 1.3's contract generation. This gate has
@@ -153,6 +160,7 @@ const record = {
   channel: options.channel,
   collectionId: options["collection-id"],
   requestedModeName: options.name,
+  disposableTargetAcknowledged: true,
   artifactDirectory,
   expectedRuntime,
   artifactHashes: {

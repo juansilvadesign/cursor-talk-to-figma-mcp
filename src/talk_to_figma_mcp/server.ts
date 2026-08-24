@@ -1967,6 +1967,167 @@ server.tool(
   }
 );
 
+// R3-A Phase 2 — set one existing local variable's value for one existing mode.
+// The server owns the syntactic XOR; the plugin resolves the actual variable/type/mode and
+// performs every semantic refusal before it reaches Figma's setter.
+server.tool(
+  "set_variable_value",
+  "[Exact local variable and mode, caller-requested write] Set one existing local variable's value for one mode. Pass exactly one of value or aliasOf: raw COLOR values are RGBA objects with 0–1 r/g/b and optional a (hex strings are not accepted), FLOAT is a finite number, STRING is a string, and BOOLEAN is true/false; aliasOf is an existing local variable ID of the same resolved type. The handler rejects self-aliases and every resolvable alias cycle before writing, then reads Figma's stored value back. Remote source variables, remote collections, and remote alias chains return a typed refusal and are never silently skipped. This R3-A slice supports COLOR, FLOAT, STRING and BOOLEAN only.",
+  {
+    variableId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing local variable to change"),
+    modeId: z
+      .string()
+      .min(1)
+      .describe("ID of an existing mode in that variable's local collection"),
+    value: z
+      .union([
+        z.string().describe("Raw STRING value"),
+        z.number().finite().describe("Raw finite FLOAT value"),
+        z.boolean().describe("Raw BOOLEAN value"),
+        z
+          .object({
+            r: z.number().min(0).max(1).describe("Red channel, 0–1"),
+            g: z.number().min(0).max(1).describe("Green channel, 0–1"),
+            b: z.number().min(0).max(1).describe("Blue channel, 0–1"),
+            a: z
+              .number()
+              .min(0)
+              .max(1)
+              .optional()
+              .describe("Alpha channel, 0–1; defaults to 1"),
+          })
+          .strict()
+          .describe("Raw COLOR value as RGBA floats; no hex-string form"),
+      ])
+      .optional()
+      .describe("Raw value; supply this XOR aliasOf"),
+    aliasOf: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Existing local variable ID to alias; supply this XOR value"),
+  },
+  async (args: any) => {
+    const hasValue = Object.prototype.hasOwnProperty.call(args, "value") && args.value !== undefined;
+    const hasAlias = Object.prototype.hasOwnProperty.call(args, "aliasOf") && args.aliasOf !== undefined;
+    if (hasValue === hasAlias) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error setting variable value: provide exactly one of value or aliasOf; no request was sent to Figma",
+          },
+        ],
+      };
+    }
+    try {
+      const result = await sendCommandToFigma("set_variable_value", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting variable value: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// R3-A Phase 2 — a direct create into one exact existing local collection. Duplicate/name
+// reconciliation belongs to Phase 3 identity work, so this tool never infers ownership or
+// silently reuses a same-named variable.
+server.tool(
+  "create_variable",
+  "[Exact existing local variable collection, caller-requested write] Create one named COLOR, FLOAT, STRING or BOOLEAN variable in an existing local collection. The collection is resolved before the create call and a remote collection returns a typed refusal without calling Figma. This is a direct create, not an upsert: the tool does not de-duplicate by name or infer a consumer identity key; that later Phase 3 contract must be explicit.",
+  {
+    collectionId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing local collection that will own the new variable"),
+    name: z
+      .string()
+      .min(1)
+      .describe("Name for the new variable; this is a real document write"),
+    resolvedType: z
+      .enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"])
+      .describe("Figma variable type for the new variable"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("create_variable", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating variable: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
+// R3-A Phase 2 — the only destructive tool in the slice. A literal true survives both the
+// published schema and the plugin's own direct-call guard; a generic truthy value is not a
+// confirmation and never reaches Variable.remove().
+server.tool(
+  "delete_variable",
+  "[Exact local variable, destructive caller-requested write] Permanently remove one existing local variable. confirm must be literal true; without it no Figma call is made. Remote variables return a typed refusal. Figma commits the removal at the END of the plugin execution frame, so after remove() the handler probes independent in-frame signals and names the one that observed the absence; when none can, it reports outcome removal_unconfirmed with verificationDeferred and partialApplicationPossible instead of claiming deletion. A real deletion and a no-op remove() are indistinguishable from inside that frame, so confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    variableId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing local variable to permanently remove"),
+    confirm: z
+      .literal(true)
+      .describe("Required explicit destructive confirmation; must be true, not merely truthy"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("delete_variable", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting variable: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Node Variables Tool
 server.tool(
   "get_node_variables",
@@ -4310,6 +4471,9 @@ type FigmaCommand =
   | "get_variables"
   | "get_variable_capabilities"
   | "add_variable_mode"
+  | "set_variable_value"
+  | "create_variable"
+  | "delete_variable"
   | "get_node_variables"
   | "get_available_fonts"
   | "check_fonts"
@@ -4493,6 +4657,28 @@ type CommandParams = {
   add_variable_mode: {
     collectionId: string;
     name: string;
+  };
+  set_variable_value: {
+    variableId: string;
+    modeId: string;
+    // Exactly one is required at the public MCP surface; the command type retains both
+    // optional because TypeScript cannot express that XOR without making every caller
+    // carry a synthetic union. The server and plugin both reject neither/both before a write.
+    value?:
+      | string
+      | number
+      | boolean
+      | { r: number; g: number; b: number; a?: number };
+    aliasOf?: string;
+  };
+  create_variable: {
+    collectionId: string;
+    name: string;
+    resolvedType: "COLOR" | "FLOAT" | "STRING" | "BOOLEAN";
+  };
+  delete_variable: {
+    variableId: string;
+    confirm: true;
   };
   get_node_variables: { nodeId: string };
   get_available_fonts: {

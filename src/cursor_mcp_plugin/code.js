@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-b5ee1c0b619a",
-  "apiVersion": "1.11.0",
-  "serverSchemaVersion": "1.11.0",
+  "buildId": "r3-a-plugin-4aa3214c4754",
+  "apiVersion": "1.12.0",
+  "serverSchemaVersion": "1.12.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:6a68b351880d0b204d1cdf90f14cb8258ce8bfe69bc5db4fbf0be7b14deb6428",
+  "capabilityFingerprint": "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -37,6 +37,9 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "get_variables",
     "get_variable_capabilities",
     "add_variable_mode",
+    "set_variable_value",
+    "create_variable",
+    "delete_variable",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -91,8 +94,10 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
+    "figma.command.create_variable@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
+    "figma.command.delete_variable@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -145,6 +150,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
+    "figma.command.set_variable_value@1",
     "relay.channel@1"
   ]
 });
@@ -340,6 +346,12 @@ async function handleCommand(command, params) {
       return await getVariableCapabilities();
     case "add_variable_mode":
       return await addVariableMode(params);
+    case "set_variable_value":
+      return await setVariableValue(params);
+    case "create_variable":
+      return await createVariable(params);
+    case "delete_variable":
+      return await deleteVariable(params);
     case "get_node_variables":
       return await getNodeVariables(params);
     case "get_available_fonts":
@@ -3775,6 +3787,755 @@ async function addVariableMode(params) {
       nameReadable: Boolean(createdMode),
     },
     modeCeiling: unobservedModeCeilingAfterAdd(modeCountBefore + 1),
+  };
+}
+
+// R3-A Phase 2 — the plan-independent variable-write slice. These three commands work
+// only with an exact, already-existing local collection/mode/variable. They deliberately
+// do not create collections or modes, and each remote resource gets a typed refusal rather
+// than being silently skipped or passed through to Figma as an opaque host error.
+const VARIABLE_WRITE_RESOLVED_TYPES = new Set([
+  "COLOR",
+  "FLOAT",
+  "STRING",
+  "BOOLEAN",
+]);
+
+function variableWriteErrorMessage(error) {
+  return error && typeof error.message === "string" ? error.message : String(error);
+}
+
+function variableWriteVariableSummary(variable) {
+  return {
+    id: variable.id,
+    name: typeof variable.name === "string" ? variable.name : null,
+    key: typeof variable.key === "string" ? variable.key : null,
+    variableCollectionId:
+      typeof variable.variableCollectionId === "string"
+        ? variable.variableCollectionId
+        : null,
+    resolvedType:
+      typeof variable.resolvedType === "string" ? variable.resolvedType : null,
+    remote: Boolean(variable.remote),
+  };
+}
+
+function variableWriteCollectionSummary(collection) {
+  return {
+    id: collection.id,
+    name: typeof collection.name === "string" ? collection.name : null,
+    key: typeof collection.key === "string" ? collection.key : null,
+    defaultModeId:
+      typeof collection.defaultModeId === "string"
+        ? collection.defaultModeId
+        : null,
+    remote: Boolean(collection.remote),
+    modeCount: Array.isArray(collection.modes) ? collection.modes.length : null,
+  };
+}
+
+function variableWriteModeSummary(mode) {
+  return {
+    id: mode.modeId,
+    name: typeof mode.name === "string" ? mode.name : null,
+  };
+}
+
+function variableWriteRefusal(code, message, details = {}) {
+  return {
+    success: false,
+    outcome: "refused",
+    ...details,
+    refusal: { code, message },
+  };
+}
+
+async function resolveVariableForWrite(command, variableId) {
+  if (typeof variableId !== "string" || variableId.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty variableId and wrote nothing`);
+  }
+  if (
+    !figma.variables ||
+    typeof figma.variables.getVariableByIdAsync !== "function"
+  ) {
+    throw new Error(
+      `${command} wrote nothing: this Figma runtime cannot resolve variables by ID`
+    );
+  }
+
+  let variable;
+  try {
+    variable = await figma.variables.getVariableByIdAsync(variableId);
+  } catch (error) {
+    return {
+      refusal: variableWriteRefusal(
+        "variable_lookup_failed",
+        `${command} wrote nothing: variable ${variableId} could not be resolved: ${variableWriteErrorMessage(error)}`,
+        { variable: { id: variableId } }
+      ),
+    };
+  }
+  if (!variable) {
+    return {
+      refusal: variableWriteRefusal(
+        "variable_not_found",
+        `${command} wrote nothing: variable ${variableId} was not found`,
+        { variable: { id: variableId } }
+      ),
+    };
+  }
+  if (variable.remote) {
+    return {
+      refusal: variableWriteRefusal(
+        "remote_variable",
+        `${command} wrote nothing: variable ${variable.id} is remote and cannot be modified`,
+        { variable: variableWriteVariableSummary(variable) }
+      ),
+    };
+  }
+  return { variable };
+}
+
+async function resolveVariableCollectionForWrite(command, collectionId) {
+  if (typeof collectionId !== "string" || collectionId.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty collectionId and wrote nothing`);
+  }
+  if (
+    !figma.variables ||
+    typeof figma.variables.getVariableCollectionByIdAsync !== "function"
+  ) {
+    throw new Error(
+      `${command} wrote nothing: this Figma runtime cannot resolve variable collections by ID`
+    );
+  }
+
+  let collection;
+  try {
+    collection = await figma.variables.getVariableCollectionByIdAsync(collectionId);
+  } catch (error) {
+    return {
+      refusal: variableWriteRefusal(
+        "collection_lookup_failed",
+        `${command} wrote nothing: variable collection ${collectionId} could not be resolved: ${variableWriteErrorMessage(error)}`,
+        { collection: { id: collectionId } }
+      ),
+    };
+  }
+  if (!collection) {
+    return {
+      refusal: variableWriteRefusal(
+        "collection_not_found",
+        `${command} wrote nothing: variable collection ${collectionId} was not found`,
+        { collection: { id: collectionId } }
+      ),
+    };
+  }
+  if (collection.remote) {
+    return {
+      refusal: variableWriteRefusal(
+        "remote_collection",
+        `${command} wrote nothing: variable collection ${collection.id} is remote and cannot be modified`,
+        { collection: variableWriteCollectionSummary(collection) }
+      ),
+    };
+  }
+  return { collection };
+}
+
+function resolveVariableModeForWrite(command, collection, modeId) {
+  if (typeof modeId !== "string" || modeId.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty modeId and wrote nothing`);
+  }
+  if (!Array.isArray(collection.modes)) {
+    return {
+      refusal: variableWriteRefusal(
+        "collection_modes_unreadable",
+        `${command} wrote nothing: variable collection ${collection.id} has no readable modes array`,
+        { collection: variableWriteCollectionSummary(collection) }
+      ),
+    };
+  }
+  const mode = collection.modes.find((candidate) => candidate.modeId === modeId);
+  if (!mode) {
+    return {
+      refusal: variableWriteRefusal(
+        "mode_not_in_collection",
+        `${command} wrote nothing: mode ${modeId} does not belong to local variable collection ${collection.id}`,
+        { collection: variableWriteCollectionSummary(collection), mode: { id: modeId } }
+      ),
+    };
+  }
+  return { mode };
+}
+
+function readVariableValueForWrite(variable, modeId) {
+  try {
+    if (
+      !variable.valuesByMode ||
+      !Object.prototype.hasOwnProperty.call(variable.valuesByMode, modeId)
+    ) {
+      return { value: null, readable: false };
+    }
+    return {
+      value: serializeVariableValue(variable.valuesByMode[modeId]),
+      readable: true,
+    };
+  } catch (_) {
+    return { value: null, readable: false };
+  }
+}
+
+function normalizedRawVariableValue(command, resolvedType, value) {
+  switch (resolvedType) {
+    case "COLOR": {
+      if (
+        !value ||
+        typeof value !== "object" ||
+        Array.isArray(value) ||
+        !Object.prototype.hasOwnProperty.call(value, "r") ||
+        !Object.prototype.hasOwnProperty.call(value, "g") ||
+        !Object.prototype.hasOwnProperty.call(value, "b")
+      ) {
+        throw new Error(
+          `${command} requires COLOR value as an RGBA object with r, g and b channels from 0 to 1; hex strings are not accepted`
+        );
+      }
+      const allowedKeys = new Set(["r", "g", "b", "a"]);
+      const unexpectedKeys = Object.keys(value).filter(
+        (key) => !allowedKeys.has(key)
+      );
+      if (unexpectedKeys.length > 0) {
+        throw new Error(
+          `${command} requires COLOR value with only r, g, b and optional a; unexpected ${unexpectedKeys.join(", ")} would be discarded`
+        );
+      }
+      for (const channel of ["r", "g", "b"]) {
+        if (!isFiniteNumber(value[channel]) || value[channel] < 0 || value[channel] > 1) {
+          throw new Error(
+            `${command} requires COLOR value.${channel} to be a finite number from 0 to 1`
+          );
+        }
+      }
+      if (
+        value.a !== undefined &&
+        (!isFiniteNumber(value.a) || value.a < 0 || value.a > 1)
+      ) {
+        throw new Error(
+          `${command} requires COLOR value.a to be a finite number from 0 to 1`
+        );
+      }
+      return {
+        r: value.r,
+        g: value.g,
+        b: value.b,
+        a: value.a === undefined ? 1 : value.a,
+      };
+    }
+    case "FLOAT":
+      if (!isFiniteNumber(value)) {
+        throw new Error(`${command} requires FLOAT value to be a finite number`);
+      }
+      return value;
+    case "STRING":
+      if (typeof value !== "string") {
+        throw new Error(`${command} requires STRING value to be a string`);
+      }
+      return value;
+    case "BOOLEAN":
+      if (typeof value !== "boolean") {
+        throw new Error(`${command} requires BOOLEAN value to be true or false`);
+      }
+      return value;
+    default:
+      throw new Error(
+        `${command} does not support raw writes for variable resolvedType ${String(resolvedType)}`
+      );
+  }
+}
+
+function readVariableWriteAssignment(command, params) {
+  const hasValue =
+    params &&
+    Object.prototype.hasOwnProperty.call(params, "value") &&
+    params.value !== undefined;
+  const hasAlias =
+    params &&
+    Object.prototype.hasOwnProperty.call(params, "aliasOf") &&
+    params.aliasOf !== undefined;
+
+  if (hasValue === hasAlias) {
+    throw new Error(
+      `${command} requires exactly one of value or aliasOf and wrote nothing`
+    );
+  }
+  if (hasAlias) {
+    if (typeof params.aliasOf !== "string" || params.aliasOf.trim().length === 0) {
+      throw new Error(`${command} requires aliasOf to be a non-empty variable ID`);
+    }
+    return { kind: "alias", aliasOf: params.aliasOf };
+  }
+  return { kind: "raw", value: params.value };
+}
+
+// Match the read layer's mode-selection rule while asking the narrow question that matters
+// before a write: would this new source → target edge form a cycle? A target's own current
+// alias chain is followed with the requested mode id when possible, otherwise the same
+// mode name and then that collection's default mode. We refuse an unresolved chain instead
+// of asserting it is acyclic from incomplete evidence.
+async function inspectAliasCycleForWrite(sourceVariable, targetVariable, mode) {
+  const visited = new Set([sourceVariable.id]);
+  let current = targetVariable;
+  let requestedModeId = mode.modeId;
+  const requestedModeName = mode.name;
+
+  while (current) {
+    if (typeof current.id !== "string") {
+      return {
+        refusal: variableWriteRefusal(
+          "alias_chain_unreadable",
+          "set_variable_value wrote nothing: an existing alias chain has a variable without a readable ID"
+        ),
+      };
+    }
+    if (visited.has(current.id)) {
+      return { cycle: true, cycleAt: current.id };
+    }
+    if (current.remote) {
+      return {
+        refusal: variableWriteRefusal(
+          "remote_alias_chain",
+          `set_variable_value wrote nothing: the alias chain reaches remote variable ${current.id}`,
+          { variable: variableWriteVariableSummary(current) }
+        ),
+      };
+    }
+    visited.add(current.id);
+
+    if (!current.valuesByMode || typeof current.valuesByMode !== "object") {
+      return {
+        refusal: variableWriteRefusal(
+          "alias_chain_unreadable",
+          `set_variable_value wrote nothing: variable ${current.id} has no readable valuesByMode map`,
+          { variable: variableWriteVariableSummary(current) }
+        ),
+      };
+    }
+
+    let selectedModeId = requestedModeId;
+    let value = current.valuesByMode[selectedModeId];
+    if (value === undefined) {
+      const collectionResult = await resolveVariableCollectionForWrite(
+        "set_variable_value",
+        current.variableCollectionId
+      );
+      if (collectionResult.refusal) return collectionResult;
+      const collection = collectionResult.collection;
+      if (!Array.isArray(collection.modes)) {
+        return {
+          refusal: variableWriteRefusal(
+            "alias_chain_unreadable",
+            `set_variable_value wrote nothing: variable collection ${collection.id} has no readable modes array`,
+            { collection: variableWriteCollectionSummary(collection) }
+          ),
+        };
+      }
+      const sameNamedMode = collection.modes.find(
+        (candidate) => candidate.name === requestedModeName
+      );
+      selectedModeId = sameNamedMode
+        ? sameNamedMode.modeId
+        : collection.defaultModeId;
+      value = current.valuesByMode[selectedModeId];
+    }
+
+    if (
+      !value ||
+      typeof value !== "object" ||
+      value.type !== "VARIABLE_ALIAS"
+    ) {
+      return { cycle: false };
+    }
+    if (typeof value.id !== "string" || value.id.length === 0) {
+      return {
+        refusal: variableWriteRefusal(
+          "alias_chain_unreadable",
+          `set_variable_value wrote nothing: variable ${current.id} has an alias without a readable target ID`,
+          { variable: variableWriteVariableSummary(current) }
+        ),
+      };
+    }
+    if (
+      !figma.variables ||
+      typeof figma.variables.getVariableByIdAsync !== "function"
+    ) {
+      throw new Error(
+        "set_variable_value wrote nothing: this Figma runtime cannot resolve alias targets by ID"
+      );
+    }
+    let next;
+    try {
+      next = await figma.variables.getVariableByIdAsync(value.id);
+    } catch (error) {
+      return {
+        refusal: variableWriteRefusal(
+          "alias_chain_unreadable",
+          `set_variable_value wrote nothing: alias target ${value.id} could not be resolved: ${variableWriteErrorMessage(error)}`,
+          { aliasOf: value.id }
+        ),
+      };
+    }
+    if (!next) {
+      return {
+        refusal: variableWriteRefusal(
+          "alias_chain_unreadable",
+          `set_variable_value wrote nothing: alias target ${value.id} was not found`,
+          { aliasOf: value.id }
+        ),
+      };
+    }
+    current = next;
+    requestedModeId = selectedModeId;
+  }
+
+  return { cycle: false };
+}
+
+async function setVariableValue(params) {
+  const command = "set_variable_value";
+  const { variableId, modeId } = params || {};
+  const variableResult = await resolveVariableForWrite(command, variableId);
+  if (variableResult.refusal) return variableResult.refusal;
+  const variable = variableResult.variable;
+
+  if (!VARIABLE_WRITE_RESOLVED_TYPES.has(variable.resolvedType)) {
+    return variableWriteRefusal(
+      "unsupported_resolved_type",
+      `${command} wrote nothing: variable ${variable.id} has unsupported resolvedType ${String(variable.resolvedType)}; this R3-A slice supports COLOR, FLOAT, STRING and BOOLEAN only`,
+      { variable: variableWriteVariableSummary(variable) }
+    );
+  }
+
+  const collectionResult = await resolveVariableCollectionForWrite(
+    command,
+    variable.variableCollectionId
+  );
+  if (collectionResult.refusal) {
+    return {
+      ...collectionResult.refusal,
+      variable: variableWriteVariableSummary(variable),
+    };
+  }
+  const collection = collectionResult.collection;
+  const modeResult = resolveVariableModeForWrite(command, collection, modeId);
+  if (modeResult.refusal) {
+    return {
+      ...modeResult.refusal,
+      variable: variableWriteVariableSummary(variable),
+    };
+  }
+  const mode = modeResult.mode;
+  const assignment = readVariableWriteAssignment(command, params);
+  const previous = readVariableValueForWrite(variable, modeId);
+  let valueToApply;
+  let assignmentReceipt;
+
+  if (assignment.kind === "raw") {
+    valueToApply = normalizedRawVariableValue(
+      command,
+      variable.resolvedType,
+      assignment.value
+    );
+    assignmentReceipt = { kind: "raw" };
+  } else {
+    const targetResult = await resolveVariableForWrite(command, assignment.aliasOf);
+    if (targetResult.refusal) return targetResult.refusal;
+    const target = targetResult.variable;
+    if (target.resolvedType !== variable.resolvedType) {
+      return variableWriteRefusal(
+        "alias_type_mismatch",
+        `${command} wrote nothing: variable ${variable.id} resolves to ${variable.resolvedType}, but alias target ${target.id} resolves to ${target.resolvedType}`,
+        {
+          variable: variableWriteVariableSummary(variable),
+          aliasTarget: variableWriteVariableSummary(target),
+        }
+      );
+    }
+
+    const cycle = await inspectAliasCycleForWrite(variable, target, mode);
+    if (cycle.refusal) {
+      return {
+        ...cycle.refusal,
+        variable: variableWriteVariableSummary(variable),
+      };
+    }
+    if (cycle.cycle) {
+      return variableWriteRefusal(
+        "alias_cycle",
+        `${command} wrote nothing: aliasing variable ${variable.id} to ${target.id} would create a cycle at ${cycle.cycleAt}`,
+        {
+          variable: variableWriteVariableSummary(variable),
+          aliasTarget: variableWriteVariableSummary(target),
+        }
+      );
+    }
+    if (
+      !figma.variables ||
+      typeof figma.variables.createVariableAlias !== "function"
+    ) {
+      throw new Error(
+        `${command} wrote nothing: this Figma runtime cannot create variable aliases`
+      );
+    }
+    try {
+      valueToApply = figma.variables.createVariableAlias(target);
+    } catch (error) {
+      return variableWriteRefusal(
+        "alias_creation_refused",
+        `${command} wrote nothing: Figma refused alias target ${target.id}: ${variableWriteErrorMessage(error)}`,
+        {
+          variable: variableWriteVariableSummary(variable),
+          aliasTarget: variableWriteVariableSummary(target),
+        }
+      );
+    }
+    assignmentReceipt = { kind: "alias", aliasOf: target.id };
+  }
+
+  if (typeof variable.setValueForMode !== "function") {
+    throw new Error(
+      `${command} wrote nothing: variable ${variable.id} does not support setValueForMode()`
+    );
+  }
+  try {
+    variable.setValueForMode(modeId, valueToApply);
+  } catch (error) {
+    return variableWriteRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+      {
+        variable: variableWriteVariableSummary(variable),
+        collection: variableWriteCollectionSummary(collection),
+        mode: variableWriteModeSummary(mode),
+        assignment: assignmentReceipt,
+        previousValue: previous.value,
+        previousValueReadable: previous.readable,
+      }
+    );
+  }
+
+  variableCache.set(variable.id, Promise.resolve(variable));
+  const stored = readVariableValueForWrite(variable, modeId);
+  return {
+    success: true,
+    outcome: "applied",
+    variable: variableWriteVariableSummary(variable),
+    collection: variableWriteCollectionSummary(collection),
+    mode: variableWriteModeSummary(mode),
+    assignment: assignmentReceipt,
+    previousValue: previous.value,
+    previousValueReadable: previous.readable,
+    value: stored.value,
+    valueReadable: stored.readable,
+  };
+}
+
+async function createVariable(params) {
+  const command = "create_variable";
+  const { collectionId, name, resolvedType } = params || {};
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty name and wrote nothing`);
+  }
+  if (
+    typeof resolvedType !== "string" ||
+    !VARIABLE_WRITE_RESOLVED_TYPES.has(resolvedType)
+  ) {
+    throw new Error(
+      `${command} requires resolvedType COLOR, FLOAT, STRING or BOOLEAN and wrote nothing`
+    );
+  }
+  const collectionResult = await resolveVariableCollectionForWrite(
+    command,
+    collectionId
+  );
+  if (collectionResult.refusal) return collectionResult.refusal;
+  const collection = collectionResult.collection;
+  if (!figma.variables || typeof figma.variables.createVariable !== "function") {
+    throw new Error(
+      `${command} wrote nothing: this Figma runtime does not support createVariable()`
+    );
+  }
+
+  let variable;
+  try {
+    // Figma now documents the collection OBJECT here; passing a collection ID is deprecated.
+    // Resolving it first also makes the local-only refusal happen before any create call.
+    variable = figma.variables.createVariable(name, collection, resolvedType);
+  } catch (error) {
+    return variableWriteRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+      { collection: variableWriteCollectionSummary(collection) }
+    );
+  }
+  if (!variable || typeof variable.id !== "string") {
+    // A create call returned, so absence is not knowable from a malformed host result. Do
+    // not mislabel this as a clean refusal: a variable may exist but be unaddressable here.
+    return {
+      success: false,
+      outcome: "unverified",
+      collection: variableWriteCollectionSummary(collection),
+      partialApplicationPossible: true,
+      refusal: {
+        code: "invalid_create_result",
+        message: `${command} could not verify a readable variable ID from Figma's createVariable() result`,
+      },
+    };
+  }
+
+  variableCache.set(variable.id, Promise.resolve(variable));
+  return {
+    success: true,
+    outcome: "created",
+    variable: variableWriteVariableSummary(variable),
+    collection: variableWriteCollectionSummary(collection),
+  };
+}
+
+async function deleteVariable(params) {
+  const command = "delete_variable";
+  const { variableId, confirm } = params || {};
+  if (confirm !== true) {
+    throw new Error(
+      `${command} is destructive and requires confirm: true; wrote nothing`
+    );
+  }
+  const variableResult = await resolveVariableForWrite(command, variableId);
+  if (variableResult.refusal) return variableResult.refusal;
+  const variable = variableResult.variable;
+  const summary = variableWriteVariableSummary(variable);
+  if (typeof variable.remove !== "function") {
+    throw new Error(
+      `${command} wrote nothing: variable ${variable.id} does not support remove()`
+    );
+  }
+
+  try {
+    await variable.remove();
+  } catch (error) {
+    // A platform throw is not proof that no state changed. Make the uncertainty explicit
+    // rather than promising the destructive operation rolled back.
+    return {
+      ...variableWriteRefusal(
+        "figma_refusal",
+        `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+        { variable: summary, confirm: true }
+      ),
+      partialApplicationPossible: true,
+    };
+  }
+
+  // ⛔ Figma commits variable.remove() at the END of the current execution frame: an in-frame
+  // getVariableByIdAsync still resolves the variable that was just removed. Reading that as
+  // "the deletion did not happen" made removalObserved:true UNREACHABLE on the real platform
+  // while the offline harness — which spliced the variable out so the next lookup missed —
+  // kept the path green. Live evidence, channel hvq0orwg 2026-08-24: three deletes all
+  // reported delete_not_observed, and a later frame showed all three genuinely gone.
+  // So: probe independent signals, name the one that observed the removal, and when none can
+  // observe it in this frame, say exactly that instead of claiming success OR failure.
+  const observation = {
+    lookupResolved: null,
+    removedFlag: null,
+    collectionStillLists: null,
+    observedBy: null,
+  };
+
+  try {
+    const after = await figma.variables.getVariableByIdAsync(variable.id);
+    observation.lookupResolved = Boolean(after);
+    if (!after) {
+      observation.observedBy = "lookup_missed";
+    } else {
+      try {
+        const removedFlag = after.removed;
+        observation.removedFlag =
+          typeof removedFlag === "boolean" ? removedFlag : null;
+        if (removedFlag === true) {
+          observation.observedBy = "removed_flag";
+        }
+      } catch (error) {
+        // A property access that throws is itself evidence the object is gone.
+        observation.removedFlag = "threw";
+        observation.observedBy = "property_access_threw";
+      }
+    }
+  } catch (error) {
+    variableCache.delete(variable.id);
+    return {
+      success: false,
+      outcome: "unverified",
+      variable: summary,
+      confirm: true,
+      removalObserved: null,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "post_delete_lookup_failed",
+        message: `${command} called remove() for variable ${variable.id}, but a follow-up lookup failed: ${variableWriteErrorMessage(error)}`,
+      },
+    };
+  }
+
+  if (!observation.observedBy && typeof summary.variableCollectionId === "string") {
+    try {
+      const collection = await figma.variables.getVariableCollectionByIdAsync(
+        summary.variableCollectionId
+      );
+      const memberIds =
+        collection && Array.isArray(collection.variableIds)
+          ? collection.variableIds
+          : null;
+      if (memberIds) {
+        observation.collectionStillLists = memberIds.indexOf(variable.id) !== -1;
+        if (observation.collectionStillLists === false) {
+          observation.observedBy = "collection_membership";
+        }
+      }
+    } catch (error) {
+      // An unreadable collection is not evidence either way; leave the signal null.
+      observation.collectionStillLists = null;
+    }
+  }
+
+  variableCache.delete(variable.id);
+
+  if (!observation.observedBy) {
+    // ⚠️ Deliberately NOT success. A no-op remove() and a frame-deferred commit are
+    // indistinguishable from inside this frame, so the caller — not this handler — has to
+    // confirm absence in a later call. The gate's cross-frame re-read is that instrument.
+    return {
+      success: false,
+      outcome: "removal_unconfirmed",
+      variable: summary,
+      confirm: true,
+      removalObserved: false,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "delete_not_observed_in_frame",
+        message: `${command} called remove() for variable ${variable.id}; no in-frame signal could confirm the removal, which is expected when Figma commits it at frame end. Re-read the variable in a later call to verify absence.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "deleted",
+    variable: summary,
+    confirm: true,
+    removalObserved: true,
+    verificationDeferred: false,
+    observation,
   };
 }
 

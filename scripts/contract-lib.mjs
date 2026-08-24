@@ -89,6 +89,12 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_variables",
   "get_variable_capabilities",
   "add_variable_mode",
+  // R3-A Phase 2 has an offline contract but awaits its disposable-file live gate.
+  // These receipts therefore stay explicitly additive-preview rather than silently
+  // freezing through the stable default.
+  "set_variable_value",
+  "create_variable",
+  "delete_variable",
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
@@ -198,6 +204,12 @@ const TOOL_SCOPES = {
   // A mode belongs to one collection; the handler resolves that exact ID and never scans
   // the document or manufactures a disposable resource to learn its plan ceiling.
   add_variable_mode: "variable_collection",
+  // R3-A Phase 2's three direct writes. A variable value is a distinct resource/mode pair;
+  // create changes one existing collection; delete changes one exact variable and carries a
+  // destructive confirmation plus a post-remove lookup in its receipt.
+  set_variable_value: "variable_mode",
+  create_variable: "variable_collection",
+  delete_variable: "variable",
   get_node_variables: "node_subtree",
   // Neither reads the document at all — the subject is the machine running Figma.
   // ⛔ The fallback below is "node", which would have been wrong and silent.

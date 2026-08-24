@@ -35,7 +35,7 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R2",
-  "serverBuildId": "r2-server-2ca49b0a4fd1",
+  "serverBuildId": "r2-server-a0afdc880ab0",
   "pluginBuildId": "r2-plugin-2741d7f5f374",
   "serverSchemaVersion": "1.9.0",
   "pluginApiVersion": "1.9.0",

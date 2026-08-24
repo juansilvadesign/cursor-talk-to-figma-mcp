@@ -92,68 +92,19 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
-  // ⛔ R2.6's FOUR LAYOUT TOOLS, and three of them are a REPAIR rather than a new entry.
-  //
-  // CC1 says every new tool ships `additive-preview` and F6 is why: `getResultStability`
-  // falls through to `stable` for anything unlisted, so an unlisted tool is frozen the
-  // moment it ships — on a reply shape no live gate has judged. R2.5's two tools honoured
-  // it. `set_layout_child` (2.1), `set_constraints` (2.2) and `set_size_limits` (2.3) did
-  // not: all three shipped `stable` from birth. Only 2.2's deviation was ever written down,
-  // and even there it was recorded as owed rather than chosen.
-  //
-  // ⛔ THE REPAIR WAS FREE ONLY UNTIL R2.6 WAS FROZEN — AND IT IS NOW FROZEN, 2026-08-23.
-  // This paragraph used to read "the repair is free, and only until R2.6 is frozen … this
-  // is the last release in which the mistake costs nothing to undo", written while the
-  // window was still open. R2.7's opening act closed it: `contracts/baselines/` gained
-  // `r2.5-public-contract.json` (from `e02d1b2`, `1.7.0`, 56 tools) and
-  // `r2.6-public-contract.json` (from `36ba158`, `1.8.0`, 60 tools) as the 7th and 8th.
-  // `compatibilityErrors()` iterates the BASELINE's tools, and a baseline now carries all
-  // four of these plus R2.5's three — so `stable` is permanent for the seven and the
-  // walk-back is BREAKING. What is written below is no longer reversible for free.
-  //
-  // ⭐ R2.7 item 1.1 — `set_fill`, listed in the SAME commit that registers it, which is
-  // what CC1 asks and what R2.6's three layout tools failed to do for three consecutive
-  // items. ⛔ This entry is now load-bearing in a way it was not for any of them: the CC3
-  // freeze landed first this release, so `contracts/baselines/` carries R2.5 and R2.6 and
-  // the free walk-back is GONE. A tool that falls through to `stable` here can no longer be
-  // quietly corrected next item — it is frozen on a reply shape no live gate has judged.
-  // ⚠️ `set_fill` has two readings it must earn before promotion, and neither is settled by
-  // any offline test: whether Figma detaches a bound paint style on a fills write
-  // (`styleDetached`), and whether the angle→matrix convention aims where it claims. Both
-  // are `live-fill-gate.mjs`'s job. Promotion is R2 acceptance's act, not this item's.
-  "set_fill",
-  // R2.7 item 1.2. The result carries the read-back plus effect-style readings, neither
-  // of which has faced a live Figma gate yet; it must not fall through to stable.
-  "set_effects",
-  // R2.7 item 1.3. Both are new write surfaces and their receipts are the deliberately
-  // additive way to expose node-layer readings without widening stable get_node_info.
-  // 1.2 already spent 1.9.0; shipping either tool stable would freeze its un-gated receipt
-  // with no public-contract bump available to repair it.
-  "set_opacity",
-  "set_blend_mode",
-  // R2.7 Phase 2. `createdNodeCount`, `svgSourceLength` and `duplicatesOnRerun` are a brand
-  // new reply shape that no live gate has judged, and CC1's whole point is that an unlisted
-  // tool falls through to `stable` and freezes on the spot. ⛔ R2.7 has no bump left — 1.2
-  // spent 1.9.0 and 1.10.0 is R3-A's — so a reply-shape defect discovered after promotion
-  // would have no version available to repair it.
-  "create_node_from_svg",
-  // ⛔ Promotion of all four is R2.6's ACCEPTANCE act, exactly as CC1 says — the same shape
-  // R2.4 used for `apply_batch` and R2.5 for its three tools. `tests/contract.test.mjs`
-  // pins the rule so R2.7's tools cannot repeat it silently.
-  //
-  // ⭐ **PROMOTED AT R2.6 ACCEPTANCE, 2026-08-22.** The four were held at
-  // `additive-preview` on the stated condition that their reply shapes had never been
-  // judged by real Figma. Each earned it on its own live gate — `set_layout_child`
-  // (`mzg3tlfl`), `set_constraints` (`2bcdtr5b`), `set_size_limits` (`o2vws4ph`),
-  // `set_clips_content` (`u2k66m3w`) — and all four were then re-pinned and re-run once
-  // more on `sa6ggz00` against the 2.4 build, green. The entries are GONE rather than
-  // commented out, because `getResultStability` falls through to `stable` and a leftover
-  // entry silently holds a tool back at the weaker level.
-  //
-  // ⛔ This promotion rewrites `contractPayload.tools`, which feeds `serverBuildId` — so
-  // every gate is re-pinned and RE-RUN on the promoted build. Accepting a build no gate
-  // has seen is the defect R2.4 spent three phases closing.
 ]);
+
+// R2 acceptance promotes the five R2.7 receipts — `set_fill`, `set_effects`,
+// `set_opacity`, `set_blend_mode`, and `create_node_from_svg` — by REMOVING their names
+// from the set above. `getResultStability` deliberately falls through to `stable`; leaving
+// one name behind would silently make the published promise weaker than the acceptance act.
+//
+// ⚠️ This source change is not a substitute for a live result. The representative
+// component/page fixture (`scripts/r2-acceptance-fixture.mjs`) is built and awaits a live
+// channel. The historical gates must be re-pinned and re-run against the promoted server
+// before R2 can be called accepted. The promotion changes `contractPayload.tools`, so it
+// changes `serverBuildId` even though the plugin build, schema, fingerprint and tool count
+// hold; `serverBuildId` is the pin that prevents that exact stale-server mistake.
 
 // ⭐ R2.5's three tools — `get_available_fonts`, `check_fonts` and `set_text_style` —
 // were here until R2.5 acceptance (2026-08-19), held at `additive-preview` on the stated

@@ -817,7 +817,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "create_node_from_svg",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2135,7 +2135,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_blend_mode",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2465,7 +2465,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_effects",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -2677,7 +2677,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_fill",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",
@@ -3189,7 +3189,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_opacity",
-      "resultStability": "additive-preview"
+      "resultStability": "stable"
     },
     {
       "kind": "tool",

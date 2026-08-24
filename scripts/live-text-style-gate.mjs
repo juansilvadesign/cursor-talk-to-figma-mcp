@@ -106,9 +106,19 @@ if (!options.channel) {
 // ⭐ Operator consequence, and it is the OPPOSITE of every layout item: the DEV plugin does
 // **NOT** need re-running — the plugin half did not move. Only an interactive MCP session
 // needs a respawn, and the gate spawns its own server from `dist/server.js`.
+// ⛔ RE-PINNED 2026-08-24 for **R3-A PHASE 1.1** (`hasVariableWriteApi` in `code.js`), on
+// channel `chvza8ab`. ⚠️ **THE EXACT INVERSE of the shape recorded above: only
+// `pluginBuildId` moved** (`0ace9ed58f34` → `a34d76fc6bc6`). Phase 1.1 adds no MCP tool
+// and no `capabilityId`, and `server.ts`/`contractPayload` are untouched, so
+// `serverBuildId`, the schema, the fingerprint AND the tool count all HELD.
+// ⭐ Operator consequence is therefore the OPPOSITE of the note above — the DEV plugin **DID**
+// need reloading — and it was MEASURED before this re-pin, not assumed: live
+// `get_runtime_info` reported `plugin.buildId: "r2-plugin-a34d76fc6bc6"`. ⛔ Never read
+// `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
+// each other, never that either agrees with this tree.
 const expectedRuntime = {
   serverBuildId: "r2-server-a0afdc880ab0",
-  pluginBuildId: "r2-plugin-0ace9ed58f34",
+  pluginBuildId: "r2-plugin-a34d76fc6bc6",
   schemaVersion: "1.9.0",
   fingerprint:
     "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",

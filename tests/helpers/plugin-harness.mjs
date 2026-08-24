@@ -878,7 +878,8 @@ function createFixtureRuntime(fixture, options) {
     .concat(styles.remote || []);
 
   const figma = {
-    editorType: "figma",
+    editorType: options.editorType || "figma",
+    mode: options.mode || "default",
     root: rootNode,
     mixed: MIXED,
     showUI: () => undefined,

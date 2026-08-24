@@ -39,6 +39,16 @@ if (!options.channel) {
 // Derived after `contract:generate` for R2.7 item 1.2. Do not copy another gate's pins:
 // this item changes the stable get_node_info result shape, spends 1.9.0, and therefore
 // moves both runtime identities and the capability fingerprint.
+// ⛔ RE-PINNED 2026-08-24 for **R3-A PHASE 1.1** (`hasVariableWriteApi` in `code.js`), on
+// channel `chvza8ab`. ⚠️ **THE EXACT INVERSE of the shape recorded above: only
+// `pluginBuildId` moved** (`0ace9ed58f34` → `a34d76fc6bc6`). Phase 1.1 adds no MCP tool
+// and no `capabilityId`, and `server.ts`/`contractPayload` are untouched, so
+// `serverBuildId`, the schema, the fingerprint AND the tool count all HELD.
+// ⭐ Operator consequence is therefore the OPPOSITE of the note above — the DEV plugin **DID**
+// need reloading — and it was MEASURED before this re-pin, not assumed: live
+// `get_runtime_info` reported `plugin.buildId: "r2-plugin-a34d76fc6bc6"`. ⛔ Never read
+// `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
+// each other, never that either agrees with this tree.
 const expectedRuntime = {
   // Re-pinned to the R2.7 FINAL build at the end-of-release re-pin, 2026-08-23. ⚠️ The note
   // that stood here described item 1.2's read-source repair — "`code.js` alone changed, the
@@ -47,7 +57,7 @@ const expectedRuntime = {
   // count went 62 → 64. Deleted rather than reworded, because a stale note about which pins
   // moved is the same class of lie as a stale pin.
   serverBuildId: "r2-server-a0afdc880ab0",
-  pluginBuildId: "r2-plugin-0ace9ed58f34",
+  pluginBuildId: "r2-plugin-a34d76fc6bc6",
   schemaVersion: "1.9.0",
   fingerprint:
     "sha256:f636ecab99cc39989f6b79abaf06549a4e954f818f23d6fa2a369b08b6142fc0",

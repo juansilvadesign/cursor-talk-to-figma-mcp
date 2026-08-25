@@ -319,29 +319,35 @@ published library and must be rejected with a typed refusal, never silently skip
 
 | Tool | Figma Plugin API | Notes |
 | --- | --- | --- |
-| `create_variable_collection` | `figma.variables.createVariableCollection(name)` | Returns collection id + its single default mode id |
+| `create_variable_collection` | `figma.variables.createVariableCollection(name)` | ✅ **BUILT at `1.15.0`** — layered identity (id → name → `identityKey`), publishes the mode Figma made as `defaultMode`. ⛔ No tool in this fork can DELETE a collection, so its live leg is opt-in behind `--allow-permanent-collection=true` |
 | `add_variable_mode` | `collection.addMode(name)` | ⚠️ Throws at the plan ceiling — surface, don't swallow |
-| `rename_variable_mode` | `collection.renameMode(modeId, name)` | |
+| `rename_variable_mode` | `collection.renameMode(modeId, name)` | ✅ **BUILT at `1.15.0`** — non-destructive; a rename to the CURRENT name is refused as `mode_name_unchanged`, because a no-op and a silent failure are identical bytes |
 | `remove_variable_mode` | `collection.removeMode(modeId)` | ✅✅ **LIVE-ACCEPTED at `1.14.0`** — destructive; refuses the default and the sole remaining mode. See 2.5 |
 | `create_variable` | `figma.variables.createVariable(name, collection, resolvedType)` | `resolvedType` ∈ `COLOR｜FLOAT｜STRING｜BOOLEAN` |
 | `set_variable_value` | `variable.setValueForMode(modeId, value)` | Accepts a raw value **or** an alias — see 2.2 |
-| `set_variable_metadata` | `variable.name` / `.description` / `.scopes` | Rename + scope correction in one tool |
+| `set_variable_metadata` | `variable.name` / `.description` / `.scopes` | ✅ **BUILT at `1.15.0`** — ⛔ three fields, no transaction: validate-all-then-write, per-field read-back, and `partially_applied` with the exact `appliedFields` when Figma refuses mid-way |
 | `delete_variable` | `variable.remove()` | Destructive |
-| `bind_variable_to_node` | `node.setBoundVariable(field, variable)` | Plain fields (width, characters, fontFamily…) |
-| `bind_variable_to_paint` | `figma.variables.setBoundVariableForPaint(paint, 'color', v)` | ⚠️ **Returns a NEW paint** — must be written back into `node.fills`/`strokes` |
+| `bind_variable_to_node` | `node.setBoundVariable(field, variable)` | ✅ **BUILT at `1.15.0`** — no local field/type table; Figma's refusal is preserved verbatim. An unbindable field name that Figma accepts silently lands as `bind_unconfirmed`, not `bound` |
+| `bind_variable_to_paint` | `figma.variables.setBoundVariableForPaint(paint, 'color', v)` | ✅ **BUILT at `1.15.0`** — ⚠️ **Returns a NEW paint**, written back by replacing the whole readonly array; the receipt carries `writeBackPerformed`, and an offline test calls the API WITHOUT the write-back to prove the node is untouched |
 
-- [ ] **2.1 Mirror the existing colour convention.** `CLAUDE.md` records it: Figma uses RGBA
+- [x] **2.1 Mirror the existing colour convention.** ✅ Held through this slice:
+      `bind_variable_to_paint` takes no colour at all — it points an existing COLOR variable
+      at a paint — so no hex-string input entered the fork by the back door.
+      `CLAUDE.md` records it: Figma uses RGBA
       0–1 and the tools accept 0–1 floats. ⛔ Variable-write tools must not quietly introduce
       a hex-string input where every sibling tool takes floats. Accept 0–1; document it.
-- [ ] **2.2 Aliases are a value, not a separate tool.** `setValueForMode` takes either a raw
+- [x] **2.2 Aliases are a value, not a separate tool.** ✅ Discharged at Phase 2's first slice. `setValueForMode` takes either a raw
       value or `figma.variables.createVariableAlias(target)`. Model this as a discriminated
       input on `set_variable_value` (`{value}` XOR `{aliasOf}`) rather than a parallel
       `set_variable_alias` tool — the read layer already serializes aliases as
       `{type:"VARIABLE_ALIAS", id}`, so write input and read output stay symmetric.
-- [ ] **2.3 Guard the alias graph.** Reject a self-alias and any cycle before writing.
+- [x] **2.3 Guard the alias graph.** ✅ Discharged at Phase 2's first slice. Reject a self-alias and any cycle before writing.
       Figma will refuse some of these, but a typed pre-check gives a better error than a
       plugin exception and cannot leave a half-applied batch.
-- [ ] **2.4 Typed partial results on every multi-target call.** Per the cross-cutting rule
+- [x] **2.4 Typed partial results on every multi-target call.** ✅ Extended to the
+      multi-FIELD case by `set_variable_metadata`: `partially_applied` names the exact
+      `appliedFields` and the `failedField`, because "wrote nothing" after a committed
+      first field is a lie the caller cannot detect without a re-read. Per the cross-cutting rule
       *"Writes are exact and auditable"*: return per-item `{ok, id, matchedBy, error}`.
       ⛔ A batch that half-applies must never report success.
 - [x] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
@@ -421,6 +427,79 @@ channel alone is not evidence that a real file is safe. The Phase 1.3
 `live-variable-mode-gate.mjs` now requires the same explicit acknowledgement and still has
 **no cleanup path by design**: it may leave a caller-requested mode behind when the collection
 is not actually at its ceiling. Both gates require a disposable target on every invocation.
+
+### ⏳ R3-A Phase 2 — the REST of the table, BUILT + OFFLINE-GATED 2026-08-25
+
+`create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
+`bind_variable_to_node` and `bind_variable_to_paint` close every remaining row above. The
+contract moved **`1.14.0` → `1.15.0`, 71 → 76 tools**, pair
+**`r3-a-server-ee635141d2de` ↔ `r3-a-plugin-fc619cfa8b1f`**, fingerprint
+`sha256:5e6dcb91…9fee1af3`. Offline **440/440**, `bun run verify` green.
+⛔ **All five ship `additive-preview`** per CC1 — no live gate has judged their receipts yet.
+
+- **Identity is REUSED, not re-invented.** `create_variable_collection` runs the same three
+  layers as `create_variable` (explicit `id` → exact name → opaque `identityKey`), through the
+  same `ensureResourceIdentityKey` body with the noun as a parameter. A second copy is how two
+  surfaces start disagreeing about what "already exists" means.
+- ⚠️ **Figma returns a collection that already HAS a mode**, and the caller never named it.
+  The receipt publishes it as `defaultMode` so the next `set_variable_value` does not need a
+  second read to find the only mode it can write into.
+- ⛔ **`rename_variable_mode` REFUSES a rename to the current name** (`mode_name_unchanged`).
+  A no-op rename and a rename that silently failed produce identical bytes, so a receipt that
+  called it `renamed` would be unfalsifiable —
+  [[feedback_a_probe_at_the_default_value_proves_nothing]] in the write direction.
+- ⛔ **`set_variable_metadata` writes up to three fields and Figma gives no transaction.**
+  This is `apply_batch`'s lesson at tool scale — three of its fifteen allowlisted mutations are
+  *proven* to write their first field and then throw. So every supplied value is validated
+  before the first assignment, each field is read back, and a mid-way refusal returns
+  `partially_applied` with the exact `appliedFields`/`failedField` and
+  `partialApplicationPossible: true`. A plain refusal there would read as "nothing changed"
+  on top of a committed rename.
+- ⚠️ **`bind_variable_to_paint` is the trap row.** `setBoundVariableForPaint` does **not**
+  mutate the paint — it RETURNS a new one — and `node.fills` is a readonly array, so the
+  handler replaces the whole array and reports `writeBackPerformed`. A handler that skipped
+  that step would throw nothing, report nothing wrong, and change the document in no way at
+  all. ⭐ The harness models this honestly (the returned paint is a copy), and one offline
+  test calls the API and **discards** its result to prove the node stays byte-identical —
+  the defect is reproduced rather than described.
+- ⛔ **No local field/type table for `bind_variable_to_node`.** Figma owns which field accepts
+  which `resolvedType` and grows that set as it ships bindable fields; a stale local copy would
+  refuse bindings the platform accepts. Its refusal is preserved verbatim. The cost is named:
+  an unknown field Figma accepts *silently* lands as `bind_unconfirmed`, which is also what a
+  frame-deferred commit looks like — the live gate is what tells them apart.
+- ⭐ **The promotion rode along.** R3-A's five variable WRITES left `ADDITIVE_PREVIEW_RESULTS`
+  in the same change (`get_variable_capabilities` deliberately did **not** — its
+  `modeCeiling.value: null` is designed to grow, and `stable` would cost a
+  `publicContractVersion` to fill in). Sequencing the promotion BEFORE this build was the
+  point: both acts move `serverBuildId`, and doing them separately would have paid the
+  eighteen-gate live re-run twice.
+
+⏳ **LIVE ACCEPTANCE IS OWED** — `scripts/live-variable-collections-bindings-gate.mjs`, pinned
+to this build and never yet run:
+
+```sh
+node scripts/live-variable-collections-bindings-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --collection-id=<local-collection-with-ROOM-FOR-ONE-MORE-MODE> \
+  --disposable-target=true \
+  [--allow-permanent-collection=true]
+```
+
+⛔ **`--allow-permanent-collection` is a SEPARATE acknowledgement, and the reason is a real
+gap in this fork: there is no `delete_variable_collection`.** Every other resource the gate
+creates — the probe mode, the probe variables, the scratch page — is removed by a fork tool at
+the end, which is what keeps the gate rerunnable. A created collection cannot be, so that leg
+leaves one behind permanently, removable only by hand in Figma's UI. That is the Phase 1.3
+residue hazard one level up and strictly worse, so it stays opt-in and the debris is reported
+in `stillOwed` rather than discovered later.
+
+⭐ **The measurement the gate exists for:** nothing Figma documents says whether `renameMode()`
+becomes visible from inside the calling frame. Phase 4 *measured* that `collection.modes` does
+update in-frame after `removeMode()` — that is evidence about `removeMode`, not about
+`renameMode`. The offline harness therefore models "no in-frame signal" by default, and
+`rename_unconfirmed` may be the only live-reachable branch, exactly as `delete_variable`'s
+success branch once was. The gate records **which** signal fired and does not score
+`rename_unconfirmed` as a failure.
 
 ## ✅ Phase 3 — resource identity, IMPLEMENTED + OFFLINE-GATED 2026-08-24
 

@@ -191,16 +191,58 @@ test("every live gate either pins THIS build or declares the release it belongs 
   );
 });
 
-test("R3-A variable live gates require an explicit disposable-target acknowledgement", async () => {
-  for (const name of [
-    "live-variable-mode-gate.mjs",
-    "live-variable-write-gate.mjs",
-    "live-variable-identity-gate.mjs",
-    "live-variable-mode-removal-gate.mjs",
-  ]) {
+// ⛔ THE LIST IS DERIVED, NOT ENUMERATED — and it used to be enumerated, naming four files.
+// A hardcoded roster cannot fail for the one case that matters: a NEW variable gate that
+// forgot the acknowledgement is simply absent from the list, so the test passes by not
+// looking. Same family as `readPins` parsing five keys while a sixth went stale unnoticed —
+// a check only covers what it ENUMERATES, so enumerate the SLOT, not the known members.
+test("every R3-A variable live gate requires an explicit disposable-target acknowledgement", async () => {
+  const entries = await readdir(path.join(root, "scripts"));
+  const variableGates = entries.filter(
+    (name) => name.startsWith("live-variable-") && name.endsWith(".mjs"),
+  );
+  assert.ok(
+    variableGates.length >= 5,
+    `expected the R3-A variable gates to be discoverable, found ${variableGates.length}`,
+  );
+
+  for (const name of variableGates) {
     const source = await readFile(path.join(root, "scripts", name), "utf8");
-    assert.match(source, /--disposable-target=true/);
-    assert.match(source, /options\["disposable-target"\] !== "true"/);
-    assert.match(source, /disposable Figma file/);
+    assert.match(source, /--disposable-target=true/, `${name} must document the flag`);
+    assert.match(
+      source,
+      /options\["disposable-target"\] !== "true"/,
+      `${name} must REFUSE to run without the acknowledgement, not merely document it`,
+    );
+    assert.match(source, /disposable Figma file/, `${name} must say why`);
   }
+});
+
+// ⛔ A gate whose `expectedRuntime` block is renamed, reformatted past the regex, or deleted
+// vanishes from the pins check in SILENCE — `readPins` returns null and the loop `continue`s.
+// The test above cannot see that; this one can, because it counts.
+test("every live gate except live-smoke publishes pins this test can parse", async () => {
+  const entries = await readdir(path.join(root, "scripts"));
+  const gateFiles = entries.filter(
+    (name) => name.startsWith("live-") && name.endsWith(".mjs"),
+  );
+  const parsed = [];
+  const unparsed = [];
+  for (const name of gateFiles) {
+    const pins = readPins(await readFile(path.join(root, "scripts", name), "utf8"));
+    (pins ? parsed : unparsed).push(name);
+  }
+
+  assert.deepEqual(
+    unparsed,
+    ["live-smoke.mjs"],
+    "live-smoke asserts no build and is the ONLY gate allowed to publish no pins",
+  );
+  // ⚠️ A literal, so a gate that stops being pinned cannot pass as a shorter list. 17 at the
+  // 2026-08-25 re-pin; 18 once the collections/bindings gate landed in the same change.
+  assert.equal(
+    parsed.length,
+    18,
+    `expected 18 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+  );
 });

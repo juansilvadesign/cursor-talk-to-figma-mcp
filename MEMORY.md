@@ -7,11 +7,42 @@ type: project
 
 > **Migrated out of the global memory router 2026-08-16.** The router keeps a one-line stub pointing here; ⛔ new detail lands in this file, not in the router.
 >
-> ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
+> **Repository visibility is private** (verified through GitHub on 2026-08-25). Still keep
+> credentials and tokens out of this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25d — R3-A CLOSED: `get_variable_capabilities` STABLE at `1.17.0`, 19/19)
+## ▶ Resume (checkpoint 2026-08-25e — Handoff 1 + Handoff 2 complete)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`. Handoff 1 shipped and live-accepted
+  `delete_variable_collection`; Handoff 2 recorded the R3-A retrospective and re-cut. The
+  owner confirmed the resulting diff is committed.
+- **Doing:** R3-A is accepted at **`1.18.0` / 77 tools**: 66 `stable`, 10
+  `additive-preview`, 1 `legacy`; `bun run verify` passed **450/450** and the live suite
+  passed **20/20** on disposable channel `2v56aacl`. The current pair is
+  `r3-a-server-b5649366daef` ↔ `r3-a-plugin-7f0d5389634e`, fingerprint
+  `sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9`.
+- **Next step:** Await the owner's choice/authorization: begin the R3.1 measurement-enabler
+  implementation, or take remaining Handoff 3 (consumer proof) or Handoff 4 (upstream offer).
+- **Key paths / IDs:**
+  - `R3-RETROSPECTIVE.md` — durable R3 re-cut: measurement enablers (group creation,
+    range-font mutation, local paint-style attachment) → local styles → components/variants/
+    instances → closure; it is planning-only and does not authorize a tool build by itself.
+  - `HANDOFFS.md` — the remaining independent handoffs. `docs/*` remains gitignored behind
+    an allowlist, which is why the retrospective and handoffs live at repo root.
+  - `TASKS.md`, `ROADMAP.md`, `docs/R3-A-VARIABLE-WRITE.md` — updated and committed evidence.
+- **Open / blockers:** no implementation blocker; do not infer authorization to start R3.1
+  from the retrospective. Handoff 3 and Handoff 4 remain viable alternatives.
+- **Don't forget:**
+  - `delete_variable_collection` is a fork-gate-coverage addendum, not a decision about the
+    consumer's eventual ramp cleanup; it remains `additive-preview`.
+  - Each public build move now costs a re-pin and **re-run of every current live gate**. Gate
+    count is 20; no aggregate elapsed-time metric was recorded, so do not invent one.
+  - R3 gates are risk/acceptance scenarios, not one gate per tool. Every new gate needs a
+    discriminating control, independent observation, separate cleanup confirmation, and an
+    explicit disposable-target acknowledgement.
+
+## ⤴ Previous checkpoint (2026-08-25d — R3-A CLOSED: `get_variable_capabilities` STABLE at `1.17.0`, 19/19)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R3-A IS COMPLETE.**
   `get_variable_capabilities`, the last tool at `additive-preview`, is now **`stable`**.

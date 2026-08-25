@@ -11,7 +11,73 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25 — THE SIXTEEN-GATE RE-PIN IS PAID, `qsacbwae`)
+## ▶ Resume (checkpoint 2026-08-25b — PROMOTION + PHASE 2 REST BUILT, LIVE PASS OWED)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork` — ✅ **R3-A's five variable WRITES are
+  `stable`** (`add_variable_mode`, `set_variable_value`, `create_variable`, `delete_variable`,
+  `remove_variable_mode`), and ✅ **Phase 2's remaining FIVE tools are BUILT**:
+  `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
+  `bind_variable_to_node`, `bind_variable_to_paint`. **`1.14.0` → `1.15.0`, 71 → 76 tools.**
+  Pair `r3-a-server-cfce6484d54a` ↔ `r3-a-plugin-07a616c3b48d`, fingerprint
+  `sha256:5e6dcb91…9fee1af3` (**held** — no command-set change; both BUILD ids moved).
+  Offline **443/443**, `verify` green, tree CLEAN at `f8624d8` + `bc0df75` + `b052af7`.
+- **▶ NEXT — RELOAD THE DEV PLUGIN IN FIGMA, *then* run the 18-gate live pass.** The plugin was
+  MEASURED stale after the post-findings rebuild — `r3-a-plugin-fc619cfa8b1f` vs expected
+  `07a616c3b48d`, `compatibility: incompatible` — so **every gate refuses at `assertRuntime`
+  until it is reloaded**. Channel `9ir4iabr`, file *"Starter File - PsiAtiva - Disposable"*
+  (25 pages, 9 collections). Gate args: `--collection-id=VariableCollectionId:17050:370`
+  (*"8. Dimensions"*, 4 modes, has headroom), `--node-id=21004:582` (cover, 1920×1080 =
+  2.07 MPx → derived over-limit scale 2.8), `--disposable-target=true`.
+- **⛔ EIGHTEEN GATES, NOT SIXTEEN.** Every earlier checkpoint says "sixteen" and `6ecb664`
+  calls itself *"16 live gates"* — but it touched **17** files and `readPins` parses all 17;
+  plus the new collections/bindings gate = **18**. A counting test now asserts it
+  (`tests/live-gate-pins.test.mjs`), and the R3-A-variable-gate roster is **derived** from the
+  scripts dir rather than enumerated, because a hardcoded roster cannot fail for the one case
+  that matters — a NEW gate that forgot the acknowledgement is simply absent from it.
+- **🔴 THE FIRST LIVE RUN FAILED AND BOTH FINDINGS WERE MINE, NOT THE PLATFORM'S.**
+  ① **Figma REORDERS `scopes`** — requested `["GAP","WIDTH_HEIGHT"]`, stored
+  `["WIDTH_HEIGHT","GAP"]`. The read-back compared element-by-element, so a write that landed
+  perfectly returned `metadata_unconfirmed`. `scopes` is a SET in Figma's model; membership was
+  the only correct comparison. ⭐ Fixed WITH its known-bad legs — a dropped scope and a
+  same-length one-member swap both still go RED — so it is a fix, not a loosened check.
+  ② **Figma ACCEPTS duplicate mode names.** The harness *threw* `Mode name X is already used in
+  this collection` — a rule I invented — and an offline test then asserted that fiction was
+  "preserved verbatim"; the published description and README claimed it too. Live, the probe
+  mode was renamed to `Mobile` beside the real `Mobile` without complaint. Throw DELETED,
+  test replaced with the measured behaviour, and the tool now publishes
+  `nameCollidesWithModeIds` as a **reading**, never a refusal.
+  See [[feedback_a_fixture_that_invents_a_platform_rule]].
+- **⭐ MEASURED, and it was the open question:** `rename_variable_mode` returned
+  `observedBy: "resolved_collection_modes"` — Figma **does** update `collection.modes` in-frame
+  after `renameMode()`, both independent signals agreeing. So `rename_unconfirmed` is NOT the
+  only live-reachable branch, unlike `delete_variable`'s success branch once was.
+- **✅ Also confirmed live (run 1, before the metadata leg failed):**
+  `create_variable_collection` created once then matched by **name** AND by opaque
+  **`identityKey`** (9 → 10 collections, exactly one added), wrong-id refused
+  (`collection_not_found`), `mode_name_unchanged` refused. Cleanup was COMPLETE —
+  *"8. Dimensions"* back to its exact 4 modes, 25 pages, current page `0:1`.
+- **⛔ NO `delete_variable_collection` EXISTS IN THIS FORK.** So the collections leg leaves a
+  collection behind that nothing here can remove — it is gated behind a separate
+  `--allow-permanent-collection=true` ack for that reason, and the debris is reported in
+  `stillOwed`. Run 1's `__R3A CB Collection 20260825135220` was deleted by hand by the owner;
+  **each acceptance run leaves one more.**
+- **⚠️ ORDERING TRAP for the live pass.** `live-variable-mode-gate` needs *"8. Dimensions"*
+  **AT** its ceiling (Figma's refusal is its evidence) and has **no cleanup path by design**,
+  while the new collections/bindings gate needs **headroom**. Run everything else first, then
+  inflate 4 → 10 with `add_variable_mode`, run the mode gate, then deflate back to 4 with
+  `live-variable-mode-removal-gate`. Net zero — only possible because Phase 4 shipped the tool
+  that reverses it.
+- **⚠️ THREE VERDICT PROTOCOLS, now four files' worth.** 15 gates write `success: true`;
+  `live-batch-gate` writes it but prints no `PASSED` line; `live-export-gate` writes **no
+  `success` field at all** (verdict = exit 0 + `failure: null`). The new gate follows the
+  majority. ⛔ A uniform `success === true` runner scores a clean export-gate run as FAIL.
+- **⏳ CC1 debt is now TEN names**, not five: `ACCEPTED_SINCE_LAST_BASELINE` carries R2.7's five
+  plus R3-A's five. ⛔ That is not ten deliberate acts — it is ONE missing freeze counted
+  twice; the newest baseline is still `r2.6` (`1.8.0`, 60 tools). The R3-A acceptance freeze
+  must absorb all ten and return the list to `[]`. Freezing `contracts/baselines/` moves no
+  build id, so that act is free and re-stales nothing.
+
+## ⤴ Previous checkpoint (2026-08-25a — THE SIXTEEN-GATE RE-PIN IS PAID, `qsacbwae`)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **ALL SIXTEEN GATES RE-PINNED TO
   `1.14.0` AND RE-RUN — 16/16 PASS.** The `GATES_PINNED_TO_AN_EARLIER_RELEASE` ledger is

@@ -223,12 +223,23 @@ function findMode(collection, predicate) {
 /** The independent read channel for a binding: a different command, in a later frame. */
 async function readNodeBindings(nodeId) {
   const snapshot = (await callJson("get_node_variables", { nodeId })).value;
-  const records = [];
-  for (const entry of snapshot.nodes || []) {
-    for (const binding of entry.variables || entry.bindings || []) {
-      records.push({ nodeId: entry.id ?? nodeId, ...binding });
-    }
-  }
+  // ⛔ `get_node_variables` answers with a FLAT top-level `bindings` array — it has no
+  // `nodes` array at all. The first version of this reader walked `snapshot.nodes`, which
+  // is `undefined`, so `records` was ALWAYS `[]` and both binding assertions below could
+  // only ever fail: a dead read path that measured nothing about the tool. Live probe
+  // 2026-08-25 measured the real shape (`bindings[].{property,variableId,resolutionStatus}`)
+  // and its known-bad leg — an unbound node returns `[]` — so this read discriminates a
+  // bound node from an unbound one rather than returning whatever is there.
+  // ⭐ An absent array is a LOUD failure, never an empty result: "this node has no
+  // bindings" and "I read a field that does not exist" must not be the same bytes.
+  assert.ok(
+    Array.isArray(snapshot.bindings),
+    `get_node_variables returned no bindings array for ${nodeId}; keys: ${Object.keys(snapshot).join(", ")}`,
+  );
+  const records = snapshot.bindings.map((binding) => ({
+    nodeId: binding.nodeId ?? nodeId,
+    ...binding,
+  }));
   return { snapshot, records };
 }
 

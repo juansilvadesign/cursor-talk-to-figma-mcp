@@ -166,15 +166,29 @@ mapping, and generated-code acceptance.
 | **R0 — Independently verifiable tool** | Clean install/build/tests, command parity, runtime identity, and a small live read/write smoke | The fork can be changed safely without relying on session memory or a sibling project |
 | **R1 — Consumer-stable read release** | A pinned, documented local release exposes the existing read layer and compact exports through a stable contract | `figma-to-code` and other clients can depend on the fork without coupling to its source tree |
 | **R2 — Safe authoring release** | Generic page/metadata/batch plus complete typography/layout/visual operations | Real authoring clients can compose the tool without a domain-specific compiler inside this repo |
-| **R3-A — Variable write slice** *(scheduled next after R2.7; the 2026-08-22 "pulled ahead of R2.7" ordering was reversed 2026-08-23 — the slice stands, its position moved)* | `set_variable_value`, `create_variable`, `delete_variable` — values, aliases and removal against existing collections and modes | A real design-system reconciliation can be executed through the plugin surface alone, with no REST access and no plan dependency |
-| **R3 — Design-system authoring release** | Generic variable/style/component creation and binding | Higher-level clients can create reusable Figma systems without making the fork OpenDesign-specific |
+| **R3-A — Variable write slice** *(accepted 2026-08-25)* | Eleven stable live-accepted variable capabilities across collections, modes, values, metadata, identity and bindings; a twelfth `1.18.0` collection-cleanup addendum remains preview | A real design-system reconciliation can be executed through the local plugin surface alone, and the fork can now clean up its own collection-create gate |
+| **R3 — Design-system authoring release** *(re-cut 2026-08-25)* | Measurement enablers → local styles → components/variants/instances, as independently accepted internal phases | Higher-level clients can create reusable Figma systems while the fork measures each claimed platform premise and stays consumer-neutral |
 
 After each release: record the fork acceptance, classify additive/breaking changes,
 let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — **R3-A ACCEPTANCE COMPLETE — 18/18 TWICE, FREEZE + PROMOTION PAID.**
+## ▶ Current session — **R3-A RETROSPECTIVE COMPLETE; R3 RE-CUT ACCEPTED.**
+
+✅ **Planning-only decision — 2026-08-25.** R3-A's core eleven variable capabilities are
+live-accepted and stable; `delete_variable_collection` is a separate `1.18.0` fork-gate
+coverage addendum that remains `additive-preview`. The current baseline is **77 tools**,
+**450/450** offline, and **20/20** live gates green on the current runtime pair.
+
+The owner selected one larger R3 release plan with independently accepted internal phases.
+The first phase is deliberately **measurement-first**: generic group creation, range-font
+mutation, and local paint-style attachment close the fork's own unmeasured gate premises
+before broader style or component work. Every phase still receives a disposable-target gate,
+its own acceptance criteria, and the mandatory full re-pin/re-run after its public build move.
+The evidence, classifications, and phase boundaries are durable in
+[`R3-RETROSPECTIVE.md`](R3-RETROSPECTIVE.md). No tool implementation is authorized by this
+planning entry alone.
 
 ✅✅ **The 18-gate live pass ran green on TWO builds — 2026-08-25.** Run 1 on **`1.15.0`**
 (channel `4k1jsjpo`) earned the baseline freeze; run 2 on **`1.16.0`** (channel `7b9mxbg5`)
@@ -1853,7 +1867,12 @@ fixture with typed batch outcomes and no hidden dependency on a consumer reposit
 
 ---
 
-## Release R3 — design-system authoring release
+## Historical — R3 planning before the R3-A retrospective
+
+> **Superseded as the active R3 cut on 2026-08-25.** This is retained as the pre-R3-A
+> decision trail. R3-A has since accepted the variable surface it describes, including the
+> collection-cleanup addendum; the active R3 plan is below and in
+> [`R3-RETROSPECTIVE.md`](R3-RETROSPECTIVE.md).
 
 Keep coarse until R2 is accepted — **with one deliberate exception, recorded 2026-08-07.**
 
@@ -1924,9 +1943,50 @@ which is what makes the slice behave identically on every plan.
       key is supplied.
 - [ ] Version/document the new tools and their compatibility requirements.
 
-**R3 acceptance:** generic MCP clients can author reusable Figma design-system
+**Historical R3 acceptance:** generic MCP clients can author reusable Figma design-system
 resources through documented Figma-native contracts. Mapping OpenDesign—or any other
 design-system format—remains consumer work.
+
+---
+
+## Release R3 — design-system authoring (re-cut after R3-A)
+
+**Planning status: accepted; implementation has not begun.** R3 is one larger release plan,
+not one bulk build. Its internal phases are independently scoped and live-accepted in order;
+a public contract move in any phase still re-pins and re-runs the entire current live suite.
+The detailed evidence and acceptance conditions live in
+[`R3-RETROSPECTIVE.md`](R3-RETROSPECTIVE.md).
+
+- [x] **R3-A prerequisite — accepted.** Eleven core variable capabilities are stable and
+      live-accepted; `delete_variable_collection` is the separate `1.18.0` preview addendum
+      that made the collection-create gate net-zero. Current baseline: 77 tools, 20/20 live
+      gates, 450/450 offline checks.
+- [x] **R3.0 — gate-authoring protocol.** Every planned gate must name its platform fact,
+      control, independent observation, cleanup path, disposable target acknowledgement, and
+      `unmeasured` outcome before its tool is built. A known-bad refusal is proved before a
+      green mutating run whenever that boundary matters.
+- [ ] **R3.1 — generic measurement enablers.** Deliver the smallest consumer-neutral
+      operations that let the fork test its own open premises: group creation/ownership for
+      constraints, range-font mutation for a mixed-font target, and local paint-style
+      attachment for fill-style detachment. Each gets a distinct live gate, an independent
+      read/control, and a separately confirmed cleanup baseline.
+- [ ] **R3.2 — local style authoring.** Add local paint, text, effect, and grid style
+      lifecycle/attachment work only after its exact identity, remote refusal, cleanup, and
+      result-observation rules are designed. This phase owns the currently unmeasured
+      effect-style detachment premise; paint-style attachment does not silently prove it.
+- [ ] **R3.3 — components, variants, and instances.** Start with generic component
+      creation/ownership and instantiation, then variants/properties, then instance-property
+      mutation. The phase owns the instance-child write premise rather than relying on a
+      hand-prepared component. Code Connect, library publishing, and consumer mappings stay
+      out of scope.
+- [ ] **R3.4 — closure.** Freeze stability decisions, run each phase's own gate evidence,
+      and ensure the full live roster is current on the final runtime pair. Consumer proof is
+      separate integration evidence and never replaces fork fixtures.
+
+**R3 acceptance:** generic MCP clients can measure and author local design-system resources
+and component primitives through documented Figma-native contracts. Every claimed live
+behaviour has a discriminating gate; every remaining unknown is explicit rather than treated
+as support. Mapping OpenDesign—or any other design-system format—remains consumer work.
 
 ---
 

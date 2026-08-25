@@ -7,6 +7,10 @@ The record doc for the variable **write** tools: `set_variable_value`, `create_v
 three write tools), Phase 3 (layered resource identity for `create_variable`) and Phase 4
 (mode removal, plan item *2.5*).
 
+> **Follow-on planning:** R3-A's accepted evidence is reclassified and the rest of R3 is
+> re-cut in [`R3-RETROSPECTIVE.md`](../R3-RETROSPECTIVE.md). The collection-cleanup addendum
+> remains a fork-gate-coverage decision, not a consumer-ramp-cleanup decision.
+
 > ⚠️ The gate in this document **creates, aliases, rewrites and deletes real variables**.
 > Every invocation requires `--disposable-target=true`, and a channel is transport, not
 > evidence that the file behind it is disposable.

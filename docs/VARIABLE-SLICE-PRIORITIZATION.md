@@ -102,6 +102,14 @@ the empty collection behind. That last step stays a hand-edit, or pulls
 `delete_variable_collection` in as a fourth tool. **Decide when the decision is made, not
 now** — the shape of the ramp cleanup is the consumer's open question, not the fork's.
 
+**Addendum, 2026-08-25:** the fork later added `delete_variable_collection` as a `1.18.0`
+collection-cleanup addendum, but for a different reason: its own live gate for the already
+shipped `create_variable_collection` could not run without leaving permanent debris. This does
+**not** decide whether the consumer's eventual ramp correction should use that tool; the scope
+edge above remains conditional on that correction's actual shape. The addendum is now
+live-accepted on disposable channel `2v56aacl`; that acceptance proves the fork cleanup path,
+not a consumer cleanup choice.
+
 ## Coverage — the slice against the real consumer list
 
 The ten corrections in `umjuansantos/TASKS.md` §1.4, mapped to the tool that executes each.

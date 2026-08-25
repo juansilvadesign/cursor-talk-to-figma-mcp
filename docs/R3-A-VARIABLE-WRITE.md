@@ -1,7 +1,8 @@
-# R3-A Phases 2–4 — the variable-write slice
+# R3-A Phases 2–4 + collection cleanup — the variable-write slice
 
 The record doc for the variable **write** tools: `set_variable_value`, `create_variable`,
-`delete_variable`, and `remove_variable_mode`. Phase 1's read/probe work is recorded in
+`delete_variable`, `remove_variable_mode`, and the `1.18.0` collection-cleanup addendum
+`delete_variable_collection`. Phase 1's read/probe work is recorded in
 [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) §§ *1.1–1.3*; this file owns Phase 2 (the
 three write tools), Phase 3 (layered resource identity for `create_variable`) and Phase 4
 (mode removal, plan item *2.5*).
@@ -111,18 +112,20 @@ command set plus `serverSchemaVersion` and **deliberately not stability levels**
 without the schema bump the promotion would have shipped behind a byte-identical
 fingerprint. 65 `stable` / 10 `additive-preview` / 1 `legacy` at `1.16.0`.
 
-### Document restoration, and the one thing this fork cannot clean
+### Document restoration, and the then-open collection-cleanup gap
 
 Both runs restored *"8. Dimensions"* to its exact baseline — `Mobile / Tablet / Laptop`,
 default `17050:1` — with 25 pages, current page `0:1` and zero stray gate pages, each
 confirmed by a fresh read rather than by the absence of an error.
 
-⛔ **`create_variable_collection` leaves permanent debris: no `delete_variable_collection`
-exists in this fork.** Each acceptance run that exercises that leg (it is gated behind
+⚠️ **HISTORICAL — true through `1.17.0`:** `create_variable_collection` left permanent
+debris because no `delete_variable_collection` existed in this fork. Each acceptance run that
+exercised that leg (it was gated behind
 `--allow-permanent-collection=true` for exactly this reason) leaves one collection only the
 owner can delete by hand, reported in the gate's `stillOwed`. Run 1 left two — one from the
 failed attempt, one from the re-run — and run 2 left one. All three were deleted by the
-owner.
+owner. The `1.18.0` addendum below closes this fork-side gap; it does not retroactively change
+what those earlier runs measured.
 
 ## ✅✅ R3-A PHASE 4 — `remove_variable_mode`, LIVE-ACCEPTED 2026-08-24, channel `yizlybxy`
 
@@ -464,6 +467,39 @@ The gate now selects the target mode by id, baselines **every** mode before any 
 asserts that each write left every non-target mode byte-identical to its baseline. The
 refused alias cycle is held to the same standard.
 
+## ✅✅ R3-A collection-cleanup addendum — LIVE-ACCEPTED 2026-08-25, channel `2v56aacl`
+
+This is a **fork-gate coverage** addition, not a decision about the consumer's still-conditional
+canonical-ramp cleanup. The contract moved **`1.17.0` → `1.18.0`**, 76 → **77 tools**:
+`r3-a-server-b5649366daef` ↔ `r3-a-plugin-7f0d5389634e`, fingerprint
+`sha256:de4144fe…999e9`. `delete_variable_collection` remains `additive-preview`; its
+observation block is proven on the current Figma surface but deliberately remains extensible.
+
+The public boundary is stricter than a cascade delete: literal `confirm: true`, exact local
+collection resolution, typed remote refusal, and a pre-call membership read. If any variable
+belongs to the collection, the handler returns `collection_not_empty` with the exact ids/count
+in `blastRadius` and never calls `remove()` or deletes a variable on the caller's behalf.
+After an empty collection's `remove()`, it names an independent observation signal or returns
+`removal_unconfirmed`; a caller settles that latter case with a later inventory read.
+
+The dedicated gate paid its own known-bad proof first. A throwaway copy pinned to
+`r3-a-plugin-000000000000` exited **1 at `assertRuntime`** against the actual plugin, and its
+report reached only the published-surface check — no baseline, collection, variable, or cleanup
+entry. Its green run then created one owned collection and variable, proved the non-empty
+refusal (`variableCount: 1`), explicitly deleted the variable, and deleted the empty
+collection. Figma reported stale exact lookup but the independent
+`local_collection_inventory` no longer listed the collection; a later read restored the exact
+nine-collection baseline.
+
+The formerly blocked `live-variable-collections-bindings-gate` ran with
+`--allow-permanent-collection=true` in the same pass. Its collection-create leg now ends
+net-zero, also observed absent through local inventory, with `stillOwed: []`. The release move
+re-staled all 19 earlier pinned gates, so all 19 were re-pinned and re-run once; the new gate
+makes **20/20 passed**. The ceiling-gate precondition was rebuilt by adding six recorded short
+`__r3a-gf-*` modes to *"7. Grids"* (4 → 10), observing Figma's verbatim 10-mode refusal, then
+removing exactly those six ids. A separate final client session confirmed the original nine
+collection summaries, 25 pages, and current page `0:1`.
+
 ## Reproduction
 
 ```sh
@@ -490,6 +526,19 @@ node scripts/live-variable-mode-removal-gate.mjs \
   --collection-id=<local-collection-with-≥2-modes-and-room-for-one-more> \
   --disposable-target=true \
   --residue-collection-id=<collection-holding-the-authorized-residues>
+
+# R3-A collection-cleanup addendum — creates an owned collection and variable,
+# proves the non-empty refusal, then restores the exact collection inventory.
+node scripts/live-variable-collection-delete-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --disposable-target=true
+
+# The formerly opt-in collection/binding leg is now net-zero when explicitly authorized.
+node scripts/live-variable-collections-bindings-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --collection-id=<local-collection-with-mode-headroom> \
+  --disposable-target=true \
+  --allow-permanent-collection=true
 ```
 
 For the **Phase 2** gate prefer a **multi-mode** collection: on a single-mode target the
@@ -542,6 +591,12 @@ in-frame signal a modelled platform exposes. The default `"none"` is the conserv
 ⛔ The sole-remaining-mode test points the collection's default at another mode first.
 Without that the default guard would fire first and the sole-mode branch would sit unproven
 behind it — a refusal reached for the wrong reason is an unfired assertion.
+
+**The `1.18.0` collection addendum adds** `tests/variable-collection-delete.test.mjs` plus
+harness paths for literal confirmation, remote refusal, pre-call non-empty membership,
+unverified removal, and independent success observations. The final full release verification
+passed **450/450** before the live pass.
+
 ## Open debts
 
 - ✅ The `deleteVariable` comment correction travelled with R3-A Phase 3's real `code.js`
@@ -551,14 +606,17 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
 - ✅ **Phase 3's live identity gate is PAID** — twice on `lkm6ne6h`, see the acceptance
   section above. `create_variable`'s four-layer resolution and its `name_type_conflict`
   refusal are live evidence, not harness behaviour.
-- ✅ **`delete_variable`'s success path is live-proven.** `removalObserved: true` on both
-  cleanups is the first live confirmation of the Phase 2 defect fix.
+- ✅ **All three destructive success paths are live-proven.** `delete_variable` observed
+  `collection_membership`; `remove_variable_mode` observed resolved collection modes; and the
+  `1.18.0` `delete_variable_collection` addendum observed the independent
+  `local_collection_inventory` after the exact lookup remained stale.
 - ⏳ **The `removal_unconfirmed` deferral path is offline-covered but live-unexercised, for
-  BOTH destructive tools.** Phase 3 did not reach it for `delete_variable`
-  (`collection_membership` answered every time) and Phase 4 did not reach it for
-  `remove_variable_mode` (`resolved_collection_modes` answered all eight times). That is
-  exactly the branch an in-frame signal makes rare — it stays unproven live, deliberately,
-  because manufacturing it would mean faking a platform that does not behave that way.
+  ALL THREE destructive tools.** Phase 3 did not reach it for `delete_variable`
+  (`collection_membership` answered every time), Phase 4 did not reach it for
+  `remove_variable_mode` (`resolved_collection_modes` answered all eight times), and the
+  collection addendum did not reach it because local inventory answered. That is exactly the
+  branch an in-frame signal makes rare — it stays unproven live, deliberately, because
+  manufacturing it would mean faking a platform that does not behave that way.
 - ✅ **The 6 Phase 1.3 residues are GONE — removed live 2026-08-24 on `yizlybxy`**, each with
   its own fresh-read verification, and confirmed by a read from a separate client session.
   *"8. Dimensions"* is at 4 modes and the document-wide `modeCeiling.knownGoodAtLeast` fell
@@ -610,12 +668,13 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
   `knownGoodAtLeast` had to MOVE — pointing it at a lower collection would have let a frozen
   constant pass the same leg.
 
-  ⭐ **`create_variable_collection` is deliberately NOT the scratch target.** No tool in this
-  fork removes a collection, so that path leaves permanent debris; the add/remove **mode**
-  pair is the one net-zero write this fork can actually reverse. The gate therefore OWNS a
-  cleanup path — the inverse of `live-variable-mode-gate`, whose evidence is a refusal and
-  which owns none — and it runs in `finally`, on assertion failure too, reporting an
-  unverifiable cleanup in `stillOwed` with the exact mode id rather than exiting quiet.
+  ⭐ **HISTORICAL — `create_variable_collection` was deliberately NOT the scratch target at
+  `1.17.0`.** No tool then removed a collection, so that path left permanent debris; the
+  add/remove **mode** pair was the one net-zero write the fork could reverse. The `1.18.0`
+  addendum changes that narrow fact: the collections/bindings gate now creates and deletes its
+  owned collection in `finally`, fresh-reading absence and reporting it rather than leaving
+  `stillOwed` debris. The ceiling gate itself still uses modes because its evidence is a
+  refusal and it must not create a collection merely to reach that condition.
 
   🔴 **The refusal leg was PROVED to fire before the greens were believed.** A throwaway copy
   pinned to `r3-a-plugin-000000000000` exited **1** at `assertRuntime`, having reached only
@@ -635,3 +694,7 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
   `bind_variable_to_node` and `bind_variable_to_paint` all ship `stable` at `1.16.0` behind
   `live-variable-collections-bindings-gate`. ⭐ The modes row closed earlier:
   `add_variable_mode` and `remove_variable_mode` are both live-accepted.
+- ✅ **`delete_variable_collection` is live-accepted at `1.18.0`** and stays
+  `additive-preview`: its safe non-empty boundary and present live observation signal are
+  measured, while future Figma signal variants can still extend the receipt without falsely
+  presenting an unobserved branch as stable.

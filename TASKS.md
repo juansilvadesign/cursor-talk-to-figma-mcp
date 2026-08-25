@@ -8,6 +8,10 @@
 > [`ROADMAP.md`](ROADMAP.md); the completed read-layer overhaul and upstream split
 > remain in [`docs/READ-LAYER-PLAN.md`](docs/READ-LAYER-PLAN.md).
 >
+> **R3-A closed 2026-08-25.** The four candidate next pathways are written as
+> self-contained, paste-ready prompts in [`HANDOFFS.md`](HANDOFFS.md), each carrying the
+> current pins and the four traps that cost real time in this repo.
+>
 > **Implementation baselined 2026-07-28 at `956a6af`.** Commit `6c6adb7` added the
 > first planning files only; it did not change the runtime/tool surface.
 
@@ -227,7 +231,51 @@ nineteen re-pinned to `r3-a-server-d0897984aeb6` / `1.17.0` / `sha256:b67c85d4�
 once each — ALL NINETEEN PASSED**, including the capabilities gate that had just passed twice
 and was re-staled by its own promotion. Document confirmed byte-identical from a separate
 client session: 25 pages, no scratch leftovers, all 9 collections at their original mode
-counts, current page restored. The three R2.1/R2.2/R2.4 gates remain declined.
+counts, current page restored.
+
+### ✅✅ R3-A collection-cleanup addendum — LIVE ACCEPTANCE PAID 2026-08-25
+
+`delete_variable_collection` is entering at **`1.18.0` / 77 tools** because an existing
+**fork-side gate** could not exercise `create_variable_collection` without permanent debris.
+It is **not** a resolution of the separately deferred consumer question of whether an eventual
+canonical-ramp cleanup should remove an empty collection; that decision stays with the actual
+consumer correction. The tool is deliberately conservative: literal `confirm: true`, exact
+local resolution, a typed remote refusal, and `collection_not_empty` before any `remove()`.
+It reports the pre-call member count/ids as a non-cascading blast radius — it will never delete
+variables as a side effect — then names a post-removal observation signal or returns
+`removal_unconfirmed`.
+
+The source contract is `r3-a-server-b5649366daef` ↔ `r3-a-plugin-7f0d5389634e`, fingerprint
+`sha256:de4144fe…999e9`, with `delete_variable_collection` classified
+`additive-preview`. On owner-confirmed disposable channel **`2v56aacl`**, a throwaway copy
+with `r3-a-plugin-000000000000` exited **1 at `assertRuntime`** against the live plugin pair;
+its report had a published-surface check only — no baseline read, created collection, or
+cleanup entry. That proves the gate's refusal fires before its first mutation.
+
+The dedicated gate then passed creation → schema confirm refusal → typed
+`collection_not_empty` refusal (`variableCount: 1`, exact pre-call variable id) → explicit
+variable deletion → empty collection deletion. Figma's in-frame collection removal was
+observed by the independent **`local_collection_inventory`** signal, and a later inventory
+read restored the exact nine-collection baseline. The formerly blocked
+collections/bindings gate also passed with `--allow-permanent-collection=true`: it deleted its
+gate-owned collection through the same signal and ended with no `stillOwed` debt.
+
+✅✅ **THE TWENTY-GATE RE-PIN + RE-RUN IS PAID — 2026-08-25, channel `2v56aacl`.** All
+nineteen existing gates were re-pinned to this `1.18.0` build and re-run once; the new deletion
+gate is the twentieth. All twenty passed. The mode-ceiling gate required the documented
+precondition: *"7. Grids"* was taken **4 → 10** with six recorded `__r3a-gf-*` modes, Figma
+refused verbatim `in addMode: Limited to 10 modes only`, then exactly those six ids were
+removed back to the original four mode ids. A separate client session finally compared every
+collection summary to the pre-run baseline and confirmed **9 collections, 25 pages, and
+current page `0:1`**.
+
+🔴 **A CORRECTION TO THIS ENTRY'S OWN FIRST DRAFT: "the three R2.1/R2.2/R2.4 gates remain
+declined" was FALSE when written here.** They were folded into the re-pin set on 2026-08-25
+after being declined twice — see `tests/live-gate-pins.test.mjs` — and `live-export-gate`,
+`live-create-page-gate` and `live-batch-gate` are three of the nineteen that just passed. The
+sentence was copied forward from the superseded entry below without being resolved against the
+gate list it describes. ⛔ Same failure as the `get_variable_capabilities` ceiling claim this
+release exists to fix: a status line inherited from a neighbour, not re-derived.
 
 ⭐ **A FOURTH PIN SHAPE, measured not reasoned.** `code.js` changed (`apiVersion` → `1.17.0`,
 new fingerprint) while `pluginBuildId` **HELD** — that id hashes the file with its metadata
@@ -379,10 +427,10 @@ each — **ALL TEN PASSED**, verdicts read from each `report.json` `success`, ze
 left, pins proved checked in both the stale-declaration and `assertRuntime` directions. The
 ledger is back to the three R2.1/R2.2/R2.4 entries. Offline **378/378**.
 
-⏳ **Open:** R3-A still has no record doc of its own (R2.7 had `R2.7-VISUALS.md`); Phases 1.2
-and 1.3 are recorded inside the plan. **The broader Phase 2 surface is not started; its
-implemented three-tool R3-A slice still needs a live run on an explicitly disposable target.**
-The three R2.1/R2.2/R2.4 gates remain declined.
+⚠️ **HISTORICAL — superseded 2026-08-25:** R3-A once had no record doc of its own, its broader
+Phase 2 surface was unstarted, and the three-tool slice still awaited an explicitly disposable
+live run. `docs/R3-A-VARIABLE-WRITE.md` now records the full variable slice plus the `1.18.0`
+collection-cleanup addendum; the twenty-gate `2v56aacl` pass is the current acceptance record.
 
 ### Previous — R2 acceptance
 

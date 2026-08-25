@@ -11,7 +11,67 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25c — R3-A ACCEPTANCE COMPLETE: 18/18 TWICE, FREEZE + PROMOTION PAID)
+## ▶ Resume (checkpoint 2026-08-25d — R3-A CLOSED: `get_variable_capabilities` STABLE at `1.17.0`, 19/19)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R3-A IS COMPLETE.**
+  `get_variable_capabilities`, the last tool at `additive-preview`, is now **`stable`**.
+  Release **R3-A / `1.17.0` / 76 tools** — **66 `stable` / 9 `additive-preview` / 1 `legacy`** —
+  pair `r3-a-server-d0897984aeb6` ↔ `r3-a-plugin-07a616c3b48d`,
+  fp `sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd`.
+  Offline **443/443**. **All 19 live gates re-pinned to `1.17.0` and RE-RUN GREEN** on channel
+  `wi3cjzy3`; the stale-gate ledger is **empty**.
+- **Doing:** R3-A is closed. Four candidate pathways are written up as paste-ready prompts.
+- **Next step:** **Commit 3 files** — `TASKS.md`, `docs/VARIABLE-WRITE-PLAN.md`, and the new
+  `HANDOFFS.md`. Then pick a pathway from `HANDOFFS.md`.
+- **Key paths / IDs:**
+  - `HANDOFFS.md` (repo root, NEW) — the four next pathways, each self-contained:
+    ① build `delete_variable_collection` · ② R3-A retrospective + re-cut R3 ·
+    ③ consumer proof `umjuansantos` §1.4 · ④ upstream R3-A under RM12.
+    ⛔ It sits at the ROOT because `docs/*` is gitignored behind an allowlist.
+  - `scripts/live-variable-capabilities-gate.mjs` — the NEW 19th gate.
+  - Disposable file *"Starter File - PsiAtiva - Disposable"*: `VariableCollectionId:17050:782`
+    *"7. Grids"* (4 modes, the max — inflate THIS one when a gate needs a collection at the
+    ceiling), `17050:370` *"8. Dimensions"* (3). Mode ceiling **10**. Export-gate node
+    `95:1920` (2.75 MPx, page `1:2`).
+- **Open / blockers:** none. `create_variable_collection` is still unexercised live — its gate
+  leg needs `--allow-permanent-collection=true`, which leaves debris no fork tool can remove.
+  Pathway ① is what closes that.
+- **Don't forget:**
+  - ⛔ **The new gate's verdict is a DIFFERENTIAL, and that is deliberate.** Most of this
+    receipt is CONSTANT — `modeCeiling.value`, `remoteCollectionInventoryAvailable`,
+    `document.permissionVerified` are literals on every return path, so asserting them is
+    green for every possible document. They sit under `declaredLimitations`, explicitly NOT
+    as evidence. The gate predicts the inventory BEFORE driving one real mode-count change
+    through a *different* tool, then requires the next read to match: *"7. Grids"* 4 → 5 and
+    `knownGoodAtLeast` 4 → 5 across three derivations, everything else byte-identical, then
+    restored and confirmed cross-frame. **Point it at the collection AT the current max** —
+    a lower target lets a frozen constant pass the same leg.
+  - 🔴 **The blocker this release removed was MISATTRIBUTED for days.** The docs said "both
+    runs observed the ceiling at 10, so the stable-ceiling half is arguably earned" — but
+    `get_variable_capabilities` has **never** reported a ceiling and cannot; `modeCeiling.value`
+    is hardcoded `null` on every path. That was `add_variable_mode`'s evidence, two rows up in
+    the same table. So "a stable ceiling" was **unpayable**, not nearly-met, and was retired as
+    such. ⛔ The one-way price is accepted: `compatibilityErrors()` rejects
+    `stable` → `additive-preview` by name.
+  - ⛔ **`pluginBuildId` HELD while `code.js` changed — confirmed a SECOND time.** The promotion
+    rewrote the metadata block (`apiVersion` → `1.17.0`, new fp) but that id hashes the file
+    with the block *stripped*. The un-reloaded plugin refused at **`join_channel`** — earlier
+    than `assertRuntime` — with `expected 1.17.0, received 1.16.0` and
+    `plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`: **identical build id on both
+    sides of an incompatible pair.** No pin can catch this; the server's preflight did.
+  - ⛔ **`live-variable-mode-gate` needs its precondition REBUILT every time** — its evidence is
+    a platform limit, so it needs a collection AT the ceiling. *"7. Grids"* was inflated 4 → 10
+    (six `_gatefill_*` modes, ids recorded), run, then returned to 4 by removing exactly those
+    six. Zero failures. Net-zero only works because the fork ships the tool that reverses it.
+  - ⚠️ **The verdict-protocol split FIRED this run.** 18 gates report via `report.json`
+    `success`; **`live-export-gate` writes no such field** — its verdict is exit 0 +
+    `failure: null`. A runner keyed only on `success` scores it FAIL forever.
+  - 🔴 **A false line was caught in my OWN edit:** "the three R2.1/R2.2/R2.4 gates remain
+    declined" was copied forward into the new TASKS.md entry without being resolved — those
+    three were folded in on 08-25 and are three of the nineteen that just passed. Corrected
+    in place, with the correction recorded rather than silently patched.
+
+## ⤴ Previous checkpoint (2026-08-25c — R3-A ACCEPTANCE: 18/18 TWICE, FREEZE + PROMOTION PAID)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **THE 18-GATE LIVE PASS RAN
   GREEN TWICE, ON TWO DIFFERENT BUILDS.** Run 1 on **`1.15.0`** (channel `4k1jsjpo`, pair

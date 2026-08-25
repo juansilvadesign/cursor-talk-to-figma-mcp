@@ -319,7 +319,7 @@ published library and must be rejected with a typed refusal, never silently skip
 
 | Tool | Figma Plugin API | Notes |
 | --- | --- | --- |
-| `create_variable_collection` | `figma.variables.createVariableCollection(name)` | ✅ **BUILT at `1.15.0`** — layered identity (id → name → `identityKey`), publishes the mode Figma made as `defaultMode`. ⛔ No tool in this fork can DELETE a collection, so its live leg is opt-in behind `--allow-permanent-collection=true` |
+| `create_variable_collection` | `figma.variables.createVariableCollection(name)` | ✅ **BUILT at `1.15.0`** — layered identity (id → name → `identityKey`), publishes the mode Figma made as `defaultMode`. Its formerly permanent live-gate leg is made net-zero by the `1.18.0` collection-cleanup addendum below. |
 | `add_variable_mode` | `collection.addMode(name)` | ⚠️ Throws at the plan ceiling — surface, don't swallow |
 | `rename_variable_mode` | `collection.renameMode(modeId, name)` | ✅ **BUILT at `1.15.0`** — non-destructive; a rename to the CURRENT name is refused as `mode_name_unchanged`, because a no-op and a silent failure are identical bytes |
 | `remove_variable_mode` | `collection.removeMode(modeId)` | ✅✅ **LIVE-ACCEPTED at `1.14.0`** — destructive; refuses the default and the sole remaining mode. See 2.5 |
@@ -327,6 +327,7 @@ published library and must be rejected with a typed refusal, never silently skip
 | `set_variable_value` | `variable.setValueForMode(modeId, value)` | Accepts a raw value **or** an alias — see 2.2 |
 | `set_variable_metadata` | `variable.name` / `.description` / `.scopes` | ✅ **BUILT at `1.15.0`** — ⛔ three fields, no transaction: validate-all-then-write, per-field read-back, and `partially_applied` with the exact `appliedFields` when Figma refuses mid-way |
 | `delete_variable` | `variable.remove()` | Destructive |
+| `delete_variable_collection` | `collection.remove()` | ✅✅ **LIVE-ACCEPTED at `1.18.0`** — destructive, exact-local only, and deliberately refuses a non-empty collection with pre-call membership in `blastRadius`; it never cascades through variables. |
 | `bind_variable_to_node` | `node.setBoundVariable(field, variable)` | ✅ **BUILT at `1.15.0`** — no local field/type table; Figma's refusal is preserved verbatim. An unbindable field name that Figma accepts silently lands as `bind_unconfirmed`, not `bound` |
 | `bind_variable_to_paint` | `figma.variables.setBoundVariableForPaint(paint, 'color', v)` | ✅ **BUILT at `1.15.0`** — ⚠️ **Returns a NEW paint**, written back by replacing the whole readonly array; the receipt carries `writeBackPerformed`, and an offline test calls the API WITHOUT the write-back to prove the node is untouched |
 
@@ -350,12 +351,14 @@ published library and must be rejected with a typed refusal, never silently skip
       first field is a lie the caller cannot detect without a re-read. Per the cross-cutting rule
       *"Writes are exact and auditable"*: return per-item `{ok, id, matchedBy, error}`.
       ⛔ A batch that half-applies must never report success.
-- [x] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
+- [x] **2.5 Destructive boundary.** `delete_variable`, `remove_variable_mode`, and
+      `delete_variable_collection` require an
       explicit `confirm: true`. `TASKS.md` C5 already names *"explicit destructive
       boundaries"* as a fork responsibility.
-      ✅✅ **BOTH LIVE-ACCEPTED.** `delete_variable` at Phase 2/3;
+      ✅✅ **ALL THREE LIVE-ACCEPTED.** `delete_variable` at Phase 2/3;
       `remove_variable_mode` at Phase 4 — gate PASSED TWICE on `yizlybxy` 2026-08-24, and the
-      same runs removed the six Phase 1.3 residues. Both take a `z.literal(true)` in the
+      same runs removed the six Phase 1.3 residues; `delete_variable_collection` at the
+      `1.18.0` addendum on `2v56aacl`. All three take a `z.literal(true)` in the
       published schema **and** re-check it in
       the handler, because the plugin has a second entry point the schema does not police.
       ⭐ `remove_variable_mode`'s boundary is deliberately WIDER than `confirm`: it also
@@ -369,6 +372,13 @@ published library and must be rejected with a typed refusal, never silently skip
       always refuses first. Offline-covered only, by pointing the harness's default
       elsewhere. Defence-in-depth against a state Figma does not appear to produce.
       ⚠️ Record → [`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md) § *R3-A PHASE 4*.
+      The `1.18.0` collection-cleanup addendum applies the same literal schema and handler
+      re-check, then adds a stricter precondition: collection membership is read **before**
+      `remove()`, and any non-empty collection returns typed `collection_not_empty` with its
+      variable ids/count in `blastRadius`. After an empty collection's `remove()`, several
+      signals are probed independently; no signal is reported as
+      `removal_unconfirmed`, never as a green deletion. A later-frame inventory read is the
+      instrument that settles that branch.
 
 ### ✅✅ R3-A Phase 2 — first three tools, LIVE ACCEPTANCE PAID 2026-08-24
 
@@ -428,7 +438,7 @@ channel alone is not evidence that a real file is safe. The Phase 1.3
 **no cleanup path by design**: it may leave a caller-requested mode behind when the collection
 is not actually at its ceiling. Both gates require a disposable target on every invocation.
 
-### ⏳ R3-A Phase 2 — the REST of the table, BUILT + OFFLINE-GATED 2026-08-25
+### ✅✅ R3-A Phase 2 — the REST of the table, LIVE-ACCEPTED 2026-08-25
 
 `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
 `bind_variable_to_node` and `bind_variable_to_paint` close every remaining row above. The
@@ -468,14 +478,21 @@ contract moved **`1.14.0` → `1.15.0`, 71 → 76 tools**, pair
   an unknown field Figma accepts *silently* lands as `bind_unconfirmed`, which is also what a
   frame-deferred commit looks like — the live gate is what tells them apart.
 - ⭐ **The promotion rode along.** R3-A's five variable WRITES left `ADDITIVE_PREVIEW_RESULTS`
-  in the same change (`get_variable_capabilities` deliberately did **not** — its
-  `modeCeiling.value: null` is designed to grow, and `stable` would cost a
-  `publicContractVersion` to fill in). Sequencing the promotion BEFORE this build was the
-  point: both acts move `serverBuildId`, and doing them separately would have paid the
-  eighteen-gate live re-run twice.
+  in the same change. Sequencing the promotion BEFORE this build was the point: both acts move
+  `serverBuildId`, and doing them separately would have paid the eighteen-gate live re-run
+  twice.
+  ⚠️ **SUPERSEDED 2026-08-25:** this bullet used to add that `get_variable_capabilities`
+  "deliberately did **not**" join them, because `modeCeiling.value: null` is designed to grow.
+  It was promoted to `stable` at `1.17.0` once it earned a gate — and the growth argument was
+  found to be reasoning about a field the tool hardcodes to `null` on every return path, so the
+  condition it implied was unpayable rather than merely unmet. The gate count is now
+  **nineteen**, not eighteen.
 
-⏳ **LIVE ACCEPTANCE IS OWED** — `scripts/live-variable-collections-bindings-gate.mjs`, pinned
-to this build and never yet run:
+✅✅ **LIVE ACCEPTANCE IS PAID** — `scripts/live-variable-collections-bindings-gate.mjs` ran
+green on `4k1jsjpo`, and again in the nineteen-gate re-run on `wi3cjzy3` (2026-08-25) against
+`1.17.0`. It remains rerunnable exactly as below; `--allow-permanent-collection` was NOT passed
+in either run, so the `create_variable_collection` leg is still unexercised live and says so in
+`stillOwed`:
 
 ```sh
 node scripts/live-variable-collections-bindings-gate.mjs \
@@ -485,13 +502,18 @@ node scripts/live-variable-collections-bindings-gate.mjs \
   [--allow-permanent-collection=true]
 ```
 
-⛔ **`--allow-permanent-collection` is a SEPARATE acknowledgement, and the reason is a real
-gap in this fork: there is no `delete_variable_collection`.** Every other resource the gate
-creates — the probe mode, the probe variables, the scratch page — is removed by a fork tool at
-the end, which is what keeps the gate rerunnable. A created collection cannot be, so that leg
-leaves one behind permanently, removable only by hand in Figma's UI. That is the Phase 1.3
-residue hazard one level up and strictly worse, so it stays opt-in and the debris is reported
-in `stillOwed` rather than discovered later.
+⚠️ **HISTORICAL — this was true through `1.17.0`:** `--allow-permanent-collection` was a
+separate acknowledgement because no `delete_variable_collection` tool existed. Every other
+resource the gate created — the probe mode, probe variables, and scratch page — was removed,
+but a created collection could only be removed by hand in Figma's UI.
+
+**The `1.18.0` collection-cleanup addendum removes that fork-side coverage block.** The flag
+remains a separate acknowledgement so callers deliberately authorize the collection-create leg,
+but cleanup now deletes the gate-owned empty collection and fresh-reads it absent. This is
+explicitly **not** a decision on the deferred consumer ramp-cleanup scope edge in
+`VARIABLE-SLICE-PRIORITIZATION.md`: that consumer decision remains conditional on the actual
+ramp work. The deciding reason here is narrower and fork-side — an existing fork gate could
+not honestly exercise its own shipped create tool without permanent debris.
 
 ⭐ **The measurement the gate exists for:** nothing Figma documents says whether `renameMode()`
 becomes visible from inside the calling frame. Phase 4 *measured* that `collection.modes` does
@@ -568,10 +590,36 @@ fresh-frame cleanup of the variable it created. Full record →
       identity gate pins the exact `1.13.0` pair above and has now **been run** — twice — so
       that pin is quotable as live evidence rather than a source-edit claim.
 
+### ✅✅ R3-A collection-cleanup addendum — LIVE-ACCEPTED 2026-08-25
+
+`delete_variable_collection` is a **fork-gate coverage** addendum, not a reopening of the
+consumer's ramp-removal scope decision. It moves the public contract `1.17.0` → **`1.18.0`**
+and 76 → **77 tools**, currently `r3-a-server-b5649366daef` ↔
+`r3-a-plugin-7f0d5389634e`, fingerprint `sha256:de4144fe…999e9`. It ships
+`additive-preview`: the receipt's multi-signal observation block has offline coverage and one
+live success path, but the possible signal mix remains intentionally open to later Figma
+versions and files.
+
+The handler accepts only literal `confirm: true`, resolves only the exact local collection,
+refuses `collection_not_empty` without calling `remove()`, and reports the pre-call membership
+as the non-cascading blast radius. It may report `removal_unconfirmed` after `remove()` when no
+in-frame signal distinguishes a real deletion from a no-op; the live gate treats a later-frame
+exact inventory restoration as the deciding evidence. The gate first proved its own bad-pin
+refusal on `2v56aacl`: a throwaway `r3-a-plugin-000000000000` pin exited 1 at
+`assertRuntime`, before baseline or creation checks. Its green run then created one collection
+and variable, refused the non-empty collection with exact membership, removed only that
+variable, and observed collection absence through `local_collection_inventory`; a later read
+restored the exact nine-collection baseline. The existing collections/bindings gate ran with
+its separate acknowledgement in the same pass and deleted its previously permanent owned
+collection, also observed by the independent local inventory. All 19 older gates were then
+re-run once against the new pins (20 gates total); a separate final session confirmed 25 pages,
+current page `0:1`, and the exact pre-run collection inventory.
+
 ## Acceptance
 
 A generic MCP client can create a variable collection, add a mode where the plan allows,
-create typed variables, set raw and aliased values per mode, rename/rescope/delete them,
+create typed variables, set raw and aliased values per mode, rename/rescope/delete them, and
+delete **only an explicitly confirmed empty local collection**,
 and bind them to node fields and paints — receiving typed per-item outcomes, an honest
 capability report instead of a silent failure, and no duplicates on rerun.
 

@@ -171,7 +171,7 @@ test("the stable get_node_info result stays unchanged; only the new receipts exp
   }
 });
 
-test("the public contract keeps two stable node writes while R3-A schema 1.18.0 holds", async () => {
+test("the public contract keeps two stable node writes while R3.1 schema 1.19.0 holds", async () => {
   const built = await buildContract();
   const opacityTool = built.contract.tools.find((entry) => entry.name === "set_opacity");
   const blendTool = built.contract.tools.find((entry) => entry.name === "set_blend_mode");
@@ -196,12 +196,12 @@ test("the public contract keeps two stable node writes while R3-A schema 1.18.0 
     "PASS_THROUGH belongs to the node-level surface even though paint/effect schemas exclude it",
   );
 
-  // 1.16.0 → 1.17.0 promoted `get_variable_capabilities` (2026-08-25); 1.18.0 then adds
-  // `delete_variable_collection` as additive-preview. These two tools' frozen promises are
-  // unchanged by either event — that is exactly what this test asserts.
-  assert.equal(built.contract.publicContractVersion, "1.18.0");
-  assert.equal(built.contract.serverSchemaVersion, "1.18.0");
-  assert.equal(built.release.pluginApiVersion, "1.18.0");
+  // 1.16.0 → 1.17.0 promoted `get_variable_capabilities`; 1.18.0 added
+  // `delete_variable_collection`; 1.19.0 adds R3.1's three additive measurement
+  // enablers. These two tools' frozen promises are unchanged by every event.
+  assert.equal(built.contract.publicContractVersion, "1.19.0");
+  assert.equal(built.contract.serverSchemaVersion, "1.19.0");
+  assert.equal(built.release.pluginApiVersion, "1.19.0");
 });
 
 test("both R2.7 item 1.3 tools are explicitly absent from v1 apply_batch", () => {

@@ -12,13 +12,13 @@ import path from "path";
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R3-A",
-  "serverBuildId": "r3-a-server-b5649366daef",
-  "pluginBuildId": "r3-a-plugin-7f0d5389634e",
-  "serverSchemaVersion": "1.18.0",
-  "pluginApiVersion": "1.18.0",
+  "release": "R3.1",
+  "serverBuildId": "r3.1-server-beff31768985",
+  "pluginBuildId": "r3.1-plugin-ed16fbb94fa9",
+  "serverSchemaVersion": "1.19.0",
+  "pluginApiVersion": "1.19.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -34,6 +34,7 @@ var RUNTIME_METADATA = {
     "read_my_design",
     "create_rectangle",
     "create_frame",
+    "create_group",
     "create_text",
     "set_fill_color",
     "set_stroke_color",
@@ -64,6 +65,7 @@ var RUNTIME_METADATA = {
     "set_corner_radius",
     "set_text_content",
     "set_text_style",
+    "set_range_font",
     "clone_node",
     "scan_text_nodes",
     "set_multiple_text_contents",
@@ -83,6 +85,7 @@ var RUNTIME_METADATA = {
     "set_size_limits",
     "set_clips_content",
     "set_fill",
+    "set_fill_style",
     "set_effects",
     "set_opacity",
     "set_blend_mode",
@@ -107,6 +110,7 @@ var RUNTIME_METADATA = {
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
@@ -154,6 +158,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
+    "figma.command.set_fill_style@1",
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
@@ -167,6 +172,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
+    "figma.command.set_range_font@1",
     "figma.command.set_selections@1",
     "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
@@ -186,6 +192,7 @@ var RUNTIME_METADATA = {
     "create_component_instance",
     "create_connections",
     "create_frame",
+    "create_group",
     "create_node_from_svg",
     "create_page",
     "create_rectangle",
@@ -234,6 +241,7 @@ var RUNTIME_METADATA = {
     "set_effects",
     "set_fill",
     "set_fill_color",
+    "set_fill_style",
     "set_focus",
     "set_image_fill",
     "set_instance_overrides",
@@ -247,6 +255,7 @@ var RUNTIME_METADATA = {
     "set_padding",
     "set_parent",
     "set_plugin_data",
+    "set_range_font",
     "set_selections",
     "set_size_limits",
     "set_stroke_color",
@@ -1304,6 +1313,37 @@ server.tool(
   }
 );
 server.tool(
+  "create_group",
+  "Create one native Figma group from explicitly named scene nodes under an explicit parent. The group API preserves members' absolute bounds when it succeeds; the receipt reads those bounds before and after rather than assuming the preservation. All local structure checks (non-empty, unique, same-page, non-overlapping members, compatible parent and index) happen before Figma is asked to group anything. This creates only the group relationship; it does not create components or edit style resources.",
+  {
+    nodeIds: z.array(z.string()).min(1).max(100).describe("1-100 existing scene-node IDs to group. Duplicates and ancestor/descendant pairs are refused before grouping."),
+    parentId: z.string().describe("Explicit PAGE, FRAME, GROUP, SECTION, or other child-accepting parent in the same page as every member."),
+    index: z.number().int().nonnegative().optional().describe("Optional insertion index in the explicit parent. Omit to let Figma place the new group after its existing children.")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("create_group", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating group: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
   "create_text",
   "Create a new text element in Figma, with the same typography parameters set_text_style writes onto an existing node. \u26D4 Validate-all-then-create: every parameter is checked, the parent resolved and the font loaded BEFORE the node is created, so a refusal leaves no orphan node on the page. \u26D4 An unloadable font is REFUSED, never substituted \u2014 this tool will not create a node in a face nobody asked for, so preflight with check_fonts and expect an error rather than a fallback. fontWeight reaches Inter's styles only and cannot be combined with fontFamily/fontStyle; supply the pair to name any installed face exactly.",
   {
@@ -1774,6 +1814,39 @@ server.tool(
           {
             type: "text",
             text: `Error setting text style: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_range_font",
+  "Set one exact font face over a non-empty character range of a TEXT node. start is inclusive and end is exclusive. The requested face is loaded before Figma's range setter runs; invalid ranges, unsupported targets, and unloadable faces are refused before any document write. The result contains a direct range read-back before and after, so a mixed result is reported as MIXED rather than silently reduced to one face.",
+  {
+    nodeId: z.string().describe("The ID of the TEXT node to mutate."),
+    start: z.number().int().nonnegative().describe("Inclusive character offset."),
+    end: z.number().int().nonnegative().describe("Exclusive character offset; must be greater than start and at most the text length."),
+    fontFamily: z.string().min(1).describe("Exact, case-sensitive Figma font family to load and apply."),
+    fontStyle: z.string().min(1).describe("Exact, case-sensitive Figma font style to load and apply.")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_range_font", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting range font: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };
@@ -3749,6 +3822,36 @@ server.tool(
           {
             type: "text",
             text: `Error setting fill: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_fill_style",
+  "Attach one exact local paint-style ID to a node, or pass styleId: null to clear its paint-style attachment. This operation does not create, edit, import, or attach remote/library styles. It uses Figma's asynchronous fill-style attachment API and returns the node's style ID read before and after the call; a mixed or unreadable style reference is reported explicitly rather than as no style.",
+  {
+    nodeId: z.string().describe("The ID of the node whose fill-style attachment changes."),
+    styleId: z.string().min(1).nullable().describe("Exact ID returned by get_styles.colors for a local paint style, or null to clear the attachment. Remote/library IDs are refused.")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_fill_style", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting fill style: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

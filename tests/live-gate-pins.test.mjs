@@ -157,7 +157,34 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // collections/bindings opt-in leg both observed owned-collection absence through the independent
 // local collection inventory.
 
-const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
+// R3.1 adds three new public commands, which necessarily changes the published runtime
+// fingerprint. Rewriting an old pin to make this test green is NOT a live run; the twenty
+// R3-A runs above remain evidence for `R3-A` / 1.18.0 only. Keep those runners explicitly
+// historical until an owner-confirmed disposable-file pass re-executes them on R3.1. The
+// three gates that exercise R3.1's new measurement enablers are deliberately absent here:
+// they pin this runtime and are runnable, but are not claimed as executed by an offline test.
+const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
+  "live-batch-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-clips-content-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-constraints-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 group scenario has a new dedicated gate",
+  "live-create-page-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-effects-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-export-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-fill-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 local-style scenario has a new dedicated gate",
+  "live-layout-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-opacity-blend-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-plugin-data-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-size-limits-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-svg-crop-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-text-style-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 range-font scenario has a new dedicated gate",
+  "live-variable-capabilities-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-collection-delete-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-collections-bindings-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-identity-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-mode-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-mode-removal-gate.mjs": "R3-A / 1.18.0 live evidence",
+  "live-variable-write-gate.mjs": "R3-A / 1.18.0 live evidence",
+});
 
 function readPins(source) {
   const block = /const expectedRuntime = \{([\s\S]*?)\n\};/.exec(source);
@@ -296,10 +323,11 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // 2026-08-25 re-pin; 18 once the collections/bindings gate landed in the same change; 19
   // once `live-variable-capabilities-gate.mjs` gave `get_variable_capabilities` the scripted
   // verdict it had been promoted-blocked on; 20 once `delete_variable_collection` gained its
-  // dedicated disposable-file deletion-and-restoration gate.
+  // dedicated disposable-file deletion-and-restoration gate; 23 when R3.1 added its three
+  // dedicated measurement-enabler gates.
   assert.equal(
     parsed.length,
-    20,
-    `expected 20 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    23,
+    `expected 23 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

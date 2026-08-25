@@ -25,10 +25,11 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   // then 70 → 71 at Phase 4 (`remove_variable_mode`), then 71 → 76 when Phase 2's remaining
   // table landed (`create_variable_collection`, `rename_variable_mode`,
   // `set_variable_metadata`, `bind_variable_to_node`, `bind_variable_to_paint`), then
-  // 76 → 77 for the conservative collection-cleanup tool
-  // (`delete_variable_collection`). The literal is a tripwire, not bookkeeping: it is here
+  // 76 → 77 for the conservative collection-cleanup tool (`delete_variable_collection`),
+  // then 77 → 80 for R3.1's three additive measurement enablers (`create_group`,
+  // `set_range_font`, `set_fill_style`). The literal is a tripwire, not bookkeeping: it is here
   // so a tool arriving or vanishing cannot pass unremarked.
-  assert.equal(snapshot.tools.length, 77);
+  assert.equal(snapshot.tools.length, 80);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));

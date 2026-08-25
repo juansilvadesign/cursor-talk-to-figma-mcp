@@ -1,10 +1,10 @@
 {
-  "release": "R3-A",
-  "publicContractVersion": "1.18.0",
-  "serverSchemaVersion": "1.18.0",
+  "release": "R3.1",
+  "publicContractVersion": "1.19.0",
+  "serverSchemaVersion": "1.19.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -15,6 +15,7 @@
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
@@ -62,6 +63,7 @@
     "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
+    "figma.command.set_fill_style@1",
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
@@ -75,6 +77,7 @@
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
+    "figma.command.set_range_font@1",
     "figma.command.set_selections@1",
     "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
@@ -111,6 +114,7 @@
       "read_my_design",
       "create_rectangle",
       "create_frame",
+      "create_group",
       "create_text",
       "set_fill_color",
       "set_stroke_color",
@@ -145,6 +149,7 @@
       "clone_node",
       "set_text_content",
       "set_text_style",
+      "set_range_font",
       "scan_text_nodes",
       "set_multiple_text_contents",
       "get_annotations",
@@ -161,6 +166,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_fill_style",
       "set_effects",
       "set_opacity",
       "set_blend_mode",
@@ -190,6 +196,7 @@
       "read_my_design",
       "create_rectangle",
       "create_frame",
+      "create_group",
       "create_text",
       "set_fill_color",
       "set_stroke_color",
@@ -224,6 +231,7 @@
       "clone_node",
       "set_text_content",
       "set_text_style",
+      "set_range_font",
       "scan_text_nodes",
       "set_multiple_text_contents",
       "get_annotations",
@@ -240,6 +248,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_fill_style",
       "set_effects",
       "set_opacity",
       "set_blend_mode",
@@ -269,6 +278,7 @@
       "read_my_design",
       "create_rectangle",
       "create_frame",
+      "create_group",
       "create_text",
       "set_fill_color",
       "set_stroke_color",
@@ -299,6 +309,7 @@
       "set_corner_radius",
       "set_text_content",
       "set_text_style",
+      "set_range_font",
       "clone_node",
       "scan_text_nodes",
       "set_multiple_text_contents",
@@ -318,6 +329,7 @@
       "set_size_limits",
       "set_clips_content",
       "set_fill",
+      "set_fill_style",
       "set_effects",
       "set_opacity",
       "set_blend_mode",
@@ -943,6 +955,48 @@
       },
       "pluginCommand": "create_frame",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_group",
+      "description": "Create one native Figma group from explicitly named scene nodes under an explicit parent. The group API preserves members' absolute bounds when it succeeds; the receipt reads those bounds before and after rather than assuming the preservation. All local structure checks (non-empty, unique, same-page, non-overlapping members, compatible parent and index) happen before Figma is asked to group anything. This creates only the group relationship; it does not create components or edit style resources.",
+      "direction": "write",
+      "scope": "requested_nodes_and_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "1-100 existing scene-node IDs to group. Duplicates and ancestor/descendant pairs are refused before grouping."
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Explicit PAGE, FRAME, GROUP, SECTION, or other child-accepting parent in the same page as every member."
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional insertion index in the explicit parent. Omit to let Figma place the new group after its existing children."
+          }
+        },
+        "required": [
+          "nodeIds",
+          "parentId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_group",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -3166,6 +3220,46 @@
     },
     {
       "kind": "tool",
+      "name": "set_fill_style",
+      "description": "Attach one exact local paint-style ID to a node, or pass styleId: null to clear its paint-style attachment. This operation does not create, edit, import, or attach remote/library styles. It uses Figma's asynchronous fill-style attachment API and returns the node's style ID read before and after the call; a mixed or unreadable style reference is reported explicitly rather than as no style.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node whose fill-style attachment changes."
+          },
+          "styleId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exact ID returned by get_styles.colors for a local paint style, or null to clear the attachment. Remote/library IDs are refused."
+          }
+        },
+        "required": [
+          "nodeId",
+          "styleId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_fill_style",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "set_focus",
       "description": "Set focus on a specific node in Figma by selecting it and scrolling viewport to it",
       "direction": "write",
@@ -3752,6 +3846,57 @@
       },
       "pluginCommand": "set_plugin_data",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_range_font",
+      "description": "Set one exact font face over a non-empty character range of a TEXT node. start is inclusive and end is exclusive. The requested face is loaded before Figma's range setter runs; invalid ranges, unsupported targets, and unloadable faces are refused before any document write. The result contains a direct range read-back before and after, so a mixed result is reported as MIXED rather than silently reduced to one face.",
+      "direction": "write",
+      "scope": "text_character_range",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the TEXT node to mutate."
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Inclusive character offset."
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exclusive character offset; must be greater than start and at most the text length."
+          },
+          "fontFamily": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact, case-sensitive Figma font family to load and apply."
+          },
+          "fontStyle": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact, case-sensitive Figma font style to load and apply."
+          }
+        },
+        "required": [
+          "nodeId",
+          "start",
+          "end",
+          "fontFamily",
+          "fontStyle"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_range_font",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

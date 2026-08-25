@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R3-A",
-  "buildId": "r3-a-plugin-7f0d5389634e",
-  "apiVersion": "1.18.0",
-  "serverSchemaVersion": "1.18.0",
+  "release": "R3.1",
+  "buildId": "r3.1-plugin-ed16fbb94fa9",
+  "apiVersion": "1.19.0",
+  "serverSchemaVersion": "1.19.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -25,6 +25,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "read_my_design",
     "create_rectangle",
     "create_frame",
+    "create_group",
     "create_text",
     "set_fill_color",
     "set_stroke_color",
@@ -55,6 +56,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_corner_radius",
     "set_text_content",
     "set_text_style",
+    "set_range_font",
     "clone_node",
     "scan_text_nodes",
     "set_multiple_text_contents",
@@ -74,6 +76,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_size_limits",
     "set_clips_content",
     "set_fill",
+    "set_fill_style",
     "set_effects",
     "set_opacity",
     "set_blend_mode",
@@ -98,6 +101,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
+    "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
@@ -145,6 +149,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_effects@1",
     "figma.command.set_fill@1",
     "figma.command.set_fill_color@1",
+    "figma.command.set_fill_style@1",
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
@@ -158,6 +163,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_padding@1",
     "figma.command.set_parent@1",
     "figma.command.set_plugin_data@1",
+    "figma.command.set_range_font@1",
     "figma.command.set_selections@1",
     "figma.command.set_size_limits@1",
     "figma.command.set_stroke_color@1",
@@ -336,6 +342,8 @@ async function handleCommand(command, params) {
       return await createRectangle(params);
     case "create_frame":
       return await createFrame(params);
+    case "create_group":
+      return await createGroup(params);
     case "create_text":
       return await createText(params);
     case "set_fill_color":
@@ -398,6 +406,8 @@ async function handleCommand(command, params) {
       return await setTextContent(params);
     case "set_text_style":
       return await setTextStyle(params);
+    case "set_range_font":
+      return await setRangeFont(params);
     case "clone_node":
       return await cloneNode(params);
     case "scan_text_nodes":
@@ -475,6 +485,8 @@ async function handleCommand(command, params) {
       return await setClipsContent(params);
     case "set_fill":
       return await setFill(params);
+    case "set_fill_style":
+      return await setFillStyle(params);
     case "set_effects":
       return await setEffects(params);
     case "set_opacity":
@@ -1992,6 +2004,199 @@ async function createFrame(params) {
     layoutMode: frame.layoutMode,
     layoutWrap: frame.layoutWrap,
     parentId: frame.parent ? frame.parent.id : undefined,
+  };
+}
+
+// R3.1 — native group creation is deliberately small. A GROUP is useful here as an
+// ownership boundary for downstream measurements, not as a general replacement for
+// frames, components, or parenting operations.
+const MAX_GROUP_MEMBERS = 100;
+
+function groupPageId(node) {
+  let current = node;
+  while (current) {
+    if (current.type === "PAGE") return current.id;
+    current = current.parent;
+  }
+  return null;
+}
+
+function groupIsAncestor(ancestor, node) {
+  let current = node;
+  while (current) {
+    if (current.id === ancestor.id) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function groupAbsoluteBounds(node) {
+  try {
+    const bounds = node.absoluteBoundingBox;
+    if (!bounds) return null;
+    const values = [bounds.x, bounds.y, bounds.width, bounds.height];
+    if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
+      return null;
+    }
+    return {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function sameGroupBounds(before, after) {
+  if (!before || !after) return null;
+  return (
+    before.x === after.x &&
+    before.y === after.y &&
+    before.width === after.width &&
+    before.height === after.height
+  );
+}
+
+async function createGroup(params) {
+  const input = params || {};
+  const { nodeIds, parentId, index } = input;
+
+  // ---- Validation phase: no document mutation below this line ----
+  if (!Array.isArray(nodeIds) || nodeIds.length === 0) {
+    throw new Error("create_group requires nodeIds as a non-empty array and created nothing");
+  }
+  if (nodeIds.length > MAX_GROUP_MEMBERS) {
+    throw new Error(
+      `create_group accepts at most ${MAX_GROUP_MEMBERS} members; received ${nodeIds.length} and created nothing`
+    );
+  }
+  if (nodeIds.some((id) => typeof id !== "string" || id.length === 0)) {
+    throw new Error("create_group requires every nodeId to be a non-empty string and created nothing");
+  }
+  if (new Set(nodeIds).size !== nodeIds.length) {
+    throw new Error("create_group refuses duplicate nodeIds and created nothing");
+  }
+  if (typeof parentId !== "string" || parentId.length === 0) {
+    throw new Error("create_group requires an explicit non-empty parentId and created nothing");
+  }
+  if (index !== undefined && (!Number.isInteger(index) || index < 0)) {
+    throw new Error(
+      `create_group index must be a non-negative integer when supplied; received ${JSON.stringify(index)} and created nothing`
+    );
+  }
+  if (typeof figma.group !== "function") {
+    throw new Error(
+      "create_group is unavailable in this Figma runtime: figma.group is not exposed, so no group was created"
+    );
+  }
+
+  const parent = await figma.getNodeByIdAsync(parentId);
+  if (!parent) {
+    throw new Error(`create_group parent ${parentId} was not found and created nothing`);
+  }
+  if (parent.type === "DOCUMENT" || !("appendChild" in parent)) {
+    throw new Error(
+      `create_group parent ${parentId} is a ${parent.type} and cannot contain a group; created nothing`
+    );
+  }
+  if (Array.isArray(parent.children) && index !== undefined && index > parent.children.length) {
+    throw new Error(
+      `create_group index ${index} is beyond parent ${parentId}'s ${parent.children.length} children and created nothing`
+    );
+  }
+
+  const parentPageId = groupPageId(parent);
+  if (!parentPageId) {
+    throw new Error(
+      `create_group could not resolve a PAGE ancestor for parent ${parentId} and created nothing`
+    );
+  }
+
+  const members = await Promise.all(nodeIds.map((id) => figma.getNodeByIdAsync(id)));
+  for (let memberIndex = 0; memberIndex < members.length; memberIndex += 1) {
+    const member = members[memberIndex];
+    const memberId = nodeIds[memberIndex];
+    if (!member) {
+      throw new Error(`create_group member ${memberId} was not found and created nothing`);
+    }
+    if (member.type === "DOCUMENT" || member.type === "PAGE") {
+      throw new Error(
+        `create_group member ${memberId} is a ${member.type}, not a scene node; created nothing`
+      );
+    }
+    if (groupPageId(member) !== parentPageId) {
+      throw new Error(
+        `create_group member ${memberId} is not in parent ${parentId}'s page; cross-page grouping is refused before any write`
+      );
+    }
+    if (groupIsAncestor(member, parent)) {
+      throw new Error(
+        `create_group cannot put parent ${parentId} inside member ${memberId}'s subtree; created nothing`
+      );
+    }
+  }
+
+  for (let outer = 0; outer < members.length; outer += 1) {
+    for (let inner = outer + 1; inner < members.length; inner += 1) {
+      if (groupIsAncestor(members[outer], members[inner]) || groupIsAncestor(members[inner], members[outer])) {
+        throw new Error(
+          `create_group refuses ancestor/descendant members ${members[outer].id} and ${members[inner].id}; created nothing`
+        );
+      }
+    }
+  }
+
+  const before = members.map((member) => ({
+    id: member.id,
+    absoluteBounds: groupAbsoluteBounds(member),
+  }));
+
+  // ---- Native write phase ----
+  // Figma owns grouping semantics (including the eventual group bounds). The receipt below
+  // observes the result instead of reconstructing geometry or predicting a native error.
+  let group;
+  try {
+    group =
+      index === undefined
+        ? figma.group(members, parent)
+        : figma.group(members, parent, index);
+  } catch (error) {
+    throw new Error(
+      `Figma rejected create_group after local preflight: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const memberBounds = members.map((member, memberIndex) => {
+    const after = groupAbsoluteBounds(member);
+    return {
+      id: member.id,
+      parentId: member.parent ? member.parent.id : null,
+      absoluteBoundsBefore: before[memberIndex].absoluteBounds,
+      absoluteBoundsAfter: after,
+      absoluteBoundsPreserved: sameGroupBounds(before[memberIndex].absoluteBounds, after),
+    };
+  });
+  const allBoundsReadable = memberBounds.every(
+    (member) => member.absoluteBoundsBefore && member.absoluteBoundsAfter
+  );
+
+  return {
+    id: group.id,
+    name: group.name,
+    type: group.type,
+    parentId: group.parent ? group.parent.id : null,
+    memberIds: members.map((member) => member.id),
+    memberCount: members.length,
+    indexRequested: index === undefined ? null : index,
+    groupIndex:
+      Array.isArray(parent.children) ? parent.children.indexOf(group) : null,
+    groupAbsoluteBounds: groupAbsoluteBounds(group),
+    memberBounds,
+    absoluteBoundsPreserved: allBoundsReadable
+      ? memberBounds.every((member) => member.absoluteBoundsPreserved === true)
+      : null,
   };
 }
 
@@ -7662,6 +7867,130 @@ function textStyleReadable(value) {
   return typeof value === "symbol" ? "MIXED" : value;
 }
 
+// R3.1's range receipt uses Figma's own range getter. A node-level `fontName` is not a
+// substitute: it is `figma.mixed` for a mixed node and cannot say whether THIS interval
+// changed. Keep unreadable, mixed, and concrete readings separate so a missing observation
+// never turns into a claim that the range has no style.
+function readRangeFont(node, start, end) {
+  if (typeof node.getRangeFontName !== "function") {
+    return { readable: false, mixed: false, font: null };
+  }
+  try {
+    const raw = node.getRangeFontName(start, end);
+    if (raw === figma.mixed || typeof raw === "symbol") {
+      return { readable: true, mixed: true, font: null };
+    }
+    if (
+      raw &&
+      typeof raw.family === "string" &&
+      typeof raw.style === "string"
+    ) {
+      return {
+        readable: true,
+        mixed: false,
+        font: { family: raw.family, style: raw.style },
+      };
+    }
+    return { readable: false, mixed: false, font: null };
+  } catch (_) {
+    return { readable: false, mixed: false, font: null };
+  }
+}
+
+function rangeFontMatches(reading, font) {
+  if (!reading.readable) return null;
+  if (reading.mixed || !reading.font) return false;
+  return reading.font.family === font.family && reading.font.style === font.style;
+}
+
+async function setRangeFont(params) {
+  const input = params || {};
+  const { nodeId, start, end, fontFamily, fontStyle } = input;
+
+  // ---- Validation phase: no document write below this line ----
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    throw new Error("set_range_font requires a non-empty nodeId and wrote nothing");
+  }
+  if (!Number.isInteger(start) || !Number.isInteger(end)) {
+    throw new Error(
+      `set_range_font start and end must be integer character offsets; received start=${JSON.stringify(start)}, end=${JSON.stringify(end)} and wrote nothing`
+    );
+  }
+  if (typeof fontFamily !== "string" || fontFamily.length === 0) {
+    throw new Error("set_range_font requires a non-empty fontFamily and wrote nothing");
+  }
+  if (typeof fontStyle !== "string" || fontStyle.length === 0) {
+    throw new Error("set_range_font requires a non-empty fontStyle and wrote nothing");
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`set_range_font node ${nodeId} was not found and wrote nothing`);
+  }
+  if (node.type !== "TEXT") {
+    throw new Error(
+      `set_range_font requires a TEXT node; ${nodeId} is ${node.type} and wrote nothing`
+    );
+  }
+  if (typeof node.characters !== "string") {
+    throw new Error(
+      `set_range_font could not read TEXT characters for ${nodeId}, so it cannot validate the range and wrote nothing`
+    );
+  }
+  if (start < 0 || end <= start || end > node.characters.length) {
+    throw new Error(
+      `set_range_font requires a non-empty [start, end) range inside 0..${node.characters.length}; received [${start}, ${end}) and wrote nothing`
+    );
+  }
+  if (
+    typeof node.getRangeFontName !== "function" ||
+    typeof node.setRangeFontName !== "function"
+  ) {
+    throw new Error(
+      `set_range_font is unavailable on TEXT node ${nodeId}: this Figma runtime does not expose both range font APIs, so nothing was written`
+    );
+  }
+
+  const requestedFont = { family: fontFamily, style: fontStyle };
+  try {
+    // Loading affects Figma's plugin-session font cache, not the document. It belongs in
+    // preflight so an unavailable face cannot turn a range write into a partial mutation.
+    await figma.loadFontAsync(requestedFont);
+  } catch (error) {
+    throw new Error(
+      `set_range_font could not load ${fontFamily} ${fontStyle} and wrote nothing: ${error instanceof Error ? error.message : String(error)}. This tool refuses rather than substituting another face.`
+    );
+  }
+
+  const before = readRangeFont(node, start, end);
+
+  // ---- Write phase ----
+  try {
+    await node.setRangeFontName(start, end, requestedFont);
+  } catch (error) {
+    throw new Error(
+      `Figma rejected set_range_font for ${nodeId} [${start}, ${end}) after preflight: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const after = readRangeFont(node, start, end);
+  return {
+    scope: "text_range",
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    start,
+    end,
+    characterCount: node.characters.length,
+    rangeLength: end - start,
+    requestedFont,
+    fontLoaded: true,
+    before,
+    after,
+    readbackMatchesRequested: rangeFontMatches(after, requestedFont),
+  };
+}
+
 function textStyleSnapshot(node) {
   const snapshot = {};
   for (const property of TEXT_STYLE_PROPERTIES) {
@@ -11067,11 +11396,124 @@ function readFillStyleId(node) {
   try {
     raw = node.fillStyleId;
   } catch (error) {
-    return { readable: false, styleId: null };
+    return { readable: false, mixed: false, styleId: null };
   }
-  if (raw === undefined) return { readable: false, styleId: null };
-  if (raw === figma.mixed) return { readable: true, styleId: null };
-  return { readable: true, styleId: raw === "" ? null : raw };
+  if (raw === undefined) return { readable: false, mixed: false, styleId: null };
+  if (raw === figma.mixed || typeof raw === "symbol") {
+    return { readable: true, mixed: true, styleId: null };
+  }
+  return { readable: true, mixed: false, styleId: raw === "" ? null : raw };
+}
+
+// R3.1 — direct local paint-style attachment. `set_fill` intentionally owns a different
+// action (replacing paints), so this does not reuse its assignment path or pretend that a
+// local style is the same resource as a remote/library style the current file references.
+async function setFillStyle(params) {
+  const input = params || {};
+  const { nodeId, styleId } = input;
+
+  // ---- Validation phase: no document write below this line ----
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    throw new Error("set_fill_style requires a non-empty nodeId and wrote nothing");
+  }
+  if (styleId !== null && (typeof styleId !== "string" || styleId.length === 0)) {
+    throw new Error(
+      "set_fill_style requires an exact non-empty local paint style ID or null to clear, and wrote nothing"
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`set_fill_style node ${nodeId} was not found and wrote nothing`);
+  }
+  if (!("fillStyleId" in node)) {
+    throw new Error(
+      `set_fill_style node ${nodeId} is a ${node.type} with no fill-style surface, so nothing was written`
+    );
+  }
+  if (typeof node.setFillStyleIdAsync !== "function") {
+    throw new Error(
+      `set_fill_style is unavailable on node ${nodeId}: this Figma runtime exposes no asynchronous fill-style attachment API, so nothing was written`
+    );
+  }
+
+  let localStyle = null;
+  if (styleId !== null) {
+    if (typeof figma.getLocalPaintStylesAsync !== "function") {
+      throw new Error(
+        "set_fill_style cannot verify the requested style is local because getLocalPaintStylesAsync is unavailable; nothing was written"
+      );
+    }
+    let localPaintStyles;
+    try {
+      localPaintStyles = await figma.getLocalPaintStylesAsync();
+    } catch (error) {
+      throw new Error(
+        `set_fill_style could not load local paint styles and wrote nothing: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+    localStyle = Array.isArray(localPaintStyles)
+      ? localPaintStyles.find((style) => style && style.id === styleId) || null
+      : null;
+    if (!localStyle) {
+      let knownStyle = null;
+      if (typeof figma.getStyleByIdAsync === "function") {
+        try {
+          knownStyle = await figma.getStyleByIdAsync(styleId);
+        } catch (_) {
+          // A failed diagnostic lookup must not turn into an invented remote/local claim.
+        }
+      }
+      if (knownStyle && knownStyle.remote === true) {
+        throw new Error(
+          `set_fill_style refuses remote/library paint style ${styleId}; this R3.1 operation attaches only IDs returned by the current file's local paint-style inventory, and wrote nothing`
+        );
+      }
+      throw new Error(
+        `set_fill_style style ${styleId} is not an exact local paint-style ID in this file, and wrote nothing`
+      );
+    }
+  }
+
+  const before = readFillStyleId(node);
+
+  // ---- Write phase ----
+  try {
+    // Dynamic-page Figma exposes fillStyleId as a read surface; the async method is the
+    // mutation surface. Empty string is the native clear representation, normalized back
+    // to null in the public receipt.
+    await node.setFillStyleIdAsync(styleId === null ? "" : styleId);
+  } catch (error) {
+    throw new Error(
+      `Figma rejected set_fill_style for node ${nodeId} after preflight: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  const after = readFillStyleId(node);
+  const readbackMatchesRequested =
+    !after.readable || after.mixed
+      ? null
+      : after.styleId === styleId;
+
+  return {
+    scope: "node_fill_style",
+    id: node.id,
+    name: node.name,
+    type: node.type,
+    action: styleId === null ? "cleared" : "attached",
+    requestedStyleId: styleId,
+    localStyle:
+      localStyle === null
+        ? null
+        : { id: localStyle.id, name: localStyle.name || null },
+    styleIdBefore: before.styleId,
+    styleIdAfter: after.styleId,
+    styleReadable: before.readable && after.readable,
+    styleMixedBefore: before.mixed,
+    styleMixedAfter: after.mixed,
+    readbackMatchesRequested,
+    outcome: readbackMatchesRequested === true ? "confirmed" : "unconfirmed",
+  };
 }
 
 function isFiniteNumber(value) {

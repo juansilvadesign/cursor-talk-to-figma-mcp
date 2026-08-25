@@ -447,16 +447,17 @@ test("the public contract pins the supported types, stable status, scope, and ba
 // weaker level) added no tool, command or field, so the fingerprint would have held
 // byte-identical without the bump. The three-fields-together invariant is what this test
 // guards; the version is only its pin. ⭐ 1.17.0 → 1.18.0 adds the generic,
-// additive-preview `delete_variable_collection` capability. A new command already moves the
-// fingerprint, but the three public version fields still move together so a consumer can pin
-// the release coherently.
-test("the R3-A collection-cleanup addendum keeps all three 1.18.0 version fields together", async () => {
+// additive-preview `delete_variable_collection` capability, then 1.18.0 → 1.19.0 adds
+// R3.1's three additive measurement enablers. A new command already moves the fingerprint,
+// but the three public version fields still move together so a consumer can pin the release
+// coherently.
+test("the R3.1 measurement enablers keep all three 1.19.0 version fields together", async () => {
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.18.0");
-  assert.equal(release.serverSchemaVersion, "1.18.0");
-  assert.equal(release.pluginApiVersion, "1.18.0");
+  assert.equal(release.publicContractVersion, "1.19.0");
+  assert.equal(release.serverSchemaVersion, "1.19.0");
+  assert.equal(release.pluginApiVersion, "1.19.0");
 });
 
 /**

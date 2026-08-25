@@ -495,6 +495,19 @@ function createFixtureRuntime(fixture, options) {
             styleId = value;
           },
         });
+
+        // Dynamic-page Figma writes paint-style bindings through an async method rather
+        // than the readable `fillStyleId` property. This fake follows that split so the
+        // R3.1 handler cannot pass by assigning the deprecated property directly. The
+        // silent-discard option is an honesty instrument: a reply that echoes its input
+        // fails against a node whose async setter accepts but does not retain the value.
+        node.setFillStyleIdAsync = async (value) => {
+          if ((options.ignoreFillStyleWrites || []).includes(node.id)) return;
+          styleId = value;
+        };
+        if ((options.fillStyleAttachmentApiMissing || []).includes(node.id)) {
+          delete node.setFillStyleIdAsync;
+        }
       } else {
         delete node.fills;
         delete node.fillStyleId;
@@ -683,21 +696,78 @@ function createFixtureRuntime(fixture, options) {
       if (options.exportBytes) return Uint8Array.from(options.exportBytes);
       return Uint8Array.from([137, 80, 78, 71]);
     };
-    // A fixture declares `fontRanges` to model a genuinely mixed text node. Without
-    // this the harness could only ever build single-font text, which is exactly why no
-    // offline test could reach the mixed-font defect.
-    if (Array.isArray(node.fontRanges) && node.fontRanges.length > 0) {
-      const ranges = node.fontRanges;
-      const distinct = new Set(ranges.map(fontKey));
-      // ⛔ `fontName` is a GETTER/SETTER pair on a ranged node, not a data property.
-      // Assigning a font to a mixed node in Figma collapses its per-character runs; a
-      // plain data property would have let `fontName` report the new face while
-      // `getRangeFontName` went on describing the old mixed state, so a test asserting
-      // "the node is no longer mixed" would have passed without the node ever changing.
-      let fontNameValue =
-        distinct.size > 1
-          ? MIXED
-          : { family: ranges[0].family, style: ranges[0].style };
+    // A fixture declares `fontRanges` to model a genuinely mixed text node. R3.1 also
+    // needs the inverse operation: one explicit interval can change while the characters
+    // outside it retain their face. The old fake discarded every outside run whenever
+    // `setRangeFontName` was called, so an implementation that accidentally unified the
+    // whole node could pass its own range receipt. This model preserves and re-segments
+    // runs; it is a structural instrument, not a claim about Figma's layout engine.
+    if (node.type === "TEXT") {
+      const textLength = () =>
+        typeof node.characters === "string" ? node.characters.length : 0;
+      const initialFont =
+        node.fontName && typeof node.fontName !== "symbol"
+          ? { family: node.fontName.family, style: node.fontName.style }
+          : null;
+      const ranges = Array.isArray(node.fontRanges) && node.fontRanges.length > 0
+        ? node.fontRanges.map((range) => ({ ...range }))
+        : initialFont && textLength() > 0
+          ? [{ start: 0, end: textLength(), ...initialFont }]
+          : [];
+
+      const normalizedRanges = () => {
+        const ordered = ranges
+          .filter(
+            (range) =>
+              Number.isInteger(range.start) &&
+              Number.isInteger(range.end) &&
+              range.start < range.end &&
+              typeof range.family === "string" &&
+              typeof range.style === "string",
+          )
+          .sort((left, right) => left.start - right.start || left.end - right.end);
+        const merged = [];
+        for (const range of ordered) {
+          const previous = merged[merged.length - 1];
+          if (
+            previous &&
+            previous.end === range.start &&
+            previous.family === range.family &&
+            previous.style === range.style
+          ) {
+            previous.end = range.end;
+          } else {
+            merged.push({ ...range });
+          }
+        }
+        ranges.length = 0;
+        ranges.push(...merged);
+      };
+
+      const rangesCoverText = () => {
+        if (textLength() === 0) return true;
+        let cursor = 0;
+        for (const range of ranges) {
+          if (range.start !== cursor) return false;
+          cursor = range.end;
+        }
+        return cursor === textLength();
+      };
+
+      const fontNameFromRanges = () => {
+        if (ranges.length === 0) return initialFont;
+        if (!rangesCoverText()) return MIXED;
+        const distinct = new Set(ranges.map(fontKey));
+        return distinct.size === 1
+          ? { family: ranges[0].family, style: ranges[0].style }
+          : MIXED;
+      };
+
+      // ⛔ `fontName` is a GETTER/SETTER pair, not a parallel data property. A node-level
+      // font assignment deliberately unifies all its current characters, while a range
+      // assignment below does not. Keeping one source of truth is what lets the tests tell
+      // the two operations apart.
+      let fontNameValue = fontNameFromRanges();
       Object.defineProperty(node, "fontName", {
         enumerable: true,
         configurable: true,
@@ -705,25 +775,58 @@ function createFixtureRuntime(fixture, options) {
         set: (value) => {
           fontNameValue = value;
           if (value && value !== MIXED && typeof value !== "symbol") {
-            const end = ranges.length > 0 ? ranges[ranges.length - 1].end : 0;
             ranges.length = 0;
-            ranges.push({
-              start: 0,
-              end,
-              family: value.family,
-              style: value.style,
-            });
+            if (textLength() > 0) {
+              ranges.push({
+                start: 0,
+                end: textLength(),
+                family: value.family,
+                style: value.style,
+              });
+            }
           }
         },
       });
       node.getRangeFontName = (start, end) => rangeFontFor(ranges, start, end);
       node.setRangeFontName = (start, end, font) => {
+        if (options.strictRangeFontLoading && !loadedFonts.has(fontKey(font))) {
+          throw new Error(`Cannot set range font before loading ${font.family} ${font.style}`);
+        }
+        if ((options.ignoreRangeFontWrites || []).includes(node.id)) return;
+
+        const next = [];
+        for (const range of ranges) {
+          if (range.end <= start || range.start >= end) {
+            next.push({ ...range });
+            continue;
+          }
+          if (range.start < start) {
+            next.push({ ...range, end: start });
+          }
+          next.push({
+            start: Math.max(range.start, start),
+            end: Math.min(range.end, end),
+            family: font.family,
+            style: font.style,
+          });
+          if (range.end > end) {
+            next.push({ ...range, start: end });
+          }
+        }
+        // A bare text node can start with no declared range in a hand-written fixture.
+        // The requested interval remains meaningful, so represent it rather than turning a
+        // write into a no-op solely because the fixture omitted a redundant font run.
+        if (!ranges.some((range) => range.start < end && range.end > start)) {
+          next.push({ start, end, family: font.family, style: font.style });
+        }
         ranges.length = 0;
-        ranges.push({ start, end, family: font.family, style: font.style });
+        ranges.push(...next);
+        normalizedRanges();
+        fontNameValue = fontNameFromRanges();
       };
-      // Figma's real range API answers with EVERY distinct face covering the range, so
-      // a caller can load them all before writing. `getRangeFontName` cannot substitute
-      // for it: on a mixed range it returns one symbol and names no face at all.
+      // Figma's real range API answers with EVERY distinct face covering the range, so a
+      // caller can load them all before writing. `getRangeFontName` cannot substitute for
+      // it: on a mixed range it returns one symbol and names no face at all.
       node.getRangeAllFontNames = (start, end) => {
         const seen = new Set();
         const faces = [];
@@ -1345,6 +1448,43 @@ function createFixtureRuntime(fixture, options) {
     createFrame: () => createDynamicNode("FRAME", "Frame"),
     createText: () => createDynamicNode("TEXT", "Text"),
     createSection: () => createDynamicNode("SECTION", "Section"),
+    // R3.1's group fake models the structural contract needed by the handler: members
+    // move under one GROUP while their absolute bounds survive. It does not model Figma's
+    // auto-layout, boolean-operation, or instance restrictions; those remain native-gate
+    // questions and are not smuggled into an offline fixture as invented refusals.
+    group: (members, parent, index) => {
+      if (!Array.isArray(members) || members.length === 0) {
+        throw new Error("group requires at least one member");
+      }
+      if (!parent || !Array.isArray(parent.children)) {
+        throw new Error("group requires a child-accepting parent");
+      }
+      const memberBoxes = members.map((member) => ({
+        member,
+        box: absoluteBoxOf(member),
+      }));
+      const minX = Math.min(...memberBoxes.map(({ box }) => box.x));
+      const minY = Math.min(...memberBoxes.map(({ box }) => box.y));
+      const maxX = Math.max(...memberBoxes.map(({ box }) => box.x + box.width));
+      const maxY = Math.max(...memberBoxes.map(({ box }) => box.y + box.height));
+      const parentOrigin = absoluteOrigin(parent);
+      const group = makeNode({
+        id: `900:${dynamicId++}`,
+        type: "GROUP",
+        name: "Group",
+        x: minX - parentOrigin.x,
+        y: minY - parentOrigin.y,
+        width: maxX - minX,
+        height: maxY - minY,
+      });
+      appendChild(parent, group, index === undefined ? parent.children.length : index);
+      for (const { member, box } of memberBoxes) {
+        member.x = box.x - minX;
+        member.y = box.y - minY;
+        appendChild(group, member);
+      }
+      return group;
+    },
     // R2.7 Phase 2. ⛔ **THIS MODELS STRUCTURE, NOT FIGMA'S PARSER.** A real
     // `createNodeFromSvg` returns one FrameNode whose subtree is whatever Figma's own SVG
     // parser produced, and this harness cannot and must not predict that: how many nodes a
@@ -1425,6 +1565,10 @@ function createFixtureRuntime(fixture, options) {
   Object.defineProperty(figma, "currentPage", {
     get: () => currentPage,
   });
+
+  if (options.groupApiMissing) {
+    delete figma.group;
+  }
 
   if (options.variablesApi === false) {
     figma.variables = undefined;

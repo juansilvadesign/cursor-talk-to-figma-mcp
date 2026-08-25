@@ -81,6 +81,12 @@ const TIMEOUT_RANK = {
 const HEAVY_BATCH_TOOLS = new Set(["apply_batch"]);
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
+  // R3.1's three measurement enablers need their distinct live gates before their
+  // receipts can freeze. They are deliberately additive rather than a correction to a
+  // stable creator/style/text surface.
+  "create_group",
+  "set_range_font",
+  "set_fill_style",
   // R3-A's collection-cleanup addendum is new and destructive. Its observation block
   // deliberately has room to grow after Figma is measured live, so it must not fall through
   // to stable before the dedicated gate judges it.
@@ -315,6 +321,10 @@ const TOOL_SCOPES = {
   export_node_as_image: "node",
   create_rectangle: "current_page_or_parent",
   create_frame: "current_page_or_parent",
+  // `create_group` moves every requested member under a newly-created group inside the
+  // named parent. Calling this simply "node" would hide the multi-node reparenting, while
+  // calling it "document" would imply an unrelated scan or write.
+  create_group: "requested_nodes_and_parent",
   // R2.7 Phase 2. Same scope as the other creates: it lands on the current page, or inside
   // an explicit parentId. ⚠️ The subtree it creates can be large, but scope describes WHERE
   // a call writes, not how much — createdNodeCount reports the size as a reading.
@@ -333,6 +343,9 @@ const TOOL_SCOPES = {
   // way, so this costs nothing — but the fallback is what made get_available_fonts
   // silently wrong in Phase 2, and a write tool is the wrong place to rely on it.
   set_text_style: "node",
+  // A range operation changes neither the whole node nor an independent style resource;
+  // the interval is the actual write target and has to remain visible in the contract.
+  set_range_font: "text_character_range",
   // R2.6 2.1, same reasoning. ⭐ Worth a second look here because the tool READS its
   // parent to decide whether to refuse — but scope describes what a call can CHANGE,
   // and this one changes exactly one node. The parent read is a precondition, not scope.
@@ -356,6 +369,8 @@ const TOOL_SCOPES = {
   // node stops pointing at it — so the scope holds, and the receipt reports the detach
   // precisely because it is the part a reader of this line would not expect.
   set_fill: "node",
+  // The paint style resource itself is not edited; only one node's attachment changes.
+  set_fill_style: "node",
   // R2.7 1.2. Same scope as set_fill: effects can change how a node renders, but the
   // assignment touches one node only. An effect-style detach changes the node's reference,
   // not the style resource itself, and the receipt makes that secondary reading explicit.

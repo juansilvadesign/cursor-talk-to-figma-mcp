@@ -32,15 +32,33 @@ if (!options.channel) {
 }
 
 const expectedRuntime = {
-  release: "R2",
-  serverBuildId: "r2-server-41d4d9bcf84a",
-  pluginBuildId: "r2-plugin-7e738b3a6c10",
-  schemaVersion: "1.2.1",
+  release: "R3-A",
+  serverBuildId: "r3-a-server-c4d037a645e3",
+  pluginBuildId: "r3-a-plugin-fe0b1e03325c",
+  schemaVersion: "1.14.0",
   fingerprint:
-    "sha256:eb7ac4f8579cc56e584292d27e1476aa0e46155a16fee3f00cfa71301e2e2dab",
+    "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
 };
-const nodeId = "1113:5031";
-const rejectedScale = 3;
+// ⛔ WAS `const nodeId = "1113:5031"` — a node in a DIFFERENT document, which made this
+// gate silently unrunnable anywhere else. The sixteen-gate re-pin found it: the gate did not
+// fail on a stale pin, it failed with "Node not found", because the fixture it needs had
+// never been part of its own contract. A gate bound to one file's node ids is a gate that
+// can only ever be re-run against that file.
+const nodeId = options["node-id"];
+if (!nodeId) {
+  process.stderr.write(
+    "Usage: node scripts/live-export-gate.mjs --channel=<DEV-plugin-channel> --node-id=<node whose area exceeds ~1.78 MPx so an over-limit scale exists> [--output-dir=<dir>] [--server=<dist-server-path>]\n",
+  );
+  process.exit(2);
+}
+// The megapixel ceiling this gate expects the PLATFORM to enforce. It is not used to decide
+// the verdict — the refusal's own reported limit is asserted against it below — only to
+// derive a scale that is guaranteed to be over it for THIS node.
+const expectedMegapixelLimit = 16;
+// ⭐ DERIVED from the node's measured bounds, not hardcoded. A fixed scale of 3 only trips a
+// 16 MP ceiling for nodes above ~1.78 MPx; below that the export simply succeeds and the
+// gate fails for a reason that has nothing to do with export safety.
+let rejectedScale = null;
 const preferredScale = 0.5;
 const serverPath = path.resolve(options.server || path.join(root, "dist/server.js"));
 const artifactDirectory = options["output-dir"]
@@ -216,6 +234,38 @@ try {
   assertRuntime(before.value);
   record.runtimeBefore = before.value;
 
+  // ⭐ MEASURE THE NODE, THEN CHOOSE A SCALE THAT MUST BE REFUSED. The old gate hardcoded
+  // scale 3 and trusted that it exceeded the ceiling — true only for the one node it named.
+  // Here the over-limit condition is computed from the node's real bounds and then CONFIRMED
+  // by the platform's own refusal numbers, so the refusal can never be incidental.
+  const measured = (await callJson("get_node_info", { nodeId })).value;
+  const bounds = measured.absoluteBoundingBox;
+  assert.ok(
+    bounds && Number.isFinite(bounds.width) && Number.isFinite(bounds.height),
+    `node ${nodeId} has no finite absoluteBoundingBox, so no scale can be derived from it`,
+  );
+  const areaPx = bounds.width * bounds.height;
+  // Smallest 0.1-step scale whose projection clears the ceiling, plus one step of margin so
+  // float rounding cannot land exactly on it.
+  const minimumOverLimitScale = Math.sqrt((expectedMegapixelLimit * 1_000_000) / areaPx);
+  rejectedScale = Math.round((minimumOverLimitScale + 0.1) * 10) / 10;
+  const projectedAtRejected = projectedMegapixels(bounds.width, bounds.height, rejectedScale);
+  assert.ok(
+    projectedAtRejected > expectedMegapixelLimit,
+    `derived scale ${rejectedScale} projects ${projectedAtRejected} MP, which does not exceed the ${expectedMegapixelLimit} MP ceiling — pick a larger node`,
+  );
+  record.fixture = {
+    nodeId,
+    nodeName: measured.name,
+    nodeType: measured.type,
+    boundsWidth: bounds.width,
+    boundsHeight: bounds.height,
+    areaPx,
+    expectedMegapixelLimit,
+    derivedRejectedScale: rejectedScale,
+    projectedMegapixelsAtRejectedScale: projectedAtRejected,
+  };
+
   const rejectedStarted = Date.now();
   const rejectedResult = await callRaw(
     "export_node_as_image",
@@ -236,6 +286,14 @@ try {
     `Over-limit export took ${rejectedDurationMs} ms to refuse`,
   );
   const refusal = parseRefusal(rejectedMessage);
+  // ⛔ The ceiling this gate DERIVED its scale from must be the ceiling the platform actually
+  // enforces. Without this, a platform change to the limit would silently turn the derivation
+  // into a guess and the refusal into luck.
+  assert.equal(
+    refusal.megapixelLimit,
+    expectedMegapixelLimit,
+    "the platform's megapixel ceiling moved; the derived scale is no longer known to exceed it",
+  );
   assert.ok(refusal.projectedMegapixels > refusal.megapixelLimit);
   const rejectedFileExists = await pathExists(rejectedPath);
   assert.equal(rejectedFileExists, false, "Rejected export unexpectedly wrote a file");

@@ -28,12 +28,12 @@ if (!options.channel) {
 // correctly refusing to measure an R1 runtime, and a page-creating write is worse to
 // attribute to the wrong build than a read is.
 const expectedRuntime = {
-  release: "R2",
-  serverBuildId: "r2-server-79eb6a3d10d2",
-  pluginBuildId: "r2-plugin-3b393bab2224",
-  schemaVersion: "1.3.0",
+  release: "R3-A",
+  serverBuildId: "r3-a-server-c4d037a645e3",
+  pluginBuildId: "r3-a-plugin-fe0b1e03325c",
+  schemaVersion: "1.14.0",
   fingerprint:
-    "sha256:3f2407b87e1497fd7e77d5f1fcaad2ec735fe1bebeb114be1115eb05c310bb45",
+    "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

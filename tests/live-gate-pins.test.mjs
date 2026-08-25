@@ -41,194 +41,81 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
  * DECLARED gate whose pins match again fails too — a stale declaration is the same class
  * of lie as a stale pin, and `NON_ATOMIC_BATCH_OPERATIONS` learned that the hard way.
  */
-const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
-  "live-export-gate.mjs":
-    "R2.1, schema 1.2.1. Last run against that build; re-pin and re-run before its result is quoted again.",
-  "live-create-page-gate.mjs":
-    "R2.2, schema 1.3.0. Last run against that build; re-pin and re-run before its result is quoted again.",
-  "live-plugin-data-gate.mjs":
-    "R2.4, schema 1.4.0. Last run against that build; re-pin and re-run before its result is quoted again.",
-  // R3-A Phase 3 changes create_variable's behavior and both runtime identities at 1.13.0.
-  // The Phase 2 gate remains valid evidence for its paid 1.12.0 build, but it cannot be
-  // quoted for this source until a disposable-target run re-pins it. Phase 3 has its own
-  // fresh identity gate pinned to the current build below instead of rewriting this receipt.
-  "live-variable-write-gate.mjs":
-    "R3-A Phase 2, schema 1.12.0. Last run against the paid Phase 2 build; re-pin and re-run only on an owner-confirmed disposable Figma file before quoting it for the Phase 3 source.",
-  // ⛔ R3-A Phase 4 (`remove_variable_mode`, 1.14.0) moved BOTH build ids beneath the
-  // Phase 3 identity gate, so the gate that was this tree's one current-build gate an hour
-  // ago is now unrunnable — it would refuse at assertRuntime before reaching a check. Its
-  // TWO PASSES on `lkm6ne6h` remain valid evidence for the 1.13.0 build they ran on and
-  // for nothing else. ⚠️ It joins the deferred set rather than being re-pinned alone,
-  // which takes that set from FIFTEEN to SIXTEEN.
-  "live-variable-identity-gate.mjs":
-    "R3-A Phase 3, schema 1.13.0. Passed twice on that build; re-pin and re-run only on an owner-confirmed disposable Figma file before quoting it for the Phase 4 source.",
-  // R3-A Phase 2 moves both runtime artifacts to 1.12.0. The earlier Phase 1.3 gate set
-  // must be re-pinned and re-run as a set before its results are quoted again. Every run
-  // needs an owner-supplied disposable Figma target; `live-variable-mode-gate.mjs` has no
-  // cleanup by design, while the Phase 2 write gate cleans up only best-effort.
-  "live-batch-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-clips-content-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-constraints-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-effects-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-fill-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-layout-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-opacity-blend-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-size-limits-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-svg-crop-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-text-style-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Re-pin and re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  "live-variable-mode-gate.mjs":
-    "R3-A Phase 1.3, schema 1.11.0. Its no-cleanup ceiling probe must be re-run only on an owner-confirmed disposable Figma file before quoting this result again.",
-  // ✅✅ **THE R3-A PHASE 1.3 RE-PIN IS DONE — 2026-08-24, channel `hdejcpog`.** The same
-  // TEN were re-pinned to `r3-a-server-af8987322467` ↔ `r3-a-plugin-b5ee1c0b619a`, schema
-  // 1.11.0, fingerprint `sha256:6a68b351…deb6428`, 67 tools, and RE-RUN once each on one
-  // channel. **All ten PASSED**, each verdict read from its own `report.json` `success`
-  // field rather than from stdout — ⚠️ `live-batch-gate` still prints NO `PASSED` line and
-  // its exit 0 is not a verdict. A separate read after the set confirmed ZERO scratch/gate
-  // pages left in the file. Their entries are DELETED rather than reworded — the
-  // declaration and the run travelled together, which is the whole rule.
-  //
-  // ⭐ **The pins were proved CHECKED in BOTH directions, in this same pass.** (1) Stale
-  // declaration: with the ten re-pinned but still declared, this very test went RED and
-  // named `live-batch-gate.mjs`. (2) `assertRuntime`: a throwaway copy of
-  // `live-clips-content-gate.mjs` carrying `r3-a-plugin-000000000000` exited 1 naming both
-  // ids (expected `000000000000`, received `b5ee1c0b619a`), created no scratch page, and
-  // left the file untouched; the copy was then deleted. Ten greens whose refusal leg was
-  // never fired would be a set of unfired assertions.
-  //
-  // ⛔ **The channel was a DISPOSABLE COPY of a real design-system file**, supplied by the
-  // owner for exactly this. The ten gates mutate a scratch page they create and delete; the
-  // Phase 1.3 mode gate does not clean up by design. Never point either at a real file.
-  // ✅✅ **THE R3-A PHASE 1.2 RE-PIN IS DONE — 2026-08-24, channel `6a07fm2h`.** The same
-  // TEN were re-pinned to `r3-a-server-0d303490d152` ↔ `r3-a-plugin-6ed0aab0ecdc`, schema
-  // 1.10.0, fingerprint `sha256:b367651f…751279`, 66 tools, and RE-RUN once each on one
-  // channel. **All ten PASSED**, each on a fresh scratch page of the six-page file
-  // `SYD (SaveYourDay) - Spaceapps`, each restoring that baseline; a separate read after
-  // the pass confirmed the file's own six pages. Their entries are DELETED rather than
-  // reworded — the declaration and the run travelled together, which is the whole rule.
-  //
-  // ⭐ **The build this pass pinned is NOT the build Phase 1.2 first shipped.** The live
-  // validation of `get_variable_capabilities` on channel `mlag5jfc` found that `isRemote`
-  // could never be `true`: the inventory comes from `getLocalVariableCollectionsAsync()`,
-  // which returns LOCAL collections only, so the field's observed `false` was its only
-  // reachable value and `localCollectionCount` could never differ from `collectionCount`.
-  // Fixing that (a declared `remoteCollectionInventoryAvailable: false` plus the limitation,
-  // in every branch) moved BOTH ids off `12c88b765a45` ↔ `122b65ca30e9` BEFORE this re-pin —
-  // ⛔ a plugin/server fix is sequenced before a re-pin, never after, or the set re-stales
-  // and pays twice.
-  //
-  // ⭐ **A THIRD pin shape: both build IDs moved and the fingerprint HELD.** That fix
-  // changed a public tool description and the result payload, yet `capabilityFingerprint`,
-  // schema 1.10.0 and the 66-tool count were all byte-identical across it —
-  // `scripts/contract-lib.mjs:591` hashes only `{serverSchemaVersion, capabilityIds}`, so
-  // descriptions and result shapes are outside it by construction. R2.6 moved only the
-  // server id; R3-A 1.1 moved only the plugin id; this moved both while the fingerprint
-  // said "identical". The build IDs are again the only pin that caught it.
-  //
-  // ⭐ **The pins were proved CHECKED, not merely present.** A throwaway copy of
-  // `live-clips-content-gate.mjs` pinned to `r3-a-plugin-000000000000` refused at
-  // `assertRuntime` — exit 1, naming both ids, no scratch page created, the six-page file
-  // untouched — and this very test went RED first, in the *stale declaration* direction:
-  // with the ten re-pinned but still declared, it named `live-batch-gate.mjs` and refused.
-  //
-  // ⚠️ Three of the ten reports state "13 gate(s) are declared as pinned to an earlier
-  // release". That was TRUE WHEN THEY RAN — these ten entries were still in this file. It
-  // is 3 from here on. A count read out of a report is a reading of the tree at run time,
-  // not a standing fact.
-  // ✅✅ **THE R3-A PHASE 1.1 RE-PIN IS DONE — 2026-08-24, channel `chvza8ab`.** The same
-  // TEN were re-pinned to `r2-server-a0afdc880ab0` ↔ `r2-plugin-a34d76fc6bc6`, schema
-  // 1.9.0, fingerprint `sha256:f636ecab…6142fc0`, 65 tools, and RE-RUN once each on one
-  // channel. **All ten PASSED**, each on a fresh scratch page, each restoring the file's own
-  // six pages. Their entries are deleted rather than reworded — the declaration and the run
-  // travelled together, which is the whole rule.
-  //
-  // ⭐ **A PIN SHAPE THIS FILE HAD NOT SEEN: only `pluginBuildId` moved.** Phase 1.1 adds
-  // `hasVariableWriteApi()` to `code.js` and NO MCP tool, so `serverBuildId`, the schema,
-  // the fingerprint AND the tool count all held — the exact inverse of R2.6 acceptance,
-  // where only `serverBuildId` moved. ⛔ It is also the shape a fingerprint check waves
-  // straight through, in the opposite direction from R2.6's: here the capability surface is
-  // genuinely identical and the artifact RUNNING IN FIGMA is not, so the build ID is again
-  // the only pin that can catch it.
-  //
-  // ⭐ **The DEV-plugin reload was MEASURED before the re-pin, not assumed** — live
-  // `get_runtime_info` reported `plugin.buildId: "r2-plugin-a34d76fc6bc6"`, and all ten
-  // reports record that same id against channel `chvza8ab`. ⛔ Never
-  // `compatibility: "compatible"`, which only says the two RUNNING halves agree with each
-  // other.
-  //
-  // 🔴 **And the pins were proved CHECKED, not merely present.** A throwaway copy of
-  // `live-clips-content-gate.mjs` carrying `r2-plugin-000000000000` refused at
-  // `assertRuntime` — exit 1, naming both ids, no baseline read, no scratch page created,
-  // the six-page file untouched. Ten greens whose refusal leg was never fired would be a
-  // measurement of the inputs, not of the pins.
-  //
-  // ─────────────────────────────────────────────────────────────────────────────────────
-  //
-  // ✅ THE R2.7 BACKLOG IS CLEARED — 2026-08-23, channel `3az2oicz`.
-  //
-  // EIGHT entries lived here at once, and they arrived in three waves. Item 1.1 (`set_fill`)
-  // moved both build IDs and staled the six that R2.6 had just cleared — `live-batch-gate`,
-  // `live-text-style-gate`, `live-layout-gate`, `live-constraints-gate`,
-  // `live-size-limits-gate`, `live-clips-content-gate`. Item 1.2 (`set_effects`) then staled
-  // `live-fill-gate`, and item 1.3 (`set_opacity`/`set_blend_mode`) staled
-  // `live-effects-gate`. Each item re-ran only its OWN gate and declined to re-pin the rest,
-  // because a change that can only re-run one gate cannot honestly re-pin eight — that is
-  // eight claims and one test, the defect `e02d1b2` created. The set was done ONCE at the
-  // release's end: all eight re-pinned to the R2.7 final build
-  // (`r2-server-d95951a3ce93` ↔ `r2-plugin-364f8001f2d1`, schema 1.9.0, 64 tools) and all
-  // eight RE-RUN on one channel, each once. Their entries are deleted rather than reworded —
-  // the declaration and the run travelled together, which is the whole rule.
-  //
-  // ⚠️ The six were green on `sa6ggz00`, `live-fill` on `yoq962bg` and `live-effects` on
-  // `5982svqp`. Nothing about those results is withdrawn — they are results about builds
-  // this tree no longer produces, which is exactly why they could not be quoted forward.
-  //
-  // ⭐ **A PIN EDIT DOES NOT MOVE THE BUILD, and that is what makes an eight-gate re-pin
-  // possible in one pass.** The standing worry — recorded in MEMORY.md as "each re-pin
-  // moves serverBuildId, so re-derive" — was WRONG, and it is worth keeping named because
-  // it is what made the backlog look unworkable twice now. `serverBuildId` is
-  // `sha256(server.ts + contractPayload)` and `pluginBuildId` hashes
-  // `code.js` + `ui.html` + `manifest.json` (`scripts/contract-lib.mjs:605`). `scripts/`
-  // is hashed by NEITHER. So these eight could never have staled each other; what staled
-  // them was the *item* landing above them, every time.
-  //
-  // ⛔ The three entries above are a DIFFERENT case and stay: `live-export-gate.mjs`,
-  // `live-create-page-gate.mjs` and `live-plugin-data-gate.mjs` belong to R2.1/R2.2/R2.4
-  // and were part of neither the R2.6 nor the R2.7 backlog. They are owed a re-pin and a
-  // re-run together whenever their results are next quoted. Folding them into this pass was
-  // put to the owner on 2026-08-23 and declined — the scope was the eight.
-  //
-  // ✅✅ **AND THE BACKLOG ROSE TO TEN AND WAS THEN CLEARED — 2026-08-24, `6cbroncs`.**
-  // Phase 2's `set_image_fill` CROP repair re-staled the eight and pulled in a ninth
-  // (`live-opacity-blend-gate.mjs`, until then never declared); the acceptance stability
-  // promotion moved `serverBuildId` again and pulled in a tenth (`live-svg-crop-gate.mjs`).
-  // All ten were re-pinned and re-run once each, on one channel, and all ten PASSED.
-  //
-  // ⚠️ Those ten were green on `3az2oicz`/`shtlklfy`/`sdg5mr5m` against builds this tree no
-  // longer produces. Nothing about those results is withdrawn — they simply could not be
-  // quoted forward, which is the entire reason this ledger exists.
-  //
-  // 🔴 **AND THE RE-RUN EARNED ITS KEEP.** The pass did not merely reproduce nine old greens:
-  // `set_effects` was found broken FIRST by the acceptance fixture, not by any gate here, and
-  // the fix moved `pluginBuildId` one more time before the re-pin. ⭐ Every gate had been
-  // green straight through that defect, because a gate only ever sends the shapes its author
-  // already knew worked. A green gate is evidence about ITS INPUTS.
-});
+// ✅✅ **THE SIXTEEN-GATE RE-PIN IS DONE — 2026-08-24, channel `qsacbwae`.** Every live gate
+// that pins a build was re-pinned to `r3-a-server-c4d037a645e3` ↔ `r3-a-plugin-fe0b1e03325c`,
+// schema 1.14.0, fingerprint `sha256:edf5e2e9…cab57a37`, 71 tools, and RE-RUN once each on one
+// channel. Their entries are DELETED rather than reworded — the declaration and the run
+// travelled together, which is the whole rule. **This ledger is now EMPTY for the first time
+// since R2.1**: every gate in `scripts/` pins the build this tree produces.
+//
+// ⭐ **The set was SIXTEEN, not fifteen, and the sixteenth was created by this release.**
+// R3-A Phase 4 moved both build ids beneath `live-variable-identity-gate.mjs` — the tree's one
+// current-build gate an hour before — so a gate that had just passed twice became unrunnable
+// and joined the set it was never meant to be in. ⛔ Shipping a phase re-stales every gate,
+// including the one that accepted the phase before it.
+//
+// ⭐ **The three older R2.1/R2.2/R2.4 gates were folded in here after being declined TWICE.**
+// Both refusals rested on *"it costs a gate re-run"* — a re-run that Phase 3 had already made
+// unavoidable, so the stated price had fallen to zero. ⛔ Re-read a cost-based refusal
+// whenever the build moves; the argument does not have to change for the answer to.
+//
+// ⭐ **The pins were proved CHECKED in BOTH directions, in this same pass.**
+// (1) *Stale declaration*: with all sixteen re-pinned but still declared, this very test went
+// RED and named `live-batch-gate.mjs`. (2) *assertRuntime*: a throwaway copy of
+// `live-clips-content-gate.mjs` carrying `r3-a-plugin-000000000000` exited **1** naming both
+// ids (expected `000000000000`, received `fe0b1e03325c`), and a separate read confirmed the
+// document still held its **25** pages — the refusal fired before touching anything. The copy
+// was then deleted. Sixteen greens whose refusal leg was never fired would be a set of
+// unfired assertions.
+//
+// 🔴 **`live-variable-mode-gate.mjs` needed its precondition REBUILT before it could run, and
+// the Phase 4 cleanup is what removed it.** That gate requires a collection already AT the
+// mode ceiling, because Figma's refusal is its evidence — and Phase 4 had just taken
+// *"8. Dimensions"* from 10 modes to 4. It was re-inflated 4 → 10 with `add_variable_mode`,
+// run, then returned to 4 with `remove_variable_mode`. ⛔ A gate whose evidence is a platform
+// LIMIT depends on document state that other work can silently destroy; net-zero re-inflation
+// is only possible because Phase 4 shipped the tool that reverses it.
+//
+// 🔴 **FOUR OF THE SIXTEEN FAILED ON THE FIRST PASS, AND NOT ONE WAS A TOOL DEFECT.** All
+// four were defects in the GATES, invisible until something forced them to run:
+//   ① `live-export-gate` + `live-create-page-gate` asserted `runtime.server.release === "R2"`.
+//      The re-pin script updated the five keys `readPins` parses; `release` is a SIXTH pin
+//      these two also assert, so both refused at assertRuntime.
+//   ② `live-plugin-data-gate` carried the SAME stale `release: "R2"` and PASSED — because it
+//      declares the pin and never asserts it. ⛔ A pin nothing reads cannot go stale loudly:
+//      it looks like coverage and provides none. The assertion was added here.
+//   ③ `live-variable-write-gate` asserted `create_variable`'s description matches
+//      /not an upsert/i — the Phase 2 contract. Phase 3 DELIBERATELY made it a create-or-match
+//      resolver, so the gate contradicted the shipped tool. Replaced with /Resolution is fixed/
+//      and /never falls through to create/, both of which are ABSENT from the Phase 2
+//      description (`git show fc65db5`), so the new assertion discriminates the two contracts
+//      rather than matching whatever is present — the known-bad leg a changed assertion owes.
+//   ④ `live-export-gate` hardcoded `nodeId = "1113:5031"`, a node in ANOTHER document, plus a
+//      fixed over-limit scale of 3 that only exceeds the 16 MP ceiling for nodes above
+//      ~1.78 MPx. It now takes `--node-id` and DERIVES the over-limit scale from the node's
+//      measured bounds, then asserts the platform's own reported ceiling matches the one the
+//      derivation assumed. ⛔ A gate bound to one file's node ids can only ever be re-run
+//      against that file.
+//
+// ⚠️ **THE SIXTEEN DO NOT SHARE ONE VERDICT PROTOCOL — three shapes, and reading the wrong
+// one mislabels a clean run.** 15 write `success: true` into `report.json`;
+// `live-batch-gate` does too but prints NO `PASSED` line, so its exit 0 is not a verdict; and
+// `live-export-gate` writes NO `success` field at all — its verdict is exit 0 plus
+// `failure: null`. A runner that reads only `success` scores a passing export gate as FAIL
+// forever. Read each gate's own signal, or normalise the protocol before trusting a tally.
+const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 function readPins(source) {
   const block = /const expectedRuntime = \{([\s\S]*?)\n\};/.exec(source);
   if (!block) return null;
   const pins = {};
-  for (const key of ["serverBuildId", "pluginBuildId", "schemaVersion", "fingerprint"]) {
+  // ⛔ `release` JOINED THIS LIST 2026-08-25, and the gap it closes was real. `readPins`
+  // parsed five keys; `live-export-gate` and `live-create-page-gate` ALSO assert
+  // `runtime.server.release` in their own assertRuntime. So this test reported "every live
+  // gate pins THIS build" while both were pinned to `release: "R2"` and would refuse before
+  // reaching a single check — and the sixteen-gate re-run is what found it, not this test.
+  // A pins check only covers the pins it PARSES.
+  for (const key of ["serverBuildId", "pluginBuildId", "schemaVersion", "fingerprint", "release"]) {
     const match = new RegExp(`${key}:\\s*\\n?\\s*"([^"]+)"`).exec(block[1]);
     if (match) pins[key] = match[1];
   }
@@ -252,6 +139,7 @@ test("every live gate either pins THIS build or declares the release it belongs 
     pluginBuildId: runtime.pluginBuildId,
     schemaVersion: runtime.serverSchemaVersion,
     fingerprint: runtime.capabilityFingerprint,
+    release: runtime.release,
     toolCount: contract.tools.length,
   };
 

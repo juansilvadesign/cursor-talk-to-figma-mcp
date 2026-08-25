@@ -49,12 +49,12 @@ if (options["disposable-target"] !== "true") {
 // Derived from runtime-metadata.ts after R3-A Phase 3 contract generation. Do not re-pin
 // this script without a fresh run on a disposable target — a source edit is not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-c3d335284ec5",
-  pluginBuildId: "r3-a-plugin-02cca8304cfb",
-  schemaVersion: "1.13.0",
+  serverBuildId: "r3-a-server-c4d037a645e3",
+  pluginBuildId: "r3-a-plugin-fe0b1e03325c",
+  schemaVersion: "1.14.0",
   fingerprint:
-    "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
-  toolCount: 70,
+    "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
+  toolCount: 71,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

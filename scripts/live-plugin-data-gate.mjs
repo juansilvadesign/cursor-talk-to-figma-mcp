@@ -25,12 +25,12 @@ if (!options.channel) {
 }
 
 const expectedRuntime = {
-  release: "R2",
-  serverBuildId: "r2-server-f152fb666599",
-  pluginBuildId: "r2-plugin-8dc3783f024f",
-  schemaVersion: "1.4.0",
+  release: "R3-A",
+  serverBuildId: "r3-a-server-c4d037a645e3",
+  pluginBuildId: "r3-a-plugin-fe0b1e03325c",
+  schemaVersion: "1.14.0",
   fingerprint:
-    "sha256:c3cd6e7106062105d315580f72ef727e2748c190b654fb386921ca7151dcc6bd",
+    "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
@@ -132,6 +132,13 @@ function assertRuntime(runtime) {
   assert.equal(runtime.plugin?.capabilityFingerprint, expectedRuntime.fingerprint);
   assert.equal(runtime.compatibility.status, "compatible");
   assert.deepEqual(runtime.compatibility.issues, []);
+  // ⛔ ADDED 2026-08-25. This gate CARRIED `release: "R2"` for eight releases and never
+  // asserted it, so the pin was decoration — it looked like coverage and provided none.
+  // Its two siblings (`live-export-gate`, `live-create-page-gate`) DO assert release, and
+  // both correctly refused at the sixteen-gate re-run while this one sailed through on a
+  // stale pin. A pin nothing reads cannot go stale loudly.
+  assert.equal(runtime.server.release, expectedRuntime.release);
+  assert.equal(runtime.plugin?.release, expectedRuntime.release);
   for (const tool of ["get_plugin_data", "set_plugin_data"]) {
     assert.ok(runtime.server.supportedTools.includes(tool), `server lacks ${tool}`);
     assert.ok(runtime.plugin?.supportedCommands.includes(tool), `plugin lacks ${tool}`);

@@ -51,12 +51,12 @@ if (options["disposable-target"] !== "true") {
 // Derived from runtime-metadata.ts after Phase 2 contract generation. Do not re-pin this
 // script without a fresh run on a disposable target — a source edit is not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-214dd61cca06",
-  pluginBuildId: "r3-a-plugin-4aa3214c4754",
-  schemaVersion: "1.12.0",
+  serverBuildId: "r3-a-server-c4d037a645e3",
+  pluginBuildId: "r3-a-plugin-fe0b1e03325c",
+  schemaVersion: "1.14.0",
   fingerprint:
-    "sha256:9a314c170c7730bdb0b8aac7f3bf69758527c0ba21ff7f206b1b3157ce0ee87a",
-  toolCount: 70,
+    "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
+  toolCount: 71,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
@@ -298,7 +298,22 @@ try {
     assert.equal(tool.present, true, `${tool.name} is not in the published tool surface`);
   }
   assert.match(record.checks.inventory.tools[0].description, /exactly one of value or aliasOf/i);
-  assert.match(record.checks.inventory.tools[1].description, /not an upsert/i);
+  // ⛔ REPLACED 2026-08-25, and this is a CONTRACT CHANGE catching up, not a loosened gate.
+  // Phase 2 published `create_variable` as "a direct create, not an upsert", and this line
+  // asserted exactly that. R3-A Phase 3 DELIBERATELY made it a create-or-match resolver, so
+  // the old assertion now contradicts the shipped contract — which is precisely why the
+  // ledger said this gate could not be quoted for the Phase 3 source until it was re-run.
+  //
+  // The replacement pins the guarantee that SUCCEEDED "not an upsert" rather than deleting
+  // it: matching is deterministic and never silently creates or overwrites. ⭐ Both phrases
+  // are absent from the Phase 2 description (`git show fc65db5:src/talk_to_figma_mcp/server.ts`),
+  // so this discriminates Phase 3 from Phase 2 instead of matching whatever is there —
+  // the known-bad leg a changed assertion owes.
+  assert.match(record.checks.inventory.tools[1].description, /Resolution is fixed/i);
+  assert.match(
+    record.checks.inventory.tools[1].description,
+    /never falls through to create/i,
+  );
   assert.match(record.checks.inventory.tools[2].description, /confirm must be literal true/i);
 
   await joinWithRetry();

@@ -167,9 +167,23 @@ function assertRuntime(runtime) {
   );
 }
 
-/** A FRESH read, on a later call — the cross-frame instrument the receipt asks for. */
+/**
+ * A FRESH read, on a later call — the cross-frame instrument the receipt asks for.
+ *
+ * ⭐ Narrowed to ONE variable type on purpose. This gate reads a collection's **modes**, and
+ * `get_variables` builds `collection.modes` from `collection.modes` unconditionally — the
+ * type filter only shrinks the per-mode `variables` payload, which nothing here reads. On a
+ * real design-system file the unfiltered call resolves every alias for every variable in
+ * every mode, and this gate makes about a dozen of these; the filter turns a dozen heavy
+ * reads into a dozen light ones without weakening a single assertion.
+ *
+ * ⚠️ The consequence, named rather than hidden: `collection.variableCount` in this snapshot
+ * now counts BOOLEAN variables only. It is recorded as `getVariablesBooleanOnlyCount` and is
+ * NOT compared against `blastRadius.variableCount`, which counts the collection's full
+ * `variableIds` membership.
+ */
 async function readCollection(collectionId) {
-  const snapshot = (await callJson("get_variables")).value;
+  const snapshot = (await callJson("get_variables", { types: ["BOOLEAN"] })).value;
   return (
     (snapshot.collections || []).find((collection) => collection.id === collectionId) || null
   );
@@ -346,7 +360,7 @@ try {
     receiptClaimedRemoval: Boolean(removal.success),
     modeCountAfter: afterRemove.modes.length,
     blastRadiusVariableCount: removal.blastRadius?.variableCount ?? null,
-    getVariablesVariableCount: baseline.variableCount,
+    getVariablesBooleanOnlyCount: baseline.variableCount,
     defaultModeIdAfter: afterRemove.defaultModeId,
   };
 

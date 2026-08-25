@@ -282,7 +282,13 @@ test("R3-A Phase 2 — renaming a mode to the name it already has is REFUSED, no
   assert.equal(receipt.mode.nameAfter, "Dark");
 });
 
-test("R3-A Phase 2 — Figma's duplicate-mode-name refusal is preserved verbatim", async () => {
+// 🔴 THIS TEST USED TO ASSERT A REFUSAL THAT DOES NOT EXIST. It required
+// `figma_refusal` + /Mode name Light is already used/ — a message the HARNESS invented,
+// guarding a Figma rule nobody had measured. The live run on `9ir4iabr` renamed a probe
+// mode to an existing mode's name and Figma ACCEPTED it (`duplicateNameOutcome: "renamed"`).
+// A fixture asserted a platform floor into existence and a test then protected the fiction.
+// The tool now publishes the collision as a reading instead of inventing a refusal.
+test("R3-A Phase 2 — a duplicate mode name is ACCEPTED and reported as a collision reading", async () => {
   const harness = await loadPluginHarness({ modeRenameSignal: "collection_modes" });
 
   const receipt = await harness.command("rename_variable_mode", {
@@ -291,12 +297,26 @@ test("R3-A Phase 2 — Figma's duplicate-mode-name refusal is preserved verbatim
     name: "Light",
   });
 
-  assert.equal(receipt.success, false);
-  assert.equal(receipt.refusal.code, "figma_refusal");
-  assert.match(receipt.refusal.message, /Mode name Light is already used/);
+  assert.equal(receipt.success, true, "Figma accepts this; the fork must not refuse it");
+  assert.equal(receipt.outcome, "renamed");
+  // ⭐ A reading, not a refusal: the caller is told which mode already carries the name and
+  // decides for themselves, exactly as `defaultModeIdStable` reports without adjudicating.
+  assert.deepEqual(receipt.nameCollidesWithModeIds, ["mode-light"]);
 
   const after = await collection(harness, "collection-1");
-  assert.equal(after.modes.find((mode) => mode.modeId === "mode-dark").name, "Dark");
+  assert.equal(after.modes.find((mode) => mode.modeId === "mode-dark").name, "Light");
+});
+
+test("R3-A Phase 2 — a rename with no collision reports an EMPTY collision list", async () => {
+  // ⛔ The negative leg, or the assertion above passes for a field that is always populated.
+  const harness = await loadPluginHarness({ modeRenameSignal: "collection_modes" });
+  const receipt = await harness.command("rename_variable_mode", {
+    collectionId: "collection-1",
+    modeId: "mode-dark",
+    name: "Midnight",
+  });
+  assert.equal(receipt.success, true);
+  assert.deepEqual(receipt.nameCollidesWithModeIds, []);
 });
 
 test("R3-A Phase 2 — a mode that does not belong to the named collection is refused", async () => {
@@ -337,8 +357,61 @@ test("R3-A Phase 2 — set_variable_metadata writes every supplied field and rea
   assert.equal(receipt.fields.description.before, "Primary brand color");
   assert.equal(receipt.fields.description.after, "");
   assert.deepEqual(receipt.fields.scopes.before, ["ALL_FILLS"]);
-  assert.deepEqual(receipt.fields.scopes.after, ["FRAME_FILL", "TEXT_FILL"]);
+  // ⭐ THE LIVE FINDING, MODELLED. Figma reorders `scopes` into its own canonical order, so
+  // `after` is NOT the requested sequence — and the receipt publishes what Figma really
+  // stored rather than echoing the request back.
+  assert.deepEqual(receipt.fields.scopes.after, ["TEXT_FILL", "FRAME_FILL"]);
+  assert.equal(
+    receipt.fields.scopes.observed,
+    true,
+    "a reordered read-back holds the same MEMBERS and must count as observed",
+  );
   assert.equal(receipt.verificationDeferred, false);
+});
+
+test("R3-A Phase 2 — the scopes read-back still FAILS when the membership really differs", async () => {
+  // ⛔ THE KNOWN-BAD LEG. Making the comparison order-insensitive is only a fix if a
+  // genuinely wrong read-back still goes red — otherwise it is indistinguishable from
+  // loosening the check until it passes.
+  const harness = await loadPluginHarness();
+  const variable = await harness
+    .globals("figma")
+    .variables.getVariableByIdAsync("var-primary");
+  Object.defineProperty(variable, "scopes", {
+    configurable: true,
+    get: () => ["OPACITY"],
+    set: () => {},
+  });
+
+  const receipt = await harness.command("set_variable_metadata", {
+    variableId: "var-primary",
+    scopes: ["FRAME_FILL", "TEXT_FILL"],
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.outcome, "metadata_unconfirmed");
+  assert.deepEqual(receipt.unobservedFields, ["scopes"]);
+});
+
+test("R3-A Phase 2 — a same-length read-back with one member swapped is NOT observed", async () => {
+  // The nastiest near-miss: identical length, so only membership separates them.
+  const harness = await loadPluginHarness();
+  const variable = await harness
+    .globals("figma")
+    .variables.getVariableByIdAsync("var-primary");
+  Object.defineProperty(variable, "scopes", {
+    configurable: true,
+    get: () => ["TEXT_FILL", "OPACITY"],
+    set: () => {},
+  });
+
+  const receipt = await harness.command("set_variable_metadata", {
+    variableId: "var-primary",
+    scopes: ["FRAME_FILL", "TEXT_FILL"],
+  });
+
+  assert.equal(receipt.fields.scopes.observed, false);
+  assert.equal(receipt.outcome, "metadata_unconfirmed");
 });
 
 test("R3-A Phase 2 — one field may be changed without disturbing the other two", async () => {

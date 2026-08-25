@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-fc619cfa8b1f",
+  "buildId": "r3-a-plugin-07a616c3b48d",
   "apiVersion": "1.15.0",
   "serverSchemaVersion": "1.15.0",
   "relayProtocolVersion": "1",
@@ -5529,9 +5529,25 @@ async function renameVariableMode(params) {
 
   const collectionSummary = variableWriteCollectionSummary(collection);
   const nameBefore = typeof mode.name === "string" ? mode.name : null;
+
+  // 🔴 MEASURED LIVE 2026-08-25 on `9ir4iabr`: Figma ACCEPTS a rename that duplicates
+  // another mode's name in the same collection — it does not refuse, and this handler used
+  // to claim in its own description that it did. So the collision is reported as a READING,
+  // taken before the call, and never as a refusal: refusing here would be this fork
+  // inventing a rule the platform does not have, and staying silent would let a caller
+  // create two identically-named modes without noticing.
+  const collidesWith = Array.isArray(collection.modes)
+    ? collection.modes
+        .filter(
+          (candidate) => candidate.modeId !== mode.modeId && candidate.name === name
+        )
+        .map((candidate) => candidate.modeId)
+    : [];
+
   const details = {
     collection: collectionSummary,
     mode: { id: mode.modeId, nameBefore, nameAfter: nameBefore },
+    nameCollidesWithModeIds: collidesWith,
   };
 
   if (nameBefore === name) {
@@ -5610,6 +5626,7 @@ async function renameVariableMode(params) {
       outcome: "rename_unconfirmed",
       collection: collectionSummary,
       mode: { id: mode.modeId, nameBefore, nameAfter: null },
+      nameCollidesWithModeIds: collidesWith,
       verificationDeferred: true,
       partialApplicationPossible: true,
       observation,
@@ -5625,6 +5642,7 @@ async function renameVariableMode(params) {
     outcome: "renamed",
     collection: collectionSummary,
     mode: { id: mode.modeId, nameBefore, nameAfter: name },
+    nameCollidesWithModeIds: collidesWith,
     verificationDeferred: false,
     observation,
   };
@@ -5723,11 +5741,22 @@ function readVariableMetadataField(variable, field) {
   }
 }
 
+// 🔴 MEASURED LIVE 2026-08-25 on `9ir4iabr`: Figma REORDERS `scopes`. Requesting
+// `["GAP","WIDTH_HEIGHT"]` stores `["WIDTH_HEIGHT","GAP"]` — same members, Figma's own
+// canonical order. The first implementation compared element-by-element and reported
+// `observed: false`, so a write that landed perfectly came back as `metadata_unconfirmed`.
+// ⛔ This is NOT the read-back being loosened until it passes. `scopes` is a SET in Figma's
+// data model — order carries no meaning there — so membership is the only comparison that
+// was ever correct, and a genuinely different membership (a dropped or added scope) still
+// fails. Sorting copies handles duplicates too. The receipt's `after` keeps Figma's real
+// order, so a caller can still see exactly what was stored.
 function variableMetadataValuesEqual(field, left, right) {
   if (field !== "scopes") return left === right;
   if (!Array.isArray(left) || !Array.isArray(right)) return false;
   if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
+  const sortedLeft = left.slice().sort();
+  const sortedRight = right.slice().sort();
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
 }
 
 async function setVariableMetadata(params) {

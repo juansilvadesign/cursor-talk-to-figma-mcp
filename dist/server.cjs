@@ -35,8 +35,8 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-ee635141d2de",
-  "pluginBuildId": "r3-a-plugin-fc619cfa8b1f",
+  "serverBuildId": "r3-a-server-cfce6484d54a",
+  "pluginBuildId": "r3-a-plugin-07a616c3b48d",
   "serverSchemaVersion": "1.15.0",
   "pluginApiVersion": "1.15.0",
   "relayProtocolVersion": "1",
@@ -2150,7 +2150,7 @@ server.tool(
 );
 server.tool(
   "rename_variable_mode",
-  "[Exact local variable collection + exact mode, caller-requested write] Rename one mode of one existing local variable collection. Nothing a variable resolves through changes: values, the default mode, and every other mode are untouched. A rename to the name the mode ALREADY has is REFUSED as mode_name_unchanged rather than reported as applied, because a no-op rename and a rename that silently failed produce identical bytes. Figma refuses a duplicate mode name inside one collection and that refusal is preserved verbatim. Remote collections and a modeId that does not belong to the named collection get typed refusals. After renameMode() the handler probes independent in-frame signals and names the one that observed the new name; when none can, it reports outcome rename_unconfirmed with verificationDeferred instead of claiming the rename.",
+  "[Exact local variable collection + exact mode, caller-requested write] Rename one mode of one existing local variable collection. Nothing a variable resolves through changes: values, the default mode, and every other mode are untouched. A rename to the name the mode ALREADY has is REFUSED as mode_name_unchanged rather than reported as applied, because a no-op rename and a rename that silently failed produce identical bytes. \u26A0\uFE0F MEASURED: Figma ACCEPTS a rename that duplicates another mode's name in the same collection, so this tool does not invent a refusal Figma does not have \u2014 instead the receipt reports nameCollidesWithModeIds, read before the call, naming every other mode already using the requested name. It is a reading, never a refusal. Remote collections and a modeId that does not belong to the named collection get typed refusals. After renameMode() the handler probes independent in-frame signals and names the one that observed the new name; when none can, it reports outcome rename_unconfirmed with verificationDeferred instead of claiming the rename.",
   {
     collectionId: import_zod.z.string().min(1).describe("ID of the existing local variable collection that owns the mode"),
     modeId: import_zod.z.string().min(1).describe("ID of the mode to rename; it must already belong to collectionId"),

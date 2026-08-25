@@ -49,8 +49,8 @@ if (options["disposable-target"] !== "true") {
 // Derived from runtime-metadata.ts after R3-A Phase 3 contract generation. Do not re-pin
 // this script without a fresh run on a disposable target — a source edit is not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-ee635141d2de",
-  pluginBuildId: "r3-a-plugin-fc619cfa8b1f",
+  serverBuildId: "r3-a-server-cfce6484d54a",
+  pluginBuildId: "r3-a-plugin-07a616c3b48d",
   schemaVersion: "1.15.0",
   fingerprint:
     "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",

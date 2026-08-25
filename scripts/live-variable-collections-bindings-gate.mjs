@@ -69,8 +69,8 @@ const allowPermanentCollection = options["allow-permanent-collection"] === "true
 // Do not re-pin this script without a fresh run on a disposable target — a source edit is
 // not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-ee635141d2de",
-  pluginBuildId: "r3-a-plugin-fc619cfa8b1f",
+  serverBuildId: "r3-a-server-cfce6484d54a",
+  pluginBuildId: "r3-a-plugin-07a616c3b48d",
   schemaVersion: "1.15.0",
   fingerprint:
     "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",
@@ -452,11 +452,33 @@ try {
   assert.equal(noop.success, false);
   assert.equal(noop.refusal.code, "mode_name_unchanged");
 
+  // 🔴 MEASURED 2026-08-25 on `9ir4iabr`: Figma ACCEPTS this. The first version of this leg
+  // recorded the outcome without asserting it, and that is how the finding surfaced. It is
+  // now an assertion, so a future Figma that starts refusing duplicates fails here loudly
+  // instead of silently making `nameCollidesWithModeIds` unreachable.
   const duplicate = (await callJson("rename_variable_mode", {
     collectionId: options["collection-id"],
     modeId: probeModeId,
     name: record.baseline.modeNames[0],
   })).value;
+  assert.equal(
+    duplicate.success,
+    true,
+    `Figma refused a duplicate mode name — it accepted one on 2026-08-25, so this fork's "reading, not refusal" design needs revisiting: ${JSON.stringify(duplicate.refusal ?? duplicate)}`,
+  );
+  assert.ok(
+    Array.isArray(duplicate.nameCollidesWithModeIds) &&
+      duplicate.nameCollidesWithModeIds.length > 0,
+    "the collision reading must name the mode already using this name",
+  );
+
+  // Put the probe mode back on its own name so the collection never carries two identically
+  // named modes any longer than this assertion needs.
+  await call("rename_variable_mode", {
+    collectionId: options["collection-id"],
+    modeId: probeModeId,
+    name: probeModeRenamed,
+  });
 
   record.checks.renameMode = {
     modeId: probeModeId,
@@ -472,8 +494,8 @@ try {
     confirmedByFreshRead: renamedMode.name === probeModeRenamed,
     noopRefusal: noop.refusal.code,
     duplicateNameOutcome: duplicate.outcome,
-    duplicateNameRefusal: duplicate.refusal?.code ?? null,
-    duplicateNameMessage: duplicate.refusal?.message ?? null,
+    duplicateNameAccepted: duplicate.success === true,
+    duplicateNameCollidesWith: duplicate.nameCollidesWithModeIds ?? null,
   };
 
   // ── 3. set_variable_metadata ─────────────────────────────────────────────────────────

@@ -980,14 +980,12 @@ function createFixtureRuntime(fixture, options) {
             `Mode ${modeId} does not belong to collection ${collection.id}`,
           );
         }
-        // Figma's own floor: two modes in one collection cannot share a name.
-        if (
-          collection.modes.some(
-            (candidate) => candidate.modeId !== modeId && candidate.name === name,
-          )
-        ) {
-          throw new Error(`Mode name ${name} is already used in this collection`);
-        }
+        // 🔴 THIS HARNESS USED TO THROW HERE — "two modes in one collection cannot share a
+        // name" — and the live run on `9ir4iabr` proved that rule DOES NOT EXIST. Figma
+        // accepted the duplicate. An offline test asserted the fictional refusal was
+        // "preserved verbatim", so a fixture invented a platform floor and a test then
+        // guarded the invention. The throw is DELETED rather than commented out: the tool
+        // now reports the collision as a reading, and there is nothing here to refuse.
         if (modeRenameSignal === "collection_modes") {
           mode.name = name;
           return;
@@ -1112,7 +1110,22 @@ function createFixtureRuntime(fixture, options) {
     delete variable.pluginData;
     variable.remote = Boolean(variable.remote);
     variable.valuesByMode = clone(variable.valuesByMode || {});
+    let scopeStore = Array.isArray(variable.scopes) ? variable.scopes.slice() : [];
     variable.getPluginData = (key) => privatePluginData.get(key) ?? "";
+    // 🔴 MEASURED LIVE: Figma REORDERS `scopes` into its own canonical order — requesting
+    // ["GAP","WIDTH_HEIGHT"] reads back ["WIDTH_HEIGHT","GAP"]. A plain array assignment
+    // preserves order, so offline this platform behaviour was INVISIBLE and
+    // `set_variable_metadata` shipped an order-sensitive read-back that called a landed
+    // write unconfirmed. Modelled here as a reversal, which is the cheapest permutation
+    // that is never accidentally equal to the input for a 2+ element list.
+    Object.defineProperty(variable, "scopes", {
+      enumerable: true,
+      configurable: true,
+      get: () => scopeStore.slice(),
+      set: (value) => {
+        scopeStore = Array.isArray(value) ? value.slice().reverse() : value;
+      },
+    });
     variable.setPluginData = (key, value) => {
       if (typeof key !== "string" || typeof value !== "string") {
         throw new Error("Variable plugin data keys and values must be strings");

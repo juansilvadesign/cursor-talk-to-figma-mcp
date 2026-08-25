@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-c4d037a645e3",
-  "pluginBuildId": "r3-a-plugin-fe0b1e03325c",
-  "serverSchemaVersion": "1.14.0",
-  "pluginApiVersion": "1.14.0",
+  "serverBuildId": "r3-a-server-ee635141d2de",
+  "pluginBuildId": "r3-a-plugin-fc619cfa8b1f",
+  "serverSchemaVersion": "1.15.0",
+  "pluginApiVersion": "1.15.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
+  "capabilityFingerprint": "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -50,6 +50,11 @@ var RUNTIME_METADATA = {
     "create_variable",
     "delete_variable",
     "remove_variable_mode",
+    "create_variable_collection",
+    "rename_variable_mode",
+    "set_variable_metadata",
+    "bind_variable_to_node",
+    "bind_variable_to_paint",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -94,6 +99,8 @@ var RUNTIME_METADATA = {
   "capabilityIds": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
+    "figma.command.bind_variable_to_node@1",
+    "figma.command.bind_variable_to_paint@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -105,6 +112,7 @@ var RUNTIME_METADATA = {
     "figma.command.create_section@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
+    "figma.command.create_variable_collection@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
@@ -129,6 +137,7 @@ var RUNTIME_METADATA = {
     "figma.command.read_my_design@1",
     "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
+    "figma.command.rename_variable_mode@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
     "figma.command.scan_text_nodes@1",
@@ -161,12 +170,15 @@ var RUNTIME_METADATA = {
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
+    "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
     "relay.channel@1"
   ],
   "supportedTools": [
     "add_variable_mode",
     "apply_batch",
+    "bind_variable_to_node",
+    "bind_variable_to_paint",
     "check_fonts",
     "clone_node",
     "create_component_instance",
@@ -178,6 +190,7 @@ var RUNTIME_METADATA = {
     "create_section",
     "create_text",
     "create_variable",
+    "create_variable_collection",
     "delete_multiple_nodes",
     "delete_node",
     "delete_variable",
@@ -203,6 +216,7 @@ var RUNTIME_METADATA = {
     "read_my_design",
     "remove_variable_mode",
     "rename_node",
+    "rename_variable_mode",
     "resize_node",
     "scan_nodes_by_types",
     "scan_text_nodes",
@@ -235,6 +249,7 @@ var RUNTIME_METADATA = {
     "set_stroke_color",
     "set_text_content",
     "set_text_style",
+    "set_variable_metadata",
     "set_variable_value"
   ],
   "supportedPrompts": [
@@ -2074,6 +2089,201 @@ server.tool(
           {
             type: "text",
             text: `Error removing variable mode: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "create_variable_collection",
+  "[Document-scoped, idempotent caller-requested write] Create or match one named local variable collection. Resolution is fixed and identical to create_variable's: supplied id first; otherwise exact name across local collections; otherwise supplied opaque identityKey stored as this plugin's private data. A wrong explicit id never falls through to create, duplicate name or key matches are refused as ambiguous, and a different existing identityKey is never overwritten. Figma returns a collection that ALREADY has one mode and that mode is its defaultModeId \u2014 the receipt publishes it as defaultMode so a caller does not need a second read before writing a value. Every receipt carries created and matchedBy: a fresh create is created:true/matchedBy:null; an existing collection is created:false with matchedBy id, name, or identityKey. identityKey is compared byte-for-byte only and is never parsed, normalized, or echoed. Remote collections return a typed refusal.",
+  {
+    name: z.string().min(1).describe("Name for the collection; this is a real document write"),
+    id: z.string().min(1).optional().describe("Optional exact local variable collection ID; when supplied it is the first identity layer and a miss refuses rather than creating"),
+    identityKey: z.string().min(1).optional().describe("Optional opaque caller-owned string for idempotent identity; stored privately on a newly created or matching untagged collection and never interpreted or returned")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("create_variable_collection", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error creating variable collection: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "rename_variable_mode",
+  "[Exact local variable collection + exact mode, caller-requested write] Rename one mode of one existing local variable collection. Nothing a variable resolves through changes: values, the default mode, and every other mode are untouched. A rename to the name the mode ALREADY has is REFUSED as mode_name_unchanged rather than reported as applied, because a no-op rename and a rename that silently failed produce identical bytes. Figma refuses a duplicate mode name inside one collection and that refusal is preserved verbatim. Remote collections and a modeId that does not belong to the named collection get typed refusals. After renameMode() the handler probes independent in-frame signals and names the one that observed the new name; when none can, it reports outcome rename_unconfirmed with verificationDeferred instead of claiming the rename.",
+  {
+    collectionId: z.string().min(1).describe("ID of the existing local variable collection that owns the mode"),
+    modeId: z.string().min(1).describe("ID of the mode to rename; it must already belong to collectionId"),
+    name: z.string().min(1).describe("New name for the mode; must differ from its current name")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("rename_variable_mode", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error renaming variable mode: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "set_variable_metadata",
+  "[Exact local variable, caller-requested write] Change the name, description and/or scopes of one existing local variable. Supply at least one; an empty description is legal and is how a description is cleared. Every supplied value is validated BEFORE the first assignment, because Figma offers no transaction across these three fields \u2014 so a late refusal on a multi-field write would otherwise leave a half-changed variable. The receipt reports per-field before, after, applied and observed. If Figma refuses part-way the outcome is partially_applied with the exact appliedFields and partialApplicationPossible:true, never a plain refusal that would read as nothing changed. A field the platform accepted but did not reflect on read-back is reported as metadata_unconfirmed naming the field, not as success. Remote variables return a typed refusal.",
+  {
+    variableId: z.string().min(1).describe("ID of the existing local variable to change"),
+    name: z.string().min(1).optional().describe("New variable name; omit to leave it unchanged"),
+    description: z.string().optional().describe("New description; the empty string clears it. Omit to leave it unchanged"),
+    scopes: z.array(
+      z.enum([
+        "ALL_SCOPES",
+        "ALL_FILLS",
+        "FRAME_FILL",
+        "SHAPE_FILL",
+        "TEXT_FILL",
+        "STROKE_COLOR",
+        "STROKE_FLOAT",
+        "EFFECT_FLOAT",
+        "EFFECT_COLOR",
+        "OPACITY",
+        "CORNER_RADIUS",
+        "WIDTH_HEIGHT",
+        "GAP",
+        "TEXT_CONTENT",
+        "FONT_FAMILY",
+        "FONT_STYLE",
+        "FONT_WEIGHT",
+        "FONT_SIZE",
+        "LINE_HEIGHT",
+        "LETTER_SPACING",
+        "PARAGRAPH_SPACING",
+        "PARAGRAPH_INDENT"
+      ])
+    ).min(1).optional().describe("Complete replacement list of Figma variable scopes; this REPLACES the current scopes rather than adding to them. Omit to leave them unchanged")
+  },
+  async (args2) => {
+    const supplied = ["name", "description", "scopes"].filter(
+      (field) => Object.prototype.hasOwnProperty.call(args2, field) && args2[field] !== void 0
+    );
+    if (supplied.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error setting variable metadata: supply at least one of name, description or scopes; no request was sent to Figma"
+          }
+        ]
+      };
+    }
+    try {
+      const result = await sendCommandToFigma("set_variable_metadata", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error setting variable metadata: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "bind_variable_to_node",
+  "[Exact node + exact plain field, caller-requested write] Bind one existing local variable to one plain bindable field of one existing node \u2014 width, height, characters, fontSize, fontFamily, itemSpacing, padding*, cornerRadius fields, visible, opacity and the other single-value fields Figma marks bindable. For a paint colour use bind_variable_to_paint instead. This fork keeps NO table of which field accepts which resolvedType: Figma owns that rule and changes it as it ships new bindable fields, so a type mismatch returns Figma's own refusal verbatim rather than a stale local guess. After setBoundVariable() the handler re-reads node.boundVariables and reports the binding only when it can see it; when it cannot, the outcome is bind_unconfirmed with verificationDeferred, which is also what an unbindable field name looks like, because Figma does not always throw for one. Unbinding is not part of this slice.",
+  {
+    nodeId: z.string().min(1).describe("ID of the existing node to bind the variable on"),
+    field: z.string().min(1).describe("Bindable plain field name, e.g. width, height, characters, fontSize, itemSpacing, paddingLeft, topLeftRadius, visible, opacity"),
+    variableId: z.string().min(1).describe("ID of the existing local variable to bind; its resolved type must suit the field")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("bind_variable_to_node", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error binding variable to node: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "bind_variable_to_paint",
+  "[Exact node + exact paint slot, caller-requested write] Bind one existing local COLOR variable to the colour of one paint in a node's fills or strokes. \u26A0\uFE0F Figma's setBoundVariableForPaint does not mutate the paint \u2014 it RETURNS A NEW PAINT \u2014 and node.fills is a readonly array, so this handler replaces the whole array and reports writeBackPerformed; a call that skipped that step would throw nothing and change nothing. A non-COLOR variable is refused before any Figma call, from the variable's own resolvedType. fills that read as figma.mixed are refused because paintIndex then names no single paint, and an index past the end is refused with the real paint count. After the write-back the handler re-reads the paint's boundVariables.color and reports the binding only when it can see it; otherwise the outcome is bind_unconfirmed with verificationDeferred. Existing paint properties other than the bound colour are preserved by Figma's own returned paint.",
+  {
+    nodeId: z.string().min(1).describe("ID of the existing node that owns the paint"),
+    paintTarget: z.enum(["fills", "strokes"]).describe("Which paint list on the node holds the paint to bind"),
+    paintIndex: z.number().int().min(0).describe("Zero-based index of the paint within that list; it must already exist"),
+    variableId: z.string().min(1).describe("ID of the existing local COLOR variable to bind to the paint's colour")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("bind_variable_to_paint", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error binding variable to paint: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

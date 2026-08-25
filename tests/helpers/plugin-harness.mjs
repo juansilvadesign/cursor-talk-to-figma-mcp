@@ -888,7 +888,79 @@ function createFixtureRuntime(fixture, options) {
     });
   }
 
-  for (const collection of collections) attachVariableIds(collection);
+
+  // ⛔ THE `delete_variable` LESSON, MODELLED RATHER THAN ASSUMED. Figma documents
+  // `VariableCollection.removeMode(modeId)` and documents NOTHING about when the removal
+  // becomes observable from inside the calling frame. A harness that spliced the mode out
+  // of `collection.modes` immediately would make the handler's in-frame branch reachable
+  // offline and possibly unreachable live — which is precisely how `delete_not_observed`
+  // shipped green for `delete_variable`. So `modeRemovalSignal` selects WHICH signal, if
+  // any, the modeled platform exposes, and "none" (the default) is the conservative case
+  // where nothing an in-frame read can see changes until the frame ends.
+  //
+  //   "none"              — nothing flips in-frame; the handler must defer.
+  //   "collection_modes"  — the resolved collection object's own `modes` drops it.
+  //   "fresh_lookup"      — the resolved object still lists it, but a NEW lookup does not.
+  //
+  // ⚠️ The third exists because the resolved object and a fresh lookup are the same object
+  // in this harness, so without it the handler's two signals could never be told apart and
+  // a test could not prove the second one is load-bearing.
+  const modeRemovalSignal = options.modeRemovalSignal || "none";
+  const hiddenModes = new Set();
+  const pendingModeRemovals = [];
+  const modeKey = (collectionId, modeId) => `${collectionId}::${modeId}`;
+
+  // ⭐ Every signal model ends in the SAME committed state — the mode is really gone once
+  // the frame ends. That is what makes a cross-frame re-read a real instrument offline
+  // instead of a second look at the same in-frame fiction, and it is the offline twin of
+  // the live gate's "fresh-read it absent on a later call" leg.
+  function commitModeRemovals() {
+    while (pendingModeRemovals.length > 0) {
+      const pending = pendingModeRemovals.pop();
+      const index = pending.collection.modes.findIndex(
+        (mode) => mode.modeId === pending.modeId,
+      );
+      if (index !== -1) pending.collection.modes.splice(index, 1);
+      hiddenModes.delete(modeKey(pending.collection.id, pending.modeId));
+    }
+  }
+
+  function attachModeRemoval(collection) {
+    Object.defineProperty(collection, "removeMode", {
+      enumerable: false,
+      configurable: true,
+      writable: true,
+      value: (modeId) => {
+        const index = collection.modes.findIndex(
+          (mode) => mode.modeId === modeId,
+        );
+        if (index === -1) {
+          throw new Error(
+            `Mode ${modeId} does not belong to collection ${collection.id}`,
+          );
+        }
+        // Figma's own floor, modeled so the tool's refusal is not the only thing standing
+        // between a caller and an empty collection.
+        if (collection.modes.length <= 1) {
+          throw new Error("Cannot remove the last mode of a collection");
+        }
+        if (modeRemovalSignal === "collection_modes") {
+          collection.modes.splice(index, 1);
+          return;
+        }
+        pendingModeRemovals.push({ collection, modeId });
+        if (modeRemovalSignal === "fresh_lookup") {
+          hiddenModes.add(modeKey(collection.id, modeId));
+        }
+        // "none" falls through: Figma has accepted the call and will commit at frame end,
+        // and NOTHING an in-frame read can see has changed.
+      },
+    });
+  }
+  for (const collection of collections) {
+    attachVariableIds(collection);
+    attachModeRemoval(collection);
+  }
 
   // Variable writes use the real Plugin API shape rather than a request echo: variables
   // are mutable objects, alias values are ordinary values, and remove() makes the next
@@ -1159,8 +1231,28 @@ function createFixtureRuntime(fixture, options) {
         collections.filter((collection) => !collection.remote),
       getVariableByIdAsync: async (id) =>
         variables.find((variable) => variable.id === id) || null,
-      getVariableCollectionByIdAsync: async (id) =>
-        collections.find((collection) => collection.id === id) || null,
+      getVariableCollectionByIdAsync: async (id) => {
+        const collection =
+          collections.find((candidate) => candidate.id === id) || null;
+        if (!collection) return null;
+        const hidden = collection.modes.some((mode) =>
+          hiddenModes.has(modeKey(collection.id, mode.modeId)),
+        );
+        // ⛔ Object IDENTITY is the default and it is load-bearing: the add_variable_mode
+        // tests attach `addMode` to the object THEY looked up and the handler then looks
+        // the collection up again. Only the `fresh_lookup` model hands back a distinct
+        // view, and it prototype-inherits so `removeMode` and `variableIds` still resolve.
+        if (!hidden) return collection;
+        const view = Object.create(collection);
+        Object.defineProperty(view, "modes", {
+          enumerable: true,
+          configurable: true,
+          value: collection.modes.filter(
+            (mode) => !hiddenModes.has(modeKey(collection.id, mode.modeId)),
+          ),
+        });
+        return view;
+      },
       createVariable: (name, collection, resolvedType) =>
         createFixtureVariable(name, collection, resolvedType),
       createVariableCollection: (name) => {
@@ -1175,6 +1267,7 @@ function createFixtureRuntime(fixture, options) {
           modes: [{ modeId, name: "Mode 1" }],
         };
         attachVariableIds(collection);
+        attachModeRemoval(collection);
         collections.push(collection);
         return collection;
       },
@@ -1211,7 +1304,10 @@ function createFixtureRuntime(fixture, options) {
     loadedFonts,
     clock,
     plain: clone,
-    commitFrame: commitVariableRemovals,
+    commitFrame: () => {
+      commitVariableRemovals();
+      commitModeRemovals();
+    },
   };
 }
 

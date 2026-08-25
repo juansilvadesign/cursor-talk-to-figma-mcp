@@ -334,3 +334,287 @@ test("R3-A 1.3 — the public schema declares add_variable_mode as an additive p
   assert.match(tool.description, /never creates a temporary collection or mode/i);
   assert.match(tool.description, /refusal text verbatim/i);
 });
+
+// ---------------------------------------------------------------------------
+// R3-A Phase 4 — `remove_variable_mode`, the modes slice
+//
+// ⛔ THE DEFECT THIS SUITE IS SHAPED AROUND ALREADY HAPPENED ONCE, to `delete_variable`.
+// That tool asked ONE question after `remove()` — `getVariableByIdAsync` — which Figma
+// answers with a STALE object inside the deleting frame, so its success branch was
+// unreachable live while an obliging harness kept it green. The fix was to probe several
+// independent signals and name the one that fired.
+//
+// So the harness models "what does Figma make observable in-frame?" as an OPTION with
+// three settings, and the DEFAULT is the conservative one where nothing is observable.
+// The tests below therefore start from the deferral, not from the success: a green
+// `removed` receipt is something a signal has to earn here, not the resting state.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_MODE = "mode-light";
+const SECOND_MODE = "mode-dark";
+
+test("R3-A 2.5 — confirm must be literal true, and nothing is called without it", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  let removeModeCalls = 0;
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("removeMode must not be reached without confirm: true");
+  };
+
+  // ⛔ A generic truthy value is not a confirmation. The published schema is z.literal(true),
+  // and the handler repeats the check because the plugin has a second entry point that the
+  // schema does not police.
+  for (const confirm of [undefined, false, "true", 1, {}]) {
+    await assert.rejects(
+      () =>
+        harness.command("remove_variable_mode", {
+          collectionId: "collection-1",
+          modeId: SECOND_MODE,
+          ...(confirm === undefined ? {} : { confirm }),
+        }),
+      /requires confirm: true; wrote nothing/,
+      `confirm ${JSON.stringify(confirm)} must not be accepted`,
+    );
+  }
+  assert.equal(removeModeCalls, 0);
+  assert.equal(collection.modes.length, 2);
+});
+
+test("R3-A 2.5 — the DEFAULT mode is refused without calling removeMode", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  let removeModeCalls = 0;
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("the default mode must never reach removeMode");
+  };
+
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: DEFAULT_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.outcome, "refused");
+  assert.equal(receipt.refusal.code, "default_mode");
+  assert.match(receipt.refusal.message, /does not document where defaultModeId lands/);
+  assert.equal(receipt.collection.id, "collection-1");
+  assert.equal(receipt.mode.id, DEFAULT_MODE);
+  assert.equal(removeModeCalls, 0, "the refusal must precede every Figma call");
+  assert.equal(collection.modes.length, 2);
+  assert.equal(collection.defaultModeId, DEFAULT_MODE);
+});
+
+test("R3-A 2.5 — the SOLE remaining mode is refused, and the guard is not the default guard", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  // A fresh single-mode collection whose one mode is ALSO its default would be refused by
+  // the default guard first, which would leave the sole-mode branch unproven. So the
+  // default is pointed elsewhere: this reaches the sole-mode refusal on its own merits.
+  const collection = figma.variables.createVariableCollection("Solo");
+  const soleMode = collection.modes[0].modeId;
+  collection.defaultModeId = "mode-not-this-one";
+  let removeModeCalls = 0;
+  collection.removeMode = () => {
+    removeModeCalls += 1;
+    throw new Error("the last mode must never reach removeMode");
+  };
+
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: collection.id,
+    modeId: soleMode,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.refusal.code, "sole_remaining_mode");
+  assert.match(receipt.refusal.message, /no slot to hold any variable's value/);
+  assert.equal(removeModeCalls, 0);
+  assert.equal(collection.modes.length, 1);
+});
+
+test("R3-A 2.5 — a mode that belongs to another collection is refused by ID, not by name", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const other = figma.variables.createVariableCollection("Other");
+
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: other.modes[0].modeId,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.refusal.code, "mode_not_in_collection");
+  assert.equal(other.modes.length, 1, "the other collection must be untouched");
+});
+
+test("R3-A 2.5 — a missing collection and a remote collection each get their own typed refusal", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+
+  const missing = await harness.command("remove_variable_mode", {
+    collectionId: "VariableCollectionId:0:0",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+  assert.equal(missing.refusal.code, "collection_not_found");
+
+  const remote = figma.variables.createVariableCollection("Library");
+  remote.remote = true;
+  const refused = await harness.command("remove_variable_mode", {
+    collectionId: remote.id,
+    modeId: remote.modes[0].modeId,
+    confirm: true,
+  });
+  assert.equal(refused.refusal.code, "remote_collection");
+});
+
+test("R3-A 2.5 — when NOTHING in-frame can observe the removal, the receipt defers instead of claiming it", async () => {
+  // ⛔ This is the `delete_not_observed` shape, and it is the DEFAULT harness model on
+  // purpose: `modeRemovalSignal: "none"` is the conservative reading of a platform that
+  // documents `removeMode(modeId)` and says nothing about when it becomes visible.
+  const harness = await loadPluginHarness();
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, false, "an unobservable removal is NOT a success");
+  assert.equal(receipt.outcome, "removal_unconfirmed");
+  assert.equal(receipt.removalObserved, false);
+  assert.equal(receipt.verificationDeferred, true);
+  assert.equal(receipt.partialApplicationPossible, true);
+  assert.equal(receipt.refusal.code, "mode_removal_not_observed_in_frame");
+  assert.equal(receipt.observation.observedBy, null);
+  assert.equal(receipt.observation.resolvedCollectionStillLists, true);
+  assert.equal(receipt.observation.freshCollectionStillLists, true);
+
+  // ⭐ And the removal WAS real — the frame commits it, so the caller's own later read is
+  // the instrument the receipt told it to use. A handler that had claimed success here
+  // would have been RIGHT about the outcome and WRONG about what it could see, which is
+  // the distinction the deferral exists to keep.
+  const figma = harness.globals("figma");
+  const after = await figma.variables.getVariableCollectionByIdAsync("collection-1");
+  assert.equal(
+    after.modes.some((mode) => mode.modeId === SECOND_MODE),
+    false,
+    "the deferred removal must genuinely land at frame end",
+  );
+});
+
+test("R3-A 2.5 — the resolved collection's own modes array is one observing signal", async () => {
+  const harness = await loadPluginHarness({ modeRemovalSignal: "collection_modes" });
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, true);
+  assert.equal(receipt.outcome, "removed");
+  assert.equal(receipt.removalObserved, true);
+  assert.equal(receipt.verificationDeferred, false);
+  assert.equal(receipt.observation.observedBy, "resolved_collection_modes");
+  assert.equal(receipt.observation.resolvedCollectionStillLists, false);
+  assert.equal(receipt.modeCountBefore, 2);
+  assert.equal(receipt.observation.modeCountAfter, 1);
+  assert.equal(receipt.defaultModeIdStable, true);
+});
+
+test("R3-A 2.5 — a FRESH lookup is a genuinely separate signal, and it is load-bearing", async () => {
+  // ⛔ Without this arm the second probe could be dead code and every test would still be
+  // green — the same "a dead read path sat 332/332 green" shape the fork has already paid
+  // for once. Here the resolved object STILL lists the mode and only a new lookup does not,
+  // so the receipt can only be right if the handler actually asked the second question.
+  const harness = await loadPluginHarness({ modeRemovalSignal: "fresh_lookup" });
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, true);
+  assert.equal(receipt.observation.observedBy, "fresh_collection_modes");
+  assert.equal(
+    receipt.observation.resolvedCollectionStillLists,
+    true,
+    "the first signal must be reported as NOT having observed it",
+  );
+  assert.equal(receipt.observation.freshCollectionStillLists, false);
+  assert.equal(receipt.defaultModeIdStable, true);
+});
+
+test("R3-A 2.5 — the blast radius is read BEFORE the call and names what survives", async () => {
+  const harness = await loadPluginHarness({ modeRemovalSignal: "collection_modes" });
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  const variableCountBefore = collection.variableIds.length;
+  assert.ok(variableCountBefore > 0, "the fixture must carry variables to have a radius");
+
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.blastRadius.variableCount, variableCountBefore);
+  assert.match(receipt.blastRadius.valuesDiscarded, /other modes are untouched/);
+});
+
+test("R3-A 2.5 — a Figma throw is reported as a refusal that may have applied", async () => {
+  const harness = await loadPluginHarness();
+  const figma = harness.globals("figma");
+  const collection = await figma.variables.getVariableCollectionByIdAsync(
+    "collection-1",
+  );
+  collection.removeMode = () => {
+    throw new Error("in removeMode: something the platform owns");
+  };
+
+  const receipt = await harness.command("remove_variable_mode", {
+    collectionId: "collection-1",
+    modeId: SECOND_MODE,
+    confirm: true,
+  });
+
+  assert.equal(receipt.success, false);
+  assert.equal(receipt.refusal.code, "figma_refusal");
+  assert.match(receipt.refusal.message, /in removeMode: something the platform owns/);
+  assert.equal(
+    receipt.partialApplicationPossible,
+    true,
+    "a platform throw is not proof that no state changed",
+  );
+});
+
+test("R3-A 2.5 — the public schema declares remove_variable_mode as a destructive additive preview write", async () => {
+  const built = await buildContract();
+  const tool = built.contract.tools.find(
+    (entry) => entry.name === "remove_variable_mode",
+  );
+
+  assert.ok(tool, "remove_variable_mode must be registered");
+  assert.equal(tool.direction, "write");
+  assert.equal(tool.scope, "variable_collection_mode");
+  assert.equal(tool.resultStability, "additive-preview");
+  assert.deepEqual(tool.inputSchema.required, ["collectionId", "modeId", "confirm"]);
+  // The literal is what makes a truthy value fail at the transport rather than at the
+  // handler's second line of defence.
+  assert.equal(tool.inputSchema.properties.confirm.const, true);
+  assert.equal(tool.inputSchema.properties.confirm.type, "boolean");
+  assert.match(tool.description, /default mode/i);
+  assert.match(tool.description, /sole remaining mode/i);
+  assert.match(tool.description, /removal_unconfirmed/);
+});

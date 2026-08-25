@@ -1,14 +1,126 @@
-# R3-A Phases 2–3 — the variable-write slice
+# R3-A Phases 2–4 — the variable-write slice
 
-The record doc for the first three variable **write** tools: `set_variable_value`,
-`create_variable`, and `delete_variable`. Phase 1's read/probe work is recorded in
-[`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) §§ *1.1–1.3*; this file owns Phase 2
-(the three write tools) and Phase 3 (layered resource identity for `create_variable`).
+The record doc for the variable **write** tools: `set_variable_value`, `create_variable`,
+`delete_variable`, and `remove_variable_mode`. Phase 1's read/probe work is recorded in
+[`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) §§ *1.1–1.3*; this file owns Phase 2 (the
+three write tools), Phase 3 (layered resource identity for `create_variable`) and Phase 4
+(mode removal, plan item *2.5*).
 
 > ⚠️ The gate in this document **creates, aliases, rewrites and deletes real variables**.
 > Every invocation requires `--disposable-target=true`, and a channel is transport, not
 > evidence that the file behind it is disposable.
 
+
+## 🟡 R3-A PHASE 4 — `remove_variable_mode`, BUILT AND OFFLINE-GATED AT `1.14.0`
+
+Plan item **2.5**'s destructive half, and the tool that makes the Phase 1.3 debris above
+clearable from this fork instead of by hand. **Built, offline-gated, and NOT yet live** —
+`scripts/live-variable-mode-removal-gate.mjs` pins this build and awaits a channel.
+
+**Identity:** `r3-a-server-c4d037a645e3` ↔ `r3-a-plugin-fe0b1e03325c`, schema `1.14.0`,
+**71 tools**, fingerprint
+`sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37`.
+Offline **410/410**, `bun run verify` green, `dist/server.js`
+`sha256:2c9cbae6…d925e7efc1` built from `code.js` `sha256:23cfc896…1dba9924`.
+
+### The guard rail, and why two removals are refused rather than reasoned about
+
+Exact `collectionId` + exact `modeId` + literal `confirm: true`; local collections only;
+one mode per call.
+
+- ⛔ **THE DEFAULT MODE IS REFUSED.** Figma documents `removeMode(modeId)` and documents
+  `defaultModeId`, and documents **nothing** about where the default lands when the default
+  itself is removed. Every variable in a collection resolves through that default, so an
+  undocumented repoint would change the resolved value of the whole collection from a call
+  that named one mode. Refusing is the only branch whose consequence this fork can state.
+  The caller who means it reassigns the default in the Figma UI first, where the intent is
+  explicit.
+- ⛔ **THE SOLE REMAINING MODE IS REFUSED.** A collection with no modes has no slot for any
+  variable's value. Refuse rather than discover what Figma does with the collection itself.
+- ⭐ The receipt reports `blastRadius.variableCount` read **before** the call, because after
+  a successful removal the membership it would be read from is exactly what may have moved.
+  Those variables survive; only the value they held **for this mode** does not.
+
+### ⛔ The `delete_variable` lesson, paid BEFORE it could cost a live run
+
+Phase 2's `delete_variable` asked ONE question after `remove()` — `getVariableByIdAsync` —
+which Figma answers with a **stale** object inside the deleting frame. Its success branch
+was therefore unreachable live while an obliging harness kept it green, and the live gate's
+first run failed with three `delete_not_observed` receipts for variables that were already
+gone. Nothing in Figma's documentation says which signal a `removeMode()` updates in-frame,
+so this handler assumes **none** and probes two independent ones — the resolved collection
+object's own `modes`, then a freshly looked-up collection's `modes` — naming the one that
+fired in `observation.observedBy`. When neither can distinguish a real removal from a no-op
+it returns `removal_unconfirmed` with `verificationDeferred` and `partialApplicationPossible`
+rather than claiming the removal.
+
+⭐ **And the offline harness models that question as an OPTION whose DEFAULT is "nothing is
+observable".** `modeRemovalSignal` takes `"none"` (the default), `"collection_modes"` and
+`"fresh_lookup"`. A harness that spliced the mode out of `collection.modes` immediately
+would have made the in-frame branch reachable offline and possibly unreachable live — which
+is precisely how `delete_not_observed` shipped green. The `"fresh_lookup"` arm exists
+because the resolved object and a fresh lookup are the same object in this harness: without
+it, the second probe could be dead code and every test would still pass.
+
+⭐ **Every signal model commits to the same state at frame end**, so the cross-frame re-read
+is a real instrument offline rather than a second look at the same in-frame fiction.
+
+### The `set_fill` gradient `color` drop is REPAIRED — the third refused combination
+
+The debt R2.7 item 1.1 recorded and 1.2 deliberately declined is paid here.
+`buildFillPaint`'s gradient branch never read `input.color`, and the published schema
+announced the drop — *"ignored by the gradients"* — so
+`{type:"GRADIENT_LINEAR", color:{…}, gradientStops:[…]}` earned a **green receipt and a
+discarded argument**. The tool enforced *"a discarded value reads as an applied one"* on
+`color.a` × `opacity` and on `gradientTransform` × `angle`, and broke it on a third pair.
+It now refuses, and the schema description no longer advertises a drop it does not perform.
+
+⚠️ **What no check here can see, stated rather than assumed.** The repair lives in the
+**handler**, not the schema — `color` stays `.optional()` on every paint, because Zod cannot
+express *"required here, forbidden there"* without restructuring a `stable` tool's input
+into a discriminated union. So `compareSchema()` cannot see the change and
+`compatibilityErrors()` reports none. `publicContractVersion` was moved to `1.14.0` by
+**decision**, not because a green check demanded it — the same shape as
+`capabilityFingerprint` covering only what it hashes.
+
+### Mutation-tested against the SOURCE, with a control
+
+Nine mutations of `src/cursor_mcp_plugin/code.js` (never `dist/`, which a build regenerates):
+default-mode refusal, sole-remaining refusal, the `confirm` gate, each of the two observation
+signals, the deferral-to-success downgrade, the blast-radius count, and the gradient `color`
+refusal. **All nine killed**; a comment-text control **survived**, so "every mutant died" is
+distinguishable from "the suite fails on any edit". The source restored byte-identical
+(`sha256:23cfc896…1dba9924`) — the same hash `bun run verify` then built `dist/` from.
+
+⚠️ **One anchor was rejected by the uniqueness guard and it was RIGHT to be**:
+`outcome: "removal_unconfirmed",` matches **both** this handler and `delete_variable`'s
+deferral, so the one-line form would have mutated the wrong function and fabricated a hole.
+The two-line form pins the mode handler. ⚠️ A second reading — *"3 hits"* on that two-line
+anchor — was a defect in the **counter**, not the anchor: `grep -F` splits a multi-line
+pattern into separate patterns and sums their line hits. Counted as a sequence, it is 1.
+
+### The acceptance flow this gate implements
+
+Approved 2026-08-24, in this order and for this reason:
+
+1. **Probe leg.** `add_variable_mode` creates a disposable probe mode, `remove_variable_mode`
+   removes it, and a **later call** fresh-reads it absent. The tool is proved on a resource
+   the gate owns, not first exercised on a real design-system copy — and because the probe
+   manufactures its own target, **the gate stays rerunnable after the residues are gone**.
+2. **Refusal legs.** The default mode, a foreign `modeId`, and a call with no `confirm`. Each
+   asserts the refusal **and** that the mode count and `defaultModeId` did not move — *refused*
+   and *refused after writing* are different receipts with the same first word. The
+   no-`confirm` leg accepts either a throw or `isError`, because a `z.literal(true)` violation
+   is refused by the **schema**, and scoring only one shape would mark correct behaviour a
+   failure.
+3. **Authorized residue cleanup.** All **six** documented residues — `R3A-GATE-DELETE-ME` plus
+   `R3A-FILL-1…5` — each with its own fresh-read verification, then a final read asserting
+   none survived and the default did not move.
+
+⛔ **The residues are matched by exact NAME against a fresh read, never by the recorded mode
+IDs.** `31001:0`–`31001:5` describe one file; a disposable **copy** of it re-issues them. A
+mode whose name is not on the allowlist is never removed, whatever the caller passes. Zero
+targets is a **pass**, not a failure — that is what the second run sees.
 ## ✅✅ R3-A PHASE 3 ACCEPTANCE — PAID 2026-08-24, channel `lkm6ne6h`
 
 `scripts/live-variable-identity-gate.mjs` **PASSED TWICE**, same verdict structure both
@@ -71,9 +183,12 @@ on top of the four real `Mobile/Tablet/Laptop/Desktop` modes.
   to 10 modes to make Figma emit `in addMode: Limited to 10 modes only`. They are not
   variables and this gate never touches modes — the Phase 3 runs above created and deleted
   exactly one STRING variable each, in `_Primitives`.
-- ⛔ **This fork exposes no mode-removal tool.** `add_variable_mode` is documented as never
-  calling `removeMode`, and there is no `delete_variable_mode`. The debris can only be
-  cleared **by hand in Figma**.
+- ⚠️ **This was TRUE WHEN WRITTEN and is now superseded.** At the time of the Phase 3 run
+  this fork exposed no mode-removal tool — `add_variable_mode` is documented as never
+  calling `removeMode`, and there was no `delete_variable_mode` — so hand deletion in Figma
+  was the only route. **Phase 4 built `remove_variable_mode` for exactly this**, and its
+  live gate carries the authorized cleanup. ⛔ Until that gate has RUN, the debris is still
+  there: a built tool is not a performed cleanup.
 - ⚠️ Consequence: *"8. Dimensions"* is pinned at the 10-mode ceiling by junk, so
   `get_variable_capabilities` honestly reports `modeCount: 10` for it and any real
   `add_variable_mode` against that collection will be refused until the modes are deleted.
@@ -191,6 +306,13 @@ node scripts/live-variable-identity-gate.mjs \
   --channel=<DEV-plugin-channel-for-a-disposable-file> \
   --collection-id=<existing-local-collection-id> \
   --disposable-target=true
+
+# Phase 4 — mode removal, and the authorized residue cleanup
+node scripts/live-variable-mode-removal-gate.mjs \
+  --channel=<DEV-plugin-channel-for-a-disposable-file> \
+  --collection-id=<local-collection-with-≥2-modes-and-room-for-one-more> \
+  --disposable-target=true \
+  --residue-collection-id=<collection-holding-the-authorized-residues>
 ```
 
 For the **Phase 2** gate prefer a **multi-mode** collection: on a single-mode target the
@@ -221,6 +343,28 @@ run and the offline suite provably exercised the same build.
 dispatcher commits **after** the reply is built, and `variableRemovalSignal` selects which
 in-frame signal a modelled platform exposes. The default `"none"` is the conservative case.
 
+
+**Phase 4** adds **fifteen** more (offline **410/410** total), in
+`tests/variable-write-capability.test.mjs` and `tests/set-fill.test.mjs`:
+
+- both guard-rail refusals, each asserting `removeMode` was **never called** — a refusal
+  that fires after the platform call is a different receipt with the same first word;
+- the `confirm` gate against `undefined`, `false`, `"true"`, `1` and `{}`, because a
+  truthy value is not a confirmation;
+- ⭐ **the deferral as the DEFAULT outcome.** `modeRemovalSignal` defaults to `"none"`, so a
+  green `removed` receipt is something a signal has to earn here rather than the resting
+  state — and the same test then proves the removal really landed at frame end, which is
+  what makes the receipt's "re-read later" instruction honest rather than a hedge;
+- one test per observation signal, including a `"fresh_lookup"` arm where the resolved
+  object **still lists** the mode — without it the second probe could be dead code and
+  every test would still be green;
+- the four gradient types × `color`, with the SOLID path exercised in the same test as the
+  control, plus a schema test asserting the published description stopped advertising a
+  drop the handler no longer performs.
+
+⛔ The sole-remaining-mode test points the collection's default at another mode first.
+Without that the default guard would fire first and the sole-mode branch would sit unproven
+behind it — a refusal reached for the wrong reason is an unfired assertion.
 ## Open debts
 
 - ✅ The `deleteVariable` comment correction travelled with R3-A Phase 3's real `code.js`
@@ -235,9 +379,15 @@ in-frame signal a modelled platform exposes. The default `"none"` is the conserv
 - ⏳ The `removal_unconfirmed` deferral path is offline-covered but live-unexercised. Phase 3
   did not reach it: `collection_membership` answered on every delete, which is exactly the
   branch that makes the deferral rare.
-- ⚠️ **6 leftover Phase 1.3 modes sit in *"8. Dimensions"* on the disposable starter file**
-  and no tool in this fork can remove them — see the Phase 3 acceptance section. Hand
-  deletion in Figma is the only route.
-- ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md) (modes,
-  collections, bindings) is untouched. Phase 3 resource identity is implemented and
-  offline-gated at `1.13.0`; its disposable-file live gate remains unrun.
+- ⚠️ **6 leftover Phase 1.3 modes still sit in *"8. Dimensions"* on the disposable starter
+  file.** Phase 4 built the tool that can clear them and its live gate carries the
+  authorized cleanup — but ⛔ **the gate has not run**, so the debris is still there and
+  that collection is still pinned at the ceiling by junk. A built tool is not a performed
+  cleanup.
+- ⏳ **`remove_variable_mode` is offline-only.** Its two observation signals, both guard-rail
+  refusals and the deferral branch have never been judged by real Figma. Which signal — if
+  any — Figma updates in-frame after `removeMode()` is **unmeasured**; the handler assumes
+  none by design, and the gate is what settles it.
+- ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md)
+  (collections, bindings) is untouched. The modes row is now half-built: `add_variable_mode`
+  is live-accepted, `remove_variable_mode` is built and awaiting its gate at `1.14.0`.

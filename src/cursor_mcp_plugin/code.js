@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-02cca8304cfb",
-  "apiVersion": "1.13.0",
-  "serverSchemaVersion": "1.13.0",
+  "buildId": "r3-a-plugin-fe0b1e03325c",
+  "apiVersion": "1.14.0",
+  "serverSchemaVersion": "1.14.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
+  "capabilityFingerprint": "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -40,6 +40,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_variable_value",
     "create_variable",
     "delete_variable",
+    "remove_variable_mode",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -117,6 +118,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
+    "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
@@ -352,6 +354,8 @@ async function handleCommand(command, params) {
       return await createVariable(params);
     case "delete_variable":
       return await deleteVariable(params);
+    case "remove_variable_mode":
+      return await removeVariableMode(params);
     case "get_node_variables":
       return await getNodeVariables(params);
     case "get_available_fonts":
@@ -4964,6 +4968,214 @@ async function deleteVariable(params) {
     confirm: true,
     removalObserved: true,
     verificationDeferred: false,
+    observation,
+  };
+}
+
+// R3-A Phase 4 — the modes slice, and the first tool in this fork that can REMOVE a mode.
+// Its guard rail is deliberately narrower than `delete_variable`'s: an exact collection ID
+// AND an exact mode ID AND literal `confirm: true`, local collections only, one mode per
+// call. Two removals are refused outright rather than reasoned about:
+//
+//   ⛔ THE DEFAULT MODE. Figma documents `removeMode(modeId)` and it documents
+//      `defaultModeId`, but it does NOT document what happens to the default when the
+//      default is the mode being removed — whether it silently repoints, and if so to
+//      which mode. Every variable in the collection resolves through `defaultModeId`, so
+//      an undocumented repoint would change the resolved value of the whole collection
+//      from a call that named one mode. Refusing is the only branch whose consequence
+//      this fork can state.
+//   ⛔ THE SOLE REMAINING MODE. A collection with no modes has no slot for any variable's
+//      value. Refuse rather than discover what Figma does with the collection itself.
+//
+// The caller who genuinely wants either can reassign the default in the Figma UI first,
+// which makes the intent explicit at the place that owns it.
+async function removeVariableMode(params) {
+  const command = "remove_variable_mode";
+  const { collectionId, modeId, confirm } = params || {};
+  if (confirm !== true) {
+    throw new Error(
+      `${command} is destructive and requires confirm: true; wrote nothing`
+    );
+  }
+
+  const collectionResult = await resolveVariableCollectionForWrite(
+    command,
+    collectionId
+  );
+  if (collectionResult.refusal) return collectionResult.refusal;
+  const collection = collectionResult.collection;
+
+  const modeResult = resolveVariableModeForWrite(command, collection, modeId);
+  if (modeResult.refusal) return modeResult.refusal;
+  const mode = modeResult.mode;
+
+  const collectionSummary = variableWriteCollectionSummary(collection);
+  const modeSummary = variableWriteModeSummary(mode);
+  const refusalDetails = {
+    collection: collectionSummary,
+    mode: modeSummary,
+    confirm: true,
+  };
+
+  if (collectionSummary.defaultModeId === mode.modeId) {
+    return variableWriteRefusal(
+      "default_mode",
+      `${command} wrote nothing: mode ${mode.modeId} is the default mode of variable collection ${collection.id}. Figma does not document where defaultModeId lands when the default is removed, and every variable in this collection resolves through it. Reassign the default in Figma first, then remove this mode.`,
+      refusalDetails
+    );
+  }
+
+  const modeCountBefore = collection.modes.length;
+  if (modeCountBefore <= 1) {
+    return variableWriteRefusal(
+      "sole_remaining_mode",
+      `${command} wrote nothing: mode ${mode.modeId} is the only mode left in variable collection ${collection.id}, and a collection with no modes has no slot to hold any variable's value.`,
+      refusalDetails
+    );
+  }
+
+  if (typeof collection.removeMode !== "function") {
+    throw new Error(
+      `${command} wrote nothing: variable collection ${collection.id} does not support removeMode()`
+    );
+  }
+
+  // ⚠️ The blast radius is stated BEFORE the call, from the pre-call membership, because
+  // after a successful removal that membership is exactly what may have changed. This is
+  // a count of the variables that own a value for this mode, not a count of variables
+  // destroyed — the variables survive; their value for THIS mode does not.
+  const variableIds = Array.isArray(collection.variableIds)
+    ? collection.variableIds.slice()
+    : null;
+  const blastRadius = {
+    variableCount: variableIds ? variableIds.length : null,
+    valuesDiscarded:
+      "Every variable in this collection loses the value it held for this mode; values for the collection's other modes are untouched.",
+  };
+
+  try {
+    collection.removeMode(mode.modeId);
+  } catch (error) {
+    // A platform throw is not proof that no state changed — the same reasoning
+    // `delete_variable` applies to `remove()`. Say so rather than promising a rollback.
+    return {
+      ...variableWriteRefusal(
+        "figma_refusal",
+        `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+        refusalDetails
+      ),
+      blastRadius,
+      partialApplicationPossible: true,
+    };
+  }
+
+  // ⛔ THE `delete_variable` LESSON, APPLIED BEFORE IT COSTS A LIVE RUN. That tool's first
+  // implementation asked ONE question after `remove()` — `getVariableByIdAsync` — and
+  // Figma answers it with a stale object inside the deleting frame, so its success branch
+  // was UNREACHABLE live while the offline harness kept it green. The fix was to probe
+  // several independent signals and name the one that fired. Nothing about `removeMode()`
+  // says which signal Figma updates in-frame, so this handler assumes none of them and
+  // asks each: the resolved collection object's own `modes`, then a freshly looked-up
+  // collection's `modes`. When neither can distinguish a real removal from a no-op, the
+  // receipt says so instead of claiming the removal.
+  const observation = {
+    resolvedCollectionStillLists: null,
+    freshCollectionStillLists: null,
+    modeCountAfter: null,
+    defaultModeIdAfter: null,
+    observedBy: null,
+  };
+
+  try {
+    const modesAfter = Array.isArray(collection.modes) ? collection.modes : null;
+    if (modesAfter) {
+      observation.modeCountAfter = modesAfter.length;
+      observation.resolvedCollectionStillLists = modesAfter.some(
+        (candidate) => candidate.modeId === mode.modeId
+      );
+      if (observation.resolvedCollectionStillLists === false) {
+        observation.observedBy = "resolved_collection_modes";
+      }
+    }
+  } catch (error) {
+    // An unreadable modes array is not evidence either way; leave both signals null.
+  }
+
+  let freshCollection = null;
+  try {
+    freshCollection = await figma.variables.getVariableCollectionByIdAsync(
+      collection.id
+    );
+  } catch (error) {
+    freshCollection = null;
+  }
+  if (freshCollection) {
+    if (typeof freshCollection.defaultModeId === "string") {
+      observation.defaultModeIdAfter = freshCollection.defaultModeId;
+    }
+    const freshModes = Array.isArray(freshCollection.modes)
+      ? freshCollection.modes
+      : null;
+    if (freshModes) {
+      if (observation.modeCountAfter === null) {
+        observation.modeCountAfter = freshModes.length;
+      }
+      observation.freshCollectionStillLists = freshModes.some(
+        (candidate) => candidate.modeId === mode.modeId
+      );
+      if (
+        observation.freshCollectionStillLists === false &&
+        !observation.observedBy
+      ) {
+        observation.observedBy = "fresh_collection_modes";
+      }
+    }
+  }
+
+  // ⭐ Not a removal signal — a SAFETY reading. The default-mode refusal above protects the
+  // named mode; this reports whether removing a NON-default mode moved the default anyway.
+  // A `false` here is a real finding about the platform, so it is published rather than
+  // asserted, and it never turns a removal into a failure on its own.
+  const defaultModeIdStable =
+    observation.defaultModeIdAfter === null
+      ? null
+      : observation.defaultModeIdAfter === collectionSummary.defaultModeId;
+
+  if (!observation.observedBy) {
+    // ⚠️ Deliberately NOT success. A no-op removeMode() and a frame-deferred commit are
+    // indistinguishable from inside this frame, so the CALLER confirms absence in a later
+    // call. The live gate's cross-frame re-read is that instrument.
+    return {
+      success: false,
+      outcome: "removal_unconfirmed",
+      collection: collectionSummary,
+      mode: modeSummary,
+      confirm: true,
+      modeCountBefore,
+      blastRadius,
+      removalObserved: false,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      defaultModeIdStable,
+      observation,
+      refusal: {
+        code: "mode_removal_not_observed_in_frame",
+        message: `${command} called removeMode() for mode ${mode.modeId}; no in-frame signal could confirm the removal, which is expected when Figma commits it at frame end. Re-read the collection in a later call to verify absence.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "removed",
+    collection: collectionSummary,
+    mode: modeSummary,
+    confirm: true,
+    modeCountBefore,
+    blastRadius,
+    removalObserved: true,
+    verificationDeferred: false,
+    defaultModeIdStable,
     observation,
   };
 }
@@ -9856,6 +10068,22 @@ function buildFillPaint(input, index) {
     }
     paint.color = { r: color.r, g: color.g, b: color.b };
   } else {
+    // ⛔ THE THIRD REFUSED COMBINATION, and it was a DEBT this tool carried while enforcing
+    // the same rule on two other pairs. `color` belongs to a SOLID paint; a gradient's
+    // colour lives in its stops. The branch used to simply not read `input.color`, and the
+    // published schema said so out loud — "ignored by the gradients" — so a caller who sent
+    // `{type: "GRADIENT_LINEAR", color: {...}, gradientStops: [...]}` got a GREEN receipt
+    // and a discarded argument. That is a discarded value reading as an applied one, which
+    // is the exact rule `color.a` × `opacity` and `gradientTransform` × `angle` refuse
+    // below and above. Documenting a silent drop does not stop it being one.
+    if (input.color !== undefined) {
+      throw new Error(
+        `${where}: a ${type} paint takes its colour from gradientStops, not from color — color belongs to a SOLID paint, and accepting it here would silently discard it. Received color ${JSON.stringify(
+          input.color
+        )} and wrote nothing`
+      );
+    }
+
     const stops = input.gradientStops;
     if (!Array.isArray(stops) || stops.length < 2) {
       throw new Error(

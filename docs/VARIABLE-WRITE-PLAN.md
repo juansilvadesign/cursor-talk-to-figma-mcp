@@ -322,7 +322,7 @@ published library and must be rejected with a typed refusal, never silently skip
 | `create_variable_collection` | `figma.variables.createVariableCollection(name)` | Returns collection id + its single default mode id |
 | `add_variable_mode` | `collection.addMode(name)` | ⚠️ Throws at the plan ceiling — surface, don't swallow |
 | `rename_variable_mode` | `collection.renameMode(modeId, name)` | |
-| `remove_variable_mode` | `collection.removeMode(modeId)` | Destructive — see the destructive-boundary rule below |
+| `remove_variable_mode` | `collection.removeMode(modeId)` | ✅ **BUILT at `1.14.0`** — destructive; refuses the default and the sole remaining mode. See 2.5 |
 | `create_variable` | `figma.variables.createVariable(name, collection, resolvedType)` | `resolvedType` ∈ `COLOR｜FLOAT｜STRING｜BOOLEAN` |
 | `set_variable_value` | `variable.setValueForMode(modeId, value)` | Accepts a raw value **or** an alias — see 2.2 |
 | `set_variable_metadata` | `variable.name` / `.description` / `.scopes` | Rename + scope correction in one tool |
@@ -344,9 +344,20 @@ published library and must be rejected with a typed refusal, never silently skip
 - [ ] **2.4 Typed partial results on every multi-target call.** Per the cross-cutting rule
       *"Writes are exact and auditable"*: return per-item `{ok, id, matchedBy, error}`.
       ⛔ A batch that half-applies must never report success.
-- [ ] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
+- [x] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
       explicit `confirm: true`. `TASKS.md` C5 already names *"explicit destructive
       boundaries"* as a fork responsibility.
+      ✅ **BOTH BUILT.** `delete_variable` is live-accepted (Phase 2/3);
+      `remove_variable_mode` is built and offline-gated at `1.14.0` (Phase 4) and awaits its
+      live gate. Both take a `z.literal(true)` in the published schema **and** re-check it in
+      the handler, because the plugin has a second entry point the schema does not police.
+      ⭐ `remove_variable_mode`'s boundary is deliberately WIDER than `confirm`: it also
+      refuses the collection's **default** mode and its **sole remaining** mode. Figma
+      documents `removeMode(modeId)` and documents nothing about where `defaultModeId` lands
+      when the default is removed — and every variable in the collection resolves through it,
+      so an undocumented repoint would change the whole collection from a call that named one
+      mode. Refusing is the only branch whose consequence this fork can state.
+      ⚠️ Record → [`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md) § *R3-A PHASE 4*.
 
 ### ✅✅ R3-A Phase 2 — first three tools, LIVE ACCEPTANCE PAID 2026-08-24
 

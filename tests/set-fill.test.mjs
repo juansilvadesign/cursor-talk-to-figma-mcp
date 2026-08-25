@@ -229,7 +229,7 @@ test("out-of-range channels are REFUSED, never clamped or coerced", async () => 
 });
 
 // ---------------------------------------------------------------------------
-// The two refused combinations — one question, one answer
+// The THREE refused combinations — one question, one answer
 // ---------------------------------------------------------------------------
 
 test("color.a and opacity together are refused on a SOLID", async () => {
@@ -293,6 +293,109 @@ test("scale without angle is refused rather than silently ignored", async () => 
   await assert.rejects(
     () => harness.command("set_fill", { nodeId: EMPTY, paints: [{ ...LINEAR, scale: 2 }] }),
     /scale only applies to angle/,
+  );
+});
+
+// ⛔ THE THIRD REFUSED COMBINATION — a debt this tool carried from R2.7 item 1.1 until
+// R3-A Phase 4. `set_fill` enforced "a discarded value reads as an applied one" on
+// `color.a` × `opacity` and on `gradientTransform` × `angle`, and BROKE it on `color` ×
+// a gradient type: the gradient branch simply never read `input.color`, and the published
+// schema announced the drop — "ignored by the gradients". A caller sending
+// `{type:"GRADIENT_LINEAR", color:{...}, gradientStops:[...]}` got a GREEN receipt and a
+// silently discarded argument. Documenting a drop does not stop it being one.
+//
+// ⚠️ NOTE WHAT NO ASSERTION HERE CAN CATCH, AND WHY THAT MATTERS. This repair lives in the
+// HANDLER, not the schema — `color` is still `.optional()` on every paint — so
+// `compareSchema()` cannot see it and `compatibilityErrors()` reports nothing. The
+// contract's compatibility instrument covers only what it hashes and compares, exactly as
+// `capabilityFingerprint` does; the version was bumped for this by DECISION, not because a
+// check demanded it.
+
+test("color on a GRADIENT is refused, not silently discarded", async () => {
+  const harness = await loadPluginHarness();
+  await assert.rejects(
+    () =>
+      harness.command("set_fill", {
+        nodeId: EMPTY,
+        paints: [{ ...LINEAR, color: RED }],
+      }),
+    /takes its colour from gradientStops, not from color/,
+  );
+  assert.equal(
+    harness.getNode(EMPTY).fills.length,
+    0,
+    "the refusal must write nothing",
+  );
+});
+
+test("all four gradient types refuse color, and the SOLID path still works", async () => {
+  const harness = await loadPluginHarness();
+  const stops = LINEAR.gradientStops;
+  for (const type of [
+    "GRADIENT_LINEAR",
+    "GRADIENT_RADIAL",
+    "GRADIENT_ANGULAR",
+    "GRADIENT_DIAMOND",
+  ]) {
+    await assert.rejects(
+      () =>
+        harness.command("set_fill", {
+          nodeId: EMPTY,
+          paints: [{ type, gradientStops: stops, color: BLUE }],
+        }),
+      new RegExp(`a ${type} paint takes its colour from gradientStops`),
+      `${type} must refuse a discarded color`,
+    );
+  }
+
+  // ⭐ The control, in the same test rather than trusted to be untouched. A repair that
+  // also broke the SOLID branch would satisfy every assertion above while making the tool
+  // useless — the refusal has to be about the COMBINATION, not about `color`.
+  const solid = await harness.command("set_fill", {
+    nodeId: EMPTY,
+    paints: [{ type: "SOLID", color: RED }],
+  });
+  assert.equal(solid.fills.length, 1);
+  assert.deepEqual(solid.fills[0].color, { r: 1, g: 0, b: 0 });
+});
+
+test("a gradient with NO color is still accepted, so the refusal is about the argument", async () => {
+  const harness = await loadPluginHarness();
+  const receipt = await harness.command("set_fill", {
+    nodeId: EMPTY,
+    paints: [LINEAR],
+  });
+  assert.equal(receipt.fills.length, 1);
+  assert.equal(receipt.fills[0].type, "GRADIENT_LINEAR");
+  assert.equal(receipt.fills[0].gradientStops.length, LINEAR.gradientStops.length);
+});
+
+test("the published schema stops advertising the silent drop it no longer performs", async () => {
+  // ⛔ The drop was DOCUMENTED — "ignored by the gradients" — so repairing the handler and
+  // leaving that sentence would swap a silent discard for a published lie. And the schema
+  // shape itself must NOT change: `color` stays optional on every paint, because the rule
+  // is contextual and Zod cannot express "required here, forbidden there" without
+  // restructuring a `stable` tool's input into a discriminated union.
+  const contract = (await buildContract()).contract;
+  const fill = contract.tools.find((tool) => tool.name === "set_fill");
+  const paintArray = fill.inputSchema.properties.paints.anyOf.find(
+    (branch) => branch.type === "array",
+  );
+  assert.ok(paintArray, "paints must still publish an array branch alongside null");
+  const paint = paintArray.items;
+  assert.ok(paint.properties.color, "color must still be published on every paint");
+  assert.equal(
+    (paint.required || []).includes("color"),
+    false,
+    "color stays optional in the schema — the refusal is contextual and lives in the handler",
+  );
+  assert.match(
+    paint.properties.color.description,
+    /REFUSED rather than silently discarded/,
+  );
+  assert.doesNotMatch(
+    paint.properties.color.description,
+    /ignored by the gradients/,
   );
 });
 

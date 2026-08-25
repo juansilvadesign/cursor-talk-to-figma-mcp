@@ -10,7 +10,74 @@ type: project
 > ⚠️ **This repository is PUBLIC.** No credentials or tokens in this file.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
-## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 3 LIVE-ACCEPTED on `lkm6ne6h`)
+
+## ▶ Resume (checkpoint 2026-08-24 — R3-A Phase 4 BUILT + OFFLINE-GATED at `1.14.0`)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork` — 🟡 **R3-A PHASE 4
+  (`remove_variable_mode`) IS BUILT AND OFFLINE-GATED. NOT LIVE.**
+- **Current generated identity:** **71 tools**, R3-A **`1.14.0`**,
+  **`r3-a-server-c4d037a645e3` ↔ `r3-a-plugin-fe0b1e03325c`**, fingerprint
+  `sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37`.
+  Offline **410/410**, `bun run verify` green, `dist/server.js`
+  `sha256:2c9cbae6…d925e7efc1` built from `code.js` `sha256:23cfc896…1dba9924` — the same
+  hash the mutation harness restored, so the mutants and the build ran on ONE source.
+- **What Phase 4 shipped.** `remove_variable_mode` (plan item **2.5**): exact `collectionId`
+  + exact `modeId` + literal `confirm: true`, local collections only, one mode per call.
+  ⛔ **Refuses the DEFAULT mode** — Figma documents `removeMode(modeId)` and documents
+  NOTHING about where `defaultModeId` lands when the default is removed, and every variable
+  resolves through it. ⛔ **Refuses the SOLE remaining mode.** The receipt carries
+  `blastRadius.variableCount`, read BEFORE the call because a successful removal moves the
+  membership it would be read from.
+- ⭐ **The `delete_variable` lesson was paid BEFORE it could cost a live run.** Nothing says
+  which signal Figma updates in-frame after `removeMode()`, so the handler assumes **none**
+  and probes two — the resolved collection's `modes`, then a FRESH lookup's — naming the one
+  that fired, and returning `removal_unconfirmed` + `verificationDeferred` when neither can.
+  The harness models that as `modeRemovalSignal`, whose **default is "none"**: a green
+  `removed` receipt is something a signal has to earn offline, not the resting state.
+- ✅ **The `set_fill` gradient `color` drop is REPAIRED** — the third refused combination.
+  ⚠️ **The contract's own compatibility check CANNOT SEE IT**: the repair is in the handler,
+  `color` stays `.optional()` on every paint, so `compareSchema()` reports nothing. `1.14.0`
+  was spent by **decision**, not because a check demanded it — same shape as
+  [[feedback_a_fingerprint_only_covers_what_it_hashes]].
+- ⭐ **9/9 mutants killed against the SOURCE, control survived, source restored
+  byte-identical.** ⚠️ One anchor was correctly REJECTED as ambiguous:
+  `outcome: "removal_unconfirmed",` matches **both** this handler and `delete_variable`'s
+  deferral — [[feedback_a_mutation_anchor_can_match_the_wrong_function]] in the act of being
+  prevented. ⚠️ A second reading, *"3 hits"* on the two-line form, was a defect in the
+  **counter**: `grep -F` splits a multi-line pattern into separate patterns and sums their
+  LINE hits. Counted as a sequence it is 1.
+- **⏳ THE RE-PIN SET IS NOW SIXTEEN, NOT FIFTEEN.** Phase 4 moved both build ids beneath
+  `live-variable-identity-gate.mjs`, which was this tree's ONE current-build gate an hour
+  ago and is now unrunnable; it is declared in the ledger rather than re-pinned alone. The
+  set = 3 older (R2.1/R2.2/R2.4, folded in by the reversed decision) + 11 at `1.11.0` +
+  1 at `1.12.0` + 1 at `1.13.0`. ⭐ `tests/live-gate-pins.test.mjs` refused the tree until a
+  gate pinned the current build — *"a release with no runnable gate is a release nobody can
+  accept"* — which is what forced the new gate to exist before this could go green.
+- **▶ NEXT — needs a live channel from Juan; an agent cannot obtain one.**
+  1. `bun socket` (⛔ check `ss -ltn | grep 3055`, it has died mid-session before), reload
+     the DEV plugin (⛔ **both** ids moved, so plugin reload AND `/mcp` respawn are needed).
+  2. Run `scripts/live-variable-mode-removal-gate.mjs` **twice** on a disposable file, with
+     `--residue-collection-id` pointed at *"8. Dimensions"* to clear the six residues.
+  3. Then the **sixteen-gate** re-pin + re-run, ONCE.
+- **⛔ The six Phase 1.3 residues are STILL THERE.** Phase 4 built the tool that clears them;
+  the gate has not run. **A built tool is not a performed cleanup.** ⭐ The gate matches them
+  by exact NAME against a fresh read (`R3A-GATE-DELETE-ME` + `R3A-FILL-1…5`), never by the
+  recorded ids `31001:0`–`31001:5` — those describe one file and a disposable COPY re-issues
+  them. Zero targets is a PASS, so the gate stays rerunnable after cleanup.
+- **Key paths:** `src/cursor_mcp_plugin/code.js` (`removeVariableMode` ~`4988`; `setFill`
+  ~`10040`) · `src/talk_to_figma_mcp/server.ts` (`remove_variable_mode` ~`2148`) ·
+  `scripts/live-variable-mode-removal-gate.mjs` · `scripts/contract-lib.mjs`
+  (`ADDITIVE_PREVIEW_RESULTS`, `TOOL_SCOPES` → `variable_collection_mode`) ·
+  `tests/variable-write-capability.test.mjs` · `tests/set-fill.test.mjs` ·
+  `tests/helpers/plugin-harness.mjs` (`modeRemovalSignal`) · `tests/live-gate-pins.test.mjs`
+  · `docs/R3-A-VARIABLE-WRITE.md` § *R3-A PHASE 4*.
+  ⚠️ Line numbers in `TASKS.md` written before `3bbbfab` are stale, and Phase 4 moved them
+  again.
+- **Open / blockers:** 🟡 **UNCOMMITTED — 23 modified + 1 new file.** ⛔ Committing is the
+  owner's act; ⛔ never `git add -A`, peer sessions write this repo. ⏳ `ACCEPTED_SINCE_LAST_BASELINE`
+  still carries the five R2-acceptance names — the next frozen baseline must absorb them;
+  freezing one is an acceptance act, not a side effect of this phase.
+## ⤴ Previous checkpoint (2026-08-24 — R3-A Phase 3 LIVE-ACCEPTED on `lkm6ne6h`)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **R2 ACCEPTANCE IS CLOSED.
   R2.7 IS DONE. R2 IS ACCEPTED.**

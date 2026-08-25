@@ -475,6 +475,11 @@ known price rather than an unexamined one.
 R2.1/R2.2/R2.4 gates to ride along with the re-pin that follows the modes phase. Both "no"s
 rested on the cost of a re-run that is now owed regardless, so folding them in is free.
 
+✅✅ **AND THE GRADIENT HALF IS NOW BUILT — R3-A Phase 4, 2026-08-24.** `set_fill` refuses
+`color` on all four gradient types, the published description no longer advertises the drop,
+and the refusal is mutation-tested against the SOURCE. ⏳ The three older R2.1/R2.2/R2.4
+gates still ride along with the re-pin — that is a RUN, and it has not happened.
+
 ⚠️ **THIS SECTION SAID "THE RELEASE AFTER R2.6 IS NOW R3-A, NOT R2.7 VISUALS" — corrected
 2026-08-23.** The ordering was reversed back to **R2.7 first, then R3-A**, on the owner's
 call. ⛔ **Nothing below about R3-A is withdrawn** — the Enterprise-gating finding, the

@@ -95,6 +95,11 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "set_variable_value",
   "create_variable",
   "delete_variable",
+  // R3-A Phase 4's mode removal is the newest write and has never been judged by real
+  // Figma. It stays explicitly additive-preview rather than freezing through the stable
+  // default — and its receipt is the one most likely to grow, because whether ANY in-frame
+  // signal observes a removeMode() is exactly what its live gate measures.
+  "remove_variable_mode",
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
@@ -210,6 +215,12 @@ const TOOL_SCOPES = {
   set_variable_value: "variable_mode",
   create_variable: "variable_collection",
   delete_variable: "variable",
+  // R3-A Phase 4. The WRITE target is one mode of one collection — a pair, so neither
+  // "variable_collection" nor set_variable_value's "variable_mode" names it. ⚠️ Scope
+  // describes where a call writes, not how far the consequence reaches: removing a mode
+  // discards every variable-in-this-collection's value for it, which the receipt reports
+  // as blastRadius rather than by widening the scope to the whole collection.
+  remove_variable_mode: "variable_collection_mode",
   get_node_variables: "node_subtree",
   // Neither reads the document at all — the subject is the machine running Figma.
   // ⛔ The fallback below is "node", which would have been wrong and silent.

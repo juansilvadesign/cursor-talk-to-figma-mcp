@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-c3d335284ec5",
-  "pluginBuildId": "r3-a-plugin-02cca8304cfb",
-  "serverSchemaVersion": "1.13.0",
-  "pluginApiVersion": "1.13.0",
+  "serverBuildId": "r3-a-server-c4d037a645e3",
+  "pluginBuildId": "r3-a-plugin-fe0b1e03325c",
+  "serverSchemaVersion": "1.14.0",
+  "pluginApiVersion": "1.14.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
+  "capabilityFingerprint": "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -71,6 +71,7 @@ var RUNTIME_METADATA = {
     "set_variable_value",
     "create_variable",
     "delete_variable",
+    "remove_variable_mode",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -148,6 +149,7 @@ var RUNTIME_METADATA = {
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
+    "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
@@ -221,6 +223,7 @@ var RUNTIME_METADATA = {
     "join_channel",
     "move_node",
     "read_my_design",
+    "remove_variable_mode",
     "rename_node",
     "resize_node",
     "scan_nodes_by_types",
@@ -2067,6 +2070,39 @@ server.tool(
   }
 );
 server.tool(
+  "remove_variable_mode",
+  "[Exact local variable collection + exact mode, destructive caller-requested write] Permanently remove one mode from one existing local variable collection. confirm must be literal true; without it no Figma call is made. Removing a mode discards the value every variable in that collection held FOR THAT MODE \u2014 the variables themselves and their other modes are untouched \u2014 and the receipt reports the pre-call variable count as the blast radius. Two removals are refused rather than attempted: the collection's default mode, because Figma does not document where defaultModeId lands when the default is removed and every variable resolves through it, and the sole remaining mode, because a collection with no modes has no slot for any value. Reassign the default in Figma first if you mean to remove it. Remote collections and a modeId that does not belong to the named collection get typed refusals. Figma may commit the removal at the END of the plugin execution frame, so after removeMode() the handler probes independent in-frame signals and names the one that observed the absence; when none can, it reports outcome removal_unconfirmed with verificationDeferred and partialApplicationPossible instead of claiming removal. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    collectionId: import_zod.z.string().min(1).describe("ID of the existing local variable collection that owns the mode"),
+    modeId: import_zod.z.string().min(1).describe(
+      "ID of the mode to remove; it must already belong to collectionId. One mode per call"
+    ),
+    confirm: import_zod.z.literal(true).describe("Required explicit destructive confirmation; must be true, not merely truthy")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("remove_variable_mode", args2);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error removing variable mode: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
   "get_node_variables",
   "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
@@ -3414,7 +3450,9 @@ server.tool(
           a: import_zod.z.number().min(0).max(1).optional().describe(
             "Alpha, 0-1. On a SOLID paint this sets the paint's opacity, so passing both this and opacity is refused rather than silently picking one"
           )
-        }).optional().describe("Required for a SOLID paint, ignored by the gradients"),
+        }).optional().describe(
+          "Required for a SOLID paint. A gradient takes its colour from gradientStops, so supplying color alongside a gradient type is REFUSED rather than silently discarded"
+        ),
         gradientStops: import_zod.z.array(
           import_zod.z.object({
             position: import_zod.z.number().min(0).max(1).describe("Where this stop sits along the ramp, 0-1"),

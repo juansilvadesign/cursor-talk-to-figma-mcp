@@ -1,10 +1,10 @@
 {
   "release": "R3-A",
-  "publicContractVersion": "1.13.0",
-  "serverSchemaVersion": "1.13.0",
+  "publicContractVersion": "1.14.0",
+  "serverSchemaVersion": "1.14.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:000d808e4f63fce7ce6b965089b3f76e51a73d29a46557ea510993dcefe7d4ff",
+  "capabilityFingerprint": "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -41,6 +41,7 @@
     "figma.command.get_variables@1",
     "figma.command.move_node@1",
     "figma.command.read_my_design@1",
+    "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
@@ -119,6 +120,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "remove_variable_mode",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -191,6 +193,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "remove_variable_mode",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -263,6 +266,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "remove_variable_mode",
       "get_node_variables",
       "get_available_fonts",
       "check_fonts",
@@ -2012,6 +2016,46 @@
     },
     {
       "kind": "tool",
+      "name": "remove_variable_mode",
+      "description": "[Exact local variable collection + exact mode, destructive caller-requested write] Permanently remove one mode from one existing local variable collection. confirm must be literal true; without it no Figma call is made. Removing a mode discards the value every variable in that collection held FOR THAT MODE — the variables themselves and their other modes are untouched — and the receipt reports the pre-call variable count as the blast radius. Two removals are refused rather than attempted: the collection's default mode, because Figma does not document where defaultModeId lands when the default is removed and every variable resolves through it, and the sole remaining mode, because a collection with no modes has no slot for any value. Reassign the default in Figma first if you mean to remove it. Remote collections and a modeId that does not belong to the named collection get typed refusals. Figma may commit the removal at the END of the plugin execution frame, so after removeMode() the handler probes independent in-frame signals and names the one that observed the absence; when none can, it reports outcome removal_unconfirmed with verificationDeferred and partialApplicationPossible instead of claiming removal. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+      "direction": "write",
+      "scope": "variable_collection_mode",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ID of the existing local variable collection that owns the mode"
+          },
+          "modeId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ID of the mode to remove; it must already belong to collectionId. One mode per call"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "description": "Required explicit destructive confirmation; must be true, not merely truthy"
+          }
+        },
+        "required": [
+          "collectionId",
+          "modeId",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "remove_variable_mode",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "rename_node",
       "description": "Rename a node in Figma",
       "direction": "write",
@@ -2694,7 +2738,7 @@
                         "b"
                       ],
                       "additionalProperties": false,
-                      "description": "Required for a SOLID paint, ignored by the gradients"
+                      "description": "Required for a SOLID paint. A gradient takes its colour from gradientStops, so supplying color alongside a gradient type is REFUSED rather than silently discarded"
                     },
                     "gradientStops": {
                       "type": "array",

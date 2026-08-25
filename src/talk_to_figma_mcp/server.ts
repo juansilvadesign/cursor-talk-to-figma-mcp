@@ -2139,6 +2139,54 @@ server.tool(
   }
 );
 
+// R3-A Phase 4 — the modes slice. This is the ONLY tool in the fork that removes a mode,
+// and the reason the Phase 1.3 ceiling gate's debris was previously unclearable from here.
+// Its guard rail is narrower than delete_variable's on purpose: the default mode and the
+// sole remaining mode are refused outright, because Figma documents removeMode(modeId) but
+// documents nothing about where defaultModeId lands when the default itself is removed —
+// and every variable in a collection resolves through that default.
+server.tool(
+  "remove_variable_mode",
+  "[Exact local variable collection + exact mode, destructive caller-requested write] Permanently remove one mode from one existing local variable collection. confirm must be literal true; without it no Figma call is made. Removing a mode discards the value every variable in that collection held FOR THAT MODE — the variables themselves and their other modes are untouched — and the receipt reports the pre-call variable count as the blast radius. Two removals are refused rather than attempted: the collection's default mode, because Figma does not document where defaultModeId lands when the default is removed and every variable resolves through it, and the sole remaining mode, because a collection with no modes has no slot for any value. Reassign the default in Figma first if you mean to remove it. Remote collections and a modeId that does not belong to the named collection get typed refusals. Figma may commit the removal at the END of the plugin execution frame, so after removeMode() the handler probes independent in-frame signals and names the one that observed the absence; when none can, it reports outcome removal_unconfirmed with verificationDeferred and partialApplicationPossible instead of claiming removal. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    collectionId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing local variable collection that owns the mode"),
+    modeId: z
+      .string()
+      .min(1)
+      .describe(
+        "ID of the mode to remove; it must already belong to collectionId. One mode per call"
+      ),
+    confirm: z
+      .literal(true)
+      .describe("Required explicit destructive confirmation; must be true, not merely truthy"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("remove_variable_mode", args);
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error removing variable mode: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // Get Node Variables Tool
 server.tool(
   "get_node_variables",
@@ -3839,7 +3887,9 @@ server.tool(
                 ),
             })
             .optional()
-            .describe("Required for a SOLID paint, ignored by the gradients"),
+            .describe(
+              "Required for a SOLID paint. A gradient takes its colour from gradientStops, so supplying color alongside a gradient type is REFUSED rather than silently discarded"
+            ),
           gradientStops: z
             .array(
               z.object({
@@ -4485,6 +4535,7 @@ type FigmaCommand =
   | "set_variable_value"
   | "create_variable"
   | "delete_variable"
+  | "remove_variable_mode"
   | "get_node_variables"
   | "get_available_fonts"
   | "check_fonts"
@@ -4689,6 +4740,11 @@ type CommandParams = {
   };
   delete_variable: {
     variableId: string;
+    confirm: true;
+  };
+  remove_variable_mode: {
+    collectionId: string;
+    modeId: string;
     confirm: true;
   };
   get_node_variables: { nodeId: string };

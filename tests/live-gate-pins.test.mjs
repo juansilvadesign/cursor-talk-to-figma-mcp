@@ -103,14 +103,16 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // `live-export-gate` writes NO `success` field at all — its verdict is exit 0 plus
 // `failure: null`. A runner that reads only `success` scores a passing export gate as FAIL
 // forever. Read each gate's own signal, or normalise the protocol before trusting a tally.
-// 🟡 **THE NINETEEN ARE RE-PINNED TO `1.17.0` BUT NOT YET RE-RUN — 2026-08-25.** The
+// ✅✅ **THE NINETEEN-GATE RE-PIN + RE-RUN IS PAID — 2026-08-25, channel `wi3cjzy3`.** The
 // `get_variable_capabilities` stability promotion moved `serverBuildId`
 // `r3-a-server-7839c39d5302` → **`r3-a-server-d0897984aeb6`** and the fingerprint
-// `sha256:34d09270…` → `sha256:b67c85d4…`, staling all nineteen. They were re-pinned in one
-// pass. ⛔ **RE-PINNING IS NOT RE-RUNNING, and this comment is the only place that can say
-// so** — the test below goes green the moment the pins match, which is exactly the state a
-// gate is in when it has never been executed against the build it now claims. The re-run is
-// owed on channel `jiydnb12` and is blocked on a DEV-plugin reload.
+// `sha256:34d09270…` → `sha256:b67c85d4…`, staling all nineteen — including the capabilities
+// gate that had just passed twice, because shipping a phase re-stales the gate that accepted
+// the phase before it. All nineteen were re-pinned in one pass and **RE-RUN once each — ALL
+// NINETEEN PASSED**, verdicts read from each `report.json` by its own protocol. The document
+// was confirmed byte-identical afterwards from a separate client session: 25 pages with no
+// scratch leftovers, all 9 collections at their original mode counts, `knownGoodAtLeast` back
+// to 4, current page restored.
 //
 // ⭐ **A FOURTH PIN SHAPE, AND THE BUILD ID IS BLIND TO IT BY CONSTRUCTION.** This promotion
 // changed `code.js` — its generated metadata block now reads `apiVersion: "1.17.0"` and the
@@ -124,6 +126,21 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // `plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`. The server's own preflight
 // caught it on `apiVersion` + `capabilityFingerprint`; the build id agreed with itself the
 // whole time.
+//
+// 🔴 **`live-variable-mode-gate` NEEDED ITS PRECONDITION REBUILT AGAIN, and this is the
+// second time.** Its evidence is a platform LIMIT, so it requires a collection already AT the
+// ceiling — and the file had drifted to *"7. Grids"* 4 / *"8. Dimensions"* 3. "7. Grids" was
+// inflated 4 → 10 with `add_variable_mode` (six named `_gatefill_*` modes, ids recorded), the
+// gate run — Figma refused verbatim `in addMode: Limited to 10 modes only`, `modeCeiling
+// {value:10, status:"observed"}` — then returned to 4 by removing exactly those six recorded
+// ids, zero failures. ⛔ Net-zero is only possible because the fork ships the tool that
+// reverses it; a gate whose evidence is a platform limit depends on document state that
+// ordinary work silently destroys.
+//
+// ⚠️ **THE VERDICT-PROTOCOL SPLIT IS REAL AND IT FIRED THIS RUN.** 18 of the 19 were read
+// from `report.json` `success`; `live-export-gate` writes NO `success` field and was read as
+// exit 0 + `failure: null`. A runner keyed only on `success` would have scored a passing
+// export gate as FAIL — the failure this file's older comment predicted, now observed.
 
 const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 

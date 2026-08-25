@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-7839c39d5302",
+  "serverBuildId": "r3-a-server-d0897984aeb6",
   "pluginBuildId": "r3-a-plugin-07a616c3b48d",
-  "serverSchemaVersion": "1.16.0",
-  "pluginApiVersion": "1.16.0",
+  "serverSchemaVersion": "1.17.0",
+  "pluginApiVersion": "1.17.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:34d09270ff74084cd134712e864bc891adbac5283e3bee625e330d043448db68",
+  "capabilityFingerprint": "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",

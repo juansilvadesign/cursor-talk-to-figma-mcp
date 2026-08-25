@@ -87,15 +87,6 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_styles",
   "get_local_components",
   "get_variables",
-  // ⛔ HELD BACK DELIBERATELY by the R3-A promotion (2026-08-25) while the five variable
-  // WRITES beside it went `stable`. This receipt publishes `modeCeiling.value: null` with
-  // `status: "unknown"`, and `remoteCollectionInventoryAvailable: false` as a declared
-  // limitation — fields whose whole design is that they GROW once Figma exposes the numeric
-  // mode limit or a remote inventory. `additive-preview` is the level that permits that
-  // growth; `stable` would make each of those a new `publicContractVersion`. It is also the
-  // one R3-A tool with no gate script: its live evidence is an ad-hoc re-run on `6a07fm2h`,
-  // not a scripted verdict. Promote it when it has both a stable ceiling and a gate.
-  "get_variable_capabilities",
   // ✅ R3-A Phase 2's remaining table — `create_variable_collection`,
   // `rename_variable_mode`, `set_variable_metadata`, `bind_variable_to_node`,
   // `bind_variable_to_paint` — was PROMOTED out of this set on 2026-08-25, after the
@@ -115,6 +106,48 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
 ]);
+
+// ⭐ `get_variable_capabilities` was here until 2026-08-25, the LAST R3-A tool at
+// `additive-preview`. Its held-back note named two conditions, "a stable ceiling and a
+// gate", and only one of those was ever payable:
+//
+//   ✅ THE GATE IS PAID. `scripts/live-variable-capabilities-gate.mjs` PASSED TWICE on
+//      channel `jiydnb12`, byte-identical modulo timestamps and the per-run mode id, and
+//      its refusal leg was proved to fire first (a throwaway copy pinned to
+//      `r3-a-plugin-000000000000` exited 1 at `assertRuntime`, having reached only
+//      `publishedSchema` and created nothing).
+//
+//   ⛔ THE "STABLE CEILING" CONDITION WAS UNPAYABLE, AND THE NOTE MISREAD ITS OWN TOOL.
+//      `modeCeiling.value` is a hardcoded `null` on EVERY return path of
+//      `getVariableCapabilities()` — `unknownModeCeiling()`, twice. This tool has never
+//      reported a ceiling and cannot. The "both acceptance runs observed the ceiling at 10"
+//      line in `docs/R3-A-VARIABLE-WRITE.md` credits it with `add_variable_mode`'s refusal
+//      evidence, which is a different tool answering a different question. What
+//      `additive-preview` was actually protecting is the freedom to START populating that
+//      field if Figma ever ships a mode-limit API — and no live run can earn that, because
+//      it depends on Figma, not on this fork. The condition was retired as unpayable rather
+//      than declared met.
+//
+// ⛔ THE PRICE, ACCEPTED KNOWINGLY: the ladder is one-way. `compatibilityErrors()` rejects
+// `stable` → `additive-preview` by name, so if Figma later exposes the numeric mode limit,
+// populating `modeCeiling.value` is a `publicContractVersion` event with no walk-back.
+// Same for `remoteCollectionInventoryAvailable` if a remote inventory ever lands.
+//
+// ⭐ WHAT THE GATE ACTUALLY PROVES, and why it is not the usual receipt-shape check: most of
+// this receipt is CONSTANT — `modeCeiling.value`, `remoteCollectionInventoryAvailable`,
+// `document.permissionVerified` are literals on every path, so asserting them is green for
+// every possible document and discriminates nothing. The gate records them under
+// `declaredLimitations`, explicitly NOT as evidence, and earns its verdict from a
+// DIFFERENTIAL instead: it predicts the inventory BEFORE driving one real mode-count change
+// through `add_variable_mode`, then requires this tool's next read to match the prediction.
+// On `jiydnb12` that moved "7. Grids" 4 → 5 modes and `modeCeiling.knownGoodAtLeast` 4 → 5,
+// agreeing across three independent derivations, with every other collection byte-identical;
+// `remove_variable_mode` then restored the file and a cross-frame re-read confirmed the
+// inventory returned canonically to baseline. A stale, cached or fabricated inventory fails
+// that; nothing else in the receipt could have.
+//
+// ⛔ Its entry is GONE rather than commented out — `getResultStability` falls through to
+// `stable`, so a leftover name silently holds a tool back at the weaker level.
 
 // ⭐ R3-A's five variable WRITES — `add_variable_mode`, `set_variable_value`,
 // `create_variable`, `delete_variable` and `remove_variable_mode` — were here until the

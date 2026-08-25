@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-07a616c3b48d",
-  "apiVersion": "1.17.0",
-  "serverSchemaVersion": "1.17.0",
+  "buildId": "r3-a-plugin-7f0d5389634e",
+  "apiVersion": "1.18.0",
+  "serverSchemaVersion": "1.18.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
+  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -40,6 +40,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_variable_value",
     "create_variable",
     "delete_variable",
+    "delete_variable_collection",
     "remove_variable_mode",
     "create_variable_collection",
     "rename_variable_mode",
@@ -107,6 +108,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
+    "figma.command.delete_variable_collection@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -364,6 +366,8 @@ async function handleCommand(command, params) {
       return await createVariable(params);
     case "delete_variable":
       return await deleteVariable(params);
+    case "delete_variable_collection":
+      return await deleteVariableCollection(params);
     case "remove_variable_mode":
       return await removeVariableMode(params);
     case "create_variable_collection":
@@ -4911,6 +4915,184 @@ async function deleteVariable(params) {
     outcome: "deleted",
     variable: summary,
     confirm: true,
+    removalObserved: true,
+    verificationDeferred: false,
+    observation,
+  };
+}
+
+// A variable collection is the owner of every variable listed in `variableIds`. Figma's
+// `remove()` can destroy that whole set, but a caller asking this tool to clean up one empty
+// collection must never silently turn into a bulk variable delete. The conservative boundary
+// is therefore deliberate: inspect the pre-call membership, refuse every non-empty
+// collection with its blast radius, and delete only a collection that can be shown empty.
+//
+// The post-remove observations mirror delete_variable's hard-won design rather than trusting
+// a single lookup. Its first implementation asked one post-remove question and Figma returned
+// a stale object inside that execution frame, leaving a live-unreachable success branch that
+// the harness had blessed. Nothing documents which collection signal updates in-frame, so this
+// handler asks both the exact lookup and the independent local-inventory membership, names
+// the first signal that establishes absence, and otherwise defers to the caller's next frame.
+async function deleteVariableCollection(params) {
+  const command = "delete_variable_collection";
+  const { collectionId, confirm } = params || {};
+  if (confirm !== true) {
+    throw new Error(
+      `${command} is destructive and requires confirm: true; wrote nothing`
+    );
+  }
+
+  const collectionResult = await resolveVariableCollectionForWrite(
+    command,
+    collectionId
+  );
+  if (collectionResult.refusal) return collectionResult.refusal;
+  const collection = collectionResult.collection;
+  const summary = variableWriteCollectionSummary(collection);
+
+  // Read membership BEFORE any mutation. A successful remove makes this exact list
+  // unavailable, which is why it must travel in both the non-empty refusal and the empty
+  // success/deferred receipt rather than being reconstructed after the fact.
+  let memberIds = null;
+  try {
+    memberIds = Array.isArray(collection.variableIds)
+      ? collection.variableIds.slice()
+      : null;
+  } catch (_) {
+    memberIds = null;
+  }
+  const blastRadius = {
+    variableCount: memberIds ? memberIds.length : null,
+    variableIds: memberIds,
+    consequence:
+      "This tool deletes only empty collections; listed variables are never removed by this call.",
+  };
+
+  if (!memberIds) {
+    return variableWriteRefusal(
+      "collection_membership_unreadable",
+      `${command} wrote nothing: local variable collection ${collection.id} has no readable variableIds membership, so the handler cannot prove it is empty before a destructive remove()`,
+      { collection: summary, confirm: true, blastRadius }
+    );
+  }
+  if (memberIds.length > 0) {
+    return variableWriteRefusal(
+      "collection_not_empty",
+      `${command} wrote nothing: local variable collection ${collection.id} still contains ${memberIds.length} variable${memberIds.length === 1 ? "" : "s"}. Delete or move those variables explicitly before removing the empty collection.`,
+      { collection: summary, confirm: true, blastRadius }
+    );
+  }
+  if (typeof collection.remove !== "function") {
+    throw new Error(
+      `${command} wrote nothing: variable collection ${collection.id} does not support remove()`
+    );
+  }
+
+  try {
+    await collection.remove();
+  } catch (error) {
+    // A platform throw is not proof that no state changed. Preserve that uncertainty instead
+    // of promising a rollback after a destructive call has begun.
+    return {
+      ...variableWriteRefusal(
+        "figma_refusal",
+        `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+        { collection: summary, confirm: true, blastRadius }
+      ),
+      partialApplicationPossible: true,
+    };
+  }
+
+  const observation = {
+    lookupResolved: null,
+    removedFlag: null,
+    localInventoryStillLists: null,
+    lookupError: null,
+    localInventoryError: null,
+    observedBy: null,
+  };
+
+  // Signal 1: an exact fresh lookup. It may remain stale in the deleting frame, so a
+  // resolved object is never treated as a failed deletion. A missing object or a removed
+  // flag/property error is positive evidence only.
+  try {
+    const after = await figma.variables.getVariableCollectionByIdAsync(collection.id);
+    observation.lookupResolved = Boolean(after);
+    if (!after) {
+      observation.observedBy = "lookup_missed";
+    } else {
+      try {
+        const removedFlag = after.removed;
+        observation.removedFlag =
+          typeof removedFlag === "boolean" ? removedFlag : null;
+        if (removedFlag === true) {
+          observation.observedBy = "removed_flag";
+        }
+      } catch (_) {
+        // A property access that throws is distinguishable from a stale live object.
+        observation.removedFlag = "threw";
+        observation.observedBy = "property_access_threw";
+      }
+    }
+  } catch (error) {
+    // A failed lookup API proves neither a deletion nor a no-op. Keep its error as a reading
+    // and continue to the independent inventory probe below.
+    observation.lookupError = variableWriteErrorMessage(error);
+  }
+
+  // Signal 2: the local collection inventory. The collection was proven local before the
+  // call, so its absence from this inventory is independent evidence even when the ID lookup
+  // still hands back the stale pre-delete object.
+  if (
+    figma.variables &&
+    typeof figma.variables.getLocalVariableCollectionsAsync === "function"
+  ) {
+    try {
+      const localCollections =
+        await figma.variables.getLocalVariableCollectionsAsync();
+      if (Array.isArray(localCollections)) {
+        observation.localInventoryStillLists = localCollections.some(
+          (candidate) => candidate && candidate.id === collection.id
+        );
+        if (
+          observation.localInventoryStillLists === false &&
+          !observation.observedBy
+        ) {
+          observation.observedBy = "local_collection_inventory";
+        }
+      }
+    } catch (error) {
+      observation.localInventoryError = variableWriteErrorMessage(error);
+    }
+  }
+
+  if (!observation.observedBy) {
+    // ⛔ A real frame-deferred removal and a no-op remove() are indistinguishable here. Do
+    // not call either outcome success; the caller's later `get_variable_capabilities` or
+    // `get_variables` read is the instrument that settles it.
+    return {
+      success: false,
+      outcome: "removal_unconfirmed",
+      collection: summary,
+      confirm: true,
+      blastRadius,
+      removalObserved: false,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "collection_removal_not_observed_in_frame",
+        message: `${command} called remove() for variable collection ${collection.id}; no in-frame signal could confirm the removal. Re-read the collection inventory in a later call to verify absence.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "deleted",
+    collection: summary,
+    confirm: true,
+    blastRadius,
     removalObserved: true,
     verificationDeferred: false,
     observation,

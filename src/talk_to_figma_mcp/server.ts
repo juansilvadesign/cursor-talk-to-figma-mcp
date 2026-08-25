@@ -2139,6 +2139,48 @@ server.tool(
   }
 );
 
+// A collection owns its variables, so this deliberately does NOT offer a cascade-delete
+// switch. The only safe generic cleanup primitive is removal after the pre-call membership
+// proves the collection empty; a non-empty receipt states that blast radius and writes nothing.
+server.tool(
+  "delete_variable_collection",
+  "[Exact local variable collection, destructive caller-requested write] Permanently remove one EMPTY local variable collection. confirm must be literal true; without it no Figma call is made. Before remove(), the handler reads the collection's pre-call variableIds membership. A non-empty collection is REFUSED as collection_not_empty with its variable count and IDs, and this tool never deletes variables on the caller's behalf; delete or move them explicitly first. Remote collections return a typed refusal. After remove(), the handler probes both the exact ID lookup and the independent local collection inventory, naming the signal that observed absence; when neither can distinguish a real frame-deferred deletion from a no-op, it returns removal_unconfirmed with verificationDeferred and partialApplicationPossible rather than claiming success. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    collectionId: z
+      .string()
+      .min(1)
+      .describe("ID of the existing empty local variable collection to permanently remove"),
+    confirm: z
+      .literal(true)
+      .describe("Required explicit destructive confirmation; must be true, not merely truthy"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma(
+        "delete_variable_collection",
+        args,
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result),
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting variable collection: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  }
+);
+
 // R3-A Phase 4 — the modes slice. This is the ONLY tool in the fork that removes a mode,
 // and the reason the Phase 1.3 ceiling gate's debris was previously unclearable from here.
 // Its guard rail is narrower than delete_variable's on purpose: the default mode and the
@@ -4800,6 +4842,7 @@ type FigmaCommand =
   | "set_variable_value"
   | "create_variable"
   | "delete_variable"
+  | "delete_variable_collection"
   | "remove_variable_mode"
   | "create_variable_collection"
   | "rename_variable_mode"
@@ -5010,6 +5053,10 @@ type CommandParams = {
   };
   delete_variable: {
     variableId: string;
+    confirm: true;
+  };
+  delete_variable_collection: {
+    collectionId: string;
     confirm: true;
   };
   remove_variable_mode: {

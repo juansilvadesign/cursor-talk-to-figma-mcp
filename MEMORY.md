@@ -68,13 +68,25 @@ type: project
   No scratch pages left by any of the sixteen.
 - **Evidence:** `<scratchpad>/repin16/<gate>/report.json` ×16 + `repin-cleanup/`
   (⚠️ scratchpad only, not mirrored into the repo this time).
-- **▶ NEXT:** nothing is owed live. ⏳ Open, owner's call: promote `remove_variable_mode`
-  (and the other R3-A tools) from `additive-preview` → `stable` — an acceptance act that
-  rewrites `contractPayload.tools`, moves `serverBuildId` and **re-stales all sixteen again**,
-  so spend it deliberately. ⏳ `ACCEPTED_SINCE_LAST_BASELINE` still carries five names the
-  next frozen baseline must absorb.
-- **Open / blockers:** 🟡 **UNCOMMITTED** — the four repaired gates, the pins test, and the
-  three acceptance/record docs. ⛔ Committing is the owner's act; ⛔ never `git add -A`.
+- **▶ NEXT — DECIDED BY THE OWNER 2026-08-25, in this order:**
+  **① Promote R3-A `additive-preview` → `stable`** — remove the R3-A tool names from
+  `ADDITIVE_PREVIEW_RESULTS` in `scripts/contract-lib.mjs` (`getResultStability` falls through
+  to `stable`, so a leftover name silently holds a tool back). ⛔ This rewrites
+  `contractPayload.tools`, so `serverBuildId` moves and **all sixteen gates re-stale** —
+  budget the re-pin + re-run as part of the promotion, not as a surprise after it.
+  ⛔ Sequence it BEFORE any re-pin, never after, or the set pays twice.
+  ⚠️ `stable` means FROZEN: from there a reply-shape change needs a new
+  `publicContractVersion`, and `compatibilityErrors()` rejects the walk-back by name.
+  ⏳ The same act should let the next frozen baseline absorb `ACCEPTED_SINCE_LAST_BASELINE`
+  (still five names).
+  **② Then continue the R3-A plan** — the remaining Phase 2 table in
+  `docs/VARIABLE-WRITE-PLAN.md`: **collections** and **bindings**. The modes row is complete
+  (`add_variable_mode` + `remove_variable_mode` both live-accepted).
+- **Open / blockers:** ✅ **ALL COMMITTED and the tree is CLEAN** — `10c13a4` (Phase 4 build),
+  `921ee53` (docs/records), `6ecb664` (the sixteen re-pinned gates + the pins test). Nothing
+  from this phase is outstanding on disk. ⚠️ This bullet said **UNCOMMITTED** an hour ago and
+  was true when written — the owner committed after the re-pin
+  ([[feedback_a_status_marker_that_was_true_when_written]]).
 
 ## ⤴ Previous checkpoint (2026-08-24 — R3-A Phase 4 LIVE-ACCEPTED on `yizlybxy`)
 

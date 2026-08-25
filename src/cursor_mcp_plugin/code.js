@@ -5,11 +5,11 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3-A",
-  "buildId": "r3-a-plugin-fe0b1e03325c",
-  "apiVersion": "1.14.0",
-  "serverSchemaVersion": "1.14.0",
+  "buildId": "r3-a-plugin-fc619cfa8b1f",
+  "apiVersion": "1.15.0",
+  "serverSchemaVersion": "1.15.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37",
+  "capabilityFingerprint": "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -41,6 +41,11 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "create_variable",
     "delete_variable",
     "remove_variable_mode",
+    "create_variable_collection",
+    "rename_variable_mode",
+    "set_variable_metadata",
+    "bind_variable_to_node",
+    "bind_variable_to_paint",
     "get_node_variables",
     "get_available_fonts",
     "check_fonts",
@@ -85,6 +90,8 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "capabilityIds": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
+    "figma.command.bind_variable_to_node@1",
+    "figma.command.bind_variable_to_paint@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
     "figma.command.create_component_instance@1",
@@ -96,6 +103,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_section@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
+    "figma.command.create_variable_collection@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
@@ -120,6 +128,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.read_my_design@1",
     "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
+    "figma.command.rename_variable_mode@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
     "figma.command.scan_text_nodes@1",
@@ -152,6 +161,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_stroke_color@1",
     "figma.command.set_text_content@1",
     "figma.command.set_text_style@1",
+    "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
     "relay.channel@1"
   ]
@@ -356,6 +366,16 @@ async function handleCommand(command, params) {
       return await deleteVariable(params);
     case "remove_variable_mode":
       return await removeVariableMode(params);
+    case "create_variable_collection":
+      return await createVariableCollection(params);
+    case "rename_variable_mode":
+      return await renameVariableMode(params);
+    case "set_variable_metadata":
+      return await setVariableMetadata(params);
+    case "bind_variable_to_node":
+      return await bindVariableToNode(params);
+    case "bind_variable_to_paint":
+      return await bindVariableToPaint(params);
     case "get_node_variables":
       return await getNodeVariables(params);
     case "get_available_fonts":
@@ -4097,91 +4117,16 @@ async function resolveExistingVariableForCreate(
   return { variable: null, matchedBy: null };
 }
 
+// ⭐ Kept as a named wrapper rather than inlined at both call sites: `create_variable` is
+// the only caller that also has a COLLECTION in hand, and the noun in every refusal message
+// belongs to the resource, not to the caller. R3-A Phase 2's collections row shares the body
+// so the two surfaces cannot drift about what "already tagged" means.
 function ensureVariableIdentityKey(command, variable, identityKey) {
-  if (identityKey === null) return { status: "not_requested" };
-  if (
-    typeof variable.getPluginData !== "function" ||
-    typeof variable.setPluginData !== "function"
-  ) {
-    return {
-      refusal: variableCreateRefusal(
-        "identity_key_api_unavailable",
-        `${command} cannot store identityKey on local variable ${String(variable.id)} because this Figma runtime does not expose private plugin data methods`,
-        { variable: variableWriteVariableSummary(variable) }
-      ),
-    };
-  }
-
-  let storedIdentityKey;
-  try {
-    storedIdentityKey = variable.getPluginData(
-      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
-    );
-  } catch (error) {
-    return {
-      refusal: variableCreateRefusal(
-        "identity_key_unreadable",
-        `${command} cannot read identityKey on local variable ${String(variable.id)}: ${variableWriteErrorMessage(error)}`,
-        { variable: variableWriteVariableSummary(variable) }
-      ),
-    };
-  }
-  if (typeof storedIdentityKey !== "string") {
-    return {
-      refusal: variableCreateRefusal(
-        "identity_key_unreadable",
-        `${command} cannot read identityKey on local variable ${String(variable.id)} because Figma returned a non-string value`,
-        { variable: variableWriteVariableSummary(variable) }
-      ),
-    };
-  }
-  if (storedIdentityKey === identityKey) {
-    return { status: "already_stored" };
-  }
-  if (storedIdentityKey !== "") {
-    // Never overwrite a different caller's opaque identity. Matching by name/ID is not a
-    // license to claim a resource that is already tagged for another idempotent workflow.
-    return {
-      refusal: variableCreateRefusal(
-        "identity_key_conflict",
-        `${command} wrote nothing: local variable ${String(variable.id)} already has a different opaque identityKey; it was not overwritten`,
-        { variable: variableWriteVariableSummary(variable) }
-      ),
-    };
-  }
-
-  try {
-    variable.setPluginData(VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY, identityKey);
-  } catch (error) {
-    return {
-      unconfirmed: {
-        code: "identity_key_write_failed",
-        message: `${command} created or matched local variable ${String(variable.id)}, but Figma refused to store its identityKey: ${variableWriteErrorMessage(error)}`,
-      },
-    };
-  }
-
-  try {
-    storedIdentityKey = variable.getPluginData(
-      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
-    );
-  } catch (error) {
-    return {
-      unconfirmed: {
-        code: "identity_key_write_unverified",
-        message: `${command} created or matched local variable ${String(variable.id)} and attempted to store identityKey, but could not read it back: ${variableWriteErrorMessage(error)}`,
-      },
-    };
-  }
-  if (storedIdentityKey !== identityKey) {
-    return {
-      unconfirmed: {
-        code: "identity_key_write_unverified",
-        message: `${command} created or matched local variable ${String(variable.id)} and attempted to store identityKey, but the stored opaque value did not match the caller's value`,
-      },
-    };
-  }
-  return { status: "stored" };
+  return ensureResourceIdentityKey(command, variable, identityKey, {
+    label: VARIABLE_IDENTITY_LABEL,
+    summarize: variableWriteVariableSummary,
+    summaryField: "variable",
+  });
 }
 
 function createVariableIdentityUnconfirmedReceipt({
@@ -5176,6 +5121,1026 @@ async function removeVariableMode(params) {
     removalObserved: true,
     verificationDeferred: false,
     defaultModeIdStable,
+    observation,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// R3-A Phase 2 — the rest of the table: collections, mode rename, metadata and
+// the two binding tools. Everything here obeys the same three rules the earlier
+// slice established: an exact already-existing local resource, a typed refusal
+// for every remote resource, and a receipt that cannot report success when the
+// platform gave no signal that the write landed.
+// ---------------------------------------------------------------------------
+
+// The identity machinery was written for variables and is reused verbatim for
+// collections. ⛔ A SECOND copy is how two surfaces start disagreeing about what
+// "already exists" means — the same reason `create_text` and `set_text_style`
+// share one validator. The noun is a parameter; the guarantees are not.
+const VARIABLE_COLLECTION_IDENTITY_LABEL = "local variable collection";
+const VARIABLE_IDENTITY_LABEL = "local variable";
+
+function ensureResourceIdentityKey(
+  command,
+  resource,
+  identityKey,
+  { label, summarize, summaryField }
+) {
+  if (identityKey === null) return { status: "not_requested" };
+  const details = () => ({ [summaryField]: summarize(resource) });
+  if (
+    typeof resource.getPluginData !== "function" ||
+    typeof resource.setPluginData !== "function"
+  ) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_api_unavailable",
+        `${command} cannot store identityKey on ${label} ${String(resource.id)} because this Figma runtime does not expose private plugin data methods`,
+        details()
+      ),
+    };
+  }
+
+  let storedIdentityKey;
+  try {
+    storedIdentityKey = resource.getPluginData(
+      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+    );
+  } catch (error) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_unreadable",
+        `${command} cannot read identityKey on ${label} ${String(resource.id)}: ${variableWriteErrorMessage(error)}`,
+        details()
+      ),
+    };
+  }
+  if (typeof storedIdentityKey !== "string") {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_unreadable",
+        `${command} cannot read identityKey on ${label} ${String(resource.id)} because Figma returned a non-string value`,
+        details()
+      ),
+    };
+  }
+  if (storedIdentityKey === identityKey) {
+    return { status: "already_stored" };
+  }
+  if (storedIdentityKey !== "") {
+    // Never overwrite a different caller's opaque identity. Matching by name/ID is not a
+    // license to claim a resource that is already tagged for another idempotent workflow.
+    return {
+      refusal: variableCreateRefusal(
+        "identity_key_conflict",
+        `${command} wrote nothing: ${label} ${String(resource.id)} already has a different opaque identityKey; it was not overwritten`,
+        details()
+      ),
+    };
+  }
+
+  try {
+    resource.setPluginData(VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY, identityKey);
+  } catch (error) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_failed",
+        message: `${command} created or matched ${label} ${String(resource.id)}, but Figma refused to store its identityKey: ${variableWriteErrorMessage(error)}`,
+      },
+    };
+  }
+
+  try {
+    storedIdentityKey = resource.getPluginData(
+      VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+    );
+  } catch (error) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_unverified",
+        message: `${command} created or matched ${label} ${String(resource.id)} and attempted to store identityKey, but could not read it back: ${variableWriteErrorMessage(error)}`,
+      },
+    };
+  }
+  if (storedIdentityKey !== identityKey) {
+    return {
+      unconfirmed: {
+        code: "identity_key_write_unverified",
+        message: `${command} created or matched ${label} ${String(resource.id)} and attempted to store identityKey, but the stored opaque value did not match the caller's value`,
+      },
+    };
+  }
+  return { status: "stored" };
+}
+
+async function loadLocalVariableCollectionsForIdentity(command) {
+  if (
+    !figma.variables ||
+    typeof figma.variables.getLocalVariableCollectionsAsync !== "function"
+  ) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_inventory_unavailable",
+        `${command} wrote nothing: this Figma runtime cannot list local variable collections, so it cannot safely rule out an existing identity`
+      ),
+    };
+  }
+  let listed;
+  try {
+    listed = await figma.variables.getLocalVariableCollectionsAsync();
+  } catch (error) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_inventory_unreadable",
+        `${command} wrote nothing: local variable collections could not be listed, so it cannot safely rule out an existing identity: ${variableWriteErrorMessage(error)}`
+      ),
+    };
+  }
+  if (!Array.isArray(listed)) {
+    return {
+      refusal: variableCreateRefusal(
+        "identity_inventory_unreadable",
+        `${command} wrote nothing: the local variable collection inventory was not an array, so it cannot safely rule out an existing identity`
+      ),
+    };
+  }
+  // getLocalVariableCollectionsAsync is documented as local-only. Keep the guard anyway:
+  // accepting a remote object from a malformed host result would turn a negative inventory
+  // claim into an accidental library mutation later in the handler.
+  return { collections: listed.filter((item) => item && !item.remote) };
+}
+
+async function resolveExistingVariableCollectionForCreate(
+  command,
+  { id, identityKey, name }
+) {
+  // Layer 1: an explicit ID is authoritative. Unlike create_variable there is no parent to
+  // cross-check it against, so the ONLY question is whether it names a local collection —
+  // and a wrong ID must refuse rather than fall through and create a second collection.
+  if (id !== null) {
+    const result = await resolveVariableCollectionForWrite(command, id);
+    if (result.refusal) {
+      return {
+        refusal: { ...result.refusal, created: false, matchedBy: null },
+      };
+    }
+    return { collection: result.collection, matchedBy: "id" };
+  }
+
+  const inventoryResult = await loadLocalVariableCollectionsForIdentity(command);
+  if (inventoryResult.refusal) return inventoryResult;
+  const candidates = inventoryResult.collections;
+
+  // Layer 2: exact name. ⚠️ Figma permits duplicate collection names, so more than one
+  // match is genuinely ambiguous rather than permission to take the first listed.
+  const nameMatches = candidates.filter((item) => item.name === name);
+  if (nameMatches.length > 1) {
+    return {
+      refusal: variableCreateRefusal(
+        "name_identity_ambiguous",
+        `${command} wrote nothing: ${nameMatches.length} local variable collections named ${JSON.stringify(name)} exist; exact-name identity is ambiguous`
+      ),
+    };
+  }
+  if (nameMatches.length === 1) {
+    return { collection: nameMatches[0], matchedBy: "name" };
+  }
+
+  // Layer 3: identityKey as private plugin data on a local collection. Its content stays
+  // opaque: the only question asked is whether the stored string is byte identical.
+  if (identityKey !== null) {
+    const identityMatches = [];
+    for (const collection of candidates) {
+      if (typeof collection.getPluginData !== "function") {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_api_unavailable",
+            `${command} wrote nothing: variable collection ${String(collection.id)} cannot read private plugin data, so identityKey cannot safely rule out an existing resource`,
+            { collection: variableWriteCollectionSummary(collection) }
+          ),
+        };
+      }
+      let storedIdentityKey;
+      try {
+        storedIdentityKey = collection.getPluginData(
+          VARIABLE_RESOURCE_IDENTITY_PLUGIN_DATA_KEY
+        );
+      } catch (error) {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_unreadable",
+            `${command} wrote nothing: variable collection ${String(collection.id)} private plugin data could not be read, so identityKey cannot safely rule out an existing resource: ${variableWriteErrorMessage(error)}`,
+            { collection: variableWriteCollectionSummary(collection) }
+          ),
+        };
+      }
+      if (typeof storedIdentityKey !== "string") {
+        return {
+          refusal: variableCreateRefusal(
+            "identity_key_unreadable",
+            `${command} wrote nothing: variable collection ${String(collection.id)} returned non-string private plugin data, so identityKey cannot safely rule out an existing resource`,
+            { collection: variableWriteCollectionSummary(collection) }
+          ),
+        };
+      }
+      if (storedIdentityKey === identityKey) identityMatches.push(collection);
+    }
+    if (identityMatches.length > 1) {
+      return {
+        refusal: variableCreateRefusal(
+          "identity_key_ambiguous",
+          `${command} wrote nothing: ${identityMatches.length} local variable collections carry the supplied opaque identityKey`
+        ),
+      };
+    }
+    if (identityMatches.length === 1) {
+      return { collection: identityMatches[0], matchedBy: "identityKey" };
+    }
+  }
+
+  return { collection: null, matchedBy: null };
+}
+
+// ⚠️ Figma's createVariableCollection(name) returns a collection that ALREADY carries one
+// mode, and that mode is its defaultModeId. The caller never named it, so the receipt
+// publishes it rather than leaving them to a second read to find out what to write into.
+function variableCollectionDefaultModeSummary(collection) {
+  if (!Array.isArray(collection.modes)) return null;
+  const mode = collection.modes.find(
+    (candidate) => candidate.modeId === collection.defaultModeId
+  );
+  return mode ? variableWriteModeSummary(mode) : null;
+}
+
+async function createVariableCollection(params) {
+  const command = "create_variable_collection";
+  const { name } = params || {};
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty name and wrote nothing`);
+  }
+  const identityInputs = readCreateVariableIdentityInputs(command, params);
+
+  const existingResult = await resolveExistingVariableCollectionForCreate(command, {
+    ...identityInputs,
+    name,
+  });
+  if (existingResult.refusal) return existingResult.refusal;
+
+  if (existingResult.collection) {
+    const collection = existingResult.collection;
+    const identityResult = ensureResourceIdentityKey(
+      command,
+      collection,
+      identityInputs.identityKey,
+      {
+        label: VARIABLE_COLLECTION_IDENTITY_LABEL,
+        summarize: variableWriteCollectionSummary,
+        summaryField: "collection",
+      }
+    );
+    if (identityResult.refusal) {
+      return {
+        ...identityResult.refusal,
+        created: false,
+        matchedBy: existingResult.matchedBy,
+      };
+    }
+    if (identityResult.unconfirmed) {
+      return {
+        success: false,
+        outcome: "identity_unconfirmed",
+        created: false,
+        matchedBy: existingResult.matchedBy,
+        collection: variableWriteCollectionSummary(collection),
+        defaultMode: variableCollectionDefaultModeSummary(collection),
+        partialApplicationPossible: true,
+        refusal: identityResult.unconfirmed,
+      };
+    }
+    return {
+      success: true,
+      outcome: "matched",
+      created: false,
+      matchedBy: existingResult.matchedBy,
+      identityKeyStatus: identityResult.status,
+      collection: variableWriteCollectionSummary(collection),
+      defaultMode: variableCollectionDefaultModeSummary(collection),
+    };
+  }
+
+  if (
+    !figma.variables ||
+    typeof figma.variables.createVariableCollection !== "function"
+  ) {
+    throw new Error(
+      `${command} wrote nothing: this Figma runtime does not support createVariableCollection()`
+    );
+  }
+
+  let collection;
+  try {
+    collection = figma.variables.createVariableCollection(name);
+  } catch (error) {
+    return variableCreateRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`
+    );
+  }
+  if (!collection || typeof collection.id !== "string") {
+    // A create call returned, so absence is not knowable from a malformed host result. Do
+    // not mislabel this as a clean refusal: a collection may exist but be unaddressable here.
+    return {
+      success: false,
+      outcome: "unverified",
+      created: null,
+      matchedBy: null,
+      collection: null,
+      defaultMode: null,
+      partialApplicationPossible: true,
+      refusal: {
+        code: "invalid_create_result",
+        message: `${command} could not verify a readable collection ID from Figma's createVariableCollection() result`,
+      },
+    };
+  }
+
+  const identityResult = ensureResourceIdentityKey(
+    command,
+    collection,
+    identityInputs.identityKey,
+    {
+      label: VARIABLE_COLLECTION_IDENTITY_LABEL,
+      summarize: variableWriteCollectionSummary,
+      summaryField: "collection",
+    }
+  );
+  const identityFailure = identityResult.refusal
+    ? identityResult.refusal.refusal
+    : identityResult.unconfirmed;
+  if (identityFailure) {
+    // ⛔ The collection EXISTS. Reporting a plain refusal here would tell the caller
+    // nothing was written and invite a retry that creates a second one.
+    return {
+      success: false,
+      outcome: "identity_unconfirmed",
+      created: true,
+      matchedBy: null,
+      collection: variableWriteCollectionSummary(collection),
+      defaultMode: variableCollectionDefaultModeSummary(collection),
+      partialApplicationPossible: true,
+      refusal: identityFailure,
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "created",
+    created: true,
+    matchedBy: null,
+    identityKeyStatus: identityResult.status,
+    collection: variableWriteCollectionSummary(collection),
+    defaultMode: variableCollectionDefaultModeSummary(collection),
+  };
+}
+
+// R3-A Phase 2 — the mode rename row. Non-destructive, and the ONLY variable-mode write
+// that changes nothing a variable resolves through.
+// ⛔ A rename to the name the mode ALREADY has is byte-identical to a rename that silently
+// did nothing, so it is refused as its own outcome rather than reported as a rename. This
+// is the `feedback_a_probe_at_the_default_value_proves_nothing` shape: "preserved" and
+// "written then coincidentally equal" must not share a receipt.
+async function renameVariableMode(params) {
+  const command = "rename_variable_mode";
+  const { collectionId, modeId, name } = params || {};
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty name and wrote nothing`);
+  }
+
+  const collectionResult = await resolveVariableCollectionForWrite(
+    command,
+    collectionId
+  );
+  if (collectionResult.refusal) return collectionResult.refusal;
+  const collection = collectionResult.collection;
+
+  const modeResult = resolveVariableModeForWrite(command, collection, modeId);
+  if (modeResult.refusal) return modeResult.refusal;
+  const mode = modeResult.mode;
+
+  const collectionSummary = variableWriteCollectionSummary(collection);
+  const nameBefore = typeof mode.name === "string" ? mode.name : null;
+  const details = {
+    collection: collectionSummary,
+    mode: { id: mode.modeId, nameBefore, nameAfter: nameBefore },
+  };
+
+  if (nameBefore === name) {
+    return variableWriteRefusal(
+      "mode_name_unchanged",
+      `${command} wrote nothing: mode ${mode.modeId} in variable collection ${collection.id} is already named ${JSON.stringify(name)}. A rename to the current name cannot be distinguished from a rename that did not happen, so it is refused rather than reported as applied.`,
+      details
+    );
+  }
+
+  if (typeof collection.renameMode !== "function") {
+    throw new Error(
+      `${command} wrote nothing: variable collection ${collection.id} does not support renameMode()`
+    );
+  }
+
+  try {
+    collection.renameMode(mode.modeId, name);
+  } catch (error) {
+    // Figma refuses a duplicate mode name inside one collection. Keep its message verbatim:
+    // this fork does not maintain its own list of what Figma considers a legal mode name.
+    return variableWriteRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+      details
+    );
+  }
+
+  // Nothing Figma documents says WHEN a rename becomes observable from inside the calling
+  // frame, so this asks the same two independent questions removeMode's handler asks and
+  // names the one that answered. Phase 4 MEASURED that `collection.modes` updates in-frame
+  // for removeMode; that is evidence about removeMode, not about renameMode.
+  const observation = {
+    resolvedCollectionName: null,
+    freshCollectionName: null,
+    observedBy: null,
+  };
+
+  try {
+    const modesAfter = Array.isArray(collection.modes) ? collection.modes : null;
+    const renamed = modesAfter
+      ? modesAfter.find((candidate) => candidate.modeId === mode.modeId)
+      : null;
+    if (renamed && typeof renamed.name === "string") {
+      observation.resolvedCollectionName = renamed.name;
+      if (renamed.name === name) observation.observedBy = "resolved_collection_modes";
+    }
+  } catch (error) {
+    // An unreadable modes array is not evidence either way; leave the signal null.
+  }
+
+  try {
+    const freshCollection = await figma.variables.getVariableCollectionByIdAsync(
+      collection.id
+    );
+    const freshModes =
+      freshCollection && Array.isArray(freshCollection.modes)
+        ? freshCollection.modes
+        : null;
+    const renamed = freshModes
+      ? freshModes.find((candidate) => candidate.modeId === mode.modeId)
+      : null;
+    if (renamed && typeof renamed.name === "string") {
+      observation.freshCollectionName = renamed.name;
+      if (renamed.name === name && !observation.observedBy) {
+        observation.observedBy = "fresh_collection_modes";
+      }
+    }
+  } catch (error) {
+    // Same reasoning: a failed second read does not contradict the first.
+  }
+
+  if (!observation.observedBy) {
+    return {
+      success: false,
+      outcome: "rename_unconfirmed",
+      collection: collectionSummary,
+      mode: { id: mode.modeId, nameBefore, nameAfter: null },
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "mode_rename_not_observed_in_frame",
+        message: `${command} called renameMode() for mode ${mode.modeId}; no in-frame signal could confirm the new name, which is expected when Figma commits it at frame end. Re-read the collection in a later call to verify.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "renamed",
+    collection: collectionSummary,
+    mode: { id: mode.modeId, nameBefore, nameAfter: name },
+    verificationDeferred: false,
+    observation,
+  };
+}
+
+// R3-A Phase 2 — rename + description + scope correction on one existing local variable.
+// ⛔ THIS TOOL WRITES UP TO THREE FIELDS AND FIGMA GIVES NO TRANSACTION. That is the
+// `apply_batch` lesson stated at the tool level: three of its allowlisted mutations are
+// PROVEN to write their first field and then throw. So every supplied value is validated
+// BEFORE the first assignment (validate-all-then-write), each field is read back after it
+// is written, and a throw part-way through reports `partially_applied` with the exact list
+// of fields that did land — never a plain refusal, which would read as "nothing changed".
+const VARIABLE_METADATA_SCOPES = new Set([
+  "ALL_SCOPES",
+  "ALL_FILLS",
+  "FRAME_FILL",
+  "SHAPE_FILL",
+  "TEXT_FILL",
+  "STROKE_COLOR",
+  "STROKE_FLOAT",
+  "EFFECT_FLOAT",
+  "EFFECT_COLOR",
+  "OPACITY",
+  "CORNER_RADIUS",
+  "WIDTH_HEIGHT",
+  "GAP",
+  "TEXT_CONTENT",
+  "FONT_FAMILY",
+  "FONT_STYLE",
+  "FONT_WEIGHT",
+  "FONT_SIZE",
+  "LINE_HEIGHT",
+  "LETTER_SPACING",
+  "PARAGRAPH_SPACING",
+  "PARAGRAPH_INDENT",
+]);
+
+function readVariableMetadataInputs(command, params) {
+  const supplied = [];
+  const values = {};
+
+  if (hasSuppliedCreateVariableField(params, "name")) {
+    if (typeof params.name !== "string" || params.name.trim().length === 0) {
+      throw new Error(
+        `${command} requires name to be a non-empty string when supplied and wrote nothing`
+      );
+    }
+    supplied.push("name");
+    values.name = params.name;
+  }
+  if (hasSuppliedCreateVariableField(params, "description")) {
+    // ⚠️ An EMPTY description is legal and meaningful — it is how a caller clears one.
+    // This is deliberately unlike set_plugin_data, where Figma DEFINES "" as key removal.
+    if (typeof params.description !== "string") {
+      throw new Error(
+        `${command} requires description to be a string when supplied and wrote nothing`
+      );
+    }
+    supplied.push("description");
+    values.description = params.description;
+  }
+  if (hasSuppliedCreateVariableField(params, "scopes")) {
+    if (!Array.isArray(params.scopes) || params.scopes.length === 0) {
+      throw new Error(
+        `${command} requires scopes to be a non-empty array when supplied and wrote nothing`
+      );
+    }
+    for (const scope of params.scopes) {
+      if (typeof scope !== "string" || !VARIABLE_METADATA_SCOPES.has(scope)) {
+        throw new Error(
+          `${command} received unsupported scope ${JSON.stringify(String(scope))} and wrote nothing`
+        );
+      }
+    }
+    supplied.push("scopes");
+    values.scopes = params.scopes.slice();
+  }
+
+  if (supplied.length === 0) {
+    throw new Error(
+      `${command} requires at least one of name, description or scopes and wrote nothing`
+    );
+  }
+  return { supplied, values };
+}
+
+function readVariableMetadataField(variable, field) {
+  try {
+    const value = variable[field];
+    if (field === "scopes") {
+      return Array.isArray(value) ? value.slice() : null;
+    }
+    return typeof value === "string" ? value : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function variableMetadataValuesEqual(field, left, right) {
+  if (field !== "scopes") return left === right;
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
+async function setVariableMetadata(params) {
+  const command = "set_variable_metadata";
+  const { variableId } = params || {};
+  // ⛔ Validate the whole request BEFORE resolving anything: a late refusal on a
+  // multi-field write is how a caller gets a half-changed variable.
+  const inputs = readVariableMetadataInputs(command, params);
+
+  const variableResult = await resolveVariableForWrite(command, variableId);
+  if (variableResult.refusal) return variableResult.refusal;
+  const variable = variableResult.variable;
+
+  const fields = {};
+  for (const field of inputs.supplied) {
+    fields[field] = {
+      requested: inputs.values[field],
+      before: readVariableMetadataField(variable, field),
+      applied: false,
+      after: null,
+      observed: null,
+    };
+  }
+
+  const applied = [];
+  for (const field of inputs.supplied) {
+    try {
+      variable[field] = inputs.values[field];
+    } catch (error) {
+      // ⛔ NOT a plain refusal. Earlier fields may already be committed, and saying
+      // "wrote nothing" here would be a lie the caller cannot detect without a re-read.
+      return {
+        success: false,
+        outcome: applied.length === 0 ? "refused" : "partially_applied",
+        variable: variableWriteVariableSummary(variable),
+        fields,
+        appliedFields: applied.slice(),
+        failedField: field,
+        partialApplicationPossible: applied.length > 0,
+        refusal: {
+          code: "figma_refusal",
+          message: `${command} was refused by Figma while writing ${field}: ${variableWriteErrorMessage(error)}`,
+        },
+      };
+    }
+    applied.push(field);
+    fields[field].applied = true;
+    const after = readVariableMetadataField(variable, field);
+    fields[field].after = after;
+    fields[field].observed = variableMetadataValuesEqual(
+      field,
+      after,
+      inputs.values[field]
+    );
+  }
+
+  // A field the platform accepted but did not reflect is not a success. Naming WHICH field
+  // failed the read-back keeps this distinguishable from a frame-deferred commit.
+  const unobserved = inputs.supplied.filter((field) => fields[field].observed !== true);
+  if (unobserved.length > 0) {
+    return {
+      success: false,
+      outcome: "metadata_unconfirmed",
+      variable: variableWriteVariableSummary(variable),
+      fields,
+      appliedFields: applied,
+      unobservedFields: unobserved,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      refusal: {
+        code: "metadata_write_not_observed_in_frame",
+        message: `${command} assigned ${unobserved.join(", ")} on local variable ${variable.id}, but reading the field back in the same frame did not return the requested value. Re-read the variable in a later call to verify.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "updated",
+    variable: variableWriteVariableSummary(variable),
+    fields,
+    appliedFields: applied,
+    verificationDeferred: false,
+  };
+}
+
+// R3-A Phase 2 — the bindings rows. Both bind an EXISTING local variable to an EXISTING
+// node; neither creates a variable, a paint, or a node.
+async function resolveNodeForVariableBinding(command, nodeId) {
+  if (typeof nodeId !== "string" || nodeId.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty nodeId and wrote nothing`);
+  }
+  let node;
+  try {
+    node = await figma.getNodeByIdAsync(nodeId);
+  } catch (error) {
+    return {
+      refusal: variableWriteRefusal(
+        "node_lookup_failed",
+        `${command} wrote nothing: node ${nodeId} could not be resolved: ${variableWriteErrorMessage(error)}`,
+        { node: { id: nodeId } }
+      ),
+    };
+  }
+  if (!node) {
+    return {
+      refusal: variableWriteRefusal(
+        "node_not_found",
+        `${command} wrote nothing: node ${nodeId} was not found`,
+        { node: { id: nodeId } }
+      ),
+    };
+  }
+  return { node };
+}
+
+function variableBindingNodeSummary(node) {
+  return {
+    id: node.id,
+    name: typeof node.name === "string" ? node.name : null,
+    type: typeof node.type === "string" ? node.type : null,
+  };
+}
+
+// `boundVariables[field]` is a single VariableAlias for a plain field and an ARRAY of them
+// for the list-valued ones. Reading only the first shape would report a successful bind as
+// unconfirmed on exactly the fields most likely to be used.
+function boundVariableIdsForField(node, field, index) {
+  try {
+    const bound = node.boundVariables;
+    if (!bound || typeof bound !== "object") return null;
+    const entry = bound[field];
+    if (entry === undefined || entry === null) return [];
+    if (Array.isArray(entry)) {
+      if (typeof index === "number") {
+        const at = entry[index];
+        return at && typeof at.id === "string" ? [at.id] : [];
+      }
+      return entry
+        .filter((item) => item && typeof item.id === "string")
+        .map((item) => item.id);
+    }
+    return typeof entry.id === "string" ? [entry.id] : [];
+  } catch (_) {
+    return null;
+  }
+}
+
+async function bindVariableToNode(params) {
+  const command = "bind_variable_to_node";
+  const { nodeId, field, variableId } = params || {};
+  if (typeof field !== "string" || field.trim().length === 0) {
+    throw new Error(`${command} requires a non-empty field and wrote nothing`);
+  }
+
+  const variableResult = await resolveVariableForWrite(command, variableId);
+  if (variableResult.refusal) return variableResult.refusal;
+  const variable = variableResult.variable;
+
+  const nodeResult = await resolveNodeForVariableBinding(command, nodeId);
+  if (nodeResult.refusal) {
+    return { ...nodeResult.refusal, variable: variableWriteVariableSummary(variable) };
+  }
+  const node = nodeResult.node;
+
+  const details = {
+    node: variableBindingNodeSummary(node),
+    variable: variableWriteVariableSummary(variable),
+    field,
+  };
+
+  if (typeof node.setBoundVariable !== "function") {
+    return variableWriteRefusal(
+      "binding_unsupported",
+      `${command} wrote nothing: node ${node.id} of type ${String(node.type)} does not support setBoundVariable()`,
+      details
+    );
+  }
+
+  const boundBefore = boundVariableIdsForField(node, field);
+  try {
+    node.setBoundVariable(field, variable);
+  } catch (error) {
+    // ⛔ This fork keeps NO table of which field accepts which resolvedType. Figma owns
+    // that rule and changes it as it ships new bindable fields; a stale local copy would
+    // refuse bindings the platform accepts. Its refusal is preserved verbatim instead.
+    return variableWriteRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+      { ...details, boundBefore }
+    );
+  }
+
+  const boundAfter = boundVariableIdsForField(node, field);
+  const observation = {
+    boundBefore,
+    boundAfter,
+    observedBy:
+      Array.isArray(boundAfter) && boundAfter.includes(variable.id)
+        ? "node_bound_variables"
+        : null,
+  };
+
+  if (!observation.observedBy) {
+    // An unknown or unsupported field name is the dangerous case here: Figma does not
+    // always throw for one, and a silent no-op is indistinguishable from a deferred commit.
+    return {
+      success: false,
+      outcome: "bind_unconfirmed",
+      ...details,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "binding_not_observed_in_frame",
+        message: `${command} called setBoundVariable(${JSON.stringify(field)}) on node ${node.id}; reading node.boundVariables back in the same frame did not list variable ${variable.id}. Either Figma commits this at frame end or the field name is not bindable on this node type — re-read the node in a later call to tell them apart.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "bound",
+    ...details,
+    verificationDeferred: false,
+    observation,
+  };
+}
+
+// ⚠️ THE TRAP ROW. `figma.variables.setBoundVariableForPaint(paint, 'color', variable)`
+// does NOT mutate the paint or the node — it RETURNS A NEW PAINT. Forgetting to write that
+// paint back into node.fills/strokes produces a call that succeeds, throws nothing, and
+// changes the document in no way whatsoever. `node.fills` is also a readonly array, so the
+// write-back has to replace the whole array, not assign into an index.
+const VARIABLE_PAINT_TARGETS = new Set(["fills", "strokes"]);
+
+async function bindVariableToPaint(params) {
+  const command = "bind_variable_to_paint";
+  const { nodeId, paintTarget, paintIndex, variableId } = params || {};
+  if (typeof paintTarget !== "string" || !VARIABLE_PAINT_TARGETS.has(paintTarget)) {
+    throw new Error(
+      `${command} requires paintTarget to be "fills" or "strokes" and wrote nothing`
+    );
+  }
+  if (
+    typeof paintIndex !== "number" ||
+    !Number.isInteger(paintIndex) ||
+    paintIndex < 0
+  ) {
+    throw new Error(
+      `${command} requires paintIndex to be a non-negative integer and wrote nothing`
+    );
+  }
+
+  const variableResult = await resolveVariableForWrite(command, variableId);
+  if (variableResult.refusal) return variableResult.refusal;
+  const variable = variableResult.variable;
+
+  const nodeResult = await resolveNodeForVariableBinding(command, nodeId);
+  if (nodeResult.refusal) {
+    return { ...nodeResult.refusal, variable: variableWriteVariableSummary(variable) };
+  }
+  const node = nodeResult.node;
+
+  const details = {
+    node: variableBindingNodeSummary(node),
+    variable: variableWriteVariableSummary(variable),
+    paintTarget,
+    paintIndex,
+  };
+
+  // A paint binds a COLOR and nothing else. This one IS knowable without asking Figma —
+  // the variable's own resolvedType answers it — so it is a typed refusal rather than a
+  // preserved platform error.
+  if (variable.resolvedType !== "COLOR") {
+    return variableWriteRefusal(
+      "paint_requires_color_variable",
+      `${command} wrote nothing: variable ${variable.id} resolves to ${String(variable.resolvedType)}; a paint colour can only bind a COLOR variable`,
+      details
+    );
+  }
+
+  if (
+    !figma.variables ||
+    typeof figma.variables.setBoundVariableForPaint !== "function"
+  ) {
+    throw new Error(
+      `${command} wrote nothing: this Figma runtime does not support setBoundVariableForPaint()`
+    );
+  }
+
+  let paints;
+  try {
+    paints = node[paintTarget];
+  } catch (error) {
+    return variableWriteRefusal(
+      "paints_unreadable",
+      `${command} wrote nothing: node ${node.id} ${paintTarget} could not be read: ${variableWriteErrorMessage(error)}`,
+      details
+    );
+  }
+  if (paints === figma.mixed) {
+    // ⛔ A mixed paint list has no addressable index — the node's children disagree about
+    // what paint sits there. Picking one would write a paint the caller never saw.
+    return variableWriteRefusal(
+      "paints_mixed",
+      `${command} wrote nothing: node ${node.id} ${paintTarget} is figma.mixed, so paintIndex ${paintIndex} does not name one paint`,
+      details
+    );
+  }
+  if (!Array.isArray(paints)) {
+    return variableWriteRefusal(
+      "paints_unsupported",
+      `${command} wrote nothing: node ${node.id} of type ${String(node.type)} has no readable ${paintTarget} array`,
+      details
+    );
+  }
+  if (paintIndex >= paints.length) {
+    return variableWriteRefusal(
+      "paint_index_out_of_range",
+      `${command} wrote nothing: node ${node.id} has ${paints.length} ${paintTarget}, so index ${paintIndex} does not exist`,
+      { ...details, paintCount: paints.length }
+    );
+  }
+
+  let boundPaint;
+  try {
+    boundPaint = figma.variables.setBoundVariableForPaint(
+      paints[paintIndex],
+      "color",
+      variable
+    );
+  } catch (error) {
+    // Nothing has been written back yet, so this really is a clean refusal.
+    return variableWriteRefusal(
+      "figma_refusal",
+      `${command} was refused by Figma: ${variableWriteErrorMessage(error)}`,
+      { ...details, paintCount: paints.length, writeBackPerformed: false }
+    );
+  }
+  if (!boundPaint || typeof boundPaint !== "object") {
+    return variableWriteRefusal(
+      "invalid_bound_paint",
+      `${command} wrote nothing: setBoundVariableForPaint() did not return a paint object to write back`,
+      { ...details, paintCount: paints.length, writeBackPerformed: false }
+    );
+  }
+
+  // THE WRITE-BACK. Everything above this line left the document untouched.
+  const next = paints.slice();
+  next[paintIndex] = boundPaint;
+  let writeBackPerformed = false;
+  try {
+    node[paintTarget] = next;
+    writeBackPerformed = true;
+  } catch (error) {
+    return variableWriteRefusal(
+      "paint_write_back_failed",
+      `${command} produced a bound paint but Figma refused to assign it back to node ${node.id} ${paintTarget}: ${variableWriteErrorMessage(error)}`,
+      { ...details, paintCount: paints.length, writeBackPerformed: false }
+    );
+  }
+
+  const observation = {
+    writeBackPerformed,
+    boundAfter: boundVariableIdsForField(node, paintTarget, paintIndex),
+    paintBoundAfter: null,
+    observedBy: null,
+  };
+  try {
+    const after = node[paintTarget];
+    const paintAfter = Array.isArray(after) ? after[paintIndex] : null;
+    const colorBinding =
+      paintAfter && paintAfter.boundVariables
+        ? paintAfter.boundVariables.color
+        : null;
+    if (colorBinding && typeof colorBinding.id === "string") {
+      observation.paintBoundAfter = colorBinding.id;
+      if (colorBinding.id === variable.id) observation.observedBy = "paint_bound_variables";
+    }
+  } catch (_) {
+    // Leave the signal null rather than inventing one.
+  }
+  if (
+    !observation.observedBy &&
+    Array.isArray(observation.boundAfter) &&
+    observation.boundAfter.includes(variable.id)
+  ) {
+    observation.observedBy = "node_bound_variables";
+  }
+
+  if (!observation.observedBy) {
+    return {
+      success: false,
+      outcome: "bind_unconfirmed",
+      ...details,
+      paintCount: paints.length,
+      verificationDeferred: true,
+      partialApplicationPossible: true,
+      observation,
+      refusal: {
+        code: "paint_binding_not_observed_in_frame",
+        message: `${command} wrote the bound paint back into node ${node.id} ${paintTarget}[${paintIndex}], but no in-frame read could confirm the colour binds variable ${variable.id}. Re-read the node in a later call to verify.`,
+      },
+    };
+  }
+
+  return {
+    success: true,
+    outcome: "bound",
+    ...details,
+    paintCount: paints.length,
+    verificationDeferred: false,
     observation,
   };
 }

@@ -320,7 +320,7 @@ test("R3-A 1.3 — add_variable_mode returns Figma's first ceiling refusal verba
   assert.equal(collection.modes.length, modeCountBefore);
 });
 
-test("R3-A 1.3 — the public schema declares add_variable_mode as an additive preview write", async () => {
+test("R3-A 1.3 — the public schema declares add_variable_mode as a stable write", async () => {
   const built = await buildContract();
   const tool = built.contract.tools.find(
     (entry) => entry.name === "add_variable_mode",
@@ -329,7 +329,11 @@ test("R3-A 1.3 — the public schema declares add_variable_mode as an additive p
   assert.ok(tool, "add_variable_mode must be registered");
   assert.equal(tool.direction, "write");
   assert.equal(tool.scope, "variable_collection");
-  assert.equal(tool.resultStability, "additive-preview");
+  // ⭐ `stable` since the R3-A promotion, 2026-08-25. This assertion used to read
+  // `additive-preview`, and updating it is the acceptance act itself — not a test chasing
+  // the source. `compatibilityErrors()` now refuses the walk-back by name, so this literal
+  // and the contract can no longer disagree in the weakening direction.
+  assert.equal(tool.resultStability, "stable");
   assert.deepEqual(tool.inputSchema.required, ["collectionId", "name"]);
   assert.match(tool.description, /never creates a temporary collection or mode/i);
   assert.match(tool.description, /refusal text verbatim/i);
@@ -599,7 +603,7 @@ test("R3-A 2.5 — a Figma throw is reported as a refusal that may have applied"
   );
 });
 
-test("R3-A 2.5 — the public schema declares remove_variable_mode as a destructive additive preview write", async () => {
+test("R3-A 2.5 — the public schema declares remove_variable_mode as a destructive stable write", async () => {
   const built = await buildContract();
   const tool = built.contract.tools.find(
     (entry) => entry.name === "remove_variable_mode",
@@ -608,7 +612,11 @@ test("R3-A 2.5 — the public schema declares remove_variable_mode as a destruct
   assert.ok(tool, "remove_variable_mode must be registered");
   assert.equal(tool.direction, "write");
   assert.equal(tool.scope, "variable_collection_mode");
-  assert.equal(tool.resultStability, "additive-preview");
+  // ⭐ `stable` since the R3-A promotion, 2026-08-25. This assertion used to read
+  // `additive-preview`, and updating it is the acceptance act itself — not a test chasing
+  // the source. `compatibilityErrors()` now refuses the walk-back by name, so this literal
+  // and the contract can no longer disagree in the weakening direction.
+  assert.equal(tool.resultStability, "stable");
   assert.deepEqual(tool.inputSchema.required, ["collectionId", "modeId", "confirm"]);
   // The literal is what makes a truthy value fail at the transport rather than at the
   // handler's second line of defence.

@@ -87,25 +87,52 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_styles",
   "get_local_components",
   "get_variables",
+  // ⛔ HELD BACK DELIBERATELY by the R3-A promotion (2026-08-25) while the five variable
+  // WRITES beside it went `stable`. This receipt publishes `modeCeiling.value: null` with
+  // `status: "unknown"`, and `remoteCollectionInventoryAvailable: false` as a declared
+  // limitation — fields whose whole design is that they GROW once Figma exposes the numeric
+  // mode limit or a remote inventory. `additive-preview` is the level that permits that
+  // growth; `stable` would make each of those a new `publicContractVersion`. It is also the
+  // one R3-A tool with no gate script: its live evidence is an ad-hoc re-run on `6a07fm2h`,
+  // not a scripted verdict. Promote it when it has both a stable ceiling and a gate.
   "get_variable_capabilities",
-  "add_variable_mode",
-  // R3-A Phase 2 has an offline contract but awaits its disposable-file live gate.
-  // These receipts therefore stay explicitly additive-preview rather than silently
-  // freezing through the stable default.
-  "set_variable_value",
-  "create_variable",
-  "delete_variable",
-  // R3-A Phase 4's mode removal is the newest write and has never been judged by real
-  // Figma. It stays explicitly additive-preview rather than freezing through the stable
-  // default — and its receipt is the one most likely to grow, because whether ANY in-frame
-  // signal observes a removeMode() is exactly what its live gate measures.
-  "remove_variable_mode",
+  // R3-A Phase 2's remaining table — collections, mode rename, metadata and the two
+  // bindings — is NEW in this release. Per CC1 a new tool ships `additive-preview` in the
+  // same change that registers it; `getResultStability` falls through to `stable`, so an
+  // omission here would freeze a receipt no live gate has judged. All five carry an
+  // `observation` block whose whole job is to name which in-frame signal fired, and that is
+  // exactly the shape a first live run tends to grow a field in.
+  "create_variable_collection",
+  "rename_variable_mode",
+  "set_variable_metadata",
+  "bind_variable_to_node",
+  "bind_variable_to_paint",
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
 ]);
+
+// ⭐ R3-A's five variable WRITES — `add_variable_mode`, `set_variable_value`,
+// `create_variable`, `delete_variable` and `remove_variable_mode` — were here until the
+// R3-A promotion (2026-08-25), held at `additive-preview` on the stated condition that
+// their receipts had never been judged by real Figma. All five earned it, each on an
+// owner-confirmed disposable file: `add_variable_mode` at Phase 1.3, `set_variable_value` /
+// `create_variable` / `delete_variable` at Phase 2 acceptance on `hxpwe1ej` (PASSED TWICE),
+// identity on `6a07fm2h`, and `remove_variable_mode` at Phase 4 on `yizlybxy` (PASSED
+// TWICE). The entries are GONE rather than commented out — `getResultStability` falls
+// through to `stable`, so a leftover entry silently holds a tool back at the weaker level.
+//
+// ⛔ This promotion rewrites `contractPayload.tools`, which feeds `serverBuildId`, so every
+// pinned live gate re-stales. It is sequenced BEFORE the Phase 2 collections/bindings build
+// deliberately: both changes move the build, and paying one re-pin + one live re-run for
+// the pair is the whole reason the promotion did not ship on its own.
+//
+// ⛔ `stable` means frozen, and `delete_variable` / `remove_variable_mode` are the two to
+// watch: both publish an `observation` block naming WHICH in-frame signal saw the absence,
+// and from here that block cannot grow a new signal without a new `publicContractVersion`.
+// `compatibilityErrors()` rejects the walk-back by name.
 
 // R2 acceptance promotes the five R2.7 receipts — `set_fill`, `set_effects`,
 // `set_opacity`, `set_blend_mode`, and `create_node_from_svg` — by REMOVING their names
@@ -221,6 +248,21 @@ const TOOL_SCOPES = {
   // discards every variable-in-this-collection's value for it, which the receipt reports
   // as blastRadius rather than by widening the scope to the whole collection.
   remove_variable_mode: "variable_collection_mode",
+  // R3-A Phase 2's remaining table. ⛔ `create_variable_collection` is "document", NOT
+  // "variable_collection": there is no collection to scope it to until it returns one, and
+  // its identity resolver reads EVERY local collection to rule out a duplicate. Naming a
+  // narrower scope would claim it only touches a resource the caller already has.
+  create_variable_collection: "document",
+  // A rename targets one mode of one collection — the same pair as remove_variable_mode,
+  // and it reuses that scope for that reason.
+  rename_variable_mode: "variable_collection_mode",
+  // Name/description/scopes all live ON the variable; nothing about a mode is read.
+  set_variable_metadata: "variable",
+  // ⚠️ Both bindings write the NODE, not the variable — the variable is the value being
+  // pointed at and is not modified. So the scope is the node, as it is for every other
+  // node write in this contract, and NOT "variable".
+  bind_variable_to_node: "node",
+  bind_variable_to_paint: "node",
   get_node_variables: "node_subtree",
   // Neither reads the document at all — the subject is the machine running Figma.
   // ⛔ The fallback below is "node", which would have been wrong and silent.

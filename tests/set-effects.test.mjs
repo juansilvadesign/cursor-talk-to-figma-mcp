@@ -428,13 +428,19 @@ test("the public contract pins the supported types, stable status, scope, and ba
   assert.equal(V1_BATCH_OPERATIONS.length, 15, "CC8 keeps the allowlist at 15 through R2.7");
 });
 
-test("the R3-A Phase 4 modes slice keeps all three 1.14.0 version fields together", async () => {
+// ⭐ The three fields, not the number, are what this asserts. A release that grows the
+// contract must bump `serverSchemaVersion` — it is inside `capabilityFingerprint`, and it
+// is the ONLY mechanism by which a contract change becomes visible to a consumer pinning
+// the fingerprint. Bumping `publicContractVersion` alone would leave the fingerprint
+// byte-identical across a five-tool release. 1.14.0 → 1.15.0 at R3-A Phase 2's remaining
+// table (collections, mode rename, metadata, both bindings).
+test("the R3-A Phase 2 collections/bindings slice keeps all three 1.15.0 version fields together", async () => {
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.14.0");
-  assert.equal(release.serverSchemaVersion, "1.14.0");
-  assert.equal(release.pluginApiVersion, "1.14.0");
+  assert.equal(release.publicContractVersion, "1.15.0");
+  assert.equal(release.serverSchemaVersion, "1.15.0");
+  assert.equal(release.pluginApiVersion, "1.15.0");
 });
 
 /**

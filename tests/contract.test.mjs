@@ -22,9 +22,12 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   assert.deepEqual(parityErrors(built.surface), []);
   assert.deepEqual(compatibilityErrors(snapshot, built.contract), []);
   // 67 → 70 at R3-A Phase 2 (`set_variable_value`, `create_variable`, `delete_variable`),
-  // then 70 → 71 at Phase 4 (`remove_variable_mode`). The literal is a tripwire, not
-  // bookkeeping: it is here so a tool arriving or vanishing cannot pass unremarked.
-  assert.equal(snapshot.tools.length, 71);
+  // then 70 → 71 at Phase 4 (`remove_variable_mode`), then 71 → 76 when Phase 2's remaining
+  // table landed (`create_variable_collection`, `rename_variable_mode`,
+  // `set_variable_metadata`, `bind_variable_to_node`, `bind_variable_to_paint`). The literal
+  // is a tripwire, not bookkeeping: it is here so a tool arriving or vanishing cannot pass
+  // unremarked.
+  assert.equal(snapshot.tools.length, 76);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));
@@ -123,12 +126,30 @@ test("the current contract stays backwards compatible with every frozen release 
 // intentionally pending a supplied channel. This list records the contract exception; it
 // is not a claim that those live gates have already passed. The next accepted frozen
 // baseline must absorb these names and return this list to empty.
+//
+// 🔴 **THE WINDOW IS NOW DOUBLE-WIDE, AND THAT IS THE SMELL THIS COMMENT EXISTS TO NAME.**
+// The R3-A promotion (2026-08-25) adds its five variable writes below, on top of R2.7's
+// five that were never absorbed — because R2's contract was never frozen as a baseline.
+// The newest baseline is still `r2.6-public-contract.json` (`1.8.0`, 60 tools) while the
+// tree ships `1.15.0` at 76 tools, so `frozenToolNames()` cannot vouch for either half.
+// ⛔ Ten names here is not ten deliberate acts; it is ONE missing freeze counted twice.
+// The R3-A acceptance freeze must absorb ALL TEN and return this list to `[]` — freezing
+// `contracts/baselines/` moves no build ID (it feeds neither `serverSource` nor
+// `contractPayload`), so that act is free and re-stales nothing.
 const ACCEPTED_SINCE_LAST_BASELINE = [
+  // R2 acceptance, 2026-08-23 — still unabsorbed.
   "create_node_from_svg",
   "set_blend_mode",
   "set_effects",
   "set_fill",
   "set_opacity",
+  // R3-A promotion, 2026-08-25. Each carries a live verdict on an owner-confirmed
+  // disposable file; what none of them carries yet is a frozen baseline.
+  "add_variable_mode",
+  "create_variable",
+  "delete_variable",
+  "remove_variable_mode",
+  "set_variable_value",
 ];
 
 async function frozenToolNames() {

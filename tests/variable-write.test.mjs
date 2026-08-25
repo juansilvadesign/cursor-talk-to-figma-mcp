@@ -571,7 +571,7 @@ test("R3-A Phase 2 — a platform that drops collection membership in-frame is r
   assert.equal(await variable(harness, "var-space"), null);
 });
 
-test("R3-A Phase 3 — published schemas keep variable writes additive-preview and expose layered create identity", async () => {
+test("R3-A Phase 3 — published schemas declare variable writes stable and expose layered create identity", async () => {
   const built = await buildContract();
   const byName = new Map(built.contract.tools.map((tool) => [tool.name, tool]));
   const setValue = byName.get("set_variable_value");
@@ -583,7 +583,11 @@ test("R3-A Phase 3 — published schemas keep variable writes additive-preview a
   assert.ok(remove);
   assert.equal(setValue.direction, "write");
   assert.equal(setValue.scope, "variable_mode");
-  assert.equal(setValue.resultStability, "additive-preview");
+  // ⭐ `stable` since the R3-A promotion, 2026-08-25. This assertion used to read
+  // `additive-preview`, and updating it is the acceptance act itself — not a test chasing
+  // the source. `compatibilityErrors()` now refuses the walk-back by name, so this literal
+  // and the contract can no longer disagree in the weakening direction.
+  assert.equal(setValue.resultStability, "stable");
   assert.deepEqual(setValue.inputSchema.required, ["variableId", "modeId"]);
   assert.match(setValue.description, /exactly one of value or aliasOf/i);
   assert.match(setValue.description, /hex strings are not accepted/i);
@@ -591,7 +595,11 @@ test("R3-A Phase 3 — published schemas keep variable writes additive-preview a
 
   assert.equal(create.direction, "write");
   assert.equal(create.scope, "variable_collection");
-  assert.equal(create.resultStability, "additive-preview");
+  // ⭐ `stable` since the R3-A promotion, 2026-08-25. This assertion used to read
+  // `additive-preview`, and updating it is the acceptance act itself — not a test chasing
+  // the source. `compatibilityErrors()` now refuses the walk-back by name, so this literal
+  // and the contract can no longer disagree in the weakening direction.
+  assert.equal(create.resultStability, "stable");
   assert.deepEqual(create.inputSchema.required, ["collectionId", "name", "resolvedType"]);
   assert.equal(create.inputSchema.properties.id.type, "string");
   assert.equal(create.inputSchema.properties.identityKey.type, "string");
@@ -601,7 +609,11 @@ test("R3-A Phase 3 — published schemas keep variable writes additive-preview a
 
   assert.equal(remove.direction, "write");
   assert.equal(remove.scope, "variable");
-  assert.equal(remove.resultStability, "additive-preview");
+  // ⭐ `stable` since the R3-A promotion, 2026-08-25. This assertion used to read
+  // `additive-preview`, and updating it is the acceptance act itself — not a test chasing
+  // the source. `compatibilityErrors()` now refuses the walk-back by name, so this literal
+  // and the contract can no longer disagree in the weakening direction.
+  assert.equal(remove.resultStability, "stable");
   assert.deepEqual(remove.inputSchema.required, ["variableId", "confirm"]);
   assert.equal(remove.inputSchema.properties.confirm.const, true);
   assert.match(remove.description, /disposable Figma file/i);

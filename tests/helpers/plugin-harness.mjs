@@ -389,8 +389,49 @@ function createFixtureRuntime(fixture, options) {
     }
 
     // R2.7 item 1.1's fill model. Four decisions, and three of them are opt-ins rather
-    // than claims — the fill surface has more unmeasured platform behaviour attached to it
-    // than any layout tool did.
+    // R3-A Phase 2's binding surface. `boundVariables` is a READ-ONLY view in the real API
+    // and the only way to change it is `setBoundVariable`, so the harness exposes it the
+    // same way — a test cannot seed a binding by assigning to it.
+    //
+    // ⛔ Two option lists, and neither is a claim about Figma. `unbindableFields` models the
+    // platform THROWING for a field it does not accept; `silentBindFields` models it
+    // accepting the call and reflecting nothing. The second exists because Figma does not
+    // always throw for an unknown field, and a silent no-op is byte-identical to a
+    // frame-deferred commit from inside the frame — which is exactly the pair
+    // `bind_unconfirmed` refuses to collapse.
+    {
+      const bindings = new Map(Object.entries(clone(raw?.boundVariables) || {}));
+      const bindKey = (field) => `${node.id}::${field}`;
+      Object.defineProperty(node, "boundVariables", {
+        enumerable: true,
+        configurable: true,
+        get: () => Object.fromEntries(bindings),
+      });
+      Object.defineProperty(node, "setBoundVariable", {
+        enumerable: false,
+        configurable: true,
+        writable: true,
+        value: (field, variable) => {
+          if (typeof field !== "string" || field.length === 0) {
+            throw new Error("setBoundVariable requires a field name");
+          }
+          if (!variable || typeof variable.id !== "string") {
+            throw new Error("setBoundVariable requires a Variable object");
+          }
+          if ((options.unbindableFields || []).includes(bindKey(field))) {
+            throw new Error(
+              `Property ${field} cannot be bound to a variable on this node`,
+            );
+          }
+          if ((options.silentBindFields || []).includes(bindKey(field))) return;
+          bindings.set(field, { type: "VARIABLE_ALIAS", id: variable.id });
+        },
+      });
+      if ((options.bindingApiMissing || []).includes(node.id)) {
+        delete node.setBoundVariable;
+      }
+    }
+
     {
       // ① PRESENCE IS TYPE-GATED and the property is DELETED from non-carriers. See
       // FILL_CARRIERS: the blanket `fills: []` this replaces made `set_fill`'s only node
@@ -872,6 +913,94 @@ function createFixtureRuntime(fixture, options) {
   }
 
   // Non-enumerable so it stays out of clone()/JSON replies; the plugin reads it by name.
+  // VariableCollection implements PluginDataMixin in the real Plugin API, exactly as
+  // Variable does. Without this the collections half of the layered identity resolver could
+  // only ever reach its `identity_key_api_unavailable` arm, and `create_variable_collection`
+  // would look correct offline while its identityKey layer was DEAD — the same shape as the
+  // `delete_variable` lookup defect, one layer up.
+  function attachCollectionPluginData(collection, seed) {
+    const privatePluginData = new Map(Object.entries(seed || {}));
+    Object.defineProperty(collection, "getPluginData", {
+      enumerable: false,
+      configurable: true,
+      writable: true,
+      value: (key) => privatePluginData.get(key) ?? "",
+    });
+    Object.defineProperty(collection, "setPluginData", {
+      enumerable: false,
+      configurable: true,
+      writable: true,
+      value: (key, value) => {
+        if (typeof key !== "string" || typeof value !== "string") {
+          throw new Error(
+            "VariableCollection plugin data keys and values must be strings",
+          );
+        }
+        if (value === "") privatePluginData.delete(key);
+        else privatePluginData.set(key, value);
+      },
+    });
+  }
+
+  // ⛔ THE SAME QUESTION `modeRemovalSignal` ASKS, AND IT IS A DIFFERENT QUESTION. Phase 4
+  // MEASURED that `collection.modes` updates in-frame after `removeMode()`; that is evidence
+  // about removeMode, not about renameMode, and Figma documents neither. So the default here
+  // is again "none" — nothing an in-frame read can see changes — and a test that wants the
+  // confirmed path must ask for the signal by name.
+  //
+  //   "none"              — nothing flips in-frame; the handler must defer.
+  //   "collection_modes"  — the resolved collection object's own `modes` carries the name.
+  //   "fresh_lookup"      — the resolved object keeps the OLD name, a NEW lookup has the new.
+  const modeRenameSignal = options.modeRenameSignal || "none";
+  const renamedModes = new Map();
+  const pendingModeRenames = [];
+
+  function commitModeRenames() {
+    while (pendingModeRenames.length > 0) {
+      const pending = pendingModeRenames.pop();
+      const mode = pending.collection.modes.find(
+        (candidate) => candidate.modeId === pending.modeId,
+      );
+      if (mode) mode.name = pending.name;
+      renamedModes.delete(modeKey(pending.collection.id, pending.modeId));
+    }
+  }
+
+  function attachModeRename(collection) {
+    Object.defineProperty(collection, "renameMode", {
+      enumerable: false,
+      configurable: true,
+      writable: true,
+      value: (modeId, name) => {
+        const mode = collection.modes.find(
+          (candidate) => candidate.modeId === modeId,
+        );
+        if (!mode) {
+          throw new Error(
+            `Mode ${modeId} does not belong to collection ${collection.id}`,
+          );
+        }
+        // Figma's own floor: two modes in one collection cannot share a name.
+        if (
+          collection.modes.some(
+            (candidate) => candidate.modeId !== modeId && candidate.name === name,
+          )
+        ) {
+          throw new Error(`Mode name ${name} is already used in this collection`);
+        }
+        if (modeRenameSignal === "collection_modes") {
+          mode.name = name;
+          return;
+        }
+        pendingModeRenames.push({ collection, modeId, name });
+        if (modeRenameSignal === "fresh_lookup") {
+          renamedModes.set(modeKey(collection.id, modeId), name);
+        }
+        // "none" falls through: Figma accepted the call and commits at frame end.
+      },
+    });
+  }
+
   function attachVariableIds(collection) {
     Object.defineProperty(collection, "variableIds", {
       enumerable: false,
@@ -957,9 +1086,15 @@ function createFixtureRuntime(fixture, options) {
       },
     });
   }
-  for (const collection of collections) {
+  for (const [index, collection] of collections.entries()) {
+    attachCollectionPluginData(
+      collection,
+      (fixture.variables.collections[index] || {}).pluginData,
+    );
+    delete collection.pluginData;
     attachVariableIds(collection);
     attachModeRemoval(collection);
+    attachModeRename(collection);
   }
 
   // Variable writes use the real Plugin API shape rather than a request echo: variables
@@ -1238,6 +1373,26 @@ function createFixtureRuntime(fixture, options) {
         const hidden = collection.modes.some((mode) =>
           hiddenModes.has(modeKey(collection.id, mode.modeId)),
         );
+        const renamed = collection.modes.some((mode) =>
+          renamedModes.has(modeKey(collection.id, mode.modeId)),
+        );
+        if (renamed) {
+          // Same prototype trick as `hidden`: a distinct VIEW so the resolved object and a
+          // fresh lookup can actually be told apart, which is the only way a test can prove
+          // the handler's second signal is load-bearing.
+          const view = Object.create(collection);
+          Object.defineProperty(view, "modes", {
+            enumerable: true,
+            configurable: true,
+            value: collection.modes
+              .filter((mode) => !hiddenModes.has(modeKey(collection.id, mode.modeId)))
+              .map((mode) => {
+                const pending = renamedModes.get(modeKey(collection.id, mode.modeId));
+                return pending === undefined ? mode : { ...mode, name: pending };
+              }),
+          });
+          return view;
+        }
         // ⛔ Object IDENTITY is the default and it is load-bearing: the add_variable_mode
         // tests attach `addMode` to the object THEY looked up and the handler then looks
         // the collection up again. Only the `fresh_lookup` model hands back a distinct
@@ -1266,10 +1421,40 @@ function createFixtureRuntime(fixture, options) {
           remote: false,
           modes: [{ modeId, name: "Mode 1" }],
         };
+        attachCollectionPluginData(collection, null);
         attachVariableIds(collection);
         attachModeRemoval(collection);
+        attachModeRename(collection);
         collections.push(collection);
         return collection;
+      },
+      // ⚠️ THE TRAP, MODELLED HONESTLY. The real API does NOT mutate the paint it is
+      // handed — it returns a NEW one — and that is precisely why a handler can call it,
+      // throw nothing, and change the document in no way at all. A harness that mutated the
+      // input paint would make the missing write-back invisible and bless the defect.
+      setBoundVariableForPaint: (paint, field, variable) => {
+        if (!paint || typeof paint !== "object") {
+          throw new Error("setBoundVariableForPaint requires a Paint object");
+        }
+        if (field !== "color") {
+          throw new Error(`Unsupported paint field ${String(field)}`);
+        }
+        if (!variable || typeof variable.id !== "string") {
+          throw new Error("setBoundVariableForPaint requires a Variable object");
+        }
+        if (variable.resolvedType !== "COLOR") {
+          throw new Error("Only COLOR variables can be bound to a paint");
+        }
+        if (options.paintBindingThrows) {
+          throw new Error("Figma refused this paint binding");
+        }
+        return {
+          ...clone(paint),
+          boundVariables: {
+            ...(paint.boundVariables || {}),
+            [field]: { type: "VARIABLE_ALIAS", id: variable.id },
+          },
+        };
       },
       createVariableAlias: (variable) => {
         if (!variable || typeof variable.id !== "string") {
@@ -1282,6 +1467,7 @@ function createFixtureRuntime(fixture, options) {
       delete figma.variables.createVariable;
       delete figma.variables.createVariableCollection;
       delete figma.variables.createVariableAlias;
+      delete figma.variables.setBoundVariableForPaint;
     }
   }
   if (options.stylesApi === false) {
@@ -1307,6 +1493,7 @@ function createFixtureRuntime(fixture, options) {
     commitFrame: () => {
       commitVariableRemovals();
       commitModeRemovals();
+      commitModeRenames();
     },
   };
 }

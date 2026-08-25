@@ -15,14 +15,12 @@
  *     --disposable-target=true \
  *     [--allow-permanent-collection=true]
  *
- * ⛔ WHY `--allow-permanent-collection` IS A SEPARATE ACKNOWLEDGEMENT, AND NOT A FLAG THIS
- * GATE SETS FOR ITSELF. This fork ships NO tool that deletes a variable collection. Every
- * other resource this gate creates — the probe mode, the probe variables, the scratch page —
- * is removed by a fork tool at the end, which is what makes the gate rerunnable. A created
- * COLLECTION cannot be, so each run of that leg leaves one behind permanently, removable
- * only by hand in Figma's UI. That is the Phase 1.3 residue hazard one level up and strictly
- * worse, so the create legs stay opt-in and the debris is reported in `stillOwed` rather than
- * discovered later. Without the flag the collection legs are SKIPPED, not faked.
+ * ⛔ WHY `--allow-permanent-collection` REMAINS A SEPARATE ACKNOWLEDGEMENT. The flag name is
+ * retained for rerun compatibility with the original gate, whose collection leg once left
+ * permanent debris because the fork could not remove a collection. It now means the caller
+ * expressly authorizes this gate to create, exercise and DELETE a collection it owns through
+ * `delete_variable_collection`. Every created resource is fresh-read absent in cleanup. Without
+ * the flag the collection legs are SKIPPED, not faked.
  *
  * ⭐ THE MEASUREMENT THIS GATE EXISTS FOR: nothing Figma documents says whether a
  * `renameMode()` becomes visible from inside the calling frame. The offline harness refuses
@@ -69,16 +67,17 @@ const allowPermanentCollection = options["allow-permanent-collection"] === "true
 // Do not re-pin this script without a fresh run on a disposable target — a source edit is
 // not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-d0897984aeb6",
-  pluginBuildId: "r3-a-plugin-07a616c3b48d",
-  schemaVersion: "1.17.0",
+  serverBuildId: "r3-a-server-b5649366daef",
+  pluginBuildId: "r3-a-plugin-7f0d5389634e",
+  schemaVersion: "1.18.0",
   fingerprint:
-    "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
-  toolCount: 76,
+    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  toolCount: 77,
 };
 
 const NEW_COMMANDS = Object.freeze([
   "create_variable_collection",
+  "delete_variable_collection",
   "rename_variable_mode",
   "set_variable_metadata",
   "bind_variable_to_node",
@@ -269,6 +268,7 @@ let failure = null;
 let probeModeId = null;
 let probeFloatId = null;
 let probeColorId = null;
+let probeCollectionId = null;
 let scratchPageId = null;
 let originalPageId = null;
 
@@ -319,6 +319,38 @@ async function cleanup() {
       probeModeId = null;
     } catch (error) {
       record.cleanup.push({ probeModeId, error: String(error?.message ?? error) });
+    }
+  }
+
+  // The collection leg is now net-zero. A truthful `removal_unconfirmed` receipt is still
+  // acceptable only when this later-frame read proves absence; a no-op remove must not make
+  // the gate look rerunnable.
+  if (probeCollectionId) {
+    try {
+      const receipt = (await callJson("delete_variable_collection", {
+        collectionId: probeCollectionId,
+        confirm: true,
+      })).value;
+      const after = await readCollection(probeCollectionId);
+      const absentAfterFreshRead = after === null;
+      record.cleanup.push({
+        probeCollectionId,
+        outcome: receipt.outcome,
+        observation: receipt.observation ?? null,
+        absentAfterFreshRead,
+      });
+      assert.equal(
+        absentAfterFreshRead,
+        true,
+        `cleanup collection ${probeCollectionId} still resolves after a fresh read`,
+      );
+      probeCollectionId = null;
+    } catch (error) {
+      record.cleanup.push({
+        probeCollectionId,
+        error: String(error?.message ?? error),
+      });
+      throw error;
     }
   }
 }
@@ -373,6 +405,7 @@ try {
       !JSON.stringify(created).includes("do not normalize"),
       "the opaque identityKey must never be echoed back",
     );
+    probeCollectionId = created.collection.id;
 
     const byName = (await callJson("create_variable_collection", {
       name: probeCollectionName,
@@ -415,13 +448,10 @@ try {
       collectionCountBefore: namesBefore.length,
       collectionCountAfter: namesAfter.length,
     };
-    record.stillOwed.push(
-      `PERMANENT DEBRIS: variable collection "${probeCollectionName}" (${created.collection.id}) cannot be removed by this fork — no delete_variable_collection tool exists. Delete it by hand in Figma.`,
-    );
   } else {
     record.checks.createCollection = { skipped: true };
     record.stillOwed.push(
-      "create_variable_collection was NOT exercised live: --allow-permanent-collection=true was not passed, because a created collection cannot be removed by any tool in this fork.",
+      "create_variable_collection was NOT exercised live: --allow-permanent-collection=true was not passed. The gate would now delete its created collection through delete_variable_collection, but this separate acknowledgement was not supplied.",
     );
   }
 
@@ -685,9 +715,7 @@ try {
       pageCount: pagesAfter?.value?.pageCount ?? null,
       currentPageId: pagesAfter?.value?.currentPageId ?? null,
     };
-    if (record.success) {
-      record.stillOwed = record.stillOwed.slice(1);
-    }
+    if (record.success) record.stillOwed = [];
   } catch (cleanupError) {
     if (!failure) {
       failure = cleanupError;

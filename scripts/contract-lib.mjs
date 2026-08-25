@@ -81,6 +81,10 @@ const TIMEOUT_RANK = {
 const HEAVY_BATCH_TOOLS = new Set(["apply_batch"]);
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
+  // R3-A's collection-cleanup addendum is new and destructive. Its observation block
+  // deliberately has room to grow after Figma is measured live, so it must not fall through
+  // to stable before the dedicated gate judges it.
+  "delete_variable_collection",
   "get_document_info",
   "get_pages",
   "set_current_page",
@@ -277,6 +281,10 @@ const TOOL_SCOPES = {
   set_variable_value: "variable_mode",
   create_variable: "variable_collection",
   delete_variable: "variable",
+  // A destructive collection call is scoped to the one exact collection ID. Its potential
+  // variable blast radius is reported from pre-call membership, not hidden by calling the
+  // scope "document" or by offering a cascade delete.
+  delete_variable_collection: "variable_collection",
   // R3-A Phase 4. The WRITE target is one mode of one collection — a pair, so neither
   // "variable_collection" nor set_variable_value's "variable_mode" names it. ⚠️ Scope
   // describes where a call writes, not how far the consequence reaches: removing a mode

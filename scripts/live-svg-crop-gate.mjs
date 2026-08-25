@@ -79,12 +79,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-d0897984aeb6",
-  pluginBuildId: "r3-a-plugin-07a616c3b48d",
-  schemaVersion: "1.17.0",
+  serverBuildId: "r3-a-server-b5649366daef",
+  pluginBuildId: "r3-a-plugin-7f0d5389634e",
+  schemaVersion: "1.18.0",
   fingerprint:
-    "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
-  toolCount: 76,
+    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  toolCount: 77,
 };
 
 // 40×20. Black bar at x<4, white bar at x>=36, red/blue split at the middle. The EDGE markers

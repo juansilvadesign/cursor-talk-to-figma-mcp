@@ -141,6 +141,21 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // from `report.json` `success`; `live-export-gate` writes NO `success` field and was read as
 // exit 0 + `failure: null`. A runner keyed only on `success` would have scored a passing
 // export gate as FAIL — the failure this file's older comment predicted, now observed.
+// ✅✅ **THE TWENTY-GATE RE-PIN + RE-RUN IS PAID — 2026-08-25, channel `2v56aacl`.**
+// `delete_variable_collection` moved the release to `r3-a-server-b5649366daef` ↔
+// `r3-a-plugin-7f0d5389634e`, schema 1.18.0, fingerprint `sha256:de4144fe…999e9`, 77 tools;
+// every prior gate was therefore re-pinned and re-run once, while the new dedicated deletion
+// gate became #20. **ALL TWENTY PASSED.** Its bad-pin proof came first: a throwaway copy with
+// `r3-a-plugin-000000000000` exited 1 at `assertRuntime`, with no baseline/creation check in
+// its report, so the green run cannot be mistaken for an unfired refusal assertion.
+//
+// 🔴 **The ceiling gate's precondition was rebuilt and paid back in this run.** "7. Grids"
+// went 4 → 10 via six recorded short-name modes; Figma refused `in addMode: Limited to 10
+// modes only`; then exactly those six ids were removed, restoring the original four modes.
+// A separate final client compared all nine collection summaries against the pre-run baseline
+// and confirmed 25 pages with current page `0:1`. The new deletion gate and the
+// collections/bindings opt-in leg both observed owned-collection absence through the independent
+// local collection inventory.
 
 const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
@@ -280,10 +295,11 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // ⚠️ A literal, so a gate that stops being pinned cannot pass as a shorter list. 17 at the
   // 2026-08-25 re-pin; 18 once the collections/bindings gate landed in the same change; 19
   // once `live-variable-capabilities-gate.mjs` gave `get_variable_capabilities` the scripted
-  // verdict it had been promoted-blocked on.
+  // verdict it had been promoted-blocked on; 20 once `delete_variable_collection` gained its
+  // dedicated disposable-file deletion-and-restoration gate.
   assert.equal(
     parsed.length,
-    19,
-    `expected 19 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    20,
+    `expected 20 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

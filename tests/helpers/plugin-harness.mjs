@@ -892,6 +892,30 @@ function createFixtureRuntime(fixture, options) {
   const collections = fixture.variables.collections.map((item) => clone(item));
   const variables = [];
 
+  // `VariableCollection.remove()` is the collection-shaped version of the deletion timing
+  // trap `delete_variable` already paid for: Figma may accept a remove while one or more
+  // reads in the same plugin execution frame still hand back the old object. Do not make an
+  // optimistic splice the default and bless an unreachable success branch. Tests select the
+  // one in-frame signal the modeled host exposes; every branch commits the same deletion only
+  // after the reply has been constructed, so a later command is a genuinely fresh read.
+  //
+  //   "none"             — no in-frame signal; handler must defer.
+  //   "lookup_missed"    — getVariableCollectionByIdAsync returns null.
+  //   "removed_flag"     — the resolved object reports removed:true.
+  //   "local_inventory"  — getLocalVariableCollectionsAsync no longer lists it.
+  const collectionRemovalSignal = options.collectionRemovalSignal || "none";
+  const pendingCollectionRemovals = [];
+  const collectionRemovalHidden = new Set();
+
+  function commitCollectionRemovals() {
+    while (pendingCollectionRemovals.length > 0) {
+      const pending = pendingCollectionRemovals.pop();
+      const index = collections.indexOf(pending);
+      if (index !== -1) collections.splice(index, 1);
+      collectionRemovalHidden.delete(pending.id);
+    }
+  }
+
   // ⛔ Figma commits variable.remove() at the END of the execution frame: an in-frame
   // getVariableByIdAsync still resolves the variable. This harness used to splice it out
   // immediately, so the handler's "the lookup missed, therefore it is deleted" branch was
@@ -1015,6 +1039,44 @@ function createFixtureRuntime(fixture, options) {
     });
   }
 
+  function attachCollectionRemoval(collection) {
+    Object.defineProperty(collection, "remove", {
+      enumerable: false,
+      configurable: true,
+      writable: true,
+      value: () => {
+        const index = collections.indexOf(collection);
+        if (index === -1) {
+          throw new Error(`Variable collection ${collection.id} is already removed`);
+        }
+        if (collection.remote) {
+          throw new Error("Cannot remove a remote variable collection");
+        }
+        const memberIds = Array.isArray(collection.variableIds)
+          ? collection.variableIds
+          : null;
+        if (!memberIds) {
+          throw new Error("Variable collection membership is unavailable");
+        }
+        if (memberIds.length > 0) {
+          throw new Error("Cannot remove a variable collection that still contains variables");
+        }
+        if (collectionRemovalSignal === "lookup_missed") {
+          collectionRemovalHidden.add(collection.id);
+        }
+        if (collectionRemovalSignal === "removed_flag") {
+          collection.removed = true;
+        }
+        if (collectionRemovalSignal === "local_inventory") {
+          collectionRemovalHidden.add(collection.id);
+        }
+        if (!pendingCollectionRemovals.includes(collection)) {
+          pendingCollectionRemovals.push(collection);
+        }
+      },
+    });
+  }
+
 
   // ⛔ THE `delete_variable` LESSON, MODELLED RATHER THAN ASSUMED. Figma documents
   // `VariableCollection.removeMode(modeId)` and documents NOTHING about when the removal
@@ -1091,6 +1153,7 @@ function createFixtureRuntime(fixture, options) {
     );
     delete collection.pluginData;
     attachVariableIds(collection);
+    attachCollectionRemoval(collection);
     attachModeRemoval(collection);
     attachModeRename(collection);
   }
@@ -1376,13 +1439,26 @@ function createFixtureRuntime(fixture, options) {
         );
       },
       getLocalVariableCollectionsAsync: async () =>
-        collections.filter((collection) => !collection.remote),
+        collections.filter(
+          (collection) =>
+            !collection.remote &&
+            !(
+              collectionRemovalSignal === "local_inventory" &&
+              collectionRemovalHidden.has(collection.id)
+            ),
+        ),
       getVariableByIdAsync: async (id) =>
         variables.find((variable) => variable.id === id) || null,
       getVariableCollectionByIdAsync: async (id) => {
         const collection =
           collections.find((candidate) => candidate.id === id) || null;
         if (!collection) return null;
+        if (
+          collectionRemovalSignal === "lookup_missed" &&
+          collectionRemovalHidden.has(collection.id)
+        ) {
+          return null;
+        }
         const hidden = collection.modes.some((mode) =>
           hiddenModes.has(modeKey(collection.id, mode.modeId)),
         );
@@ -1436,6 +1512,7 @@ function createFixtureRuntime(fixture, options) {
         };
         attachCollectionPluginData(collection, null);
         attachVariableIds(collection);
+        attachCollectionRemoval(collection);
         attachModeRemoval(collection);
         attachModeRename(collection);
         collections.push(collection);
@@ -1505,6 +1582,7 @@ function createFixtureRuntime(fixture, options) {
     plain: clone,
     commitFrame: () => {
       commitVariableRemovals();
+      commitCollectionRemovals();
       commitModeRemovals();
       commitModeRenames();
     },

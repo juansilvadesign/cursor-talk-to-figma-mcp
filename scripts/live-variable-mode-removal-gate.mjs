@@ -56,12 +56,12 @@ if (options["disposable-target"] !== "true") {
 // Derived from runtime-metadata.ts after R3-A Phase 4 contract generation. Do not re-pin
 // this script without a fresh run on a disposable target — a source edit is not live evidence.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-d0897984aeb6",
-  pluginBuildId: "r3-a-plugin-07a616c3b48d",
-  schemaVersion: "1.17.0",
+  serverBuildId: "r3-a-server-b5649366daef",
+  pluginBuildId: "r3-a-plugin-7f0d5389634e",
+  schemaVersion: "1.18.0",
   fingerprint:
-    "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
-  toolCount: 76,
+    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+  toolCount: 77,
 };
 
 // ⛔ THE ALLOWLIST IS THE SAFETY RAIL, and it is matched by EXACT NAME. The gate resolves

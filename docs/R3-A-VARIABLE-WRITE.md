@@ -622,10 +622,14 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
   `publishedSchema` — `createdModeId: null`, nothing written — and was then deleted. Two
   greens whose refusal leg never fires measure the inputs, not the gate.
 
-  🟡 **The nineteen gates are RE-PINNED to `1.17.0` and NOT YET RE-RUN.** The promotion moved
-  `serverBuildId`, staling all of them including the capabilities gate that had just passed
-  twice — shipping a phase re-stales the gate that accepted the phase before it. Blocked on a
-  DEV-plugin reload; see the ledger in `tests/live-gate-pins.test.mjs`.
+  ✅✅ **The nineteen gates are RE-PINNED AND RE-RUN — channel `wi3cjzy3`, ALL NINETEEN
+  PASSED.** The promotion moved `serverBuildId`, staling all of them including the
+  capabilities gate that had just passed twice — shipping a phase re-stales the gate that
+  accepted the phase before it. The document was confirmed byte-identical afterwards from a
+  separate client session. ⭐ A **fourth pin shape** surfaced and was measured: `code.js`
+  changed while `pluginBuildId` HELD, so the un-reloaded plugin refused at `join_channel`
+  with an identical build id on both sides of an incompatible pair. Full record → the ledger
+  in `tests/live-gate-pins.test.mjs`.
 - ✅ **The remaining Phase 2 table (collections, bindings) is COMPLETE and live-accepted.**
   `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
   `bind_variable_to_node` and `bind_variable_to_paint` all ship `stable` at `1.16.0` behind

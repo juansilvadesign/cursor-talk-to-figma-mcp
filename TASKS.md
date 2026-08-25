@@ -222,14 +222,27 @@ the next read to match: *"7. Grids"* **4 → 5** modes and `knownGoodAtLeast` **
 three independent derivations, every other collection byte-identical, then restored to
 baseline and confirmed cross-frame.
 
-🟡 **OWED: the nineteen gates are re-pinned to `1.17.0` and NOT yet re-run.** The promotion
-moved `serverBuildId`, staling all nineteen — including the capabilities gate that had just
-passed twice. ⛔ **BLOCKED on a DEV-plugin reload**, and this is a **fourth pin shape**:
-`code.js` changed (`apiVersion` → `1.17.0`, new fingerprint) while `pluginBuildId` **HELD**,
-because that id hashes the file with its metadata block stripped. Measured, not reasoned —
-the un-reloaded plugin refused at `join_channel` with `expected 1.17.0, received 1.16.0` and
-`plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`: identical build id on both
-sides of an incompatible pair. The three R2.1/R2.2/R2.4 gates remain declined.
+✅✅ **THE NINETEEN-GATE RE-PIN + RE-RUN IS PAID — 2026-08-25, channel `wi3cjzy3`.** All
+nineteen re-pinned to `r3-a-server-d0897984aeb6` / `1.17.0` / `sha256:b67c85d4…` and **RE-RUN
+once each — ALL NINETEEN PASSED**, including the capabilities gate that had just passed twice
+and was re-staled by its own promotion. Document confirmed byte-identical from a separate
+client session: 25 pages, no scratch leftovers, all 9 collections at their original mode
+counts, current page restored. The three R2.1/R2.2/R2.4 gates remain declined.
+
+⭐ **A FOURTH PIN SHAPE, measured not reasoned.** `code.js` changed (`apiVersion` → `1.17.0`,
+new fingerprint) while `pluginBuildId` **HELD** — that id hashes the file with its metadata
+block stripped. The un-reloaded plugin refused at `join_channel` with `expected 1.17.0,
+received 1.16.0` and `plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`: identical
+build id on both sides of an incompatible pair, invisible to every pin in `expectedRuntime`.
+
+🔴 **`live-variable-mode-gate` needed its precondition rebuilt a SECOND time.** Its evidence
+is a platform limit, so *"7. Grids"* was inflated 4 → 10, the gate run (Figma refused verbatim
+`in addMode: Limited to 10 modes only`), then returned to 4 by removing exactly the six
+recorded mode ids — zero failures.
+
+⚠️ **The verdict-protocol split FIRED.** 18 were read from `report.json` `success`;
+`live-export-gate` writes no such field and was read as exit 0 + `failure: null`. A runner
+keyed only on `success` would have scored it FAIL.
 
 ### (previous) — R3-A Phase 3 resource identity
 

@@ -797,7 +797,7 @@ test("R3-A Phase 2 — a Figma refusal leaves writeBackPerformed false and the p
 // The published contract
 // ===========================================================================
 
-test("R3-A Phase 2 — the five new tools ship additive-preview with honest scopes and directions", async () => {
+test("R3-A Phase 2 — the five promoted tools ship stable with honest scopes and directions", async () => {
   const built = await buildContract();
   const byName = new Map(built.contract.tools.map((tool) => [tool.name, tool]));
 
@@ -814,10 +814,16 @@ test("R3-A Phase 2 — the five new tools ship additive-preview with honest scop
     assert.ok(tool, `${name} must be registered`);
     assert.equal(tool.direction, "write", `${name} is a write`);
     assert.equal(tool.scope, scope, `${name} scope`);
-    // ⛔ CC1: a new tool ships `additive-preview`. `getResultStability` falls through to
-    // `stable`, so an omission from ADDITIVE_PREVIEW_RESULTS would freeze a receipt no live
-    // gate has judged — which is exactly what these five have not had yet.
-    assert.equal(tool.resultStability, "additive-preview", `${name} stability`);
+    // ✅ PROMOTED to `stable` 2026-08-25, after the 18-gate live pass on channel
+    // `4k1jsjpo` judged all five and `r3-a-public-contract.json` froze the `1.15.0` build
+    // that passed. They shipped `additive-preview` for exactly one release — the level
+    // exists to let an `observation` block grow a field on its first live run, and all
+    // five did their growing there.
+    // ⛔ This assertion stays EXACT rather than becoming a set-membership check: pinning
+    // the literal level is what catches both a demotion (breaking) and an accidental
+    // re-add to ADDITIVE_PREVIEW_RESULTS. A loosened `!== undefined` here would pass for
+    // any level and guard nothing.
+    assert.equal(tool.resultStability, "stable", `${name} stability`);
     assert.equal(tool.timeoutClass, "standard", `${name} timeout class`);
     assert.equal(tool.progress.pluginUpdates, "none", `${name} progress`);
   }

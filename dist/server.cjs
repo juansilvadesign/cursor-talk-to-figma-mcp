@@ -35,12 +35,12 @@ var import_path = __toESM(require("path"), 1);
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-cfce6484d54a",
+  "serverBuildId": "r3-a-server-7839c39d5302",
   "pluginBuildId": "r3-a-plugin-07a616c3b48d",
-  "serverSchemaVersion": "1.15.0",
-  "pluginApiVersion": "1.15.0",
+  "serverSchemaVersion": "1.16.0",
+  "pluginApiVersion": "1.16.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",
+  "capabilityFingerprint": "sha256:34d09270ff74084cd134712e864bc891adbac5283e3bee625e330d043448db68",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",

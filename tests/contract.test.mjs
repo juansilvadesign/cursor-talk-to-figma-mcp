@@ -121,36 +121,37 @@ test("the current contract stays backwards compatible with every frozen release 
 // name, and now a baseline carries them. R2.6 was the last release in which the CC1 repair
 // cost nothing; that window is closed by this file.
 //
-// R2 acceptance now promotes the five additive-preview tools below. The representative
-// fixture is prepared, but its live Figma execution and the resulting re-pin are still
-// intentionally pending a supplied channel. This list records the contract exception; it
-// is not a claim that those live gates have already passed. The next accepted frozen
-// baseline must absorb these names and return this list to empty.
+// ✅ **THE R3-A ACCEPTANCE FREEZE IS PAID — 2026-08-25, and this list is `[]` again.**
+// `r3-a-public-contract.json` freezes `contracts/public-contract.json` at `R3-A` /
+// `1.15.0` / 76 tools — the exact build that passed the **18-gate live pass** on channel
+// `4k1jsjpo` (pair `r3-a-server-cfce6484d54a` ↔ `r3-a-plugin-07a616c3b48d`, fingerprint
+// `sha256:5e6dcb91…9fee1af3`). ⭐ A baseline records the build that was LIVE-VALIDATED, not
+// the tree's newest state, which is why the freeze was cut BEFORE the Phase 2 promotion
+// rather than after it.
 //
-// 🔴 **THE WINDOW IS NOW DOUBLE-WIDE, AND THAT IS THE SMELL THIS COMMENT EXISTS TO NAME.**
-// The R3-A promotion (2026-08-25) adds its five variable writes below, on top of R2.7's
-// five that were never absorbed — because R2's contract was never frozen as a baseline.
-// The newest baseline is still `r2.6-public-contract.json` (`1.8.0`, 60 tools) while the
-// tree ships `1.15.0` at 76 tools, so `frozenToolNames()` cannot vouch for either half.
-// ⛔ Ten names here is not ten deliberate acts; it is ONE missing freeze counted twice.
-// The R3-A acceptance freeze must absorb ALL TEN and return this list to `[]` — freezing
-// `contracts/baselines/` moves no build ID (it feeds neither `serverSource` nor
-// `contractPayload`), so that act is free and re-stales nothing.
-const ACCEPTED_SINCE_LAST_BASELINE = [
-  // R2 acceptance, 2026-08-23 — still unabsorbed.
-  "create_node_from_svg",
-  "set_blend_mode",
-  "set_effects",
-  "set_fill",
-  "set_opacity",
-  // R3-A promotion, 2026-08-25. Each carries a live verdict on an owner-confirmed
-  // disposable file; what none of them carries yet is a frozen baseline.
-  "add_variable_mode",
-  "create_variable",
-  "delete_variable",
-  "remove_variable_mode",
-  "set_variable_value",
-];
+// That single act absorbed all TEN names this list used to carry — R2.7's five
+// (`create_node_from_svg`, `set_blend_mode`, `set_effects`, `set_fill`, `set_opacity`) and
+// R3-A's five (`add_variable_mode`, `create_variable`, `delete_variable`,
+// `remove_variable_mode`, `set_variable_value`) — because they were never ten deliberate
+// acts, only ONE missing freeze counted twice. As predicted, freezing moved no build ID
+// (`contracts/baselines/` feeds neither `serverSource` nor `contractPayload`), so all
+// eighteen live gates stayed pinned and their pass stayed valid across this commit.
+//
+// ⭐ **THE FREEZE ALSO PRE-AUTHORISES THE PHASE 2 PROMOTION, and that is why the order
+// matters.** `frozenToolNames()` collects every tool name a baseline carries *regardless of
+// its `resultStability`*, so the five Phase 2 tools — `create_variable_collection`,
+// `rename_variable_mode`, `set_variable_metadata`, `bind_variable_to_node`,
+// `bind_variable_to_paint` — are `everFrozen` from this baseline while still recorded in it
+// as `additive-preview`. Promoting them to `stable` therefore passes CC1 with this list
+// EMPTY. ⛔ Had the promotion been done first, all five would have had to be re-added here,
+// recreating the exact debt the freeze just cleared.
+//
+// ⛔ **Keep this list empty.** A new tool ships `additive-preview` (add it to
+// `ADDITIVE_PREVIEW_RESULTS` in the same commit that registers it); promotion is an
+// acceptance act that a frozen baseline must already vouch for. Re-adding a name here is
+// borrowing against the next freeze, and the comment above is what that debt looks like
+// after two releases of interest.
+const ACCEPTED_SINCE_LAST_BASELINE = [];
 
 async function frozenToolNames() {
   const baselineDir = path.join(root, "contracts/baselines");

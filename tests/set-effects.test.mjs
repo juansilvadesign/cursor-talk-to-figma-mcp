@@ -434,13 +434,21 @@ test("the public contract pins the supported types, stable status, scope, and ba
 // the fingerprint. Bumping `publicContractVersion` alone would leave the fingerprint
 // byte-identical across a five-tool release. 1.14.0 → 1.15.0 at R3-A Phase 2's remaining
 // table (collections, mode rename, metadata, both bindings).
-test("the R3-A Phase 2 collections/bindings slice keeps all three 1.15.0 version fields together", async () => {
+//
+// ⭐ 1.15.0 → 1.16.0 at the R3-A Phase 2 PROMOTION (2026-08-25), and that bump is the whole
+// point of this test. Promoting those five from `additive-preview` to `stable` adds no
+// tool, no command and no field — `capabilityFingerprint` covers the command set plus
+// `serverSchemaVersion` and deliberately NOT stability levels, so without this bump the
+// promotion would have shipped behind a byte-identical fingerprint. A strengthened
+// stability level is an additive contract change; additive changes bump the schema, and
+// that is the only mechanism that makes this one visible to a pinning consumer.
+test("the R3-A Phase 2 collections/bindings slice keeps all three 1.16.0 version fields together", async () => {
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.15.0");
-  assert.equal(release.serverSchemaVersion, "1.15.0");
-  assert.equal(release.pluginApiVersion, "1.15.0");
+  assert.equal(release.publicContractVersion, "1.16.0");
+  assert.equal(release.serverSchemaVersion, "1.16.0");
+  assert.equal(release.pluginApiVersion, "1.16.0");
 });
 
 /**

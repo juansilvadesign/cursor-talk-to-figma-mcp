@@ -96,17 +96,19 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // one R3-A tool with no gate script: its live evidence is an ad-hoc re-run on `6a07fm2h`,
   // not a scripted verdict. Promote it when it has both a stable ceiling and a gate.
   "get_variable_capabilities",
-  // R3-A Phase 2's remaining table — collections, mode rename, metadata and the two
-  // bindings — is NEW in this release. Per CC1 a new tool ships `additive-preview` in the
-  // same change that registers it; `getResultStability` falls through to `stable`, so an
-  // omission here would freeze a receipt no live gate has judged. All five carry an
-  // `observation` block whose whole job is to name which in-frame signal fired, and that is
-  // exactly the shape a first live run tends to grow a field in.
-  "create_variable_collection",
-  "rename_variable_mode",
-  "set_variable_metadata",
-  "bind_variable_to_node",
-  "bind_variable_to_paint",
+  // ✅ R3-A Phase 2's remaining table — `create_variable_collection`,
+  // `rename_variable_mode`, `set_variable_metadata`, `bind_variable_to_node`,
+  // `bind_variable_to_paint` — was PROMOTED out of this set on 2026-08-25, after the
+  // 18-gate live pass on channel `4k1jsjpo` judged all five and
+  // `r3-a-public-contract.json` froze the `1.15.0` build that passed. They shipped
+  // `additive-preview` for exactly one release, which is the point: the level exists to let
+  // an `observation` block grow a field on its first live run, and all five did their
+  // growing there. ⭐ Two of those growths were REFUSALS OF FICTION the offline suite had
+  // asserted — Figma reorders `scopes` (it is a SET, so membership is the only correct
+  // comparison) and Figma ACCEPTS duplicate mode names (the invented throw was deleted and
+  // `nameCollidesWithModeIds` became a reading). A third was a dead read path in the GATE,
+  // not the tool. ⛔ From here their receipts are frozen: a new field is a new
+  // `publicContractVersion` and weakening the level is breaking.
   "get_node_variables",
   "get_reactions",
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the

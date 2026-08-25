@@ -1,10 +1,10 @@
 {
   "release": "R3-A",
-  "publicContractVersion": "1.16.0",
-  "serverSchemaVersion": "1.16.0",
+  "publicContractVersion": "1.15.0",
+  "serverSchemaVersion": "1.15.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:34d09270ff74084cd134712e864bc891adbac5283e3bee625e330d043448db68",
+  "capabilityFingerprint": "sha256:5e6dcb91bd57c355bd6a2c3e9bb58cf393d6c01bca1d8cb847e69a4d9fee1af3",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -507,7 +507,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "bind_variable_to_node",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -556,7 +556,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "bind_variable_to_paint",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -1414,7 +1414,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "create_variable_collection",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -2271,7 +2271,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "rename_variable_mode",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -4104,7 +4104,7 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "set_variable_metadata",
-      "resultStability": "stable"
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

@@ -52,11 +52,11 @@ if (options["disposable-target"] !== "true") {
 // not been run yet; these pins make it runnable against the exact 67-tool build, not a
 // fabricated claim that an earlier Phase 1.2 result covers the new command.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-7839c39d5302",
+  serverBuildId: "r3-a-server-d0897984aeb6",
   pluginBuildId: "r3-a-plugin-07a616c3b48d",
-  schemaVersion: "1.16.0",
+  schemaVersion: "1.17.0",
   fingerprint:
-    "sha256:34d09270ff74084cd134712e864bc891adbac5283e3bee625e330d043448db68",
+    "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
   toolCount: 76,
 };
 

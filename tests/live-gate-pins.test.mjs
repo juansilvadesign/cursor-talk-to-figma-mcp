@@ -103,6 +103,28 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // `live-export-gate` writes NO `success` field at all — its verdict is exit 0 plus
 // `failure: null`. A runner that reads only `success` scores a passing export gate as FAIL
 // forever. Read each gate's own signal, or normalise the protocol before trusting a tally.
+// 🟡 **THE NINETEEN ARE RE-PINNED TO `1.17.0` BUT NOT YET RE-RUN — 2026-08-25.** The
+// `get_variable_capabilities` stability promotion moved `serverBuildId`
+// `r3-a-server-7839c39d5302` → **`r3-a-server-d0897984aeb6`** and the fingerprint
+// `sha256:34d09270…` → `sha256:b67c85d4…`, staling all nineteen. They were re-pinned in one
+// pass. ⛔ **RE-PINNING IS NOT RE-RUNNING, and this comment is the only place that can say
+// so** — the test below goes green the moment the pins match, which is exactly the state a
+// gate is in when it has never been executed against the build it now claims. The re-run is
+// owed on channel `jiydnb12` and is blocked on a DEV-plugin reload.
+//
+// ⭐ **A FOURTH PIN SHAPE, AND THE BUILD ID IS BLIND TO IT BY CONSTRUCTION.** This promotion
+// changed `code.js` — its generated metadata block now reads `apiVersion: "1.17.0"` and the
+// new fingerprint — while `pluginBuildId` **HELD** at `r3-a-plugin-07a616c3b48d`, because
+// that id hashes the file with the metadata block STRIPPED. So the operator consequence is
+// *reload the DEV plugin AND respawn the server*, and no pin in `expectedRuntime` can tell
+// you that: `pluginBuildId` is identical on both sides of an incompatible pair.
+// 🔴 **MEASURED, not reasoned.** Running the capabilities gate against the un-reloaded
+// plugin refused at `join_channel` — earlier than `assertRuntime` — with
+// `Plugin API mismatch: expected 1.17.0, received 1.16.0` and
+// `plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`. The server's own preflight
+// caught it on `apiVersion` + `capabilityFingerprint`; the build id agreed with itself the
+// whole time.
+
 const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 function readPins(source) {
@@ -239,10 +261,12 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
     "live-smoke asserts no build and is the ONLY gate allowed to publish no pins",
   );
   // ⚠️ A literal, so a gate that stops being pinned cannot pass as a shorter list. 17 at the
-  // 2026-08-25 re-pin; 18 once the collections/bindings gate landed in the same change.
+  // 2026-08-25 re-pin; 18 once the collections/bindings gate landed in the same change; 19
+  // once `live-variable-capabilities-gate.mjs` gave `get_variable_capabilities` the scripted
+  // verdict it had been promoted-blocked on.
   assert.equal(
     parsed.length,
-    18,
-    `expected 18 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    19,
+    `expected 19 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

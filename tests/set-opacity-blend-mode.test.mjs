@@ -171,7 +171,7 @@ test("the stable get_node_info result stays unchanged; only the new receipts exp
   }
 });
 
-test("the public contract keeps two stable node writes while R3-A schema 1.16.0 holds", async () => {
+test("the public contract keeps two stable node writes while R3-A schema 1.17.0 holds", async () => {
   const built = await buildContract();
   const opacityTool = built.contract.tools.find((entry) => entry.name === "set_opacity");
   const blendTool = built.contract.tools.find((entry) => entry.name === "set_blend_mode");
@@ -196,9 +196,11 @@ test("the public contract keeps two stable node writes while R3-A schema 1.16.0 
     "PASS_THROUGH belongs to the node-level surface even though paint/effect schemas exclude it",
   );
 
-  assert.equal(built.contract.publicContractVersion, "1.16.0");
-  assert.equal(built.contract.serverSchemaVersion, "1.16.0");
-  assert.equal(built.release.pluginApiVersion, "1.16.0");
+  // 1.16.0 → 1.17.0: the `get_variable_capabilities` stability promotion (2026-08-25).
+  // These two tools' promises are unchanged by it — that is exactly what this test asserts.
+  assert.equal(built.contract.publicContractVersion, "1.17.0");
+  assert.equal(built.contract.serverSchemaVersion, "1.17.0");
+  assert.equal(built.release.pluginApiVersion, "1.17.0");
 });
 
 test("both R2.7 item 1.3 tools are explicitly absent from v1 apply_batch", () => {

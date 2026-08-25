@@ -11,6 +11,119 @@ three write tools), Phase 3 (layered resource identity for `create_variable`) an
 > evidence that the file behind it is disposable.
 
 
+## ✅✅ R3-A ACCEPTANCE — THE 18-GATE PASS, PAID TWICE, 2026-08-25
+
+The full live roster ran green **twice on two different builds**: once on `1.15.0`
+(channel `4k1jsjpo`) to earn the baseline freeze, and again on `1.16.0`
+(channel `7b9mxbg5`) to validate the Phase 2 promotion. **18/18 both times**, verdicts read
+from **exit codes**.
+
+⛔ **EIGHTEEN GATES, AND THE VERDICT IS THE EXIT CODE — not `success === true`.** The roster
+carries three verdict protocols: 16 gates write `success: true`, `live-batch-gate` writes it
+but prints no `PASSED` line, and `live-export-gate` writes **no `success` field at all**
+(its verdict is exit 0 plus `failure: null`). A uniform `success === true` runner scores a
+*clean* export-gate run as FAIL. Every gate ends `if (failure) throw failure`, so the exit
+code is the one signal all three shapes share.
+
+**Run 1 — `1.15.0`, channel `4k1jsjpo`.** Pair `r3-a-server-cfce6484d54a` ↔
+`r3-a-plugin-07a616c3b48d`, fingerprint `sha256:5e6dcb91…9fee1af3`, 76 tools.
+**Run 2 — `1.16.0`, channel `7b9mxbg5`.** Pair `r3-a-server-7839c39d5302` ↔
+`r3-a-plugin-07a616c3b48d`, fingerprint `sha256:34d09270…3448db68`, 76 tools.
+Offline **443/443** at both. Reports are gitignored under `docs/*`; the committed record is
+this section plus the gate pins themselves.
+
+### ⛔ The ordering trap, and why the roster cannot run in file order
+
+`live-variable-mode-gate` needs its collection **AT** the mode ceiling — Figma's refusal is
+its only evidence — and has no cleanup path by design, while
+`live-variable-collections-bindings-gate` needs **headroom**. The order that satisfies both:
+everything else first, then inflate to the ceiling, run the mode gate, then deflate with
+`live-variable-mode-removal-gate`. Net zero on the collection, and only possible because
+Phase 4 shipped the tool that reverses the inflation.
+
+⭐ **The ceiling was re-measured by refusal on BOTH runs, never assumed.** `knownGoodAtLeast`
+means *at least*; inflating until Figma answers `in addMode: Limited to 10 modes only`
+(`modeCeiling {value: 10, status: "observed"}`) is the only thing that establishes the
+precondition. ⚠️ The removal gate's allowlist holds **six** names, so an inflation needing
+seven leaves one mode it will not touch — that one is removed by hand with
+`remove_variable_mode`, or the collection ends `+1` from baseline.
+
+### 🔴 Run 1 finding: a DEAD READ PATH in the gate, which could only ever FAIL
+
+`live-variable-collections-bindings-gate` failed with *"an independent read of node
+31015:104 did not list the binding: []"* — while `bind_variable_to_node` itself returned
+`success: true` with `observedBy: "node_bound_variables"`. Two readings were available: a
+tool publishing a false success, or a gate reading the wrong field.
+
+`get_node_variables` returns a **flat top-level `bindings` array** and has no `nodes` key at
+all. `readNodeBindings` walked `snapshot.nodes || []`, so `records` was **always `[]`** and
+**both** of its call sites — the node binding and the paint binding — could only ever fail.
+The assertion had never passed for any input.
+
+⭐ **The fix was not "trust the tool" — it was to measure the tool independently, with its
+known-bad leg in the same run.** A live probe bound a FLOAT to `itemSpacing` and read back
+`{property: "itemSpacing", variableId: …, resolutionStatus: "resolved"}`; a second,
+**unbound** frame returned `[]`. So the corrected reader discriminates a bound node from an
+unbound one rather than returning whatever is there. Post-fix the gate publishes
+`independentReadProperty: "itemSpacing"` and `"fills[0].color"` — values the dead version
+could not have produced. An absent container is now a **loud** failure naming the keys it
+did find: *"this node has no bindings"* and *"I read a field that does not exist"* must
+never again be the same bytes.
+
+⚠️ Run 1 also confirmed the two earlier self-inflicted findings are genuinely fixed:
+`scopes` compared as a **set** (Figma reorders it) and the invented duplicate-mode-name
+throw deleted (`nameCollidesWithModeIds` is a reading, never a refusal).
+
+### 🔴 Run 2 finding: `pluginBuildId` HELD while `code.js` genuinely changed
+
+The Phase 2 promotion rewrote `code.js` (`3a28cf47…` → `a7fcdae1…`, carrying the new
+version) yet `pluginBuildId` stayed `r3-a-plugin-07a616c3b48d` — **identical on both sides**.
+`pluginBuildId` hashes `stripPluginRuntimeMetadata(pluginSource)`, i.e. code.js **with its
+generated metadata block removed**; the strip is necessary, since that block contains the id
+itself. So a release whose only plugin-side change is a version bump is **invisible** to it.
+
+⛔ **This is a THIRD operator shape and it breaks the rule of the other two.** Recorded so
+far: plugin-only move ⇒ *reload the DEV plugin*; server-only move ⇒ *respawn the MCP session
+and do NOT reload*. This was neither — **both artifacts changed, only `serverBuildId`
+moved** — and the correct action was to do BOTH. Reading it as "server-only" because the
+plugin id held would have stranded the plugin at `1.15.0`. Measured, not reasoned:
+`get_runtime_info` reported `plugin.apiVersion: 1.15.0`, `serverSchemaVersion: 1.15.0`,
+`compatibility: incompatible`. ⭐ The **fingerprint** caught what the build id could not,
+inverting the usual warning — here the build id is the identifier that under-covers.
+
+### The freeze and the promotion, in that order
+
+`contracts/baselines/r3-a-public-contract.json` freezes `R3-A / 1.15.0 / 76 tools` — **the
+build that passed run 1**, not the tree's newest state. That single act absorbed all **ten**
+names `ACCEPTED_SINCE_LAST_BASELINE` carried (R2.7's five plus R3-A's five), returning the
+list to `[]`. It was proved load-bearing in both directions: removing the baseline turns the
+CC1 guard **RED naming exactly those ten**, restoring it turns it green.
+
+⭐ **The order is what made the promotion free.** `frozenToolNames()` collects every tool
+name a baseline carries *regardless of its `resultStability`*, so freezing first made the
+five Phase 2 tools `everFrozen` while still recorded as `additive-preview` — and promoting
+them then passed CC1 with the list **empty**. Promoting first would have forced all five
+back into that list, recreating the exact debt the freeze had just cleared.
+
+The promotion moved `1.15.0` → **`1.16.0`** across all three version fields. A strengthened
+stability level is an *additive* contract change, and `capabilityFingerprint` covers the
+command set plus `serverSchemaVersion` and **deliberately not stability levels** — so
+without the schema bump the promotion would have shipped behind a byte-identical
+fingerprint. 65 `stable` / 10 `additive-preview` / 1 `legacy` at `1.16.0`.
+
+### Document restoration, and the one thing this fork cannot clean
+
+Both runs restored *"8. Dimensions"* to its exact baseline — `Mobile / Tablet / Laptop`,
+default `17050:1` — with 25 pages, current page `0:1` and zero stray gate pages, each
+confirmed by a fresh read rather than by the absence of an error.
+
+⛔ **`create_variable_collection` leaves permanent debris: no `delete_variable_collection`
+exists in this fork.** Each acceptance run that exercises that leg (it is gated behind
+`--allow-permanent-collection=true` for exactly this reason) leaves one collection only the
+owner can delete by hand, reported in the gate's `stillOwed`. Run 1 left two — one from the
+failed attempt, one from the re-run — and run 2 left one. All three were deleted by the
+owner.
+
 ## ✅✅ R3-A PHASE 4 — `remove_variable_mode`, LIVE-ACCEPTED 2026-08-24, channel `yizlybxy`
 
 Plan item **2.5**'s destructive half, and the tool that made the Phase 1.3 debris above
@@ -355,7 +468,10 @@ refused alias cycle is held to the same standard.
 
 ```sh
 bun socket                                    # relay on 3055, required
-# reload the DEV plugin in Figma first — that is what moves pluginBuildId
+# ⛔ Reload the DEV plugin in Figma first — and do NOT decide that from `pluginBuildId`.
+# It hashes code.js with the generated metadata block STRIPPED, so a version-only bump
+# leaves it byte-identical while the file changed. Check `plugin.apiVersion` /
+# `serverSchemaVersion` from a live `get_runtime_info`, or diff code.js's file hash.
 # Phase 2 — the three write tools
 node scripts/live-variable-write-gate.mjs \
   --channel=<DEV-plugin-channel-for-a-disposable-file> \
@@ -450,9 +566,18 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
 - ⏳ **`sole_remaining_mode` is live-UNREACHABLE and stays unproven.** A collection down to
   one mode has that mode as its default, so `default_mode` refuses first. Offline-covered
   only, by pointing the harness's default elsewhere. Defence-in-depth, not a measured path.
-- ⏳ **`remove_variable_mode` is still `additive-preview`.** Promotion to `stable` rewrites
-  `contractPayload.tools`, moves `serverBuildId` and re-stales every gate — it is an
-  acceptance act to be spent deliberately, not a side effect of a passing gate.
-- ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md)
-  (collections, bindings) is untouched. ⭐ **The modes row is now complete**:
+- ✅ **`remove_variable_mode` is `stable`** as of the R3-A promotion, and the cost this
+  entry predicted was paid exactly as written: the rewrite moved `serverBuildId` and
+  re-staled all eighteen gates, which were re-pinned and re-run green on `1.16.0`.
+- ⏳ **`get_variable_capabilities` is the one R3-A tool still `additive-preview`,** held back
+  deliberately. Its receipt publishes `modeCeiling.value: null` and
+  `remoteCollectionInventoryAvailable: false` as declared limitations — fields whose whole
+  design is to GROW once Figma exposes them. ⚠️ Both acceptance runs *did* observe the
+  ceiling at 10, so the stable-ceiling half is arguably earned; **it still has no gate
+  script of its own**, and a tool whose only live evidence is an ad-hoc re-run has no
+  scripted verdict to promote on.
+- ✅ **The remaining Phase 2 table (collections, bindings) is COMPLETE and live-accepted.**
+  `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
+  `bind_variable_to_node` and `bind_variable_to_paint` all ship `stable` at `1.16.0` behind
+  `live-variable-collections-bindings-gate`. ⭐ The modes row closed earlier:
   `add_variable_mode` and `remove_variable_mode` are both live-accepted.

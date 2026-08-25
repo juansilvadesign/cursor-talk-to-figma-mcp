@@ -11,7 +11,76 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25b — PROMOTION + PHASE 2 REST BUILT, LIVE PASS OWED)
+## ▶ Resume (checkpoint 2026-08-25c — R3-A ACCEPTANCE COMPLETE: 18/18 TWICE, FREEZE + PROMOTION PAID)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork` — ✅✅ **THE 18-GATE LIVE PASS RAN
+  GREEN TWICE, ON TWO DIFFERENT BUILDS.** Run 1 on **`1.15.0`** (channel `4k1jsjpo`, pair
+  `r3-a-server-cfce6484d54a` ↔ `r3-a-plugin-07a616c3b48d`, fp `sha256:5e6dcb91…9fee1af3`);
+  run 2 on **`1.16.0`** (channel `7b9mxbg5`, pair `r3-a-server-7839c39d5302` ↔
+  `r3-a-plugin-07a616c3b48d`, fp `sha256:34d09270…3448db68`). **18/18 both**, offline
+  **443/443** both. Commits `49aea14` (gate fix) + `88c3f35` (freeze + 1.16.0).
+- **▶ NEXT — owner commits `docs/R3-A-VARIABLE-WRITE.md`** (the only dirty file; holds the
+  full acceptance record). After that the one real work item left is a **gate script for
+  `get_variable_capabilities`** — the last R3-A tool still `additive-preview`.
+- **✅ THE CC1 DEBT IS PAID AND THE LEDGER IS `[]`.**
+  `contracts/baselines/r3-a-public-contract.json` freezes **`R3-A` / `1.15.0` / 76 tools** —
+  the build that passed run 1, *not* the tree's newest state. One act absorbed all ten names
+  (R2.7's five + R3-A's five). ⭐ Proved load-bearing **in both directions**: remove the
+  baseline → CC1 goes RED naming exactly those ten; restore → green.
+- **⭐ THE ORDER IS WHAT MADE THE PROMOTION FREE.** `frozenToolNames()` collects every tool
+  name a baseline carries **regardless of `resultStability`**, so freezing first made the five
+  Phase 2 tools `everFrozen` while still recorded as `additive-preview` — promoting them then
+  passed CC1 with the list **empty**. ⛔ Promoting first would have forced all five back into
+  `ACCEPTED_SINCE_LAST_BASELINE`, recreating the exact debt the freeze had just cleared.
+- **✅ PHASE 2 PROMOTED — `1.15.0` → `1.16.0`, now 65 `stable` / 10 `additive-preview` / 1
+  `legacy`.** `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
+  `bind_variable_to_node`, `bind_variable_to_paint`. ⛔ The schema bump is **not** cosmetic: a
+  strengthened level is an *additive* contract change, and `capabilityFingerprint` covers the
+  command set + `serverSchemaVersion` and **deliberately not stability levels** — without the
+  bump the promotion ships behind a byte-identical fingerprint. Policy: *"a release that grows
+  the contract must bump `serverSchemaVersion`."*
+- **🔴 RUN 1 FINDING — A DEAD READ PATH IN THE GATE THAT COULD ONLY EVER FAIL.**
+  `readNodeBindings` walked `snapshot.nodes || []`, but `get_node_variables` returns a **flat
+  top-level `bindings` array** with no `nodes` key — so `records` was **always `[]`** and both
+  call sites (node + paint binding) had never passed. `bind_variable_to_node` was **correct
+  all along**. ⭐ Fixed by MEASURING the tool independently **with its known-bad leg in the
+  same run**: a bound frame read back `{property:"itemSpacing", resolutionStatus:"resolved"}`,
+  an unbound frame returned `[]`. Post-fix the gate publishes `independentReadProperty`
+  values the dead version could not produce. See [[feedback_a_dead_read_path_can_fabricate_a_failure]].
+- **🔴 RUN 2 FINDING — `pluginBuildId` HELD WHILE `code.js` GENUINELY CHANGED.** The promotion
+  rewrote `code.js` (`3a28cf47…` → `a7fcdae1…`) yet `pluginBuildId` stayed
+  `r3-a-plugin-07a616c3b48d` on **both** sides. It hashes `stripPluginRuntimeMetadata()` —
+  code.js with the generated block **stripped** (necessarily; that block holds the id) — so a
+  **version-only bump is invisible to it**. ⛔ **A THIRD operator shape:** both artifacts
+  changed, only `serverBuildId` moved, and the fix was to respawn **AND** reload. Reading it
+  as "server-only" strands the plugin. Measured: `plugin.apiVersion 1.15.0`,
+  `compatibility: incompatible`. ⭐ The **fingerprint** caught what the build id could not.
+  See [[feedback_plugin_build_id_can_hold_while_the_plugin_changes]].
+- **⛔ THE ORDERING TRAP IS REAL AND THE ROSTER CANNOT RUN IN FILE ORDER.**
+  `live-variable-mode-gate` needs the collection **AT** ceiling (no cleanup by design);
+  `live-variable-collections-bindings-gate` needs **headroom**. Order: everything else →
+  inflate to ceiling → mode gate → deflate via `live-variable-mode-removal-gate`.
+  ⭐ Ceiling re-measured **by refusal** on both runs (`Limited to 10 modes only`), never
+  assumed — `knownGoodAtLeast` means *at least*. ⚠️ The removal gate's allowlist holds **six**
+  names; an inflation needing **seven** leaves one mode it will not touch, removed by hand.
+- **⛔ VERDICT = EXIT CODE, NOT `success === true`.** Three protocols across the 18: 16 write
+  `success: true`, `live-batch-gate` writes it but prints no `PASSED` line, `live-export-gate`
+  writes **no `success` field at all**. All end `if (failure) throw failure`.
+- **⛔ `create_variable_collection` LEAVES PERMANENT DEBRIS — no `delete_variable_collection`
+  exists in this fork.** Gated behind `--allow-permanent-collection=true` for that reason.
+  Run 1 left two (one from the failed attempt, one from the re-run), run 2 left one; **all
+  three were deleted by the owner.** Each acceptance run costs one more.
+- **✅ Both runs restored the document exactly:** *"8. Dimensions"* back to
+  `Mobile / Tablet / Laptop` (default `17050:1`), 25 pages, current page `0:1`, zero stray
+  gate pages — each confirmed by a **fresh read**, not by the absence of an error.
+  ⚠️ Baseline is **3 modes**, not the 4 every earlier checkpoint records — the owner deleted
+  one mid-session.
+- **⏳ Still open:** `get_variable_capabilities` is the last R3-A tool at `additive-preview`
+  (both runs observed its ceiling at 10, so the stable-ceiling half is arguably earned — but
+  it has **no gate script**, and an ad-hoc re-run is not a scripted verdict). The three
+  R2.1/R2.2/R2.4 gates remain declined.
+
+## ⤴ Previous checkpoint (2026-08-25b — PROMOTION + PHASE 2 REST BUILT, LIVE PASS OWED)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork` — ✅ **R3-A's five variable WRITES are
   `stable`** (`add_variable_mode`, `set_variable_value`, `create_variable`, `delete_variable`,

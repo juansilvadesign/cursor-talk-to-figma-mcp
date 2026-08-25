@@ -170,7 +170,40 @@ let consumers update their pins independently, and re-cut the next release.
 
 ---
 
-## ▶ Current session — **R3-A PHASE 3 RESOURCE IDENTITY BUILT; LIVE GATE PENDING.**
+## ▶ Current session — **R3-A ACCEPTANCE COMPLETE — 18/18 TWICE, FREEZE + PROMOTION PAID.**
+
+✅✅ **The 18-gate live pass ran green on TWO builds — 2026-08-25.** Run 1 on **`1.15.0`**
+(channel `4k1jsjpo`) earned the baseline freeze; run 2 on **`1.16.0`** (channel `7b9mxbg5`)
+validated the Phase 2 promotion. **18/18 both times**, offline **443/443** both, verdicts read
+from **exit codes** (the roster carries three verdict protocols — a uniform
+`success === true` runner scores a clean `live-export-gate` run as FAIL). Full record →
+[`docs/R3-A-VARIABLE-WRITE.md`](docs/R3-A-VARIABLE-WRITE.md) § *R3-A ACCEPTANCE*.
+
+✅ **The CC1 debt is PAID; `ACCEPTED_SINCE_LAST_BASELINE` is `[]`.**
+`contracts/baselines/r3-a-public-contract.json` freezes `R3-A` / `1.15.0` / 76 tools — the
+build that passed run 1, not the tree's newest state — absorbing all ten names in one act.
+Proved load-bearing in both directions. ⭐ Freezing FIRST is what made the promotion free:
+`frozenToolNames()` collects names regardless of `resultStability`, so the five Phase 2 tools
+were `everFrozen` before promotion and CC1 passed with the list empty.
+
+✅ **Phase 2 promoted, `1.15.0` → `1.16.0`** — 65 `stable` / 10 `additive-preview` / 1
+`legacy`. A strengthened level is an additive contract change, and the fingerprint covers the
+command set + `serverSchemaVersion` but **not** stability levels, so the schema bump is the
+only thing that makes the promotion visible to a pinning consumer.
+
+🔴 **Two findings, both instrument defects rather than tool defects.** ① A **dead read path**
+in `live-variable-collections-bindings-gate`: it walked `snapshot.nodes`, which
+`get_node_variables` does not have, so the assertion could only ever FAIL —
+`bind_variable_to_node` was correct all along. Fixed and re-measured with a known-bad leg.
+② **`pluginBuildId` HELD while `code.js` changed**, because it hashes the file with the
+generated metadata block stripped — a third operator shape where you must respawn **and**
+reload, and where reading "server-only" off the build id strands the plugin.
+
+⏳ **Open:** `get_variable_capabilities` is the last R3-A tool at `additive-preview` — it has
+no gate script, and an ad-hoc re-run is not a scripted verdict. The three R2.1/R2.2/R2.4
+gates remain declined.
+
+### (previous) — R3-A Phase 3 resource identity
 
 ✅ **R3-A Phase 3 resource identity — 2026-08-24.** `create_variable` now resolves an
 existing local resource in fixed order — explicit `id`, then exact collection/name, then an

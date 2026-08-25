@@ -569,13 +569,63 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
 - ✅ **`remove_variable_mode` is `stable`** as of the R3-A promotion, and the cost this
   entry predicted was paid exactly as written: the rewrite moved `serverBuildId` and
   re-staled all eighteen gates, which were re-pinned and re-run green on `1.16.0`.
-- ⏳ **`get_variable_capabilities` is the one R3-A tool still `additive-preview`,** held back
-  deliberately. Its receipt publishes `modeCeiling.value: null` and
-  `remoteCollectionInventoryAvailable: false` as declared limitations — fields whose whole
-  design is to GROW once Figma exposes them. ⚠️ Both acceptance runs *did* observe the
-  ceiling at 10, so the stable-ceiling half is arguably earned; **it still has no gate
-  script of its own**, and a tool whose only live evidence is an ad-hoc re-run has no
-  scripted verdict to promote on.
+- ✅✅ **`get_variable_capabilities` IS PROMOTED TO `stable` — 2026-08-25, channel
+  `jiydnb12`.** It was the last R3-A tool at `additive-preview`. The release is now
+  **R3-A / `1.17.0` / 76 tools** — 66 `stable` / 9 `additive-preview` / 1 `legacy` —
+  `r3-a-server-d0897984aeb6` ↔ `r3-a-plugin-07a616c3b48d`, fingerprint
+  `sha256:b67c85d4…6e4fbd`. Its gate, `scripts/live-variable-capabilities-gate.mjs`,
+  **PASSED TWICE** on the pre-promotion build, byte-identical modulo timestamps and the
+  per-run mode id, and a separate client session confirmed zero debris.
+
+  🔴 **THE ENTRY THIS REPLACES WAS WRONG, AND ITS ERROR IS THE INTERESTING PART.** It read:
+  *"Both acceptance runs did observe the ceiling at 10, so the stable-ceiling half is
+  arguably earned."* **`get_variable_capabilities` has never observed a ceiling and cannot.**
+  `modeCeiling.value` is a hardcoded `null` on every one of its return paths —
+  `unknownModeCeiling()`, at `code.js:3643` and `code.js:3696`. The ceiling-at-10 readings
+  were `add_variable_mode` refusals, recorded by `live-variable-mode-gate`. ⛔ A tool's
+  entry in a shared table inherited a sibling's evidence because both sentences contain the
+  word *ceiling*; the number even went stale twice over (*"8. Dimensions"* fell 10 → 4 → 3)
+  without anyone re-reading the claim it supposedly supported.
+
+  ⛔ **So the held-back note named two conditions and only ONE was ever payable.** "A stable
+  ceiling" cannot be earned by any live run: what `additive-preview` protects is the freedom
+  to START populating `modeCeiling.value` if Figma ever ships a mode-limit API, which depends
+  on Figma and not on this fork. It was retired as **unpayable**, not declared met. The price
+  is stated and accepted: `compatibilityErrors()` rejects `stable` → `additive-preview` by
+  name, so populating that field later is a `publicContractVersion` event with no walk-back.
+
+  ⭐ **THE GATE EARNS ITS VERDICT FROM A DIFFERENTIAL, BECAUSE THE RECEIPT IS MOSTLY
+  CONSTANT.** `modeCeiling.value`, `remoteCollectionInventoryAvailable` and
+  `document.permissionVerified` are literals on every path — asserting them is green for
+  every possible document, forever, which is this project's own *"a probe at the DEFAULT
+  value proves nothing"*. They are recorded under `declaredLimitations` and explicitly are
+  **not** the verdict. What is: the gate predicts the inventory BEFORE driving one real
+  mode-count change through a *different* tool, then requires this tool's next read to match
+  the prediction. On `jiydnb12` that moved *"7. Grids"* **4 → 5** modes and
+  `modeCeiling.knownGoodAtLeast` **4 → 5**, agreeing across three independent derivations
+  (the payload's own, a recomputation from its `collections`, and the pre-write prediction),
+  with every other collection byte-identical; `remove_variable_mode` then restored the file
+  and a cross-frame re-read confirmed the inventory returned canonically to baseline.
+  ⭐ The target was chosen to be the collection *at* the current maximum precisely so
+  `knownGoodAtLeast` had to MOVE — pointing it at a lower collection would have let a frozen
+  constant pass the same leg.
+
+  ⭐ **`create_variable_collection` is deliberately NOT the scratch target.** No tool in this
+  fork removes a collection, so that path leaves permanent debris; the add/remove **mode**
+  pair is the one net-zero write this fork can actually reverse. The gate therefore OWNS a
+  cleanup path — the inverse of `live-variable-mode-gate`, whose evidence is a refusal and
+  which owns none — and it runs in `finally`, on assertion failure too, reporting an
+  unverifiable cleanup in `stillOwed` with the exact mode id rather than exiting quiet.
+
+  🔴 **The refusal leg was PROVED to fire before the greens were believed.** A throwaway copy
+  pinned to `r3-a-plugin-000000000000` exited **1** at `assertRuntime`, having reached only
+  `publishedSchema` — `createdModeId: null`, nothing written — and was then deleted. Two
+  greens whose refusal leg never fires measure the inputs, not the gate.
+
+  🟡 **The nineteen gates are RE-PINNED to `1.17.0` and NOT YET RE-RUN.** The promotion moved
+  `serverBuildId`, staling all of them including the capabilities gate that had just passed
+  twice — shipping a phase re-stales the gate that accepted the phase before it. Blocked on a
+  DEV-plugin reload; see the ledger in `tests/live-gate-pins.test.mjs`.
 - ✅ **The remaining Phase 2 table (collections, bindings) is COMPLETE and live-accepted.**
   `create_variable_collection`, `rename_variable_mode`, `set_variable_metadata`,
   `bind_variable_to_node` and `bind_variable_to_paint` all ship `stable` at `1.16.0` behind

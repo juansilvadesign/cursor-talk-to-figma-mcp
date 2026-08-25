@@ -199,9 +199,37 @@ in `live-variable-collections-bindings-gate`: it walked `snapshot.nodes`, which
 generated metadata block stripped — a third operator shape where you must respawn **and**
 reload, and where reading "server-only" off the build id strands the plugin.
 
-⏳ **Open:** `get_variable_capabilities` is the last R3-A tool at `additive-preview` — it has
-no gate script, and an ad-hoc re-run is not a scripted verdict. The three R2.1/R2.2/R2.4
-gates remain declined.
+✅✅ **CLOSED — `get_variable_capabilities` is `stable` at `1.17.0`, 2026-08-25, channel
+`jiydnb12`.** `scripts/live-variable-capabilities-gate.mjs` is the nineteenth gate and it
+**PASSED TWICE**, byte-identical modulo timestamps and the per-run mode id; its refusal leg
+was proved to fire first (throwaway copy on a bad plugin pin → exit 1 at `assertRuntime`,
+`createdModeId: null`); a separate client session confirmed zero debris. Contract is now
+**66 `stable` / 9 `additive-preview` / 1 `legacy`**, `r3-a-server-d0897984aeb6` ↔
+`r3-a-plugin-07a616c3b48d`, fingerprint `sha256:b67c85d4…6e4fbd`. Offline **443/443**.
+
+🔴 **The task entry above was wrong about WHY it was blocked, and that is worth keeping.**
+"Both runs observed its ceiling at 10, so the stable-ceiling half is arguably earned" credited
+this tool with `add_variable_mode`'s evidence. `get_variable_capabilities` has never reported
+a ceiling and cannot — `modeCeiling.value` is a hardcoded `null` on every return path. The
+"stable ceiling" condition was therefore **unpayable**, not nearly-met, and was retired as
+such; the gate condition was the only real blocker. ⛔ The price is one-way:
+`compatibilityErrors()` rejects `stable` → `additive-preview` by name.
+
+⭐ **The gate's verdict is a DIFFERENTIAL, not a receipt-shape check** — most of this receipt
+is constant, so shape assertions are green for every possible document. It predicts the
+inventory BEFORE a real mode-count change driven through a *different* tool, then requires
+the next read to match: *"7. Grids"* **4 → 5** modes and `knownGoodAtLeast` **4 → 5** across
+three independent derivations, every other collection byte-identical, then restored to
+baseline and confirmed cross-frame.
+
+🟡 **OWED: the nineteen gates are re-pinned to `1.17.0` and NOT yet re-run.** The promotion
+moved `serverBuildId`, staling all nineteen — including the capabilities gate that had just
+passed twice. ⛔ **BLOCKED on a DEV-plugin reload**, and this is a **fourth pin shape**:
+`code.js` changed (`apiVersion` → `1.17.0`, new fingerprint) while `pluginBuildId` **HELD**,
+because that id hashes the file with its metadata block stripped. Measured, not reasoned —
+the un-reloaded plugin refused at `join_channel` with `expected 1.17.0, received 1.16.0` and
+`plugin=r3-a-plugin-07a616c3b48d, compatibility=incompatible`: identical build id on both
+sides of an incompatible pair. The three R2.1/R2.2/R2.4 gates remain declined.
 
 ### (previous) — R3-A Phase 3 resource identity
 

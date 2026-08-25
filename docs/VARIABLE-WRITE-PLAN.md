@@ -322,7 +322,7 @@ published library and must be rejected with a typed refusal, never silently skip
 | `create_variable_collection` | `figma.variables.createVariableCollection(name)` | Returns collection id + its single default mode id |
 | `add_variable_mode` | `collection.addMode(name)` | ⚠️ Throws at the plan ceiling — surface, don't swallow |
 | `rename_variable_mode` | `collection.renameMode(modeId, name)` | |
-| `remove_variable_mode` | `collection.removeMode(modeId)` | ✅ **BUILT at `1.14.0`** — destructive; refuses the default and the sole remaining mode. See 2.5 |
+| `remove_variable_mode` | `collection.removeMode(modeId)` | ✅✅ **LIVE-ACCEPTED at `1.14.0`** — destructive; refuses the default and the sole remaining mode. See 2.5 |
 | `create_variable` | `figma.variables.createVariable(name, collection, resolvedType)` | `resolvedType` ∈ `COLOR｜FLOAT｜STRING｜BOOLEAN` |
 | `set_variable_value` | `variable.setValueForMode(modeId, value)` | Accepts a raw value **or** an alias — see 2.2 |
 | `set_variable_metadata` | `variable.name` / `.description` / `.scopes` | Rename + scope correction in one tool |
@@ -347,9 +347,10 @@ published library and must be rejected with a typed refusal, never silently skip
 - [x] **2.5 Destructive boundary.** `delete_variable` and `remove_variable_mode` require an
       explicit `confirm: true`. `TASKS.md` C5 already names *"explicit destructive
       boundaries"* as a fork responsibility.
-      ✅ **BOTH BUILT.** `delete_variable` is live-accepted (Phase 2/3);
-      `remove_variable_mode` is built and offline-gated at `1.14.0` (Phase 4) and awaits its
-      live gate. Both take a `z.literal(true)` in the published schema **and** re-check it in
+      ✅✅ **BOTH LIVE-ACCEPTED.** `delete_variable` at Phase 2/3;
+      `remove_variable_mode` at Phase 4 — gate PASSED TWICE on `yizlybxy` 2026-08-24, and the
+      same runs removed the six Phase 1.3 residues. Both take a `z.literal(true)` in the
+      published schema **and** re-check it in
       the handler, because the plugin has a second entry point the schema does not police.
       ⭐ `remove_variable_mode`'s boundary is deliberately WIDER than `confirm`: it also
       refuses the collection's **default** mode and its **sole remaining** mode. Figma
@@ -357,6 +358,10 @@ published library and must be rejected with a typed refusal, never silently skip
       when the default is removed — and every variable in the collection resolves through it,
       so an undocumented repoint would change the whole collection from a call that named one
       mode. Refusing is the only branch whose consequence this fork can state.
+      ⚠️ **The `sole remaining mode` half is UNPROVEN LIVE and cannot be proven** — a
+      collection down to one mode has that mode as its `defaultModeId`, so the default guard
+      always refuses first. Offline-covered only, by pointing the harness's default
+      elsewhere. Defence-in-depth against a state Figma does not appear to produce.
       ⚠️ Record → [`R3-A-VARIABLE-WRITE.md`](R3-A-VARIABLE-WRITE.md) § *R3-A PHASE 4*.
 
 ### ✅✅ R3-A Phase 2 — first three tools, LIVE ACCEPTANCE PAID 2026-08-24

@@ -11,16 +11,77 @@ three write tools), Phase 3 (layered resource identity for `create_variable`) an
 > evidence that the file behind it is disposable.
 
 
-## 🟡 R3-A PHASE 4 — `remove_variable_mode`, BUILT AND OFFLINE-GATED AT `1.14.0`
+## ✅✅ R3-A PHASE 4 — `remove_variable_mode`, LIVE-ACCEPTED 2026-08-24, channel `yizlybxy`
 
-Plan item **2.5**'s destructive half, and the tool that makes the Phase 1.3 debris above
-clearable from this fork instead of by hand. **Built, offline-gated, and NOT yet live** —
-`scripts/live-variable-mode-removal-gate.mjs` pins this build and awaits a channel.
+Plan item **2.5**'s destructive half, and the tool that made the Phase 1.3 debris above
+clearable from this fork instead of by hand. `scripts/live-variable-mode-removal-gate.mjs`
+**PASSED TWICE** on `Starter File - PsiAtiva - Disposable` (owner-confirmed), and the six
+residues are **GONE**: *"8. Dimensions"* went **10 modes → 4**, leaving exactly the real
+`Mobile / Tablet / Laptop / Desktop`.
 
 **Identity:** `r3-a-server-c4d037a645e3` ↔ `r3-a-plugin-fe0b1e03325c`, schema `1.14.0`,
 **71 tools**, fingerprint
 `sha256:edf5e2e98842d2fc201f44ab780eb2ed16757e481df433086ab7de56cab57a37`.
 Offline **410/410**, `bun run verify` green, `dist/server.js`
+`sha256:2c9cbae6…d925e7efc1` built from `code.js` `sha256:23cfc896…1dba9924` — and **both
+live runs recorded that same plugin hash in `artifactHashes`**, so the mutants, the offline
+suite, the build and both live runs provably exercised ONE source.
+Evidence → `docs/evidence/r3a-phase4-modes-run{1,2}/report.json` (⚠️ **gitignored** —
+`docs/*` is allowlisted; mirrored to this session's scratchpad only).
+
+### 🔴 WHAT THE LIVE RUN MEASURED — Figma DOES update `collection.modes` in-frame
+
+`observedBy: "resolved_collection_modes"` on **all eight** removals across both runs (two
+probe modes, six residues). This is the first live reading of what `removeMode()` makes
+visible inside its own frame, and it is the **opposite** of `getVariableByIdAsync`'s answer
+after `Variable.remove()`, which stays stale.
+
+- ⭐ **Both signals agreed rather than one covering for the other**:
+  `resolvedCollectionStillLists: false` AND `freshCollectionStillLists: false` on every
+  removal, plus `absentAfterFreshRead: true` on the later call. Three readings, one answer.
+- ⏳ **The `removal_unconfirmed` deferral is STILL live-unexercised** — exactly as it remains
+  for `delete_variable`. The in-frame signal answered every single time, which is precisely
+  the branch that makes the deferral rare. It stays offline-covered only.
+- ⭐ `defaultModeIdStable: true` everywhere; the residue collection's default (`17050:1`)
+  never moved across six removals, and the counts fell monotonically 10→9→8→7→6→5→4.
+
+### 🔴 THE ASSERTION I REMOVED BEFORE THE RUN WOULD HAVE FAILED IT — for the wrong reason
+
+The gate first asserted `blastRadius.variableCount === baseline.variableCount`. Live, those
+are **924 and 0**. They are two different measurements: `blastRadius` counts the collection's
+`variableIds` membership, while the gate's `get_variables` read is narrowed to one variable
+type so it can read *modes* cheaply. An equality check there would have gone red on the first
+probe and burned the channel on a defect that does not exist.
+⛔ Two numbers that describe "how many variables" are not the same number.
+
+### ⚠️ `sole_remaining_mode` IS LIVE-UNREACHABLE, and the run is what showed it
+
+The refusal legs exercised `default_mode` and `mode_not_in_collection` live, and a call with
+no `confirm` **threw** — a `z.literal(true)` violation is refused by the *schema*, so the gate
+accepts either a throw or `isError` rather than scoring correct behaviour as a failure.
+
+But `sole_remaining_mode` never fired, and it **cannot**: a collection down to one mode has
+that mode as its `defaultModeId`, so `default_mode` always refuses first. `_Primitives` is
+exactly that shape — one mode, `17048:0`, which is its own default. The guard is
+**defence-in-depth against a state Figma does not appear to produce**, not a reachable path,
+and it is offline-covered only because the harness can point a default elsewhere.
+⛔ Recorded as unproven-live rather than folded into "the guard rail passed".
+
+### ⭐ The gate is rerunnable, and run 2 proved it rather than asserting it
+
+Run 2 created a **different** probe mode (`31012:7` vs run 1's `31012:6`) and re-ran every
+leg, then found `alreadyClean: true` with `4 → 4` modes and zero removals. A cleanup gate
+that could only run once would be unfalsifiable after its first pass; this one re-measures
+the guard rails on every run and treats an empty residue set as a pass by construction.
+
+⛔ **Cleanup was confirmed by a read from a SEPARATE client session** — this session's own
+MCP client, not the server the gate spawns. `get_variable_capabilities` reported *"8.
+Dimensions"* at `modeCount: 4`, `_Primitives` back at `1` with no probe left behind, and all
+nine collections intact. The gate asserting its own cleanup is the instrument checking its
+own precondition.
+⭐ **A second-order confirmation nobody asked for:** the document-wide
+`modeCeiling.knownGoodAtLeast` fell **10 → 4**. The "true ceiling refusal from a false ceiling
+cause" the Phase 3 record warned about is now gone from the preflight reading itself.
 `sha256:2c9cbae6…d925e7efc1` built from `code.js` `sha256:23cfc896…1dba9924`.
 
 ### The guard rail, and why two removals are refused rather than reasoned about
@@ -183,16 +244,16 @@ on top of the four real `Mobile/Tablet/Laptop/Desktop` modes.
   to 10 modes to make Figma emit `in addMode: Limited to 10 modes only`. They are not
   variables and this gate never touches modes — the Phase 3 runs above created and deleted
   exactly one STRING variable each, in `_Primitives`.
-- ⚠️ **This was TRUE WHEN WRITTEN and is now superseded.** At the time of the Phase 3 run
-  this fork exposed no mode-removal tool — `add_variable_mode` is documented as never
-  calling `removeMode`, and there was no `delete_variable_mode` — so hand deletion in Figma
-  was the only route. **Phase 4 built `remove_variable_mode` for exactly this**, and its
-  live gate carries the authorized cleanup. ⛔ Until that gate has RUN, the debris is still
-  there: a built tool is not a performed cleanup.
-- ⚠️ Consequence: *"8. Dimensions"* is pinned at the 10-mode ceiling by junk, so
-  `get_variable_capabilities` honestly reports `modeCount: 10` for it and any real
-  `add_variable_mode` against that collection will be refused until the modes are deleted.
-  ⭐ A refusal there would be a **true** ceiling report about a **false** ceiling cause.
+- ⚠️ **This was TRUE WHEN WRITTEN and is now RESOLVED.** At the time of the Phase 3 run this
+  fork exposed no mode-removal tool — `add_variable_mode` is documented as never calling
+  `removeMode`, and there was no `delete_variable_mode` — so hand deletion in Figma was the
+  only route. **Phase 4 built `remove_variable_mode` and its gate REMOVED all six live on
+  2026-08-24** (channel `yizlybxy`), each fresh-read verified.
+- ✅ **Consequence retired:** *"8. Dimensions"* is at **4 modes** — the real
+  `Mobile / Tablet / Laptop / Desktop` — and no longer pinned at the ceiling by junk. The
+  document-wide `modeCeiling.knownGoodAtLeast` fell **10 → 4**, so the *"true ceiling refusal
+  from a false ceiling cause"* this section warned about is gone from the preflight reading
+  itself. ⭐ The debris and the plan item that would clear it closed together.
 
 ## ✅ R3-A PHASE 2 ACCEPTANCE — PAID 2026-08-24, channel `hxpwe1ej`
 
@@ -376,18 +437,22 @@ behind it — a refusal reached for the wrong reason is an unfired assertion.
   refusal are live evidence, not harness behaviour.
 - ✅ **`delete_variable`'s success path is live-proven.** `removalObserved: true` on both
   cleanups is the first live confirmation of the Phase 2 defect fix.
-- ⏳ The `removal_unconfirmed` deferral path is offline-covered but live-unexercised. Phase 3
-  did not reach it: `collection_membership` answered on every delete, which is exactly the
-  branch that makes the deferral rare.
-- ⚠️ **6 leftover Phase 1.3 modes still sit in *"8. Dimensions"* on the disposable starter
-  file.** Phase 4 built the tool that can clear them and its live gate carries the
-  authorized cleanup — but ⛔ **the gate has not run**, so the debris is still there and
-  that collection is still pinned at the ceiling by junk. A built tool is not a performed
-  cleanup.
-- ⏳ **`remove_variable_mode` is offline-only.** Its two observation signals, both guard-rail
-  refusals and the deferral branch have never been judged by real Figma. Which signal — if
-  any — Figma updates in-frame after `removeMode()` is **unmeasured**; the handler assumes
-  none by design, and the gate is what settles it.
+- ⏳ **The `removal_unconfirmed` deferral path is offline-covered but live-unexercised, for
+  BOTH destructive tools.** Phase 3 did not reach it for `delete_variable`
+  (`collection_membership` answered every time) and Phase 4 did not reach it for
+  `remove_variable_mode` (`resolved_collection_modes` answered all eight times). That is
+  exactly the branch an in-frame signal makes rare — it stays unproven live, deliberately,
+  because manufacturing it would mean faking a platform that does not behave that way.
+- ✅ **The 6 Phase 1.3 residues are GONE — removed live 2026-08-24 on `yizlybxy`**, each with
+  its own fresh-read verification, and confirmed by a read from a separate client session.
+  *"8. Dimensions"* is at 4 modes and the document-wide `modeCeiling.knownGoodAtLeast` fell
+  10 → 4. ⭐ The debris and the plan item that would clear it closed together, as intended.
+- ⏳ **`sole_remaining_mode` is live-UNREACHABLE and stays unproven.** A collection down to
+  one mode has that mode as its default, so `default_mode` refuses first. Offline-covered
+  only, by pointing the harness's default elsewhere. Defence-in-depth, not a measured path.
+- ⏳ **`remove_variable_mode` is still `additive-preview`.** Promotion to `stable` rewrites
+  `contractPayload.tools`, moves `serverBuildId` and re-stales every gate — it is an
+  acceptance act to be spent deliberately, not a side effect of a passing gate.
 - ⏳ The remaining Phase 2 table in [`VARIABLE-WRITE-PLAN.md`](VARIABLE-WRITE-PLAN.md)
-  (collections, bindings) is untouched. The modes row is now half-built: `add_variable_mode`
-  is live-accepted, `remove_variable_mode` is built and awaiting its gate at `1.14.0`.
+  (collections, bindings) is untouched. ⭐ **The modes row is now complete**:
+  `add_variable_mode` and `remove_variable_mode` are both live-accepted.

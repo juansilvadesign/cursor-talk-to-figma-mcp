@@ -1,10 +1,10 @@
 {
   "release": "R3-A",
-  "publicContractVersion": "1.17.0",
-  "serverSchemaVersion": "1.17.0",
+  "publicContractVersion": "1.18.0",
+  "serverSchemaVersion": "1.18.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
+  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -25,6 +25,7 @@
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
+    "figma.command.delete_variable_collection@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -125,6 +126,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "delete_variable_collection",
       "remove_variable_mode",
       "create_variable_collection",
       "rename_variable_mode",
@@ -203,6 +205,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "delete_variable_collection",
       "remove_variable_mode",
       "create_variable_collection",
       "rename_variable_mode",
@@ -281,6 +284,7 @@
       "set_variable_value",
       "create_variable",
       "delete_variable",
+      "delete_variable_collection",
       "remove_variable_mode",
       "create_variable_collection",
       "rename_variable_mode",
@@ -1506,6 +1510,40 @@
       },
       "pluginCommand": "delete_variable",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "delete_variable_collection",
+      "description": "[Exact local variable collection, destructive caller-requested write] Permanently remove one EMPTY local variable collection. confirm must be literal true; without it no Figma call is made. Before remove(), the handler reads the collection's pre-call variableIds membership. A non-empty collection is REFUSED as collection_not_empty with its variable count and IDs, and this tool never deletes variables on the caller's behalf; delete or move them explicitly first. Remote collections return a typed refusal. After remove(), the handler probes both the exact ID lookup and the independent local collection inventory, naming the signal that observed absence; when neither can distinguish a real frame-deferred deletion from a no-op, it returns removal_unconfirmed with verificationDeferred and partialApplicationPossible rather than claiming success. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+      "direction": "write",
+      "scope": "variable_collection",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ID of the existing empty local variable collection to permanently remove"
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "description": "Required explicit destructive confirmation; must be true, not merely truthy"
+          }
+        },
+        "required": [
+          "collectionId",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "delete_variable_collection",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

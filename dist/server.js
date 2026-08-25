@@ -13,12 +13,12 @@ import path from "path";
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
   "release": "R3-A",
-  "serverBuildId": "r3-a-server-d0897984aeb6",
-  "pluginBuildId": "r3-a-plugin-07a616c3b48d",
-  "serverSchemaVersion": "1.17.0",
-  "pluginApiVersion": "1.17.0",
+  "serverBuildId": "r3-a-server-b5649366daef",
+  "pluginBuildId": "r3-a-plugin-7f0d5389634e",
+  "serverSchemaVersion": "1.18.0",
+  "pluginApiVersion": "1.18.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:b67c85d4b655cc5c7f10aa28dd55f450b63f2a292a06585b49d39559bd6e4fbd",
+  "capabilityFingerprint": "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -49,6 +49,7 @@ var RUNTIME_METADATA = {
     "set_variable_value",
     "create_variable",
     "delete_variable",
+    "delete_variable_collection",
     "remove_variable_mode",
     "create_variable_collection",
     "rename_variable_mode",
@@ -116,6 +117,7 @@ var RUNTIME_METADATA = {
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
+    "figma.command.delete_variable_collection@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -194,6 +196,7 @@ var RUNTIME_METADATA = {
     "delete_multiple_nodes",
     "delete_node",
     "delete_variable",
+    "delete_variable_collection",
     "export_node_as_image",
     "get_annotations",
     "get_available_fonts",
@@ -2056,6 +2059,39 @@ server.tool(
           {
             type: "text",
             text: `Error deleting variable: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "delete_variable_collection",
+  "[Exact local variable collection, destructive caller-requested write] Permanently remove one EMPTY local variable collection. confirm must be literal true; without it no Figma call is made. Before remove(), the handler reads the collection's pre-call variableIds membership. A non-empty collection is REFUSED as collection_not_empty with its variable count and IDs, and this tool never deletes variables on the caller's behalf; delete or move them explicitly first. Remote collections return a typed refusal. After remove(), the handler probes both the exact ID lookup and the independent local collection inventory, naming the signal that observed absence; when neither can distinguish a real frame-deferred deletion from a no-op, it returns removal_unconfirmed with verificationDeferred and partialApplicationPossible rather than claiming success. Confirm absence with a later read. Run live validation only on a disposable Figma file.",
+  {
+    collectionId: z.string().min(1).describe("ID of the existing empty local variable collection to permanently remove"),
+    confirm: z.literal(true).describe("Required explicit destructive confirmation; must be true, not merely truthy")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma(
+        "delete_variable_collection",
+        args2
+      );
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result)
+          }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error deleting variable collection: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

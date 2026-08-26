@@ -1,6 +1,6 @@
 ---
 name: talk-to-figma fork — project memory
-description: Live technical state for the talk-to-figma fork, including the R3.1 measurement-enabler release and its pending live gates
+description: Live technical state for the talk-to-figma fork, including R3.1 live acceptance and the next R3 phase
 type: project
 ---
 # talk-to-figma fork — Project Memory
@@ -12,31 +12,35 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25f — R3.1 offline complete)
+## ▶ Resume (checkpoint 2026-08-26 — R3.1 live accepted)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork`. Authorized R3.1 added the three
   consumer-neutral measurement enablers: `create_group`, `set_range_font`, and
   `set_fill_style`.
-- **Doing:** R3.1 is built and offline-verified at **`1.19.0` / 80 tools**. `bun run verify`
-  passed **464/464**, including contract generation, source/runtime parity, and the full build.
-  The current pair is `r3.1-server-beff31768985` ↔ `r3.1-plugin-ed16fbb94fa9`, fingerprint
+- **Doing:** ✅ **R3.1 is live-accepted** at **`1.19.0` / 80 tools**. The prior offline
+  verification was **464/464**. The accepted pair is `r3.1-server-beff31768985` ↔
+  `r3.1-plugin-ed16fbb94fa9`, fingerprint
   `sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d`.
-- **Next step:** Run the three R3.1 live gates only after the owner confirms a disposable
-  Figma file and supplies its channel; pass `--disposable-target=true`.
+- **Live evidence:** on owner-confirmed disposable channel `o7plmvfm`, the three R3.1 gates
+  passed (`create_group`, `set_range_font`, and measured `set_fill_style`), then every twenty
+  historical runner was re-pinned and re-run green. The current pinned roster is **23/23**.
+  A fresh client restored/verified the baseline: 25 pages, current page `0:1`, nine local
+  collections at their original mode counts; the ceiling probe returned `7. Grids` from 10 to 4.
+- **Next step:** Plan R3.2 local-style authoring; do not start implementation until its local
+  identity, remote-refusal, cleanup, and observation rules are approved.
 - **Key paths / IDs:**
   - `R3.1-MEASUREMENT-ENABLERS.md` — public boundary, refusal rules, and live-gate protocol.
   - `scripts/live-r3.1-{group,range-font,fill-style}-gate.mjs` and
     `scripts/r3.1-live-gate-lib.mjs` — the three gated scenarios and shared transport/pin
     checks.
-  - `tests/live-gate-pins.test.mjs` — R3-A gates are deliberately declared earlier-release,
-    never mechanically re-pinned without a new live run.
-- **Open / blockers:** Live acceptance is pending an owner-confirmed disposable Figma target.
-  No live mutation or acceptance claim exists for R3.1.
+  - `tests/live-gate-pins.test.mjs` — all 23 pinned runners now describe the accepted R3.1
+    runtime; no historical-gate declaration remains.
+- **Open / blockers:** R3.1 has none. R3.2, R3.3, and R3.4 remain future phases of R3.
 - **Don't forget:**
-  - A regenerated build or an offline green run is not live evidence. Reload the DEV plugin and
-    respawn the MCP server before any live run, then assert the current runtime pair.
-  - The local paint-style gate returns `unmeasured`, not success, if the disposable target has
-    no local paint style to attach.
+  - A regenerated build or an offline green run is not live evidence. The accepted pass asserted
+    the running pair before every gate and used a separate final client for baseline verification.
+  - `create_group`, `set_range_font`, and `set_fill_style` remain `additive-preview`; no
+    stability promotion was smuggled into the R3.1 close.
 
 ## ⤴ Previous checkpoint (2026-08-25d — R3-A CLOSED: `get_variable_capabilities` STABLE at `1.17.0`, 19/19)
 

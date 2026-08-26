@@ -132,9 +132,9 @@ claiming that every `stillOwed` entry should become a write tool.
 
 | Current premise | Why it remains unmeasured | R3 disposition |
 | --- | --- | --- |
-| GROUP constraint behaviour | The constraints gate cannot author a controlled GROUP because the fork has no group-creation operation. | **Phase 1:** add a generic group-creation/ownership primitive and a controlled GROUP premise gate. |
-| Mixed-font/range behaviour | The text gate cannot create a mixed-font target: no range-font setter exists, and no supplied mixed node is a reproducible fixture. | **Phase 1:** add a generic range-font setter with a mixed-text control and independent range readback. |
-| Paint-style detachment | The fill gate cannot bind a local paint style (`set_fill_style` does not exist), and its disposable fixture cannot manufacture that state. | **Phase 1:** add the smallest generic local paint-style attachment operation; its gate uses a named local style on an approved disposable fixture and reports a missing precondition as unmeasured. |
+| GROUP constraint behaviour | The old constraints gate could not author a controlled GROUP. | ✅ **Phase 1 accepted 2026-08-26:** `create_group` produced an owned group/child scenario, with independent hierarchy/geometry and constraint-parent observations. |
+| Mixed-font/range behaviour | The old text gate could not create a reproducible mixed-font target. | ✅ **Phase 1 accepted 2026-08-26:** `set_range_font` produced one on an owned text/control pair, with refusal and independent mixed-state evidence. |
+| Paint-style detachment | The old fill gate could not bind a local paint style. | ✅ **Phase 1 accepted 2026-08-26:** `set_fill_style` attached and cleared a local style, with `set_fill` independently observing the attachment; the approved fixture had a local paint style. |
 | Effect-style detachment | The effects gate likewise cannot bind an effect style. | **Phase 2:** local style authoring includes the appropriate effect-style lifecycle/attachment surface and closes this specific gate premise. |
 | Write inside an instance | The clips gate cannot create a component and instance to make the context. | **Phase 3:** component/instance authoring owns this premise; do not claim it earlier. |
 | Destructive `removal_unconfirmed` branch | It is deliberately rare: real Figma supplied an in-frame observation for all three destructive handlers. Manufacturing a failure would fake platform behaviour. | Keep as an explicitly offline-covered fallback, not an R3 tool requirement. |
@@ -197,6 +197,13 @@ reports `unmeasured` and does not promote the capability by substitution.
 - each result changes under the planned mutation and remains distinguishable from its control;
 - no new resource survives the run, confirmed from a separate client session;
 - all then-current gates are re-pinned and re-run on every public build move.
+
+**Phase 1 acceptance: ✅ paid 2026-08-26.** On owner-confirmed disposable channel
+`o7plmvfm`, all three dedicated R3.1 gates passed on the `1.19.0` / 80-tool runtime; the
+paint-style scenario was measured. The twenty previous gates were re-pinned and re-run once,
+so the live roster is 23/23 green. A separate final client confirmed the baseline was restored
+(25 pages, current page `0:1`, and nine local collections at their original mode counts).
+The three new tools remain `additive-preview`; their stability is not decided by this phase.
 
 ### Phase 2 — local style authoring
 

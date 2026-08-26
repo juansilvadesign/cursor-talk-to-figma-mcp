@@ -1951,7 +1951,7 @@ design-system format—remains consumer work.
 
 ## Release R3 — design-system authoring (re-cut after R3-A)
 
-**Planning status: accepted; R3.1 implementation and offline verification are complete, but it has not been live-accepted.** R3 is one larger release plan,
+**Planning status: accepted; R3.1 is live-accepted.** R3 is one larger release plan,
 not one bulk build. Its internal phases are independently scoped and live-accepted in order;
 a public contract move in any phase still re-pins and re-runs the entire current live suite.
 The detailed evidence and acceptance conditions live in
@@ -1965,14 +1965,17 @@ The detailed evidence and acceptance conditions live in
       control, independent observation, cleanup path, disposable target acknowledgement, and
       `unmeasured` outcome before its tool is built. A known-bad refusal is proved before a
       green mutating run whenever that boundary matters.
-- [ ] **R3.1 — generic measurement enablers.** Deliver the smallest consumer-neutral
+- [x] **R3.1 — generic measurement enablers.** Delivered the smallest consumer-neutral
       operations that let the fork test its own open premises: group creation/ownership for
       constraints, range-font mutation for a mixed-font target, and local paint-style
       attachment for fill-style detachment. Each gets a distinct live gate, an independent
-      read/control, and a separately confirmed cleanup baseline. **Implementation is in the
-      release as `create_group`, `set_range_font`, and `set_fill_style` at R3.1 / 1.19.0;
-      `bun run verify` passed 464/464. Their three disposable-target gate runners are authored,
-      but no owner-confirmed live target or run is claimed yet.** See
+      read/control, and a separately confirmed cleanup baseline. **Live-accepted 2026-08-26**
+      on owner-confirmed disposable channel `o7plmvfm`: `create_group`, `set_range_font`, and
+      `set_fill_style` all passed at R3.1 / `1.19.0` / 80 tools; the paint-style result was
+      measured. All twenty historical gates were re-pinned and re-run on the same pair, so
+      the live roster is **23/23 green**. A fresh client confirmed 25 pages, page `0:1`, and
+      all nine collection mode counts restored. The three new result contracts remain
+      `additive-preview`; promotion is a separate public-contract decision. See
       [`R3.1-MEASUREMENT-ENABLERS.md`](R3.1-MEASUREMENT-ENABLERS.md).
 - [ ] **R3.2 — local style authoring.** Add local paint, text, effect, and grid style
       lifecycle/attachment work only after its exact identity, remote refusal, cleanup, and

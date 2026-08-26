@@ -157,34 +157,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // collections/bindings opt-in leg both observed owned-collection absence through the independent
 // local collection inventory.
 
-// R3.1 adds three new public commands, which necessarily changes the published runtime
-// fingerprint. Rewriting an old pin to make this test green is NOT a live run; the twenty
-// R3-A runs above remain evidence for `R3-A` / 1.18.0 only. Keep those runners explicitly
-// historical until an owner-confirmed disposable-file pass re-executes them on R3.1. The
-// three gates that exercise R3.1's new measurement enablers are deliberately absent here:
-// they pin this runtime and are runnable, but are not claimed as executed by an offline test.
-const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
-  "live-batch-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-clips-content-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-constraints-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 group scenario has a new dedicated gate",
-  "live-create-page-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-effects-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-export-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-fill-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 local-style scenario has a new dedicated gate",
-  "live-layout-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-opacity-blend-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-plugin-data-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-size-limits-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-svg-crop-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-text-style-gate.mjs": "R3-A / 1.18.0 live evidence; R3.1 range-font scenario has a new dedicated gate",
-  "live-variable-capabilities-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-collection-delete-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-collections-bindings-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-identity-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-mode-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-mode-removal-gate.mjs": "R3-A / 1.18.0 live evidence",
-  "live-variable-write-gate.mjs": "R3-A / 1.18.0 live evidence",
-});
+// ✅✅ **R3.1 RE-PIN + RE-RUN IS PAID — 2026-08-26, channel `o7plmvfm`.** The three
+// measurement-enabler gates (`create_group`, `set_range_font`, and `set_fill_style`) all
+// passed on the owner-confirmed disposable file. Every twenty historical runner was then
+// re-pinned to `r3.1-server-beff31768985` ↔ `r3.1-plugin-ed16fbb94fa9`, schema `1.19.0`,
+// fingerprint `sha256:69007c…02d576d`, and re-run once; all twenty passed. The full current
+// pinned roster is therefore **23/23 green**. A separate final client read confirmed the
+// baseline: 25 pages, current page `0:1`, and all nine local collections at their original
+// mode counts. The ceiling gate's six temporary modes were removed explicitly after its run.
+//
+// The historical declaration is deliberately EMPTY rather than left as a past-tense list:
+// a declaration is an active exception, and retaining one after its live evidence exists is
+// the same status-marker defect this ledger prevents.
+const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 function readPins(source) {
   const block = /const expectedRuntime = \{([\s\S]*?)\n\};/.exec(source);

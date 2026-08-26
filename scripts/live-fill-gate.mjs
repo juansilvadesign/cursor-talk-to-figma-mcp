@@ -117,12 +117,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-b5649366daef",
-  pluginBuildId: "r3-a-plugin-7f0d5389634e",
-  schemaVersion: "1.18.0",
+  serverBuildId: "r3.1-server-beff31768985",
+  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
+  schemaVersion: "1.19.0",
   fingerprint:
-    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
-  toolCount: 77,
+    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  toolCount: 80,
 };
 
 const serverPath = options.server
@@ -631,9 +631,9 @@ try {
       height: 100,
       name: "styled node",
     });
-    // ⛔ There is no fork tool that BINDS a paint style — that is R3 work. So this leg can
-    // only run against a node that already carries one, and cannot manufacture the state.
-    // Recorded honestly rather than faked with a node that has no style.
+    // This historical runner does not bind a paint style itself. R3.1's dedicated
+    // set_fill_style gate owns that controlled attachment/detachment scenario, so this leg
+    // remains an honest observation of an already-bound node rather than a duplicate fixture.
     const receiptBefore = (await callJson("set_fill", {
       nodeId: styled,
       paints: [{ type: "SOLID", color: { r: 0, g: 1, b: 0 } }],
@@ -649,7 +649,7 @@ try {
       ? receiptBefore.styleDetached
         ? "MEASURED: assigning fills DETACHES a bound paint style"
         : "MEASURED: assigning fills LEAVES a bound paint style attached"
-      : "UNMEASURED: the scratch node carries no bound style, and no fork tool can bind one (R3 work)";
+      : "UNMEASURED by this historical runner: the scratch node carries no bound style; R3.1's dedicated set_fill_style gate owns the controlled attachment scenario";
   } else {
     record.checks.styleDetach.verdict =
       "UNMEASURED: this file has no local paint styles to bind";
@@ -657,10 +657,10 @@ try {
 
   if (!record.checks.styleDetach.measured) {
     record.stillOwed.push(
-      "styleDetached is still UNMEASURED against real Figma. No fork tool binds a paint style (`set_fill_style` would be R3), so this gate cannot manufacture the precondition. ⛔ The receipt reports it as a READING and never as a claim, which is what makes the tool correct under either answer — but the question is open, and promoting set_fill to `stable` on the strength of this gate does not close it.",
+      "This historical runner did not observe styleDetached on a bound scratch node. R3.1's dedicated set_fill_style gate separately measured local paint-style attachment, fill-write observation, and explicit detach; this runner's unbound receipt remains a reading, not a platform conclusion.",
     );
     record.findings.push(
-      "§5 could not construct a node with a bound paint style. To close it, bind one by hand in the Figma file before the next run, on a node the gate can find by name.",
+      "§5 intentionally did not construct a bound style. Use the dedicated R3.1 set_fill_style gate for the owned attachment/detachment measurement rather than borrowing a production node.",
     );
   }
 

@@ -117,12 +117,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-b5649366daef",
-  pluginBuildId: "r3-a-plugin-7f0d5389634e",
-  schemaVersion: "1.18.0",
+  serverBuildId: "r3.1-server-beff31768985",
+  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
+  schemaVersion: "1.19.0",
   fingerprint:
-    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
-  toolCount: 77,
+    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  toolCount: 80,
 };
 
 const serverPath = options.server
@@ -476,9 +476,9 @@ try {
   // ⛔ The mixed-font source is an EXPLICIT opt-in (`--mixed-node=<id>`), not a search.
   // The first run scanned the current page for one and the request TIMED OUT on real
   // content — `scan_text_nodes` over a production page is unbounded by nature, and a
-  // two-minute search for an opportunistic extra is the wrong trade. The fork ships no
-  // range-font setter, so a mixed node cannot be authored by these tools either; if none
-  // is named the case is recorded as owed rather than faked.
+  // two-minute search for an opportunistic extra is the wrong trade. R3.1's dedicated
+  // range-font gate now authors the controlled mixed target; this historical runner keeps
+  // the explicit opt-in variation rather than scanning or borrowing document content.
   const mixedSourceId = options["mixed-node"] || null;
   record.checks.mixedNodeSource = mixedSourceId ? { provided: mixedSourceId } : { provided: null };
 
@@ -650,7 +650,7 @@ try {
     assert.equal(unified.before.fontName, "MIXED");
   } else {
     record.stillOwed.push(
-      "Mixed-font unification (3.3) stays FIXTURE-ONLY. The fork ships no range-font setter, so a mixed node cannot be authored by these tools, and none was named with --mixed-node. `wasMixed: true` and the \"MIXED\" sentinel are proven offline and unproven live.",
+      "This historical runner's optional mixed-node variation was not supplied. R3.1's dedicated set_range_font gate separately created and measured a controlled mixed-font target; `wasMixed: true` and the \"MIXED\" sentinel remain unmeasured only for this omitted legacy variation.",
     );
   }
 

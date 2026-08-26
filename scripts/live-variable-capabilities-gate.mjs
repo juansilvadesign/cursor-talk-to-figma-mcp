@@ -30,9 +30,10 @@
  * Cleanup runs in `finally`, including on assertion failure, and a cleanup that cannot be
  * verified is reported in `stillOwed` with the exact mode id a human must remove by hand.
  *
- * ⛔ `create_variable_collection` is deliberately NOT used to build a scratch target: no tool
- * in this fork can remove a collection, so that path leaves permanent debris. The
- * add/remove mode pair is the one net-zero write this fork can actually reverse.
+ * `create_variable_collection` is deliberately NOT used to build this gate's scratch target:
+ * `delete_variable_collection` now makes a net-zero collection probe possible, but that
+ * lifecycle is exercised by its dedicated gate. This gate isolates the mode-count differential
+ * through the add/remove pair it owns.
  *
  *   node scripts/live-variable-capabilities-gate.mjs \
  *     --channel=<DEV-plugin-channel-for-a-disposable-file> \
@@ -77,13 +78,13 @@ if (options["disposable-target"] !== "true") {
 // a pin nothing reads cannot go stale loudly, which is exactly how live-plugin-data-gate
 // carried `release: "R2"` through a green run.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-b5649366daef",
-  pluginBuildId: "r3-a-plugin-7f0d5389634e",
-  schemaVersion: "1.18.0",
+  serverBuildId: "r3.1-server-beff31768985",
+  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
+  schemaVersion: "1.19.0",
   fingerprint:
-    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
-  release: "R3-A",
-  toolCount: 77,
+    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  release: "R3.1",
+  toolCount: 80,
 };
 
 const serverPath = options.server

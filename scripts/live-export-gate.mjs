@@ -32,12 +32,12 @@ if (!options.channel) {
 }
 
 const expectedRuntime = {
-  release: "R3-A",
-  serverBuildId: "r3-a-server-b5649366daef",
-  pluginBuildId: "r3-a-plugin-7f0d5389634e",
-  schemaVersion: "1.18.0",
+  release: "R3.1",
+  serverBuildId: "r3.1-server-beff31768985",
+  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
+  schemaVersion: "1.19.0",
   fingerprint:
-    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
+    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
 };
 // ⛔ WAS `const nodeId = "1113:5031"` — a node in a DIFFERENT document, which made this
 // gate silently unrunnable anywhere else. The sixteen-gate re-pin found it: the gate did not

@@ -77,10 +77,10 @@
  *   node scripts/live-constraints-gate.mjs --channel=<DEV-plugin-channel> \
  *        [--group-child=<nodeId>] [--output-dir=<dir>] [--server=<dist-server-path>]
  *
- *   --group-child is OPTIONAL and enables §6. The fork ships no group-creation tool, so
- *   the gate cannot author a group child; point this at a hand-made rectangle inside a
- *   group and §6 measures whether a group resolves constraints. Omit it and §6 reports
- *   `unmeasured` — which is a gap, not a pass.
+ *   --group-child is OPTIONAL and enables this historical runner's §6. R3.1's dedicated
+ *   group gate authors and measures its own controlled GROUP; point this runner at a
+ *   hand-made rectangle inside a group only when re-checking its optional variation. Omit
+ *   it and §6 reports `unmeasured` for this runner, not a contrary platform conclusion.
  */
 
 import assert from "node:assert/strict";
@@ -154,12 +154,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3-a-server-b5649366daef",
-  pluginBuildId: "r3-a-plugin-7f0d5389634e",
-  schemaVersion: "1.18.0",
+  serverBuildId: "r3.1-server-beff31768985",
+  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
+  schemaVersion: "1.19.0",
   fingerprint:
-    "sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9",
-  toolCount: 77,
+    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  toolCount: 80,
 };
 
 const serverPath = options.server
@@ -735,8 +735,8 @@ try {
   // `set_constraints` deliberately does NOT refuse a GROUP parent. Whether Figma resolves
   // a group child's constraints against the enclosing frame is a platform claim this repo
   // has not verified, and an unverified refusal is worse than none because it reads as
-  // authoritative. ⛔ The fork ships no group-creation tool, so this gate cannot author
-  // the case; pass --group-child=<nodeId> pointing at a hand-made one to measure it.
+  // authoritative. R3.1's dedicated group gate now authors the controlled case; this older
+  // runner retains an opt-in hand-made variation through --group-child=<nodeId>.
   if (options["group-child"]) {
     // ⛔ The operator's node is CLONED and the clone is measured. Nothing here resizes,
     // reparents or writes to the node they supplied — a gate that mutates a real document
@@ -883,7 +883,7 @@ try {
   } else {
     record.checks.groupPremise = { verdict: "unmeasured", suppliedNodeId: null };
     record.stillOwed.push(
-      "The GROUP premise is UNMEASURED, not confirmed. set_constraints allows a GROUP parent rather than refusing on an unverified claim, and this gate could not author the case: the fork ships no group-creation tool. ⛔ Do not read this run as evidence either way — re-run with --group-child=<a rectangle inside a hand-made group> to measure it.",
+      "This runner's optional GROUP variation is UNMEASURED because no --group-child was supplied. R3.1's dedicated create_group gate separately measured the owned group/child case; do not read this omitted variation as contrary evidence.",
     );
   }
 

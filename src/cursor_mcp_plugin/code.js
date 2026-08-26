@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R3.1",
-  "buildId": "r3.1-plugin-ed16fbb94fa9",
-  "apiVersion": "1.19.0",
-  "serverSchemaVersion": "1.19.0",
+  "release": "R3.2",
+  "buildId": "r3.2-plugin-98129b15fafd",
+  "apiVersion": "1.20.0",
+  "serverSchemaVersion": "1.20.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -34,6 +34,12 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "delete_node",
     "delete_multiple_nodes",
     "get_styles",
+    "get_local_style",
+    "create_or_match_local_style",
+    "update_local_style",
+    "get_node_style_attachment",
+    "set_local_style_attachment",
+    "delete_local_style",
     "get_local_components",
     "get_variables",
     "get_variable_capabilities",
@@ -103,12 +109,14 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
@@ -119,7 +127,9 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
+    "figma.command.get_local_style@1",
     "figma.command.get_node_info@1",
+    "figma.command.get_node_style_attachment@1",
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
@@ -157,6 +167,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
     "figma.command.set_layout_sizing@1",
+    "figma.command.set_local_style_attachment@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_opacity@1",
@@ -171,6 +182,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.update_local_style@1",
     "relay.channel@1"
   ]
 });
@@ -360,6 +372,18 @@ async function handleCommand(command, params) {
       return await deleteMultipleNodes(params);
     case "get_styles":
       return await getStyles(params);
+    case "get_local_style":
+      return await getLocalStyle(params);
+    case "create_or_match_local_style":
+      return await createOrMatchLocalStyle(params);
+    case "update_local_style":
+      return await updateLocalStyle(params);
+    case "get_node_style_attachment":
+      return await getNodeStyleAttachment(params);
+    case "set_local_style_attachment":
+      return await setLocalStyleAttachment(params);
+    case "delete_local_style":
+      return await deleteLocalStyle(params);
     case "get_local_components":
       return await getLocalComponents(params);
     case "get_variables":
@@ -3212,6 +3236,1077 @@ async function getStyles(params) {
   );
 
   return result;
+}
+
+// R3.2 local-style authoring deliberately uses a plugin-private marker rather than a
+// Figma key, library key, or style name as identity. The marker is opaque to callers and
+// is never echoed by any receipt. It is an ownership selector inside this one document,
+// not a portable style reference and not a secret.
+const R32_STYLE_IDENTITY_DATA_KEY =
+  "talk-to-figma.local-style-authoring.identity.v1";
+
+const LOCAL_STYLE_KIND_CONFIG = Object.freeze({
+  paint: Object.freeze({
+    nativeType: "PAINT",
+    loader: "getLocalPaintStylesAsync",
+    creator: "createPaintStyle",
+    valueField: "paints",
+  }),
+  text: Object.freeze({
+    nativeType: "TEXT",
+    loader: "getLocalTextStylesAsync",
+    creator: "createTextStyle",
+    valueField: "text",
+  }),
+  effect: Object.freeze({
+    nativeType: "EFFECT",
+    loader: "getLocalEffectStylesAsync",
+    creator: "createEffectStyle",
+    valueField: "effects",
+  }),
+  grid: Object.freeze({
+    nativeType: "GRID",
+    loader: "getLocalGridStylesAsync",
+    creator: "createGridStyle",
+    valueField: "layoutGrids",
+  }),
+});
+
+const LOCAL_STYLE_VALUE_FIELDS = Object.freeze([
+  "paints",
+  "text",
+  "effects",
+  "layoutGrids",
+]);
+
+function localStyleRefusal(code, message, details = {}) {
+  return {
+    success: false,
+    scope: "local_style",
+    wrote: false,
+    refusal: { code, message, ...details },
+  };
+}
+
+function localStyleConfig(kind) {
+  const config = LOCAL_STYLE_KIND_CONFIG[kind];
+  if (!config) {
+    throw new Error(
+      `local style kind must be one of ${Object.keys(LOCAL_STYLE_KIND_CONFIG).join(
+        ", "
+      )}; received ${JSON.stringify(kind)} and wrote nothing`
+    );
+  }
+  return config;
+}
+
+function requireLocalStyleId(styleId, operation) {
+  if (typeof styleId !== "string" || styleId.length === 0) {
+    throw new Error(
+      `${operation} requires an exact non-empty local style ID and wrote nothing`
+    );
+  }
+}
+
+function requireLocalStyleIdentity(identityKey, operation) {
+  if (
+    typeof identityKey !== "string" ||
+    identityKey.length === 0 ||
+    identityKey.length > 2048
+  ) {
+    throw new Error(
+      `${operation} requires an opaque identityKey between 1 and 2048 characters and wrote nothing`
+    );
+  }
+}
+
+function requireLocalStyleName(name, operation) {
+  if (typeof name !== "string" || name.trim().length === 0) {
+    throw new Error(
+      `${operation} requires a non-blank style name and wrote nothing`
+    );
+  }
+}
+
+function cloneLocalStyleValue(value) {
+  if (value === undefined) return null;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_) {
+    return null;
+  }
+}
+
+function canonicalLocalStyleValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalLocalStyleValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .filter((key) => value[key] !== undefined)
+        .sort()
+        .map((key) => [key, canonicalLocalStyleValue(value[key])])
+    );
+  }
+  return value;
+}
+
+function sameLocalStyleValue(left, right) {
+  return (
+    JSON.stringify(canonicalLocalStyleValue(left)) ===
+    JSON.stringify(canonicalLocalStyleValue(right))
+  );
+}
+
+async function getLocalStylesForKind(kind) {
+  const config = localStyleConfig(kind);
+  const loader = figma[config.loader];
+  if (typeof loader !== "function") {
+    throw new Error(
+      `Local ${kind} style inventory is unavailable in this Figma runtime; wrote nothing`
+    );
+  }
+  const styles = await loader.call(figma);
+  if (!Array.isArray(styles)) {
+    throw new Error(
+      `Local ${kind} style inventory returned a non-array; wrote nothing`
+    );
+  }
+  // The async local inventory is the authorization boundary. A malformed host response
+  // that puts a remote style here must never be allowed to weaken that boundary.
+  return styles.filter((style) => style && style.remote !== true);
+}
+
+async function diagnosticStyleById(styleId) {
+  if (typeof figma.getStyleByIdAsync !== "function") return null;
+  try {
+    return await figma.getStyleByIdAsync(styleId);
+  } catch (_) {
+    // Diagnostics never become a selector: uncertainty remains not_exact_local_style.
+    return null;
+  }
+}
+
+async function resolveExactLocalStyle(kind, styleId) {
+  requireLocalStyleId(styleId, "local style resolution");
+  const config = localStyleConfig(kind);
+  const styles = await getLocalStylesForKind(kind);
+  const style = styles.find((candidate) => candidate.id === styleId) || null;
+  if (style) return { style, styles };
+
+  const diagnostic = await diagnosticStyleById(styleId);
+  if (diagnostic && diagnostic.remote === true) {
+    return {
+      refusal: localStyleRefusal(
+        "remote_style_refused",
+        `Style ${styleId} is remote/library-backed and cannot be selected by local-style authoring. No native setter, remove, import, or fallback was called.`,
+        { kind, styleId }
+      ),
+    };
+  }
+  if (diagnostic && diagnostic.type && diagnostic.type !== config.nativeType) {
+    return {
+      refusal: localStyleRefusal(
+        "style_kind_mismatch",
+        `Style ${styleId} is not a ${kind} style in this document and cannot be selected.`,
+        { kind, styleId }
+      ),
+    };
+  }
+  return {
+    refusal: localStyleRefusal(
+      "not_exact_local_style",
+      `Style ${styleId} was not returned by this file's local ${kind} style inventory. No native write was called.`,
+      { kind, styleId }
+    ),
+  };
+}
+
+function readLocalStyleIdentity(style) {
+  if (typeof style.getPluginData !== "function") {
+    return { readable: false, present: false, value: null };
+  }
+  try {
+    const value = style.getPluginData(R32_STYLE_IDENTITY_DATA_KEY);
+    if (typeof value !== "string") {
+      return { readable: false, present: false, value: null };
+    }
+    return { readable: true, present: value.length > 0, value: value || null };
+  } catch (_) {
+    return { readable: false, present: false, value: null };
+  }
+}
+
+function localStyleIdentityStatus(style) {
+  const reading = readLocalStyleIdentity(style);
+  if (!reading.readable) return "unreadable";
+  return reading.present ? "present" : "absent";
+}
+
+function writeLocalStyleIdentity(style, identityKey) {
+  if (typeof style.setPluginData !== "function") {
+    throw new Error(
+      "This Figma runtime cannot write private plugin data on local styles"
+    );
+  }
+  style.setPluginData(R32_STYLE_IDENTITY_DATA_KEY, identityKey);
+}
+
+function readLocalStyleVariableBindings(style) {
+  try {
+    const bindings = style.boundVariables;
+    if (bindings === undefined || bindings === null) {
+      return { readable: true, present: false };
+    }
+    if (typeof bindings !== "object" || Array.isArray(bindings)) {
+      return { readable: false, present: false };
+    }
+    return { readable: true, present: Object.keys(bindings).length > 0 };
+  } catch (_) {
+    return { readable: false, present: false };
+  }
+}
+
+function readLocalStyleValue(style, kind) {
+  try {
+    if (kind === "paint") {
+      if (!Array.isArray(style.paints)) return { readable: false, value: null };
+      return { readable: true, value: { paints: cloneLocalStyleValue(style.paints) } };
+    }
+    if (kind === "effect") {
+      if (!Array.isArray(style.effects)) return { readable: false, value: null };
+      return { readable: true, value: { effects: cloneLocalStyleValue(style.effects) } };
+    }
+    if (kind === "grid") {
+      if (!Array.isArray(style.layoutGrids)) {
+        return { readable: false, value: null };
+      }
+      return {
+        readable: true,
+        value: { layoutGrids: cloneLocalStyleValue(style.layoutGrids) },
+      };
+    }
+    if (kind === "text") {
+      const value = {};
+      for (const property of TEXT_STYLE_PROPERTIES) {
+        value[property] = cloneLocalStyleValue(textStyleReadable(style[property]));
+      }
+      return { readable: true, value: { text: value } };
+    }
+  } catch (_) {
+    return { readable: false, value: null };
+  }
+  return { readable: false, value: null };
+}
+
+async function observeLocalStyleConsumers(style) {
+  if (typeof style.getStyleConsumersAsync !== "function") {
+    return { status: "unavailable", count: null };
+  }
+  try {
+    const consumers = await style.getStyleConsumersAsync();
+    if (!Array.isArray(consumers)) return { status: "unreadable", count: null };
+    return { status: "observed", count: consumers.length };
+  } catch (_) {
+    return { status: "unreadable", count: null };
+  }
+}
+
+async function localStyleSnapshot(style, kind, includeConsumers = false) {
+  const value = readLocalStyleValue(style, kind);
+  const bindings = readLocalStyleVariableBindings(style);
+  const snapshot = {
+    styleId: style.id,
+    kind,
+    name: typeof style.name === "string" ? style.name : null,
+    local: style.remote !== true,
+    remote: style.remote === true,
+    identityStatus: localStyleIdentityStatus(style),
+    valueReadable: value.readable,
+    value: value.value,
+    variableBindings: !bindings.readable
+      ? "unreadable"
+      : bindings.present
+        ? "present"
+        : "none",
+  };
+  if (includeConsumers) snapshot.consumers = await observeLocalStyleConsumers(style);
+  return snapshot;
+}
+
+function ensureOnlyStyleValueForKind(kind, input, requireValue) {
+  const config = localStyleConfig(kind);
+  const supplied = LOCAL_STYLE_VALUE_FIELDS.filter(
+    (field) => input[field] !== undefined
+  );
+  const unexpected = supplied.filter((field) => field !== config.valueField);
+  if (unexpected.length > 0) {
+    throw new Error(
+      `${kind} local style cannot accept ${unexpected.join(
+        ", "
+      )}; its value is expressed only through ${config.valueField}. Wrote nothing.`
+    );
+  }
+  if (requireValue && input[config.valueField] === undefined) {
+    throw new Error(
+      `${kind} local style requires ${config.valueField}; wrote nothing`
+    );
+  }
+  return input[config.valueField] !== undefined;
+}
+
+function requirePlainStyleObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(
+      `${label} must be an object and wrote nothing; received ${JSON.stringify(value)}`
+    );
+  }
+}
+
+function preparePaintStyleValue(paints) {
+  if (!Array.isArray(paints) || paints.length === 0 || paints.length > MAX_FILL_PAINTS) {
+    throw new Error(
+      `paint local style requires 1-${MAX_FILL_PAINTS} paints and wrote nothing`
+    );
+  }
+  const built = paints.map((paint, index) => buildFillPaint(paint, index));
+  const writable = built.map((paint) => {
+    const copy = { ...paint };
+    delete copy.gradientAim;
+    return copy;
+  });
+  return { kind: "paint", value: { paints: writable } };
+}
+
+async function prepareTextStyleValue(text, style, creation) {
+  requirePlainStyleObject(text, "text");
+  const allowed = new Set(TEXT_STYLE_PARAMETERS);
+  for (const field of Object.keys(text)) {
+    if (!allowed.has(field)) {
+      throw new Error(
+        `text.${field} is not a supported text-style property and wrote nothing`
+      );
+    }
+  }
+
+  const errors = [];
+  const writes = [];
+  const appliedFields = [];
+  const requestedFont = textStyleRequestedFont(text, errors);
+  if (requestedFont) {
+    writes.push(["fontName", requestedFont]);
+    appliedFields.push("fontFamily", "fontStyle");
+  }
+  textStyleCollectWrites(text, errors, writes, appliedFields);
+
+  if (creation && (!requestedFont || text.fontSize === undefined)) {
+    errors.push(
+      "a new text local style requires fontFamily, fontStyle, and fontSize so its stored typography is explicit"
+    );
+  }
+  if (writes.length === 0 && errors.length === 0) {
+    errors.push(
+      `text requires at least one property from ${TEXT_STYLE_PARAMETERS.join(", ")}`
+    );
+  }
+  if (!creation && writes.length > 1) {
+    errors.push(
+      "update_local_style accepts one text-style property group per call so an update remains one native property write; perform additional changes in separately observed calls"
+    );
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      `text local style refused ${errors.length} invalid ${
+        errors.length === 1 ? "parameter" : "parameters"
+      } and wrote nothing: ${errors.join("; ")}`
+    );
+  }
+
+  const pending = [];
+  if (style) pending.push(...textStyleExistingFonts(style));
+  if (requestedFont) pending.push(requestedFont);
+  const seen = new Set();
+  const failures = [];
+  for (const font of pending) {
+    const key = `${font.family}::${font.style}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      await figma.loadFontAsync(font);
+    } catch (error) {
+      failures.push(
+        `${font.family} ${font.style} (${error instanceof Error ? error.message : String(error)})`
+      );
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(
+      `text local style could not load ${failures.length} font${
+        failures.length === 1 ? "" : "s"
+      } and wrote nothing: ${failures.join("; ")}`
+    );
+  }
+  return { kind: "text", writes, appliedFields };
+}
+
+function prepareEffectStyleValue(effects) {
+  if (!Array.isArray(effects) || effects.length === 0 || effects.length > MAX_EFFECTS) {
+    throw new Error(
+      `effect local style requires 1-${MAX_EFFECTS} effects and wrote nothing`
+    );
+  }
+  return {
+    kind: "effect",
+    value: { effects: effects.map((effect, index) => buildEffect(effect, index)) },
+  };
+}
+
+const LOCAL_GRID_PATTERNS = Object.freeze(["GRID", "ROWS", "COLUMNS"]);
+const LOCAL_GRID_ALIGNMENTS = Object.freeze(["MIN", "MAX", "STRETCH", "CENTER"]);
+const MAX_LOCAL_STYLE_GRIDS = 16;
+
+function prepareGridColor(color, where) {
+  if (!color || typeof color !== "object" || Array.isArray(color)) {
+    throw new Error(`${where}.color must be an RGBA object and wrote nothing`);
+  }
+  validateColorChannel(color.r, "color.r", where);
+  validateColorChannel(color.g, "color.g", where);
+  validateColorChannel(color.b, "color.b", where);
+  if (color.a !== undefined) validateColorChannel(color.a, "color.a", where);
+  return {
+    r: color.r,
+    g: color.g,
+    b: color.b,
+    ...(color.a === undefined ? {} : { a: color.a }),
+  };
+}
+
+function finiteGridNumber(value, field, where, minimum) {
+  if (!isFiniteNumber(value) || (minimum !== undefined && value < minimum)) {
+    throw new Error(
+      `${where}.${field} must be a finite number${
+        minimum === undefined ? "" : ` greater than or equal to ${minimum}`
+      } and wrote nothing`
+    );
+  }
+  return value;
+}
+
+function buildLocalStyleGrid(input, index) {
+  const where = `layoutGrids[${index}]`;
+  requirePlainStyleObject(input, where);
+  if (!LOCAL_GRID_PATTERNS.includes(input.pattern)) {
+    throw new Error(
+      `${where}.pattern must be one of ${LOCAL_GRID_PATTERNS.join(", ")} and wrote nothing`
+    );
+  }
+  const allowed =
+    input.pattern === "GRID"
+      ? new Set(["pattern", "sectionSize", "visible", "color"])
+      : new Set([
+          "pattern",
+          "alignment",
+          "gutterSize",
+          "count",
+          "sectionSize",
+          "offset",
+          "visible",
+          "color",
+        ]);
+  for (const field of Object.keys(input)) {
+    if (!allowed.has(field)) {
+      throw new Error(`${where}.${field} is not valid for ${input.pattern} and wrote nothing`);
+    }
+  }
+
+  const grid = { pattern: input.pattern };
+  if (input.pattern === "GRID") {
+    grid.sectionSize = finiteGridNumber(input.sectionSize, "sectionSize", where, 0);
+  } else {
+    if (!LOCAL_GRID_ALIGNMENTS.includes(input.alignment)) {
+      throw new Error(
+        `${where}.alignment must be one of ${LOCAL_GRID_ALIGNMENTS.join(", ")} and wrote nothing`
+      );
+    }
+    if (!Number.isInteger(input.count) || input.count < 1) {
+      throw new Error(`${where}.count must be a positive integer and wrote nothing`);
+    }
+    grid.alignment = input.alignment;
+    grid.gutterSize = finiteGridNumber(input.gutterSize, "gutterSize", where, 0);
+    grid.count = input.count;
+    if (input.sectionSize !== undefined) {
+      grid.sectionSize = finiteGridNumber(input.sectionSize, "sectionSize", where, 0);
+    }
+    if (input.offset !== undefined) {
+      // No sign rule is invented here. The provisional R3.2 grammar records the supplied
+      // finite offset and leaves Figma's contextual acceptance to the disposable live gate.
+      grid.offset = finiteGridNumber(input.offset, "offset", where);
+    }
+  }
+  if (input.visible !== undefined) {
+    if (typeof input.visible !== "boolean") {
+      throw new Error(`${where}.visible must be true or false and wrote nothing`);
+    }
+    grid.visible = input.visible;
+  }
+  if (input.color !== undefined) grid.color = prepareGridColor(input.color, where);
+  return grid;
+}
+
+function prepareGridStyleValue(layoutGrids) {
+  if (
+    !Array.isArray(layoutGrids) ||
+    layoutGrids.length === 0 ||
+    layoutGrids.length > MAX_LOCAL_STYLE_GRIDS
+  ) {
+    throw new Error(
+      `grid local style requires 1-${MAX_LOCAL_STYLE_GRIDS} layout grids and wrote nothing`
+    );
+  }
+  return {
+    kind: "grid",
+    value: {
+      layoutGrids: layoutGrids.map((grid, index) =>
+        buildLocalStyleGrid(grid, index)
+      ),
+    },
+  };
+}
+
+async function prepareLocalStyleValue(kind, input, style, creation) {
+  const config = localStyleConfig(kind);
+  if (kind === "paint") return preparePaintStyleValue(input[config.valueField]);
+  if (kind === "text") {
+    return await prepareTextStyleValue(input[config.valueField], style, creation);
+  }
+  if (kind === "effect") return prepareEffectStyleValue(input[config.valueField]);
+  return prepareGridStyleValue(input[config.valueField]);
+}
+
+function applyPreparedLocalStyleValue(style, prepared) {
+  if (prepared.kind === "paint") {
+    style.paints = prepared.value.paints;
+    return;
+  }
+  if (prepared.kind === "effect") {
+    style.effects = prepared.value.effects;
+    return;
+  }
+  if (prepared.kind === "grid") {
+    style.layoutGrids = prepared.value.layoutGrids;
+    return;
+  }
+  for (const [property, value] of prepared.writes) style[property] = value;
+}
+
+function preparedLocalStyleValueMatches(style, prepared) {
+  const current = readLocalStyleValue(style, prepared.kind);
+  if (!current.readable) return null;
+  if (prepared.kind === "text") {
+    for (const [property, expected] of prepared.writes) {
+      if (!sameLocalStyleValue(textStyleReadable(style[property]), expected)) return false;
+    }
+    return true;
+  }
+  return sameLocalStyleValue(current.value, prepared.value);
+}
+
+function localStyleOwnershipRefusal(style, kind, styleId, identityKey) {
+  const identity = readLocalStyleIdentity(style);
+  if (!identity.readable) {
+    return localStyleRefusal(
+      "identity_observation_unavailable",
+      `Could not read the private ownership marker for local ${kind} style ${styleId}; refusing to change or delete it.`,
+      { kind, styleId }
+    );
+  }
+  if (identity.value !== identityKey) {
+    return localStyleRefusal(
+      "identity_mismatch",
+      `Local ${kind} style ${styleId} is not owned by the supplied identity marker; no write was called.`,
+      { kind, styleId }
+    );
+  }
+  return null;
+}
+
+async function findStyleIdentityMatch(styles, identityKey) {
+  const matches = [];
+  for (const style of styles) {
+    const identity = readLocalStyleIdentity(style);
+    if (!identity.readable) {
+      return { unreadable: style.id };
+    }
+    if (identity.value === identityKey) matches.push(style);
+  }
+  return { matches };
+}
+
+function styleNameCollisions(styles, name, excludedStyleId = null) {
+  return styles.filter(
+    (style) => style.id !== excludedStyleId && style.name === name
+  );
+}
+
+async function getLocalStyle(params) {
+  const input = params || {};
+  const { kind, styleId } = input;
+  localStyleConfig(kind);
+  requireLocalStyleId(styleId, "get_local_style");
+  const resolved = await resolveExactLocalStyle(kind, styleId);
+  if (resolved.refusal) return resolved.refusal;
+  return {
+    success: true,
+    scope: "local_style",
+    style: await localStyleSnapshot(
+      resolved.style,
+      kind,
+      input.includeConsumers === true
+    ),
+  };
+}
+
+async function createOrMatchLocalStyle(params) {
+  const input = params || {};
+  const { kind, name, identityKey } = input;
+  localStyleConfig(kind);
+  requireLocalStyleName(name, "create_or_match_local_style");
+  requireLocalStyleIdentity(identityKey, "create_or_match_local_style");
+  ensureOnlyStyleValueForKind(kind, input, true);
+
+  // Build and font-load before the style exists. A rejected payload must never leave an
+  // orphaned resource behind, and a text face is a session preflight rather than a write.
+  const prepared = await prepareLocalStyleValue(kind, input, null, true);
+  const styles = await getLocalStylesForKind(kind);
+  const identitySearch = await findStyleIdentityMatch(styles, identityKey);
+  if (identitySearch.unreadable) {
+    return localStyleRefusal(
+      "identity_observation_unavailable",
+      `Could not read a local ${kind} style ownership marker, so create-or-match cannot safely rule out a duplicate.`,
+      { kind }
+    );
+  }
+  if (identitySearch.matches.length > 1) {
+    return localStyleRefusal(
+      "duplicate_local_identity",
+      `More than one local ${kind} style carries the supplied ownership marker; create-or-match refuses the ambiguous identity.`,
+      { kind }
+    );
+  }
+
+  const nameCollisions = styleNameCollisions(styles, name);
+  if (identitySearch.matches.length === 1) {
+    const matched = identitySearch.matches[0];
+    if (matched.name !== name || nameCollisions.length !== 1) {
+      return localStyleRefusal(
+        "identity_name_collision",
+        `The supplied ownership marker resolves to a local ${kind} style whose name is not an exact unique match. No write was called.`,
+        { kind, styleId: matched.id }
+      );
+    }
+    const matchesRequested = preparedLocalStyleValueMatches(matched, prepared);
+    if (matchesRequested !== true) {
+      return localStyleRefusal(
+        "identity_value_mismatch",
+        `The supplied ownership marker resolves to local ${kind} style ${matched.id}, but its stored value does not exactly match this create-or-match request.`,
+        { kind, styleId: matched.id, valueReadable: matchesRequested !== null }
+      );
+    }
+    return {
+      success: true,
+      scope: "local_style",
+      action: "matched",
+      created: false,
+      outcome: "confirmed",
+      readbackMatchesRequested: true,
+      style: await localStyleSnapshot(matched, kind, false),
+    };
+  }
+  if (nameCollisions.length > 0) {
+    return localStyleRefusal(
+      "local_style_name_collision",
+      `A local ${kind} style already uses the requested name, but it has no matching ownership marker. Refusing to adopt or overwrite it.`,
+      { kind, name }
+    );
+  }
+
+  const creator = figma[localStyleConfig(kind).creator];
+  if (typeof creator !== "function") {
+    return localStyleRefusal(
+      "local_style_creation_unavailable",
+      `This Figma runtime cannot create local ${kind} styles.`,
+      { kind }
+    );
+  }
+
+  let created = null;
+  try {
+    created = creator.call(figma);
+    if (!created || typeof created.id !== "string") {
+      throw new Error("Figma returned no local style object");
+    }
+    // Write the deletion-authorizing marker first. If any later assignment fails, the
+    // rollback still has an exact owned target rather than guessing by name.
+    writeLocalStyleIdentity(created, identityKey);
+    created.name = name;
+    applyPreparedLocalStyleValue(created, prepared);
+  } catch (error) {
+    let cleanup = "not_attempted";
+    if (created && typeof created.remove === "function") {
+      try {
+        created.remove();
+        cleanup = "remove_called";
+      } catch (_) {
+        cleanup = "remove_failed";
+      }
+    }
+    return {
+      ...localStyleRefusal(
+        "local_style_creation_failed",
+        `Figma rejected local ${kind} style creation after a resource was allocated. Cleanup is reported explicitly.`,
+        { kind }
+      ),
+      wrote: true,
+      cleanup,
+    };
+  }
+
+  const identity = readLocalStyleIdentity(created);
+  const valueMatches = preparedLocalStyleValueMatches(created, prepared);
+  const readbackMatchesRequested =
+    identity.readable &&
+    identity.value === identityKey &&
+    created.name === name &&
+    valueMatches === true;
+  return {
+    success: true,
+    scope: "local_style",
+    action: "created",
+    created: true,
+    readbackMatchesRequested,
+    outcome: readbackMatchesRequested ? "confirmed" : "unconfirmed",
+    style: await localStyleSnapshot(created, kind, false),
+  };
+}
+
+async function updateLocalStyle(params) {
+  const input = params || {};
+  const { kind, styleId, identityKey } = input;
+  localStyleConfig(kind);
+  requireLocalStyleId(styleId, "update_local_style");
+  requireLocalStyleIdentity(identityKey, "update_local_style");
+  const hasName = input.name !== undefined;
+  if (hasName) requireLocalStyleName(input.name, "update_local_style");
+  const hasValue = ensureOnlyStyleValueForKind(kind, input, false);
+  if (hasName === hasValue) {
+    throw new Error(
+      "update_local_style requires exactly one of name or the kind-specific value payload, so one call performs one native style-property write"
+    );
+  }
+
+  const resolved = await resolveExactLocalStyle(kind, styleId);
+  if (resolved.refusal) return resolved.refusal;
+  const ownership = localStyleOwnershipRefusal(
+    resolved.style,
+    kind,
+    styleId,
+    identityKey
+  );
+  if (ownership) return ownership;
+  const bindings = readLocalStyleVariableBindings(resolved.style);
+  if (!bindings.readable || bindings.present) {
+    return localStyleRefusal(
+      "style_variable_bindings_unsupported",
+      `Local ${kind} style ${styleId} has variable bindings that cannot be safely preserved by R3.2 local-style updates.`,
+      { kind, styleId, bindingsReadable: bindings.readable }
+    );
+  }
+
+  let prepared = null;
+  if (hasValue) {
+    prepared = await prepareLocalStyleValue(kind, input, resolved.style, false);
+  } else if (styleNameCollisions(resolved.styles, input.name, styleId).length > 0) {
+    return localStyleRefusal(
+      "local_style_name_collision",
+      `Another local ${kind} style already uses ${JSON.stringify(
+        input.name
+      )}; refusing to merge identity by name.`,
+      { kind, styleId }
+    );
+  }
+
+  const before = await localStyleSnapshot(resolved.style, kind, false);
+  try {
+    if (hasName) resolved.style.name = input.name;
+    else applyPreparedLocalStyleValue(resolved.style, prepared);
+  } catch (error) {
+    return {
+      ...localStyleRefusal(
+        "local_style_update_rejected",
+        `Figma rejected the one requested local ${kind} style property write.`,
+        { kind, styleId }
+      ),
+      wrote: "unknown",
+    };
+  }
+  const after = await localStyleSnapshot(resolved.style, kind, false);
+  const readbackMatchesRequested = hasName
+    ? after.name === input.name
+    : preparedLocalStyleValueMatches(resolved.style, prepared);
+  return {
+    success: true,
+    scope: "local_style",
+    action: hasName ? "renamed" : "updated",
+    readbackMatchesRequested,
+    outcome: readbackMatchesRequested === true ? "confirmed" : "unconfirmed",
+    before,
+    style: after,
+  };
+}
+
+function localStyleAttachmentDescriptor(kind, paintTarget) {
+  localStyleConfig(kind);
+  if (kind === "paint") {
+    const target = paintTarget === undefined ? "fill" : paintTarget;
+    if (target !== "fill" && target !== "stroke") {
+      throw new Error(
+        `paintTarget must be fill or stroke for a paint-style attachment; received ${JSON.stringify(
+          target
+        )}`
+      );
+    }
+    return {
+      property: target === "fill" ? "fillStyleId" : "strokeStyleId",
+      setter: target === "fill" ? "setFillStyleIdAsync" : "setStrokeStyleIdAsync",
+      target,
+    };
+  }
+  if (paintTarget !== undefined) {
+    throw new Error(
+      `paintTarget only applies to paint styles, not ${kind} styles`
+    );
+  }
+  if (kind === "text") {
+    return { property: "textStyleId", setter: "setTextStyleIdAsync", target: null };
+  }
+  if (kind === "effect") {
+    return { property: "effectStyleId", setter: "setEffectStyleIdAsync", target: null };
+  }
+  return { property: "gridStyleId", setter: "setGridStyleIdAsync", target: null };
+}
+
+function readNodeLocalStyleAttachment(node, descriptor) {
+  if (!(descriptor.property in node)) {
+    return { surface: false, readable: false, mixed: false, styleId: null };
+  }
+  try {
+    const raw = node[descriptor.property];
+    if (raw === figma.mixed || typeof raw === "symbol") {
+      return { surface: true, readable: true, mixed: true, styleId: null };
+    }
+    if (typeof raw !== "string") {
+      return { surface: true, readable: false, mixed: false, styleId: null };
+    }
+    return {
+      surface: true,
+      readable: true,
+      mixed: false,
+      styleId: raw === "" ? null : raw,
+    };
+  } catch (_) {
+    return { surface: true, readable: false, mixed: false, styleId: null };
+  }
+}
+
+async function classifyNodeStyleReference(kind, styleId, suppliedStyles = null) {
+  if (!styleId) return { origin: "none" };
+  try {
+    const styles = suppliedStyles || (await getLocalStylesForKind(kind));
+    if (styles.some((style) => style.id === styleId)) return { origin: "local" };
+  } catch (_) {
+    return { origin: "unmeasured" };
+  }
+  const diagnostic = await diagnosticStyleById(styleId);
+  if (diagnostic && diagnostic.remote === true) return { origin: "remote" };
+  if (diagnostic && diagnostic.type) return { origin: "wrong_kind" };
+  return { origin: "unknown" };
+}
+
+async function getNodeStyleAttachment(params) {
+  const input = params || {};
+  const { nodeId, kind } = input;
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    throw new Error("get_node_style_attachment requires a non-empty nodeId");
+  }
+  const descriptor = localStyleAttachmentDescriptor(kind, input.paintTarget);
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    return localStyleRefusal("node_not_found", `Node ${nodeId} was not found.`, { nodeId });
+  }
+  const attachment = readNodeLocalStyleAttachment(node, descriptor);
+  const reference = attachment.readable && !attachment.mixed
+    ? await classifyNodeStyleReference(kind, attachment.styleId)
+    : { origin: attachment.mixed ? "mixed" : "unreadable" };
+  return {
+    success: true,
+    scope: "node_style_attachment",
+    node: { id: node.id, name: node.name, type: node.type },
+    kind,
+    paintTarget: descriptor.target,
+    attachment: { ...attachment, ...reference },
+  };
+}
+
+async function setLocalStyleAttachment(params) {
+  const input = params || {};
+  const { nodeId, kind, styleId } = input;
+  if (typeof nodeId !== "string" || nodeId.length === 0) {
+    throw new Error("set_local_style_attachment requires a non-empty nodeId and wrote nothing");
+  }
+  if (styleId !== null && (typeof styleId !== "string" || styleId.length === 0)) {
+    throw new Error(
+      "set_local_style_attachment requires an exact local styleId or null to clear and wrote nothing"
+    );
+  }
+  const descriptor = localStyleAttachmentDescriptor(kind, input.paintTarget);
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    return localStyleRefusal("node_not_found", `Node ${nodeId} was not found.`, { nodeId });
+  }
+  const before = readNodeLocalStyleAttachment(node, descriptor);
+  if (!before.surface) {
+    return localStyleRefusal(
+      "attachment_surface_unavailable",
+      `Node ${nodeId} (${node.type}) has no ${kind} style attachment surface.`,
+      { nodeId, kind }
+    );
+  }
+  if (typeof node[descriptor.setter] !== "function") {
+    return localStyleRefusal(
+      "attachment_api_unavailable",
+      `Node ${nodeId} exposes ${descriptor.property} but this dynamic-page Figma runtime has no ${descriptor.setter} API.`,
+      { nodeId, kind }
+    );
+  }
+
+  let localStyles = null;
+  if (styleId !== null) {
+    const resolved = await resolveExactLocalStyle(kind, styleId);
+    if (resolved.refusal) return resolved.refusal;
+    localStyles = resolved.styles;
+  }
+  const previousBinding =
+    before.readable && !before.mixed
+      ? await classifyNodeStyleReference(kind, before.styleId, localStyles)
+      : { origin: before.mixed ? "mixed" : "unreadable" };
+
+  try {
+    await node[descriptor.setter](styleId === null ? "" : styleId);
+  } catch (error) {
+    return {
+      ...localStyleRefusal(
+        "attachment_write_rejected",
+        `Figma rejected the ${kind} style attachment after local-only preflight.`,
+        { nodeId, kind }
+      ),
+      wrote: "unknown",
+    };
+  }
+  const after = readNodeLocalStyleAttachment(node, descriptor);
+  const readbackMatchesRequested =
+    after.readable && !after.mixed ? after.styleId === styleId : null;
+  return {
+    success: true,
+    scope: "node_style_attachment",
+    node: { id: node.id, name: node.name, type: node.type },
+    kind,
+    paintTarget: descriptor.target,
+    action: styleId === null ? "cleared" : "attached",
+    requestedStyleId: styleId,
+    before,
+    after,
+    previousBinding,
+    readbackMatchesRequested,
+    outcome: readbackMatchesRequested === true ? "confirmed" : "unconfirmed",
+  };
+}
+
+async function deleteLocalStyle(params) {
+  const input = params || {};
+  const { kind, styleId, identityKey } = input;
+  localStyleConfig(kind);
+  requireLocalStyleId(styleId, "delete_local_style");
+  requireLocalStyleIdentity(identityKey, "delete_local_style");
+  if (input.confirm !== true) {
+    return localStyleRefusal(
+      "confirmation_required",
+      "delete_local_style requires confirm: true and made no native remove call.",
+      { kind, styleId }
+    );
+  }
+  const resolved = await resolveExactLocalStyle(kind, styleId);
+  if (resolved.refusal) return resolved.refusal;
+  const ownership = localStyleOwnershipRefusal(
+    resolved.style,
+    kind,
+    styleId,
+    identityKey
+  );
+  if (ownership) return ownership;
+  const consumers = await observeLocalStyleConsumers(resolved.style);
+  if (consumers.status !== "observed") {
+    return localStyleRefusal(
+      "consumer_observation_unavailable",
+      `Cannot confirm that local ${kind} style ${styleId} has no consumers, so deletion is refused.`,
+      { kind, styleId, consumerObservation: consumers.status }
+    );
+  }
+  if (consumers.count > 0) {
+    return localStyleRefusal(
+      "style_has_consumers",
+      `Local ${kind} style ${styleId} still has ${consumers.count} consumer${
+        consumers.count === 1 ? "" : "s"
+      }; deletion never detaches consumers implicitly.`,
+      { kind, styleId, consumerCount: consumers.count }
+    );
+  }
+  if (typeof resolved.style.remove !== "function") {
+    return localStyleRefusal(
+      "local_style_removal_unavailable",
+      `This Figma runtime exposes no removal API for local ${kind} style ${styleId}.`,
+      { kind, styleId }
+    );
+  }
+
+  try {
+    resolved.style.remove();
+  } catch (_) {
+    return {
+      ...localStyleRefusal(
+        "local_style_removal_rejected",
+        `Figma rejected removal of local ${kind} style ${styleId}.`,
+        { kind, styleId }
+      ),
+      wrote: "unknown",
+    };
+  }
+
+  let removal = "removal_unconfirmed";
+  try {
+    const afterInventory = await getLocalStylesForKind(kind);
+    if (!afterInventory.some((style) => style.id === styleId)) removal = "removed";
+  } catch (_) {
+    // `remove()` is not proof. A separate local inventory is the independent signal.
+  }
+  return {
+    success: removal === "removed",
+    scope: "local_style",
+    action: "delete_requested",
+    kind,
+    styleId,
+    consumers,
+    removal,
+    outcome: removal === "removed" ? "confirmed" : "unconfirmed",
+  };
 }
 
 function getComponentFamilyName(component) {

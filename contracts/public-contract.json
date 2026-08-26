@@ -1,10 +1,10 @@
 {
-  "release": "R3.1",
-  "publicContractVersion": "1.19.0",
-  "serverSchemaVersion": "1.19.0",
+  "release": "R3.2",
+  "publicContractVersion": "1.20.0",
+  "serverSchemaVersion": "1.20.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -17,12 +17,14 @@
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
@@ -33,7 +35,9 @@
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
+    "figma.command.get_local_style@1",
     "figma.command.get_node_info@1",
+    "figma.command.get_node_style_attachment@1",
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
@@ -71,6 +75,7 @@
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
     "figma.command.set_layout_sizing@1",
+    "figma.command.set_local_style_attachment@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_opacity@1",
@@ -85,6 +90,7 @@
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.update_local_style@1",
     "relay.channel@1"
   ],
   "connectionPlumbing": {
@@ -123,6 +129,12 @@
       "delete_node",
       "delete_multiple_nodes",
       "get_styles",
+      "get_local_style",
+      "create_or_match_local_style",
+      "update_local_style",
+      "get_node_style_attachment",
+      "set_local_style_attachment",
+      "delete_local_style",
       "get_local_components",
       "get_variables",
       "get_variable_capabilities",
@@ -205,6 +217,12 @@
       "delete_node",
       "delete_multiple_nodes",
       "get_styles",
+      "get_local_style",
+      "create_or_match_local_style",
+      "update_local_style",
+      "get_node_style_attachment",
+      "set_local_style_attachment",
+      "delete_local_style",
       "get_local_components",
       "get_variables",
       "get_variable_capabilities",
@@ -287,6 +305,12 @@
       "delete_node",
       "delete_multiple_nodes",
       "get_styles",
+      "get_local_style",
+      "create_or_match_local_style",
+      "update_local_style",
+      "get_node_style_attachment",
+      "set_local_style_attachment",
+      "delete_local_style",
       "get_local_components",
       "get_variables",
       "get_variable_capabilities",
@@ -1046,6 +1070,463 @@
     },
     {
       "kind": "tool",
+      "name": "create_or_match_local_style",
+      "description": "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind.",
+      "direction": "write",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact local style name; same-kind collisions without the supplied identity refuse"
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Opaque private ownership marker; never echoed or used outside this file"
+          },
+          "paints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "SOLID",
+                    "GRADIENT_LINEAR",
+                    "GRADIENT_RADIAL",
+                    "GRADIENT_ANGULAR",
+                    "GRADIENT_DIAMOND"
+                  ]
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                },
+                "gradientStops": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "position": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "object",
+                        "properties": {
+                          "r": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "g": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "b": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "a": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "r",
+                          "g",
+                          "b"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "position",
+                      "color"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "gradientTransform": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "scale": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "blendMode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "Paint-style value; required only when kind is paint"
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "fontFamily": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fontStyle": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fontSize": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "lineHeight": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "PIXELS",
+                      "PERCENT",
+                      "AUTO"
+                    ]
+                  }
+                },
+                "required": [
+                  "unit"
+                ],
+                "additionalProperties": true
+              },
+              "letterSpacing": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "PIXELS",
+                      "PERCENT"
+                    ]
+                  }
+                },
+                "required": [
+                  "unit"
+                ],
+                "additionalProperties": true
+              },
+              "textCase": {
+                "type": "string",
+                "enum": [
+                  "ORIGINAL",
+                  "UPPER",
+                  "LOWER",
+                  "TITLE",
+                  "SMALL_CAPS",
+                  "SMALL_CAPS_FORCED"
+                ]
+              },
+              "textDecoration": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "UNDERLINE",
+                  "STRIKETHROUGH"
+                ]
+              },
+              "textAlignHorizontal": {
+                "type": "string",
+                "enum": [
+                  "LEFT",
+                  "CENTER",
+                  "RIGHT",
+                  "JUSTIFIED"
+                ]
+              },
+              "textAlignVertical": {
+                "type": "string",
+                "enum": [
+                  "TOP",
+                  "CENTER",
+                  "BOTTOM"
+                ]
+              },
+              "paragraphSpacing": {
+                "type": "number",
+                "minimum": 0
+              },
+              "paragraphIndent": {
+                "type": "number",
+                "minimum": 0
+              },
+              "textAutoResize": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "HEIGHT",
+                  "WIDTH_AND_HEIGHT",
+                  "TRUNCATE"
+                ]
+              }
+            },
+            "additionalProperties": true,
+            "description": "Text-style value; required only when kind is text"
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "DROP_SHADOW",
+                    "INNER_SHADOW",
+                    "LAYER_BLUR",
+                    "BACKGROUND_BLUR"
+                  ]
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                },
+                "offset": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "spread": {
+                  "type": "number"
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "blendMode": {
+                  "type": "string"
+                },
+                "showShadowBehindNode": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "Effect-style value; required only when kind is effect"
+          },
+          "layoutGrids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "enum": [
+                    "GRID",
+                    "ROWS",
+                    "COLUMNS"
+                  ]
+                },
+                "alignment": {
+                  "type": "string",
+                  "enum": [
+                    "MIN",
+                    "MAX",
+                    "STRETCH",
+                    "CENTER"
+                  ]
+                },
+                "gutterSize": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sectionSize": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "offset": {
+                  "type": "number"
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "pattern"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "Provisional grid-style value; required only when kind is grid"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "identityKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_or_match_local_style",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "create_page",
       "description": "[Document scoped] Create a new page in the Figma document. Does not switch the active page - call set_current_page afterwards if you need to work inside it",
       "direction": "write",
@@ -1476,6 +1957,55 @@
     },
     {
       "kind": "tool",
+      "name": "delete_local_style",
+      "description": "Delete one owned exact local style only after confirm: true, exact same-kind local-ID resolution, private identity verification, and a readable zero-consumer observation. The tool never deletes by name, never detaches consumers implicitly, and reports removal_unconfirmed unless a fresh local inventory independently proves absence.",
+      "direction": "write",
+      "scope": "local_style",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "styleId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true,
+            "description": "Literal destructive-action acknowledgement; false or omission is refused before remove"
+          }
+        },
+        "required": [
+          "kind",
+          "styleId",
+          "identityKey",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "delete_local_style",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "delete_multiple_nodes",
       "description": "Delete multiple nodes from Figma at once",
       "direction": "write",
@@ -1855,6 +2385,48 @@
     },
     {
       "kind": "tool",
+      "name": "get_local_style",
+      "description": "Read one exact local paint, text, effect, or grid style by its local plugin ID. The result is a bounded canonical local-style projection: kind, name, stored value, local/remote state, private-identity status without the identity value, and optionally a consumer count. It never resolves a Figma library key, imports a remote style, or uses a name as a selector.",
+      "direction": "read",
+      "scope": "local_style",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "styleId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact current-file local style ID"
+          },
+          "includeConsumers": {
+            "type": "boolean",
+            "description": "Include a bounded consumer observation; false by default"
+          }
+        },
+        "required": [
+          "kind",
+          "styleId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_local_style",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "get_node_info",
       "description": "[Node-subtree scoped] Get detailed information about a specific Figma node. Document-root ID 0:0 is unsupported; use get_pages first.",
       "direction": "read",
@@ -1879,6 +2451,51 @@
       },
       "pluginCommand": "get_node_info",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_node_style_attachment",
+      "description": "Read a node's direct plugin style reference for paint fill/stroke, text, effect, or grid. It reports unreadable and mixed references explicitly and classifies a readable ID only as exact-local, remote, wrong-kind, unknown, or unmeasured; it never joins against REST style keys.",
+      "direction": "read",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "paintTarget": {
+            "type": "string",
+            "enum": [
+              "fill",
+              "stroke"
+            ],
+            "description": "Required only to select a paint style's fill or stroke surface; fill is the default"
+          }
+        },
+        "required": [
+          "nodeId",
+          "kind"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "get_node_style_attachment",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -3560,6 +4177,62 @@
     },
     {
       "kind": "tool",
+      "name": "set_local_style_attachment",
+      "description": "Attach one exact current-file local style to a node's fill, stroke, text, effect, or grid surface, or pass styleId: null to clear that one attachment. Remote/library IDs are refused before every native setter. Clearing or replacing a pre-existing remote binding with a local style is allowed and the receipt names the prior binding's observed origin.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "styleId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paintTarget": {
+            "type": "string",
+            "enum": [
+              "fill",
+              "stroke"
+            ]
+          }
+        },
+        "required": [
+          "nodeId",
+          "kind",
+          "styleId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_local_style_attachment",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "set_multiple_annotations",
       "description": "Set multiple annotations in a node, one at a time — this tool does not batch or parallelise, and emits one progress frame per annotation. The reply keeps its existing two prose blocks and appends a JSON receipt carrying the unified `outcome`/`succeeded`/`failed`/`skipped`/`total` alongside every legacy field, so the aggregate cannot be read from a `success` flag that is true whenever a single item succeeded",
       "direction": "write",
@@ -4380,6 +5053,461 @@
       },
       "pluginCommand": "set_variable_value",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "update_local_style",
+      "description": "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed.",
+      "direction": "write",
+      "scope": "local_style",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "paint",
+              "text",
+              "effect",
+              "grid"
+            ]
+          },
+          "styleId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "paints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "SOLID",
+                    "GRADIENT_LINEAR",
+                    "GRADIENT_RADIAL",
+                    "GRADIENT_ANGULAR",
+                    "GRADIENT_DIAMOND"
+                  ]
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                },
+                "gradientStops": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "position": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "color": {
+                        "type": "object",
+                        "properties": {
+                          "r": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "g": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "b": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "a": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "required": [
+                          "r",
+                          "g",
+                          "b"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "position",
+                      "color"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "gradientTransform": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "angle": {
+                  "type": "number"
+                },
+                "scale": {
+                  "type": "number",
+                  "exclusiveMinimum": 0
+                },
+                "opacity": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "blendMode": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "fontFamily": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fontStyle": {
+                "type": "string",
+                "minLength": 1
+              },
+              "fontSize": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "lineHeight": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "PIXELS",
+                      "PERCENT",
+                      "AUTO"
+                    ]
+                  }
+                },
+                "required": [
+                  "unit"
+                ],
+                "additionalProperties": true
+              },
+              "letterSpacing": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "type": "number"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "PIXELS",
+                      "PERCENT"
+                    ]
+                  }
+                },
+                "required": [
+                  "unit"
+                ],
+                "additionalProperties": true
+              },
+              "textCase": {
+                "type": "string",
+                "enum": [
+                  "ORIGINAL",
+                  "UPPER",
+                  "LOWER",
+                  "TITLE",
+                  "SMALL_CAPS",
+                  "SMALL_CAPS_FORCED"
+                ]
+              },
+              "textDecoration": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "UNDERLINE",
+                  "STRIKETHROUGH"
+                ]
+              },
+              "textAlignHorizontal": {
+                "type": "string",
+                "enum": [
+                  "LEFT",
+                  "CENTER",
+                  "RIGHT",
+                  "JUSTIFIED"
+                ]
+              },
+              "textAlignVertical": {
+                "type": "string",
+                "enum": [
+                  "TOP",
+                  "CENTER",
+                  "BOTTOM"
+                ]
+              },
+              "paragraphSpacing": {
+                "type": "number",
+                "minimum": 0
+              },
+              "paragraphIndent": {
+                "type": "number",
+                "minimum": 0
+              },
+              "textAutoResize": {
+                "type": "string",
+                "enum": [
+                  "NONE",
+                  "HEIGHT",
+                  "WIDTH_AND_HEIGHT",
+                  "TRUNCATE"
+                ]
+              }
+            },
+            "additionalProperties": true
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "DROP_SHADOW",
+                    "INNER_SHADOW",
+                    "LAYER_BLUR",
+                    "BACKGROUND_BLUR"
+                  ]
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                },
+                "offset": {
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                },
+                "radius": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "spread": {
+                  "type": "number"
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "blendMode": {
+                  "type": "string"
+                },
+                "showShadowBehindNode": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16
+          },
+          "layoutGrids": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pattern": {
+                  "type": "string",
+                  "enum": [
+                    "GRID",
+                    "ROWS",
+                    "COLUMNS"
+                  ]
+                },
+                "alignment": {
+                  "type": "string",
+                  "enum": [
+                    "MIN",
+                    "MAX",
+                    "STRETCH",
+                    "CENTER"
+                  ]
+                },
+                "gutterSize": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "sectionSize": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "offset": {
+                  "type": "number"
+                },
+                "visible": {
+                  "type": "boolean"
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "r": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "g": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "b": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "a": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "r",
+                    "g",
+                    "b"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "pattern"
+              ],
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "kind",
+          "styleId",
+          "identityKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "update_local_style",
+      "resultStability": "additive-preview"
     }
   ],
   "prompts": [

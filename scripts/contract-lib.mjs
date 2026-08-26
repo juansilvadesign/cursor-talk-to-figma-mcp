@@ -81,6 +81,15 @@ const TIMEOUT_RANK = {
 const HEAVY_BATCH_TOOLS = new Set(["apply_batch"]);
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
+  // R3.2 local-style authoring is intentionally held at additive-preview until its
+  // disposable-file gate measures identity storage, remote refusal, attachment readback,
+  // all four style value classes, consumer-aware deletion, and independent cleanup.
+  "get_local_style",
+  "create_or_match_local_style",
+  "update_local_style",
+  "get_node_style_attachment",
+  "set_local_style_attachment",
+  "delete_local_style",
   // R3.1's three measurement enablers need their distinct live gates before their
   // receipts can freeze. They are deliberately additive rather than a correction to a
   // stable creator/style/text surface.
@@ -95,6 +104,8 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   "get_pages",
   "set_current_page",
   "get_styles",
+  "get_local_style",
+  "get_node_style_attachment",
   "get_local_components",
   "get_variables",
   // ✅ R3-A Phase 2's remaining table — `create_variable_collection`,
@@ -243,6 +254,8 @@ const READ_TOOLS = new Set([
   "scan_text_nodes",
   "scan_nodes_by_types",
   "get_styles",
+  "get_local_style",
+  "get_node_style_attachment",
   "get_local_components",
   "get_variables",
   "get_variable_capabilities",
@@ -275,6 +288,14 @@ const TOOL_SCOPES = {
   scan_text_nodes: "node_subtree",
   scan_nodes_by_types: "node_subtree",
   get_styles: "document",
+  // R3.2's resource reads/updates name the exact style; only creation needs document
+  // scope because it first inventories the same-kind local namespace for collisions.
+  get_local_style: "local_style",
+  create_or_match_local_style: "document",
+  update_local_style: "local_style",
+  delete_local_style: "local_style",
+  get_node_style_attachment: "node",
+  set_local_style_attachment: "node",
   get_local_components: "document_or_selected_pages",
   get_variables: "document",
   get_variable_capabilities: "document",

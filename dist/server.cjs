@@ -34,13 +34,13 @@ var import_path = __toESM(require("path"), 1);
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R3.1",
-  "serverBuildId": "r3.1-server-beff31768985",
-  "pluginBuildId": "r3.1-plugin-ed16fbb94fa9",
-  "serverSchemaVersion": "1.19.0",
-  "pluginApiVersion": "1.19.0",
+  "release": "R3.2",
+  "serverBuildId": "r3.2-server-c08e691bdcdc",
+  "pluginBuildId": "r3.2-plugin-98129b15fafd",
+  "serverSchemaVersion": "1.20.0",
+  "pluginApiVersion": "1.20.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -65,6 +65,12 @@ var RUNTIME_METADATA = {
     "delete_node",
     "delete_multiple_nodes",
     "get_styles",
+    "get_local_style",
+    "create_or_match_local_style",
+    "update_local_style",
+    "get_node_style_attachment",
+    "set_local_style_attachment",
+    "delete_local_style",
     "get_local_components",
     "get_variables",
     "get_variable_capabilities",
@@ -134,12 +140,14 @@ var RUNTIME_METADATA = {
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
@@ -150,7 +158,9 @@ var RUNTIME_METADATA = {
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
+    "figma.command.get_local_style@1",
     "figma.command.get_node_info@1",
+    "figma.command.get_node_style_attachment@1",
     "figma.command.get_node_variables@1",
     "figma.command.get_nodes_info@1",
     "figma.command.get_pages@1",
@@ -188,6 +198,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
     "figma.command.set_layout_sizing@1",
+    "figma.command.set_local_style_attachment@1",
     "figma.command.set_multiple_annotations@1",
     "figma.command.set_multiple_text_contents@1",
     "figma.command.set_opacity@1",
@@ -202,6 +213,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.update_local_style@1",
     "relay.channel@1"
   ],
   "supportedTools": [
@@ -216,12 +228,14 @@ var RUNTIME_METADATA = {
     "create_frame",
     "create_group",
     "create_node_from_svg",
+    "create_or_match_local_style",
     "create_page",
     "create_rectangle",
     "create_section",
     "create_text",
     "create_variable",
     "create_variable_collection",
+    "delete_local_style",
     "delete_multiple_nodes",
     "delete_node",
     "delete_variable",
@@ -232,7 +246,9 @@ var RUNTIME_METADATA = {
     "get_document_info",
     "get_instance_overrides",
     "get_local_components",
+    "get_local_style",
     "get_node_info",
+    "get_node_style_attachment",
     "get_node_variables",
     "get_nodes_info",
     "get_pages",
@@ -271,6 +287,7 @@ var RUNTIME_METADATA = {
     "set_layout_child",
     "set_layout_mode",
     "set_layout_sizing",
+    "set_local_style_attachment",
     "set_multiple_annotations",
     "set_multiple_text_contents",
     "set_opacity",
@@ -284,7 +301,8 @@ var RUNTIME_METADATA = {
     "set_text_content",
     "set_text_style",
     "set_variable_metadata",
-    "set_variable_value"
+    "set_variable_value",
+    "update_local_style"
   ],
   "supportedPrompts": [
     "annotation_conversion_strategy",
@@ -3876,6 +3894,213 @@ server.tool(
             text: `Error setting fill style: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
+      };
+    }
+  }
+);
+server.tool(
+  "get_local_style",
+  "Read one exact local paint, text, effect, or grid style by its local plugin ID. The result is a bounded canonical local-style projection: kind, name, stored value, local/remote state, private-identity status without the identity value, and optionally a consumer count. It never resolves a Figma library key, imports a remote style, or uses a name as a selector.",
+  {
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    styleId: import_zod.z.string().min(1).describe("Exact current-file local style ID"),
+    includeConsumers: import_zod.z.boolean().optional().describe("Include a bounded consumer observation; false by default")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("get_local_style", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error reading local style: ${error instanceof Error ? error.message : String(error)}` }]
+      };
+    }
+  }
+);
+server.tool(
+  "create_or_match_local_style",
+  "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind.",
+  {
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    name: import_zod.z.string().min(1).describe("Exact local style name; same-kind collisions without the supplied identity refuse"),
+    identityKey: import_zod.z.string().min(1).max(2048).describe("Opaque private ownership marker; never echoed or used outside this file"),
+    paints: import_zod.z.array(import_zod.z.object({
+      type: import_zod.z.enum(["SOLID", "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"]),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional(),
+      gradientStops: import_zod.z.array(import_zod.z.object({ position: import_zod.z.number().finite().min(0).max(1), color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }) })).optional(),
+      gradientTransform: import_zod.z.array(import_zod.z.array(import_zod.z.number().finite())).optional(),
+      angle: import_zod.z.number().finite().optional(),
+      scale: import_zod.z.number().finite().positive().optional(),
+      opacity: import_zod.z.number().finite().min(0).max(1).optional(),
+      visible: import_zod.z.boolean().optional(),
+      blendMode: import_zod.z.string().optional()
+    }).passthrough()).min(1).max(16).optional().describe("Paint-style value; required only when kind is paint"),
+    text: import_zod.z.object({
+      fontFamily: import_zod.z.string().min(1).optional(),
+      fontStyle: import_zod.z.string().min(1).optional(),
+      fontSize: import_zod.z.number().finite().min(1).max(65535).optional(),
+      lineHeight: import_zod.z.object({ value: import_zod.z.number().finite().optional(), unit: import_zod.z.enum(["PIXELS", "PERCENT", "AUTO"]) }).passthrough().optional(),
+      letterSpacing: import_zod.z.object({ value: import_zod.z.number().finite().optional(), unit: import_zod.z.enum(["PIXELS", "PERCENT"]) }).passthrough().optional(),
+      textCase: import_zod.z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
+      textDecoration: import_zod.z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+      textAlignHorizontal: import_zod.z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
+      textAlignVertical: import_zod.z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+      paragraphSpacing: import_zod.z.number().finite().min(0).optional(),
+      paragraphIndent: import_zod.z.number().finite().min(0).optional(),
+      textAutoResize: import_zod.z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional()
+    }).passthrough().optional().describe("Text-style value; required only when kind is text"),
+    effects: import_zod.z.array(import_zod.z.object({
+      type: import_zod.z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional(),
+      offset: import_zod.z.object({ x: import_zod.z.number().finite(), y: import_zod.z.number().finite() }).optional(),
+      radius: import_zod.z.number().finite().min(0).optional(),
+      spread: import_zod.z.number().finite().optional(),
+      visible: import_zod.z.boolean().optional(),
+      blendMode: import_zod.z.string().optional(),
+      showShadowBehindNode: import_zod.z.boolean().optional()
+    }).passthrough()).min(1).max(16).optional().describe("Effect-style value; required only when kind is effect"),
+    layoutGrids: import_zod.z.array(import_zod.z.object({
+      pattern: import_zod.z.enum(["GRID", "ROWS", "COLUMNS"]),
+      alignment: import_zod.z.enum(["MIN", "MAX", "STRETCH", "CENTER"]).optional(),
+      gutterSize: import_zod.z.number().finite().min(0).optional(),
+      count: import_zod.z.number().int().min(1).optional(),
+      sectionSize: import_zod.z.number().finite().min(0).optional(),
+      offset: import_zod.z.number().finite().optional(),
+      visible: import_zod.z.boolean().optional(),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional()
+    }).passthrough()).min(1).max(16).optional().describe("Provisional grid-style value; required only when kind is grid")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("create_or_match_local_style", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error creating or matching local style: ${error instanceof Error ? error.message : String(error)}` }]
+      };
+    }
+  }
+);
+server.tool(
+  "update_local_style",
+  "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed.",
+  {
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    styleId: import_zod.z.string().min(1),
+    identityKey: import_zod.z.string().min(1).max(2048),
+    name: import_zod.z.string().min(1).optional(),
+    paints: import_zod.z.array(import_zod.z.object({
+      type: import_zod.z.enum(["SOLID", "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"]),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional(),
+      gradientStops: import_zod.z.array(import_zod.z.object({ position: import_zod.z.number().finite().min(0).max(1), color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }) })).optional(),
+      gradientTransform: import_zod.z.array(import_zod.z.array(import_zod.z.number().finite())).optional(),
+      angle: import_zod.z.number().finite().optional(),
+      scale: import_zod.z.number().finite().positive().optional(),
+      opacity: import_zod.z.number().finite().min(0).max(1).optional(),
+      visible: import_zod.z.boolean().optional(),
+      blendMode: import_zod.z.string().optional()
+    }).passthrough()).min(1).max(16).optional(),
+    text: import_zod.z.object({
+      fontFamily: import_zod.z.string().min(1).optional(),
+      fontStyle: import_zod.z.string().min(1).optional(),
+      fontSize: import_zod.z.number().finite().min(1).max(65535).optional(),
+      lineHeight: import_zod.z.object({ value: import_zod.z.number().finite().optional(), unit: import_zod.z.enum(["PIXELS", "PERCENT", "AUTO"]) }).passthrough().optional(),
+      letterSpacing: import_zod.z.object({ value: import_zod.z.number().finite().optional(), unit: import_zod.z.enum(["PIXELS", "PERCENT"]) }).passthrough().optional(),
+      textCase: import_zod.z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
+      textDecoration: import_zod.z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+      textAlignHorizontal: import_zod.z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
+      textAlignVertical: import_zod.z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+      paragraphSpacing: import_zod.z.number().finite().min(0).optional(),
+      paragraphIndent: import_zod.z.number().finite().min(0).optional(),
+      textAutoResize: import_zod.z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional()
+    }).passthrough().optional(),
+    effects: import_zod.z.array(import_zod.z.object({
+      type: import_zod.z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional(),
+      offset: import_zod.z.object({ x: import_zod.z.number().finite(), y: import_zod.z.number().finite() }).optional(),
+      radius: import_zod.z.number().finite().min(0).optional(),
+      spread: import_zod.z.number().finite().optional(),
+      visible: import_zod.z.boolean().optional(),
+      blendMode: import_zod.z.string().optional(),
+      showShadowBehindNode: import_zod.z.boolean().optional()
+    }).passthrough()).min(1).max(16).optional(),
+    layoutGrids: import_zod.z.array(import_zod.z.object({
+      pattern: import_zod.z.enum(["GRID", "ROWS", "COLUMNS"]),
+      alignment: import_zod.z.enum(["MIN", "MAX", "STRETCH", "CENTER"]).optional(),
+      gutterSize: import_zod.z.number().finite().min(0).optional(),
+      count: import_zod.z.number().int().min(1).optional(),
+      sectionSize: import_zod.z.number().finite().min(0).optional(),
+      offset: import_zod.z.number().finite().optional(),
+      visible: import_zod.z.boolean().optional(),
+      color: import_zod.z.object({ r: import_zod.z.number().finite().min(0).max(1), g: import_zod.z.number().finite().min(0).max(1), b: import_zod.z.number().finite().min(0).max(1), a: import_zod.z.number().finite().min(0).max(1).optional() }).optional()
+    }).passthrough()).min(1).max(16).optional()
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("update_local_style", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error updating local style: ${error instanceof Error ? error.message : String(error)}` }]
+      };
+    }
+  }
+);
+server.tool(
+  "get_node_style_attachment",
+  "Read a node's direct plugin style reference for paint fill/stroke, text, effect, or grid. It reports unreadable and mixed references explicitly and classifies a readable ID only as exact-local, remote, wrong-kind, unknown, or unmeasured; it never joins against REST style keys.",
+  {
+    nodeId: import_zod.z.string().min(1),
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    paintTarget: import_zod.z.enum(["fill", "stroke"]).optional().describe("Required only to select a paint style's fill or stroke surface; fill is the default")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("get_node_style_attachment", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error reading node style attachment: ${error instanceof Error ? error.message : String(error)}` }]
+      };
+    }
+  }
+);
+server.tool(
+  "set_local_style_attachment",
+  "Attach one exact current-file local style to a node's fill, stroke, text, effect, or grid surface, or pass styleId: null to clear that one attachment. Remote/library IDs are refused before every native setter. Clearing or replacing a pre-existing remote binding with a local style is allowed and the receipt names the prior binding's observed origin.",
+  {
+    nodeId: import_zod.z.string().min(1),
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    styleId: import_zod.z.string().min(1).nullable(),
+    paintTarget: import_zod.z.enum(["fill", "stroke"]).optional()
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("set_local_style_attachment", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error setting local style attachment: ${error instanceof Error ? error.message : String(error)}` }]
+      };
+    }
+  }
+);
+server.tool(
+  "delete_local_style",
+  "Delete one owned exact local style only after confirm: true, exact same-kind local-ID resolution, private identity verification, and a readable zero-consumer observation. The tool never deletes by name, never detaches consumers implicitly, and reports removal_unconfirmed unless a fresh local inventory independently proves absence.",
+  {
+    kind: import_zod.z.enum(["paint", "text", "effect", "grid"]),
+    styleId: import_zod.z.string().min(1),
+    identityKey: import_zod.z.string().min(1).max(2048),
+    confirm: import_zod.z.literal(true).describe("Literal destructive-action acknowledgement; false or omission is refused before remove")
+  },
+  async (args2) => {
+    try {
+      const result = await sendCommandToFigma("delete_local_style", args2);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error deleting local style: ${error instanceof Error ? error.message : String(error)}` }]
       };
     }
   }

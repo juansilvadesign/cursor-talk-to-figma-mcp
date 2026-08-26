@@ -4427,6 +4427,204 @@ server.tool(
   }
 );
 
+// R3.2's authoring surface is intentionally local-only. A style ID is never a library
+// key, matching is never by name alone, and the plugin (not this wrapper) verifies every
+// target against Figma's exact local inventory before it calls a native mutation API.
+server.tool(
+  "get_local_style",
+  "Read one exact local paint, text, effect, or grid style by its local plugin ID. The result is a bounded canonical local-style projection: kind, name, stored value, local/remote state, private-identity status without the identity value, and optionally a consumer count. It never resolves a Figma library key, imports a remote style, or uses a name as a selector.",
+  {
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    styleId: z.string().min(1).describe("Exact current-file local style ID"),
+    includeConsumers: z
+      .boolean()
+      .optional()
+      .describe("Include a bounded consumer observation; false by default"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("get_local_style", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error reading local style: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "create_or_match_local_style",
+  "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind.",
+  {
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    name: z.string().min(1).describe("Exact local style name; same-kind collisions without the supplied identity refuse"),
+    identityKey: z.string().min(1).max(2048).describe("Opaque private ownership marker; never echoed or used outside this file"),
+    paints: z.array(z.object({
+      type: z.enum(["SOLID", "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"]),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+      gradientStops: z.array(z.object({ position: z.number().finite().min(0).max(1), color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }) })).optional(),
+      gradientTransform: z.array(z.array(z.number().finite())).optional(),
+      angle: z.number().finite().optional(),
+      scale: z.number().finite().positive().optional(),
+      opacity: z.number().finite().min(0).max(1).optional(),
+      visible: z.boolean().optional(),
+      blendMode: z.string().optional(),
+    }).passthrough()).min(1).max(16).optional().describe("Paint-style value; required only when kind is paint"),
+    text: z.object({
+      fontFamily: z.string().min(1).optional(),
+      fontStyle: z.string().min(1).optional(),
+      fontSize: z.number().finite().min(1).max(65535).optional(),
+      lineHeight: z.object({ value: z.number().finite().optional(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }).passthrough().optional(),
+      letterSpacing: z.object({ value: z.number().finite().optional(), unit: z.enum(["PIXELS", "PERCENT"]) }).passthrough().optional(),
+      textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(),
+      textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+      textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(),
+      textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+      paragraphSpacing: z.number().finite().min(0).optional(),
+      paragraphIndent: z.number().finite().min(0).optional(),
+      textAutoResize: z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional(),
+    }).passthrough().optional().describe("Text-style value; required only when kind is text"),
+    effects: z.array(z.object({
+      type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+      offset: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(),
+      radius: z.number().finite().min(0).optional(),
+      spread: z.number().finite().optional(),
+      visible: z.boolean().optional(),
+      blendMode: z.string().optional(),
+      showShadowBehindNode: z.boolean().optional(),
+    }).passthrough()).min(1).max(16).optional().describe("Effect-style value; required only when kind is effect"),
+    layoutGrids: z.array(z.object({
+      pattern: z.enum(["GRID", "ROWS", "COLUMNS"]),
+      alignment: z.enum(["MIN", "MAX", "STRETCH", "CENTER"]).optional(),
+      gutterSize: z.number().finite().min(0).optional(),
+      count: z.number().int().min(1).optional(),
+      sectionSize: z.number().finite().min(0).optional(),
+      offset: z.number().finite().optional(),
+      visible: z.boolean().optional(),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+    }).passthrough()).min(1).max(16).optional().describe("Provisional grid-style value; required only when kind is grid"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("create_or_match_local_style", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error creating or matching local style: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "update_local_style",
+  "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed.",
+  {
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    styleId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+    name: z.string().min(1).optional(),
+    paints: z.array(z.object({
+      type: z.enum(["SOLID", "GRADIENT_LINEAR", "GRADIENT_RADIAL", "GRADIENT_ANGULAR", "GRADIENT_DIAMOND"]),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+      gradientStops: z.array(z.object({ position: z.number().finite().min(0).max(1), color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }) })).optional(),
+      gradientTransform: z.array(z.array(z.number().finite())).optional(),
+      angle: z.number().finite().optional(), scale: z.number().finite().positive().optional(), opacity: z.number().finite().min(0).max(1).optional(), visible: z.boolean().optional(), blendMode: z.string().optional(),
+    }).passthrough()).min(1).max(16).optional(),
+    text: z.object({
+      fontFamily: z.string().min(1).optional(), fontStyle: z.string().min(1).optional(), fontSize: z.number().finite().min(1).max(65535).optional(),
+      lineHeight: z.object({ value: z.number().finite().optional(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }).passthrough().optional(),
+      letterSpacing: z.object({ value: z.number().finite().optional(), unit: z.enum(["PIXELS", "PERCENT"]) }).passthrough().optional(),
+      textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE", "SMALL_CAPS", "SMALL_CAPS_FORCED"]).optional(), textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+      textAlignHorizontal: z.enum(["LEFT", "CENTER", "RIGHT", "JUSTIFIED"]).optional(), textAlignVertical: z.enum(["TOP", "CENTER", "BOTTOM"]).optional(),
+      paragraphSpacing: z.number().finite().min(0).optional(), paragraphIndent: z.number().finite().min(0).optional(), textAutoResize: z.enum(["NONE", "HEIGHT", "WIDTH_AND_HEIGHT", "TRUNCATE"]).optional(),
+    }).passthrough().optional(),
+    effects: z.array(z.object({
+      type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+      offset: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(), radius: z.number().finite().min(0).optional(), spread: z.number().finite().optional(), visible: z.boolean().optional(), blendMode: z.string().optional(), showShadowBehindNode: z.boolean().optional(),
+    }).passthrough()).min(1).max(16).optional(),
+    layoutGrids: z.array(z.object({
+      pattern: z.enum(["GRID", "ROWS", "COLUMNS"]), alignment: z.enum(["MIN", "MAX", "STRETCH", "CENTER"]).optional(), gutterSize: z.number().finite().min(0).optional(), count: z.number().int().min(1).optional(), sectionSize: z.number().finite().min(0).optional(), offset: z.number().finite().optional(), visible: z.boolean().optional(),
+      color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
+    }).passthrough()).min(1).max(16).optional(),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("update_local_style", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error updating local style: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "get_node_style_attachment",
+  "Read a node's direct plugin style reference for paint fill/stroke, text, effect, or grid. It reports unreadable and mixed references explicitly and classifies a readable ID only as exact-local, remote, wrong-kind, unknown, or unmeasured; it never joins against REST style keys.",
+  {
+    nodeId: z.string().min(1),
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    paintTarget: z.enum(["fill", "stroke"]).optional().describe("Required only to select a paint style's fill or stroke surface; fill is the default"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("get_node_style_attachment", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error reading node style attachment: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "set_local_style_attachment",
+  "Attach one exact current-file local style to a node's fill, stroke, text, effect, or grid surface, or pass styleId: null to clear that one attachment. Remote/library IDs are refused before every native setter. Clearing or replacing a pre-existing remote binding with a local style is allowed and the receipt names the prior binding's observed origin.",
+  {
+    nodeId: z.string().min(1),
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    styleId: z.string().min(1).nullable(),
+    paintTarget: z.enum(["fill", "stroke"]).optional(),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("set_local_style_attachment", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error setting local style attachment: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
+server.tool(
+  "delete_local_style",
+  "Delete one owned exact local style only after confirm: true, exact same-kind local-ID resolution, private identity verification, and a readable zero-consumer observation. The tool never deletes by name, never detaches consumers implicitly, and reports removal_unconfirmed unless a fresh local inventory independently proves absence.",
+  {
+    kind: z.enum(["paint", "text", "effect", "grid"]),
+    styleId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+    confirm: z.literal(true).describe("Literal destructive-action acknowledgement; false or omission is refused before remove"),
+  },
+  async (args: any) => {
+    try {
+      const result = await sendCommandToFigma("delete_local_style", args);
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return {
+        content: [{ type: "text", text: `Error deleting local style: ${error instanceof Error ? error.message : String(error)}` }],
+      };
+    }
+  }
+);
+
 // R2.7 item 1.2 — effects. The flat optional-field object is intentional: ownership
 // depends on `type`, so the plugin can refuse a cross-type or unknown field by name rather
 // than Zod silently dropping it before the handler can explain what would be discarded.
@@ -4959,6 +5157,12 @@ type FigmaCommand =
   | "delete_node"
   | "delete_multiple_nodes"
   | "get_styles"
+  | "get_local_style"
+  | "create_or_match_local_style"
+  | "update_local_style"
+  | "get_node_style_attachment"
+  | "set_local_style_attachment"
+  | "delete_local_style"
   | "get_local_components"
   | "get_variables"
   | "get_variable_capabilities"
@@ -5147,6 +5351,47 @@ type CommandParams = {
     nodeIds: string[];
   };
   get_styles: Record<string, never>;
+  get_local_style: {
+    kind: "paint" | "text" | "effect" | "grid";
+    styleId: string;
+    includeConsumers?: boolean;
+  };
+  create_or_match_local_style: {
+    kind: "paint" | "text" | "effect" | "grid";
+    name: string;
+    identityKey: string;
+    paints?: Array<Record<string, unknown>>;
+    text?: Record<string, unknown>;
+    effects?: Array<Record<string, unknown>>;
+    layoutGrids?: Array<Record<string, unknown>>;
+  };
+  update_local_style: {
+    kind: "paint" | "text" | "effect" | "grid";
+    styleId: string;
+    identityKey: string;
+    name?: string;
+    paints?: Array<Record<string, unknown>>;
+    text?: Record<string, unknown>;
+    effects?: Array<Record<string, unknown>>;
+    layoutGrids?: Array<Record<string, unknown>>;
+  };
+  get_node_style_attachment: {
+    nodeId: string;
+    kind: "paint" | "text" | "effect" | "grid";
+    paintTarget?: "fill" | "stroke";
+  };
+  set_local_style_attachment: {
+    nodeId: string;
+    kind: "paint" | "text" | "effect" | "grid";
+    styleId: string | null;
+    paintTarget?: "fill" | "stroke";
+  };
+  delete_local_style: {
+    kind: "paint" | "text" | "effect" | "grid";
+    styleId: string;
+    identityKey: string;
+    confirm: true;
+  };
   get_local_components: {
     summary?: boolean;
     limit?: number;

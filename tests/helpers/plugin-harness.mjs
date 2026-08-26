@@ -44,6 +44,17 @@ function createFixtureRuntime(fixture, options) {
   const clock = { now: 0 };
   let dynamicId = 1;
   let dynamicVariableId = 1;
+  let dynamicStyleId = 1;
+  // Style calls are observable separately from their resulting state. That lets the R3.2
+  // tests prove a remote/wrong-kind refusal stopped before setter/remove/import fallbacks,
+  // rather than merely observing that the fixture happened to stay unchanged.
+  const styleNativeCalls = {
+    create: [],
+    remove: [],
+    setPluginData: [],
+    setValue: [],
+    attach: [],
+  };
 
   const containers = new Set([
     "DOCUMENT",
@@ -185,6 +196,16 @@ function createFixtureRuntime(fixture, options) {
     "BOOLEAN_OPERATION",
   ]);
 
+  // Dynamic-page Figma exposes grid-style attachment on frame-like nodes. The harness
+  // models only this documented surface; whether newer node kinds join it is a live-gate
+  // question, not a reason to grant every fake node a grid setter.
+  const GRID_STYLE_CARRIERS = new Set([
+    "FRAME",
+    "COMPONENT",
+    "COMPONENT_SET",
+    "INSTANCE",
+  ]);
+
   const CONSTRAINT_CARRIERS = new Set([
     "FRAME",
     "COMPONENT",
@@ -216,6 +237,9 @@ function createFixtureRuntime(fixture, options) {
         // That is what left the plugin filter's `effectStyleId` branch dead against real
         // input while the suite stayed green. The export models REST; REST has `styles`.
         key === "effectStyleId" ||
+        key === "strokeStyleId" ||
+        key === "textStyleId" ||
+        key === "gridStyleId" ||
         typeof value === "function"
       ) {
         continue;
@@ -442,6 +466,8 @@ function createFixtureRuntime(fixture, options) {
         // "the reading failed" cannot be confused. Declared BEFORE the fills accessor,
         // which closes over it for the detach model below.
         let styleId = typeof node.fillStyleId === "string" ? node.fillStyleId : "";
+        let strokeStyleId =
+          typeof node.strokeStyleId === "string" ? node.strokeStyleId : "";
 
         // ⛔ A TEXT node with per-character fills answers `figma.mixed`, and a test reaches
         // that through the `mixedFills` option rather than by embedding a symbol in the
@@ -502,15 +528,45 @@ function createFixtureRuntime(fixture, options) {
         // silent-discard option is an honesty instrument: a reply that echoes its input
         // fails against a node whose async setter accepts but does not retain the value.
         node.setFillStyleIdAsync = async (value) => {
+          styleNativeCalls.attach.push({
+            nodeId: node.id,
+            kind: "paint",
+            target: "fill",
+            value,
+          });
           if ((options.ignoreFillStyleWrites || []).includes(node.id)) return;
           styleId = value;
         };
         if ((options.fillStyleAttachmentApiMissing || []).includes(node.id)) {
           delete node.setFillStyleIdAsync;
         }
+
+        Object.defineProperty(node, "strokeStyleId", {
+          enumerable: true,
+          configurable: true,
+          get: () => strokeStyleId,
+          set: (value) => {
+            strokeStyleId = value;
+          },
+        });
+        node.setStrokeStyleIdAsync = async (value) => {
+          styleNativeCalls.attach.push({
+            nodeId: node.id,
+            kind: "paint",
+            target: "stroke",
+            value,
+          });
+          if ((options.ignoreStrokeStyleWrites || []).includes(node.id)) return;
+          strokeStyleId = value;
+        };
+        if ((options.strokeStyleAttachmentApiMissing || []).includes(node.id)) {
+          delete node.setStrokeStyleIdAsync;
+        }
       } else {
         delete node.fills;
         delete node.fillStyleId;
+        delete node.strokeStyleId;
+        delete node.setStrokeStyleIdAsync;
       }
     }
 
@@ -587,9 +643,23 @@ function createFixtureRuntime(fixture, options) {
             styleId = value;
           },
         });
+        node.setEffectStyleIdAsync = async (value) => {
+          styleNativeCalls.attach.push({
+            nodeId: node.id,
+            kind: "effect",
+            target: null,
+            value,
+          });
+          if ((options.ignoreEffectStyleWrites || []).includes(node.id)) return;
+          styleId = value;
+        };
+        if ((options.effectStyleAttachmentApiMissing || []).includes(node.id)) {
+          delete node.setEffectStyleIdAsync;
+        }
       } else {
         delete node.effects;
         delete node.effectStyleId;
+        delete node.setEffectStyleIdAsync;
       }
     }
 
@@ -847,6 +917,71 @@ function createFixtureRuntime(fixture, options) {
           ? [{ family: node.fontName.family, style: node.fontName.style }]
           : [];
     }
+
+    // Text styles are attached through the dynamic-page async API, not a writable
+    // textStyleId property. Keeping the readable ID and mutation method separate makes a
+    // direct-property implementation fail offline rather than accidentally passing.
+    if (node.type === "TEXT") {
+      let textStyleId =
+        typeof node.textStyleId === "string" ? node.textStyleId : "";
+      Object.defineProperty(node, "textStyleId", {
+        enumerable: true,
+        configurable: true,
+        get: () => textStyleId,
+        set: (value) => {
+          textStyleId = value;
+        },
+      });
+      node.setTextStyleIdAsync = async (value) => {
+        styleNativeCalls.attach.push({
+          nodeId: node.id,
+          kind: "text",
+          target: null,
+          value,
+        });
+        if ((options.ignoreTextStyleWrites || []).includes(node.id)) return;
+        textStyleId = value;
+      };
+      if ((options.textStyleAttachmentApiMissing || []).includes(node.id)) {
+        delete node.setTextStyleIdAsync;
+      }
+    } else {
+      delete node.textStyleId;
+      delete node.setTextStyleIdAsync;
+    }
+
+    // Grid styles belong on frame-like layout-grid surfaces. As with the other style
+    // kinds, the property is a readback surface and the async API is the mutation path.
+    if (GRID_STYLE_CARRIERS.has(node.type)) {
+      let gridStyleId =
+        typeof node.gridStyleId === "string" ? node.gridStyleId : "";
+      Object.defineProperty(node, "gridStyleId", {
+        enumerable: true,
+        configurable: true,
+        get: () => gridStyleId,
+        set: (value) => {
+          gridStyleId = value;
+        },
+      });
+      node.setGridStyleIdAsync = async (value) => {
+        styleNativeCalls.attach.push({
+          nodeId: node.id,
+          kind: "grid",
+          target: null,
+          value,
+        });
+        if ((options.ignoreGridStyleWrites || []).includes(node.id)) return;
+        gridStyleId = value;
+      };
+      if ((options.gridStyleAttachmentApiMissing || []).includes(node.id)) {
+        delete node.setGridStyleIdAsync;
+      }
+    } else {
+      delete node.layoutGrids;
+      delete node.gridStyleId;
+      delete node.setGridStyleIdAsync;
+    }
+
     // Figma refuses to write characters while the node's font is unloaded. Opt-in,
     // because turning it on globally would change the meaning of every existing text
     // fixture rather than adding a case to them.
@@ -1379,15 +1514,208 @@ function createFixtureRuntime(fixture, options) {
     variables.push(variable);
     return variable;
   }
-  const styles = fixture.styles;
-  // Remote (library) styles resolve by ID but are deliberately absent from every
-  // getLocal*StylesAsync loader — that is exactly how Figma behaves on a file that
-  // references an external library, and it is why get_node_variables has to carry the
-  // value itself rather than leaving consumers to join against get_styles.
-  const allStyles = Object.entries(styles)
-    .filter(([bucket]) => bucket !== "remote")
-    .flatMap(([, entries]) => entries)
-    .concat(styles.remote || []);
+  // R3.2 needs live mutable style objects rather than cloned fixture rows: identity lives
+  // in plugin data on the style, updates must persist across calls, and deletion must be
+  // independently observable through the next local inventory. Remote styles stay in the
+  // diagnostic lookup only, exactly as they do in Figma.
+  const styleBuckets = {
+    colors: [],
+    texts: [],
+    effects: [],
+    grids: [],
+  };
+  const styleById = new Map();
+  const styleBucketTypes = {
+    colors: "PAINT",
+    texts: "TEXT",
+    effects: "EFFECT",
+    grids: "GRID",
+  };
+
+  function styleWriteIsIgnored(styleId, field) {
+    const ignored = options.ignoreStyleWrites || [];
+    return ignored.includes(styleId) || ignored.includes(`${styleId}::${field}`);
+  }
+
+  function styleConsumers(style) {
+    const properties = [
+      ["fillStyleId", "FILL"],
+      ["strokeStyleId", "STROKE"],
+      ["textStyleId", "TEXT"],
+      ["effectStyleId", "EFFECT"],
+      ["gridStyleId", "GRID"],
+    ];
+    const consumers = [];
+    for (const node of nodes.values()) {
+      const fields = [];
+      for (const [property, field] of properties) {
+        try {
+          if (node[property] === style.id) fields.push(field);
+        } catch (_) {
+          // An unreadable node property cannot be counted as a consumer. The plugin's
+          // deletion code is still conservative because it refuses when the style API's
+          // consumer reading itself is unavailable.
+        }
+      }
+      if (fields.length > 0) consumers.push({ nodeId: node.id, fields });
+    }
+    return consumers;
+  }
+
+  function makeFixtureStyle(raw, bucket, remote = false) {
+    const source = clone(raw || {});
+    const style = {
+      id: source.id,
+      key: source.key || `fixture-style-key-${source.id}`,
+      type: source.type || styleBucketTypes[bucket],
+      remote: Boolean(remote || source.remote),
+    };
+    const privatePluginData = new Map([
+      ...Object.entries(source.pluginData || {}),
+      ...Object.entries((options.stylePluginData || {})[style.id] || {}),
+    ]);
+    let name = typeof source.name === "string" ? source.name : "Style";
+
+    Object.defineProperty(style, "name", {
+      enumerable: true,
+      configurable: true,
+      get: () => name,
+      set: (value) => {
+        styleNativeCalls.setValue.push({ styleId: style.id, field: "name", value: clone(value) });
+        if (styleWriteIsIgnored(style.id, "name")) return;
+        if ((options.styleWriteThrows || []).includes(`${style.id}::name`)) {
+          throw new Error(`Figma rejected style name for ${style.id}`);
+        }
+        name = value;
+      },
+    });
+
+    function attachValue(field, fallback) {
+      let stored = clone(source[field] === undefined ? fallback : source[field]);
+      Object.defineProperty(style, field, {
+        enumerable: true,
+        configurable: true,
+        get: () => clone(stored),
+        set: (value) => {
+          styleNativeCalls.setValue.push({
+            styleId: style.id,
+            field,
+            value: clone(value),
+          });
+          if (styleWriteIsIgnored(style.id, field)) return;
+          if ((options.styleWriteThrows || []).includes(`${style.id}::${field}`)) {
+            throw new Error(`Figma rejected ${field} for ${style.id}`);
+          }
+          stored = clone(value);
+        },
+      });
+    }
+
+    if (bucket === "colors") attachValue("paints", []);
+    if (bucket === "effects") attachValue("effects", []);
+    if (bucket === "grids") attachValue("layoutGrids", []);
+    if (bucket === "texts") {
+      attachValue("fontName", { family: "Inter", style: "Regular" });
+      attachValue("fontSize", 12);
+      for (const field of [
+        "lineHeight",
+        "letterSpacing",
+        "textCase",
+        "textDecoration",
+        "textAlignHorizontal",
+        "textAlignVertical",
+        "paragraphSpacing",
+        "paragraphIndent",
+        "textAutoResize",
+      ]) {
+        attachValue(field, null);
+      }
+    }
+
+    Object.defineProperty(style, "boundVariables", {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        if ((options.styleBoundVariablesUnreadable || []).includes(style.id)) {
+          throw new Error(`boundVariables unreadable for ${style.id}`);
+        }
+        return clone(source.boundVariables || {});
+      },
+    });
+    style.getPluginData = (key) => {
+      if ((options.stylePluginDataApiMissing || []).includes(style.id)) {
+        throw new Error(`plugin data unavailable for ${style.id}`);
+      }
+      return privatePluginData.get(key) ?? "";
+    };
+    style.setPluginData = (key, value) => {
+      styleNativeCalls.setPluginData.push({ styleId: style.id, key, value });
+      if ((options.stylePluginDataApiMissing || []).includes(style.id)) {
+        throw new Error(`plugin data unavailable for ${style.id}`);
+      }
+      if (typeof key !== "string" || typeof value !== "string") {
+        throw new Error("Style plugin data keys and values must be strings");
+      }
+      if (value === "") privatePluginData.delete(key);
+      else privatePluginData.set(key, value);
+    };
+    style.getPluginDataKeys = () => [...privatePluginData.keys()];
+    style.getStyleConsumersAsync = async () => {
+      if ((options.styleConsumerApiMissing || []).includes(style.id)) {
+        throw new Error(`style consumers unavailable for ${style.id}`);
+      }
+      return clone(styleConsumers(style));
+    };
+    style.remove = () => {
+      styleNativeCalls.remove.push(style.id);
+      if (style.remote) throw new Error(`Cannot remove remote style ${style.id}`);
+      if ((options.styleRemoveThrows || []).includes(style.id)) {
+        throw new Error(`Figma rejected removing ${style.id}`);
+      }
+      if ((options.ignoreStyleRemovals || []).includes(style.id)) return;
+      const list = styleBuckets[bucket];
+      const index = list.indexOf(style);
+      if (index !== -1) list.splice(index, 1);
+      styleById.delete(style.id);
+    };
+    return style;
+  }
+
+  function addFixtureStyle(raw, bucket, remote = false) {
+    const style = makeFixtureStyle(raw, bucket, remote);
+    styleById.set(style.id, style);
+    if (!style.remote) styleBuckets[bucket].push(style);
+    return style;
+  }
+
+  for (const bucket of Object.keys(styleBuckets)) {
+    for (const raw of fixture.styles[bucket] || []) addFixtureStyle(raw, bucket);
+  }
+  for (const raw of fixture.styles.remote || []) {
+    // The fixture's one remote style is paint today. Retain the native type if a future
+    // fixture adds another kind, but do not put it in any local inventory.
+    const bucket = raw.type === "TEXT" ? "texts" : raw.type === "EFFECT" ? "effects" : raw.type === "GRID" ? "grids" : "colors";
+    addFixtureStyle(raw, bucket, true);
+  }
+
+  function createFixtureStyle(bucket) {
+    const sequence = dynamicStyleId++;
+    const type = styleBucketTypes[bucket];
+    const raw = {
+      id: `style-${type.toLowerCase()}-900-${sequence}`,
+      key: `fixture-style-key-900-${sequence}`,
+      type,
+      remote: false,
+      name: `${type} Style`,
+      ...(bucket === "colors" ? { paints: [] } : {}),
+      ...(bucket === "texts" ? { fontName: { family: "Inter", style: "Regular" }, fontSize: 12 } : {}),
+      ...(bucket === "effects" ? { effects: [] } : {}),
+      ...(bucket === "grids" ? { layoutGrids: [] } : {}),
+    };
+    const style = addFixtureStyle(raw, bucket);
+    styleNativeCalls.create.push({ bucket, styleId: style.id });
+    return style;
+  }
 
   const figma = {
     editorType: options.editorType || "figma",
@@ -1539,21 +1867,25 @@ function createFixtureRuntime(fixture, options) {
     },
     getLocalPaintStylesAsync: async () => {
       if (options.styleLoaderErrors?.includes("colors")) throw new Error("paint styles unavailable");
-      return clone(styles.colors);
+      return styleBuckets.colors.slice();
     },
     getLocalTextStylesAsync: async () => {
       if (options.styleLoaderErrors?.includes("texts")) throw new Error("text styles unavailable");
-      return clone(styles.texts);
+      return styleBuckets.texts.slice();
     },
     getLocalEffectStylesAsync: async () => {
       if (options.styleLoaderErrors?.includes("effects")) throw new Error("effect styles unavailable");
-      return clone(styles.effects);
+      return styleBuckets.effects.slice();
     },
     getLocalGridStylesAsync: async () => {
       if (options.styleLoaderErrors?.includes("grids")) throw new Error("grid styles unavailable");
-      return clone(styles.grids);
+      return styleBuckets.grids.slice();
     },
-    getStyleByIdAsync: async (id) => clone(allStyles.find((style) => style.id === id)) || null,
+    getStyleByIdAsync: async (id) => styleById.get(id) || null,
+    createPaintStyle: () => createFixtureStyle("colors"),
+    createTextStyle: () => createFixtureStyle("texts"),
+    createEffectStyle: () => createFixtureStyle("effects"),
+    createGridStyle: () => createFixtureStyle("grids"),
     // code.js reads this off figma.annotations, which is where the real API lives.
     // The stub previously hung it on the figma root, so get_annotations could not be
     // exercised offline at all.
@@ -1568,6 +1900,16 @@ function createFixtureRuntime(fixture, options) {
 
   if (options.groupApiMissing) {
     delete figma.group;
+  }
+
+  for (const bucket of options.styleCreateApiMissing || []) {
+    const creator = {
+      colors: "createPaintStyle",
+      texts: "createTextStyle",
+      effects: "createEffectStyle",
+      grids: "createGridStyle",
+    }[bucket];
+    if (creator) delete figma[creator];
   }
 
   if (options.variablesApi === false) {
@@ -1722,6 +2064,8 @@ function createFixtureRuntime(fixture, options) {
     exportCalls,
     fontLoads,
     loadedFonts,
+    styleById,
+    styleNativeCalls,
     clock,
     plain: clone,
     commitFrame: () => {
@@ -1797,6 +2141,9 @@ export async function loadPluginHarness(options = {}) {
     getNode(id) {
       return runtime.nodes.get(id) || null;
     },
+    getStyle(id) {
+      return runtime.styleById.get(id) || null;
+    },
     // Reach a top-level declaration inside the plugin script. A `vm` context exposes
     // function declarations on the global object but NOT `const` bindings, so anything
     // a test needs to inspect has to be reachable through a function — which is why the
@@ -1813,6 +2160,7 @@ export async function loadPluginHarness(options = {}) {
     messages: runtime.messages,
     notifications: runtime.notifications,
     exportCalls: runtime.exportCalls,
+    styleNativeCalls: runtime.styleNativeCalls,
     // Which fonts the plugin actually asked Figma to load, in order — the only way to
     // tell "loaded the right font" from "never looked".
     fontLoads: runtime.fontLoads,

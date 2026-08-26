@@ -166,10 +166,40 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // baseline: 25 pages, current page `0:1`, and all nine local collections at their original
 // mode counts. The ceiling gate's six temporary modes were removed explicitly after its run.
 //
-// The historical declaration is deliberately EMPTY rather than left as a past-tense list:
-// a declaration is an active exception, and retaining one after its live evidence exists is
-// the same status-marker defect this ledger prevents.
-const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
+// R3.2 changes both halves of the runtime and adds a style-resource lifecycle. None of the
+// twenty-three earlier gates has been re-run on that pair, so each is explicitly historical
+// rather than silently re-pinned. Replacing their pins without executing them would fabricate
+// live evidence. The new R3.2 gate below is current and *pending*, which makes it runnable
+// without claiming it has passed.
+const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
+  "live-batch-gate.mjs": "R3.1",
+  "live-clips-content-gate.mjs": "R3.1",
+  "live-constraints-gate.mjs": "R3.1",
+  "live-create-page-gate.mjs": "R3.1",
+  "live-effects-gate.mjs": "R3.1",
+  "live-export-gate.mjs": "R3.1",
+  "live-fill-gate.mjs": "R3.1",
+  "live-layout-gate.mjs": "R3.1",
+  "live-opacity-blend-gate.mjs": "R3.1",
+  "live-plugin-data-gate.mjs": "R3.1",
+  "live-r3.1-fill-style-gate.mjs": "R3.1",
+  "live-r3.1-group-gate.mjs": "R3.1",
+  "live-r3.1-range-font-gate.mjs": "R3.1",
+  "live-size-limits-gate.mjs": "R3.1",
+  "live-svg-crop-gate.mjs": "R3.1",
+  "live-text-style-gate.mjs": "R3.1",
+  "live-variable-capabilities-gate.mjs": "R3.1",
+  "live-variable-collection-delete-gate.mjs": "R3.1",
+  "live-variable-collections-bindings-gate.mjs": "R3.1",
+  "live-variable-identity-gate.mjs": "R3.1",
+  "live-variable-mode-gate.mjs": "R3.1",
+  "live-variable-mode-removal-gate.mjs": "R3.1",
+  "live-variable-write-gate.mjs": "R3.1",
+});
+
+const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({
+  "live-r3.2-local-style-authoring-gate.mjs": "R3.2 local-style authoring",
+});
 
 function readPins(source) {
   const block = /const expectedRuntime = \{([\s\S]*?)\n\};/.exec(source);
@@ -222,6 +252,13 @@ test("every live gate either pins THIS build or declares the release it belongs 
 
     const matches = Object.entries(pins).every(([key, value]) => current[key] === value);
     const declared = Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, name);
+    const pending = Object.hasOwn(GATES_PENDING_LIVE_ACCEPTANCE, name);
+
+    assert.equal(
+      declared && pending,
+      false,
+      `${name} cannot be both historical and pending current acceptance`,
+    );
 
     if (declared) {
       assert.equal(
@@ -229,6 +266,16 @@ test("every live gate either pins THIS build or declares the release it belongs 
         false,
         `${name} is declared as pinned to an earlier release, but its pins match this build. Re-run it and remove the declaration — a stale declaration makes a current gate look untrustworthy.`,
       );
+      continue;
+    }
+
+    if (pending) {
+      assert.equal(
+        matches,
+        true,
+        `${name} is pending live acceptance but is not runnable against this exact build. Regenerate its pins; do not mark it passed.`,
+      );
+      currentGates += 1;
       continue;
     }
 
@@ -254,6 +301,24 @@ test("every live gate either pins THIS build or declares the release it belongs 
   assert.ok(
     currentGates >= 1,
     "no live gate pins the current build — a release with no runnable gate is a release nobody can accept",
+  );
+});
+
+test("the R3.2 local-style gate is explicitly disposable-only and pending live acceptance", async () => {
+  const source = await readFile(
+    path.join(root, "scripts", "live-r3.2-local-style-authoring-gate.mjs"),
+    "utf8",
+  );
+  assert.match(source, /--disposable-target=true/);
+  assert.match(source, /requireDisposableTarget\(/);
+  assert.match(source, /owner-confirmed disposable Figma file/);
+  assert.match(source, /no allow-permanent mode/);
+  assert.match(source, /independent client/i);
+  assert.ok(
+    Object.hasOwn(
+      GATES_PENDING_LIVE_ACCEPTANCE,
+      "live-r3.2-local-style-authoring-gate.mjs",
+    ),
   );
 });
 
@@ -309,10 +374,11 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // once `live-variable-capabilities-gate.mjs` gave `get_variable_capabilities` the scripted
   // verdict it had been promoted-blocked on; 20 once `delete_variable_collection` gained its
   // dedicated disposable-file deletion-and-restoration gate; 23 when R3.1 added its three
-  // dedicated measurement-enabler gates.
+  // dedicated measurement-enabler gates; 24 when R3.2 added its explicitly pending
+  // local-style lifecycle gate.
   assert.equal(
     parsed.length,
-    23,
-    `expected 23 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    24,
+    `expected 24 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

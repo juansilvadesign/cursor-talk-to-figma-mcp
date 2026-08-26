@@ -1951,7 +1951,7 @@ design-system format—remains consumer work.
 
 ## Release R3 — design-system authoring (re-cut after R3-A)
 
-**Planning status: accepted; R3.1 implementation is in progress and has not been live-accepted.** R3 is one larger release plan,
+**Planning status: accepted; R3.1 implementation and offline verification are complete, but it has not been live-accepted.** R3 is one larger release plan,
 not one bulk build. Its internal phases are independently scoped and live-accepted in order;
 a public contract move in any phase still re-pins and re-runs the entire current live suite.
 The detailed evidence and acceptance conditions live in
@@ -1970,9 +1970,10 @@ The detailed evidence and acceptance conditions live in
       constraints, range-font mutation for a mixed-font target, and local paint-style
       attachment for fill-style detachment. Each gets a distinct live gate, an independent
       read/control, and a separately confirmed cleanup baseline. **Implementation is in the
-      working tree as `create_group`, `set_range_font`, and `set_fill_style` at R3.1 / 1.19.0;
-      their three disposable-target gate runners are authored but no live target/run is
-      claimed yet.** See [`R3.1-MEASUREMENT-ENABLERS.md`](R3.1-MEASUREMENT-ENABLERS.md).
+      release as `create_group`, `set_range_font`, and `set_fill_style` at R3.1 / 1.19.0;
+      `bun run verify` passed 464/464. Their three disposable-target gate runners are authored,
+      but no owner-confirmed live target or run is claimed yet.** See
+      [`R3.1-MEASUREMENT-ENABLERS.md`](R3.1-MEASUREMENT-ENABLERS.md).
 - [ ] **R3.2 — local style authoring.** Add local paint, text, effect, and grid style
       lifecycle/attachment work only after its exact identity, remote refusal, cleanup, and
       result-observation rules are designed. This phase owns the currently unmeasured

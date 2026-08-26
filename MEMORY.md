@@ -1,46 +1,42 @@
 ---
 name: talk-to-figma fork — project memory
-description: Live state for the R2 batch-contract fork — what passed, the server/plugin pairing hazard, and the gates still open
+description: Live technical state for the talk-to-figma fork, including the R3.1 measurement-enabler release and its pending live gates
 type: project
 ---
 # talk-to-figma fork — Project Memory
 
 > **Migrated out of the global memory router 2026-08-16.** The router keeps a one-line stub pointing here; ⛔ new detail lands in this file, not in the router.
 >
-> **Repository visibility is private** (verified through GitHub on 2026-08-25). Still keep
-> credentials and tokens out of this file.
+> **Repository visibility is public** (verified through GitHub on 2026-08-25). Keep this file
+> to technical state only; credentials and tokens never belong here.
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-25e — Handoff 1 + Handoff 2 complete)
+## ▶ Resume (checkpoint 2026-08-25f — R3.1 offline complete)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork`. Handoff 1 shipped and live-accepted
-  `delete_variable_collection`; Handoff 2 recorded the R3-A retrospective and re-cut. The
-  owner confirmed the resulting diff is committed.
-- **Doing:** R3-A is accepted at **`1.18.0` / 77 tools**: 66 `stable`, 10
-  `additive-preview`, 1 `legacy`; `bun run verify` passed **450/450** and the live suite
-  passed **20/20** on disposable channel `2v56aacl`. The current pair is
-  `r3-a-server-b5649366daef` ↔ `r3-a-plugin-7f0d5389634e`, fingerprint
-  `sha256:de4144fe6776b8283bc8c8af06f6517d69acc3d97271fee2f1c9a8ce338999e9`.
-- **Next step:** Await the owner's choice/authorization: begin the R3.1 measurement-enabler
-  implementation, or take remaining Handoff 3 (consumer proof) or Handoff 4 (upstream offer).
+- **Project:** `knowledge/projects/talk-to-figma-fork`. Authorized R3.1 added the three
+  consumer-neutral measurement enablers: `create_group`, `set_range_font`, and
+  `set_fill_style`.
+- **Doing:** R3.1 is built and offline-verified at **`1.19.0` / 80 tools**. `bun run verify`
+  passed **464/464**, including contract generation, source/runtime parity, and the full build.
+  The current pair is `r3.1-server-beff31768985` ↔ `r3.1-plugin-ed16fbb94fa9`, fingerprint
+  `sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d`.
+- **Next step:** Run the three R3.1 live gates only after the owner confirms a disposable
+  Figma file and supplies its channel; pass `--disposable-target=true`.
 - **Key paths / IDs:**
-  - `R3-RETROSPECTIVE.md` — durable R3 re-cut: measurement enablers (group creation,
-    range-font mutation, local paint-style attachment) → local styles → components/variants/
-    instances → closure; it is planning-only and does not authorize a tool build by itself.
-  - `HANDOFFS.md` — the remaining independent handoffs. `docs/*` remains gitignored behind
-    an allowlist, which is why the retrospective and handoffs live at repo root.
-  - `TASKS.md`, `ROADMAP.md`, `docs/R3-A-VARIABLE-WRITE.md` — updated and committed evidence.
-- **Open / blockers:** no implementation blocker; do not infer authorization to start R3.1
-  from the retrospective. Handoff 3 and Handoff 4 remain viable alternatives.
+  - `R3.1-MEASUREMENT-ENABLERS.md` — public boundary, refusal rules, and live-gate protocol.
+  - `scripts/live-r3.1-{group,range-font,fill-style}-gate.mjs` and
+    `scripts/r3.1-live-gate-lib.mjs` — the three gated scenarios and shared transport/pin
+    checks.
+  - `tests/live-gate-pins.test.mjs` — R3-A gates are deliberately declared earlier-release,
+    never mechanically re-pinned without a new live run.
+- **Open / blockers:** Live acceptance is pending an owner-confirmed disposable Figma target.
+  No live mutation or acceptance claim exists for R3.1.
 - **Don't forget:**
-  - `delete_variable_collection` is a fork-gate-coverage addendum, not a decision about the
-    consumer's eventual ramp cleanup; it remains `additive-preview`.
-  - Each public build move now costs a re-pin and **re-run of every current live gate**. Gate
-    count is 20; no aggregate elapsed-time metric was recorded, so do not invent one.
-  - R3 gates are risk/acceptance scenarios, not one gate per tool. Every new gate needs a
-    discriminating control, independent observation, separate cleanup confirmation, and an
-    explicit disposable-target acknowledgement.
+  - A regenerated build or an offline green run is not live evidence. Reload the DEV plugin and
+    respawn the MCP server before any live run, then assert the current runtime pair.
+  - The local paint-style gate returns `unmeasured`, not success, if the disposable target has
+    no local paint style to attach.
 
 ## ⤴ Previous checkpoint (2026-08-25d — R3-A CLOSED: `get_variable_capabilities` STABLE at `1.17.0`, 19/19)
 

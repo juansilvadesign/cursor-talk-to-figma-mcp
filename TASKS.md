@@ -1977,10 +1977,14 @@ The detailed evidence and acceptance conditions live in
       all nine collection mode counts restored. The three new result contracts remain
       `additive-preview`; promotion is a separate public-contract decision. See
       [`R3.1-MEASUREMENT-ENABLERS.md`](R3.1-MEASUREMENT-ENABLERS.md).
-- [ ] **R3.2 — local style authoring.** Add local paint, text, effect, and grid style
-      lifecycle/attachment work only after its exact identity, remote refusal, cleanup, and
-      result-observation rules are designed. This phase owns the currently unmeasured
-      effect-style detachment premise; paint-style attachment does not silently prove it.
+- [ ] **R3.2 — local style authoring.** Approved and implemented offline on 2026-08-26:
+      local paint, text, effect, and grid lifecycle/attachment work now ships as the
+      R3.2 / `1.20.0` 86-tool additive-preview contract. The local-identity,
+      remote-refusal, cleanup, and result-observation rules remain authoritative in
+      [`R3.2-LOCAL-STYLE-AUTHORING.md`](R3.2-LOCAL-STYLE-AUTHORING.md). This phase owns
+      the effect-style detachment premise; paint-style attachment does not silently prove
+      it. Its disposable-file live gate is deliberately still pending, and the R3.1
+      historical gates are not re-pinned by this implementation.
 - [ ] **R3.3 — components, variants, and instances.** Start with generic component
       creation/ownership and instantiation, then variants/properties, then instance-property
       mutation. The phase owns the instance-child write premise rather than relying on a

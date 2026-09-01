@@ -90,16 +90,32 @@ async function main() {
     const tmpPng = `/tmp/figma-export-${targetSlug}.png`;
     const targetWebp = path.join(outputDir, `${targetSlug}-preview.webp`);
 
+    console.log(`Getting node info for ${nodeId}...`);
+    const nodeInfo = parse(await client.callTool({
+      name: "get_node_info",
+      arguments: { nodeId }
+    }));
+    const bounds = nodeInfo.absoluteBoundingBox || { width: 1920, height: 1080 };
+    const area = bounds.width * bounds.height;
+    // Calculate optimal scale to reach ~1920px width without exceeding 10MP
+    let safeScale = bounds.width >= 1440 ? 1.0 : 1.5;
+    if (area * safeScale * safeScale > 10_000_000) {
+      safeScale = Math.floor(Math.sqrt(8_000_000 / area) * 10) / 10;
+      if (safeScale <= 0) safeScale = 0.5;
+    }
+    console.log(`Node area: ${bounds.width}x${bounds.height} (${(area/1e6).toFixed(2)} MP), using safe scale: ${safeScale}`);
+
     console.log(`Exporting node ${nodeId} for ${targetSlug}...`);
     const exportRes = parse(await client.callTool({
       name: "export_node_as_image",
       arguments: {
         nodeId,
         format: "PNG",
-        scale: 1.5,
+        scale: safeScale,
+        allowLargeExport: true,
         filePath: tmpPng
       }
-    }));
+    }, { timeout: 120_000 }));
 
     console.log("Processing to 1920x1080 WebP...");
     execSync(`ffmpeg -y -i "${tmpPng}" -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080" -c:v libwebp -quality 85 "${targetWebp}"`);

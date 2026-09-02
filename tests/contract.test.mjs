@@ -28,9 +28,10 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   // 76 → 77 for the conservative collection-cleanup tool (`delete_variable_collection`),
   // then 77 → 80 for R3.1's three additive measurement enablers (`create_group`,
   // `set_range_font`, `set_fill_style`), then 80 → 86 for R3.2's six local-only
-  // style-authoring operations. The literal is a tripwire, not bookkeeping: it is here so
-  // a tool arriving or vanishing cannot pass unremarked.
-  assert.equal(snapshot.tools.length, 86);
+  // style-authoring operations, then 86 → 87 for R3.2.1's source-image-fill reader. The
+  // literal is a tripwire, not bookkeeping: it is here so a tool arriving or vanishing
+  // cannot pass unremarked.
+  assert.equal(snapshot.tools.length, 87);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));
@@ -287,6 +288,7 @@ test("every read whose cost scales with the file declares the heavy budget", asy
     "get_styles",
     "get_local_components",
     "export_node_as_image",
+    "export_image_fill",
     "get_node_variables",
   ]) {
     assert.equal(

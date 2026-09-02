@@ -195,10 +195,11 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   "live-variable-mode-gate.mjs": "R3.1",
   "live-variable-mode-removal-gate.mjs": "R3.1",
   "live-variable-write-gate.mjs": "R3.1",
+  "live-r3.2-local-style-authoring-gate.mjs": "R3.2 local-style authoring",
 });
 
 const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({
-  "live-r3.2-local-style-authoring-gate.mjs": "R3.2 local-style authoring",
+  "live-image-fill-export-gate.mjs": "R3.2.1 image-fill export",
 });
 
 function readPins(source) {
@@ -304,7 +305,7 @@ test("every live gate either pins THIS build or declares the release it belongs 
   );
 });
 
-test("the R3.2 local-style gate is explicitly disposable-only and pending live acceptance", async () => {
+test("the R3.2 local-style gate remains explicitly disposable-only after its build becomes historical", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-r3.2-local-style-authoring-gate.mjs"),
     "utf8",
@@ -314,12 +315,24 @@ test("the R3.2 local-style gate is explicitly disposable-only and pending live a
   assert.match(source, /owner-confirmed disposable Figma file/);
   assert.match(source, /no allow-permanent mode/);
   assert.match(source, /independent client/i);
-  assert.ok(
-    Object.hasOwn(
-      GATES_PENDING_LIVE_ACCEPTANCE,
-      "live-r3.2-local-style-authoring-gate.mjs",
-    ),
+  assert.ok(Object.hasOwn(
+    GATES_PINNED_TO_AN_EARLIER_RELEASE,
+    "live-r3.2-local-style-authoring-gate.mjs",
+  ));
+});
+
+test("the R3.2.1 image-fill gate is read-only and pending live acceptance on its exact build", async () => {
+  const source = await readFile(
+    path.join(root, "scripts", "live-image-fill-export-gate.mjs"),
+    "utf8",
   );
+  assert.match(source, /export_image_fill/);
+  assert.match(source, /read-only/i);
+  assert.match(source, /must not change the node/);
+  assert.ok(Object.hasOwn(
+    GATES_PENDING_LIVE_ACCEPTANCE,
+    "live-image-fill-export-gate.mjs",
+ ));
 });
 
 // ⛔ THE LIST IS DERIVED, NOT ENUMERATED — and it used to be enumerated, naming four files.
@@ -375,10 +388,11 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // verdict it had been promoted-blocked on; 20 once `delete_variable_collection` gained its
   // dedicated disposable-file deletion-and-restoration gate; 23 when R3.1 added its three
   // dedicated measurement-enabler gates; 24 when R3.2 added its explicitly pending
-  // local-style lifecycle gate.
+  // local-style lifecycle gate, then 25 when R3.2.1 added its explicitly pending
+  // read-only image-fill export gate.
   assert.equal(
     parsed.length,
-    24,
-    `expected 24 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    25,
+    `expected 25 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

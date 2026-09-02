@@ -313,6 +313,7 @@ The MCP server provides the following tools for interacting with Figma:
 ### Export & Advanced
 
 - `export_node_as_image` - Export PNG/JPG/SVG/PDF with a typed receipt and preflight cost estimate. Use `filePath` to keep bytes out of context; PNG/JPG above 16 MP require explicit `allowLargeExport: true`
+- `export_image_fill` - Read the original bytes from one exact `IMAGE` paint by node ID plus fill index, retaining its Figma placement metadata and a hash-checked receipt. Use `filePath` to keep source asset bytes out of context
 
 ### Connection Management
 

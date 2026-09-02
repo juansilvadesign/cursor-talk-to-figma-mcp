@@ -450,14 +450,15 @@ test("the public contract pins the supported types, stable status, scope, and ba
 // additive-preview `delete_variable_collection` capability, then 1.18.0 → 1.19.0 adds
 // R3.1's three additive measurement enablers. R3.2 then adds six local-style commands,
 // moving all three public version fields to 1.20.0 together so a consumer can pin the
-// release coherently.
-test("R3.2 local style authoring keeps all three 1.20.0 version fields together", async () => {
+// release coherently. R3.2.1 adds generic, read-only image-fill export and advances the
+// same three fields together to 1.21.0.
+test("R3.2.1 image-fill export keeps all three 1.21.0 version fields together", async () => {
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.20.0");
-  assert.equal(release.serverSchemaVersion, "1.20.0");
-  assert.equal(release.pluginApiVersion, "1.20.0");
+  assert.equal(release.publicContractVersion, "1.21.0");
+  assert.equal(release.serverSchemaVersion, "1.21.0");
+  assert.equal(release.pluginApiVersion, "1.21.0");
 });
 
 /**

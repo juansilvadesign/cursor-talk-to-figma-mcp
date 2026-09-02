@@ -101,7 +101,7 @@ async function create(harness, kind, suffix = kind) {
   return { result, identityKey };
 }
 
-test("the public contract declares the complete R3.2 surface as additive local-only preview", async () => {
+test("the public contract preserves the complete R3.2 surface through the R3.2.1 additive image-fill release", async () => {
   const { contract } = await buildContract();
   const tools = Object.fromEntries(contract.tools.map((tool) => [tool.name, tool]));
   const expected = {
@@ -125,8 +125,8 @@ test("the public contract declares the complete R3.2 surface as additive local-o
     "confirm",
   ]);
   assert.equal(tools.delete_local_style.inputSchema.properties.confirm.const, true);
-  assert.equal(contract.publicContractVersion, "1.20.0");
-  assert.equal(contract.serverSchemaVersion, "1.20.0");
+  assert.equal(contract.publicContractVersion, "1.21.0");
+  assert.equal(contract.serverSchemaVersion, "1.21.0");
 });
 
 test("creates and canonical-reads all four local style classes without exposing identity values", async () => {

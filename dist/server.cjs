@@ -34,13 +34,13 @@ var import_path = __toESM(require("path"), 1);
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R3.2",
-  "serverBuildId": "r3.2-server-c08e691bdcdc",
-  "pluginBuildId": "r3.2-plugin-98129b15fafd",
-  "serverSchemaVersion": "1.20.0",
-  "pluginApiVersion": "1.20.0",
+  "release": "R3.2.1",
+  "serverBuildId": "r3.2.1-server-cbd2531f8a0e",
+  "pluginBuildId": "r3.2.1-plugin-ad75ba5fe779",
+  "serverSchemaVersion": "1.21.0",
+  "pluginApiVersion": "1.21.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
+  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -90,6 +90,7 @@ var RUNTIME_METADATA = {
     "check_fonts",
     "create_component_instance",
     "export_node_as_image",
+    "export_image_fill",
     "set_corner_radius",
     "set_text_content",
     "set_text_style",
@@ -152,6 +153,7 @@ var RUNTIME_METADATA = {
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -240,6 +242,7 @@ var RUNTIME_METADATA = {
     "delete_node",
     "delete_variable",
     "delete_variable_collection",
+    "export_image_fill",
     "export_node_as_image",
     "get_annotations",
     "get_available_fonts",
@@ -372,6 +375,8 @@ var import_crypto = require("crypto");
 
 // src/talk_to_figma_mcp/image-dimensions.mjs
 var PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+var JPEG_SIGNATURE = Buffer.from([255, 216, 255]);
+var GIF_SIGNATURES = /* @__PURE__ */ new Set(["GIF87a", "GIF89a"]);
 var JPEG_SOF_MARKERS = /* @__PURE__ */ new Set([
   192,
   193,
@@ -469,6 +474,21 @@ function readSvg(buffer) {
   }
   return null;
 }
+function inferImageMimeType(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+    return "application/octet-stream";
+  }
+  if (buffer.length >= PNG_SIGNATURE.length && buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    return "image/png";
+  }
+  if (buffer.length >= JPEG_SIGNATURE.length && buffer.subarray(0, 3).equals(JPEG_SIGNATURE)) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 6 && GIF_SIGNATURES.has(buffer.toString("ascii", 0, 6))) {
+    return "image/gif";
+  }
+  return "application/octet-stream";
+}
 function readImageDimensions(buffer, mimeType) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     return null;
@@ -509,6 +529,26 @@ function buildExportReceipt(bytes, mimeType, request) {
   }
   if (request.preflight) {
     receipt.preflight = request.preflight;
+  }
+  return receipt;
+}
+function buildImageFillReceipt(bytes, mimeType, request) {
+  const dimensions = readImageDimensions(bytes, mimeType);
+  const receipt = {
+    nodeId: request.nodeId,
+    paintIndex: request.paintIndex,
+    imageHash: request.imageHash,
+    imageFill: request.imageFill,
+    mimeType,
+    bytes: bytes.length,
+    sha256: (0, import_crypto.createHash)("sha256").update(bytes).digest("hex"),
+    width: dimensions ? dimensions.width : null,
+    height: dimensions ? dimensions.height : null,
+    dimensionSource: dimensions ? dimensions.dimensionSource : null,
+    delivery: request.filePath ? "file" : "inline"
+  };
+  if (request.filePath) {
+    receipt.path = request.filePath;
   }
   return receipt;
 }
@@ -1765,6 +1805,78 @@ server.tool(
           {
             type: "text",
             text: `Error exporting node as image: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ]
+      };
+    }
+  }
+);
+server.tool(
+  "export_image_fill",
+  "[Exact image-fill scoped, read-only] Read the original bytes for one IMAGE fill on one node. Supply both nodeId and paintIndex; the receipt preserves the matching Figma image paint (including crop metadata) plus byte hash and intrinsic dimensions. Pass filePath to write bytes locally and avoid an inline base64 image block.",
+  {
+    nodeId: import_zod.z.string().describe("The ID of the node carrying the image fill"),
+    paintIndex: import_zod.z.number().int().nonnegative().describe("Exact zero-based index of the IMAGE entry in node.fills; no implicit first-fill default is used"),
+    filePath: import_zod.z.string().optional().describe(
+      "Absolute path to write the original image bytes to. When set, the reply is the receipt only \u2014 no base64 image block."
+    )
+  },
+  async ({ nodeId, paintIndex, filePath }) => {
+    try {
+      if (filePath !== void 0 && filePath !== "" && !import_path.default.isAbsolute(filePath)) {
+        throw new Error(
+          `filePath must be an absolute path; received ${filePath}`
+        );
+      }
+      const result = await sendCommandToFigma(
+        "export_image_fill",
+        { nodeId, paintIndex },
+        HEAVY_READ_TIMEOUT_MS
+      );
+      const typedResult = result;
+      if (typeof typedResult.imageData !== "string" || typeof typedResult.imageHash !== "string" || typedResult.imageFill === void 0) {
+        throw new Error("plugin returned an incomplete image-fill export reply");
+      }
+      const bytes = Buffer.from(typedResult.imageData, "base64");
+      if (bytes.length === 0) {
+        throw new Error("plugin returned empty image-fill bytes");
+      }
+      const mimeType = inferImageMimeType(bytes);
+      const receipt = buildImageFillReceipt(bytes, mimeType, {
+        nodeId: typedResult.nodeId || nodeId,
+        paintIndex: typeof typedResult.paintIndex === "number" ? typedResult.paintIndex : paintIndex,
+        imageHash: typedResult.imageHash,
+        imageFill: typedResult.imageFill,
+        filePath
+      });
+      if (filePath) {
+        await (0, import_promises.mkdir)(import_path.default.dirname(filePath), { recursive: true });
+        await (0, import_promises.writeFile)(filePath, bytes);
+        return {
+          content: [{ type: "text", text: JSON.stringify(receipt, null, 2) }]
+        };
+      }
+      if (!mimeType.startsWith("image/")) {
+        throw new Error(
+          "image-fill bytes have an unrecognized image signature; retry with filePath to retain them without mislabeling their MIME type"
+        );
+      }
+      return {
+        content: [
+          {
+            type: "image",
+            data: typedResult.imageData,
+            mimeType
+          },
+          { type: "text", text: JSON.stringify(receipt, null, 2) }
+        ]
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error exporting image fill: ${error instanceof Error ? error.message : String(error)}`
           }
         ]
       };

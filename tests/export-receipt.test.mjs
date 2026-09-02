@@ -2,8 +2,14 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { readImageDimensions } from "../src/talk_to_figma_mcp/image-dimensions.mjs";
-import { buildExportReceipt } from "../src/talk_to_figma_mcp/export-receipt.mjs";
+import {
+  inferImageMimeType,
+  readImageDimensions,
+} from "../src/talk_to_figma_mcp/image-dimensions.mjs";
+import {
+  buildExportReceipt,
+  buildImageFillReceipt,
+} from "../src/talk_to_figma_mcp/export-receipt.mjs";
 
 function pngWith(width, height) {
   const buffer = Buffer.alloc(24);
@@ -101,6 +107,37 @@ test("unreadable formats report null rather than a fabricated size", () => {
   assert.equal(readImageDimensions(Buffer.from("not a png"), "image/png"), null);
   assert.equal(readImageDimensions(Buffer.from([0xff, 0xd8]), "image/jpeg"), null);
   assert.equal(readImageDimensions(Buffer.from("<html></html>"), "image/svg+xml"), null);
+});
+
+test("original image-fill bytes are sniffed rather than mislabeled as a node export format", () => {
+  assert.equal(inferImageMimeType(pngWith(400, 300)), "image/png");
+  assert.equal(inferImageMimeType(jpegWith(400, 300)), "image/jpeg");
+  assert.equal(inferImageMimeType(Buffer.from("GIF89a", "ascii")), "image/gif");
+  assert.equal(inferImageMimeType(Buffer.from("unknown bytes")), "application/octet-stream");
+
+  const bytes = pngWith(400, 300);
+  const receipt = buildImageFillReceipt(bytes, inferImageMimeType(bytes), {
+    nodeId: "1:23",
+    paintIndex: 0,
+    imageHash: "figma-image-hash",
+    imageFill: {
+      type: "IMAGE",
+      imageHash: "figma-image-hash",
+      scaleMode: "CROP",
+      imageTransform: [[0.5, 0, 0.25], [0, 0.5, 0.25]],
+    },
+    filePath: "/tmp/source-image.png",
+  });
+
+  assert.equal(receipt.nodeId, "1:23");
+  assert.equal(receipt.paintIndex, 0);
+  assert.equal(receipt.imageHash, "figma-image-hash");
+  assert.equal(receipt.mimeType, "image/png");
+  assert.equal(receipt.width, 400);
+  assert.equal(receipt.height, 300);
+  assert.equal(receipt.delivery, "file");
+  assert.equal(receipt.path, "/tmp/source-image.png");
+  assert.equal(receipt.imageFill.scaleMode, "CROP");
 });
 
 test("the export receipt identifies the export and reports its delivery mode", () => {

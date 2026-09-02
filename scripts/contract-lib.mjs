@@ -44,6 +44,9 @@ const HEAVY_READ_TOOLS = new Set([
   // Added in R2. Both scale their cost with the file rather than the arguments:
   // an export with the pixel area of the node, a token scan with the subtree size.
   "export_node_as_image",
+  // Original image bytes can require Figma to download an asset whose size is not visible
+  // in the request. The explicit node/fill target bounds scope, not transfer cost.
+  "export_image_fill",
   "get_node_variables",
   // Added in R2.5. Its cost scales with the MACHINE running Figma — thousands of
   // installed faces — which is neither the file nor the arguments, but is the same
@@ -126,6 +129,9 @@ const ADDITIVE_PREVIEW_RESULTS = new Set([
   // Promoted from legacy in R1: the reply now carries a typed receipt identifying the
   // export, so a consumer no longer has to attribute it from its own request.
   "export_node_as_image",
+  // New image-fill bytes + paint metadata need a real Figma pass before freezing their
+  // receipt. The consumer uses an explicit private-local evidence pass for that purpose.
+  "export_image_fill",
 ]);
 
 // ⭐ `get_variable_capabilities` was here until 2026-08-25, the LAST R3-A tool at
@@ -262,6 +268,7 @@ const READ_TOOLS = new Set([
   "get_node_variables",
   "get_instance_overrides",
   "export_node_as_image",
+  "export_image_fill",
   "get_plugin_data",
   // check_fonts calls loadFontAsync, which mutates the PLUGIN SESSION's font cache and
   // nothing in the document. Direction is about the file, so both are reads.
@@ -340,6 +347,7 @@ const TOOL_SCOPES = {
   check_fonts: "font_inventory",
   get_instance_overrides: "node_or_current_page_selection",
   export_node_as_image: "node",
+  export_image_fill: "image_fill",
   create_rectangle: "current_page_or_parent",
   create_frame: "current_page_or_parent",
   // `create_group` moves every requested member under a newly-created group inside the
@@ -406,6 +414,7 @@ const TOOL_SCOPES = {
 
 const SPECIAL_PROGRESS = {
   export_node_as_image: "preflight_and_encoding",
+  export_image_fill: "image_fetch_and_delivery",
   get_pages: "conditional_per_page",
   get_styles: "per_resource_with_heartbeat",
   get_local_components: "per_page_with_heartbeat",

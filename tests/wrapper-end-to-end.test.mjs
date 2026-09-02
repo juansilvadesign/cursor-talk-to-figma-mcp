@@ -300,6 +300,40 @@ test(
 );
 
 test(
+  "export_image_fill delivers original bytes and placement metadata through the wrapper",
+  { timeout: 30000 },
+  async () => {
+    await withLiveStack(async ({ client, plugin }) => {
+      const result = await client.callTool({
+        name: "export_image_fill",
+        arguments: { nodeId: "10:3", paintIndex: 0 },
+      });
+
+      const image = result.content.find((entry) => entry.type === "image");
+      assert.ok(image, "an inline source image must reach the MCP consumer");
+      assert.equal(image.mimeType, "image/png");
+      assert.ok(Buffer.from(image.data, "base64").length > 0);
+
+      const reply = receipt(result);
+      assert.equal(reply.nodeId, "10:3");
+      assert.equal(reply.paintIndex, 0);
+      assert.equal(reply.imageHash, "fixture-image");
+      assert.equal(reply.imageFill.type, "IMAGE");
+      assert.equal(reply.imageFill.scaleMode, "FILL");
+      assert.equal(reply.mimeType, "image/png");
+      assert.equal(reply.delivery, "inline");
+      assert.ok(reply.sha256.length === 64);
+      assert.deepEqual(plugin.harness.imageReadCalls, ["fixture-image"]);
+      assert.equal(
+        plugin.harness.exportCalls.length,
+        0,
+        "the wrapper must read the original fill, not composite the containing node",
+      );
+    });
+  },
+);
+
+test(
   "a bare CROP is refused across the wrapper, and the refusal names the stretch",
   { timeout: 30000 },
   async () => {

@@ -9,7 +9,8 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { RUNTIME_METADATA } from "./runtime-metadata.js";
 import { comparePluginRuntimeMetadata } from "./runtime-compatibility.mjs";
-import { buildExportReceipt } from "./export-receipt.mjs";
+import { buildExportReceipt, buildImageFillReceipt } from "./export-receipt.mjs";
+import { inferImageMimeType } from "./image-dimensions.mjs";
 import { textContentsReply, annotationsReply } from "./legacy-batch-reply.mjs";
 import { runtimeCompatibilityAfterTimeout } from "./timeout-safety.mjs";
 
@@ -1644,6 +1645,107 @@ server.tool(
       };
     }
   }
+);
+
+// Export one original IMAGE paint rather than rasterizing its containing node. This is
+// intentionally a separate read from export_node_as_image: a section-root image fill can
+// sit beneath text, overlays, and child layers, so a node export cannot recover the asset
+// without baking those layers into it.
+server.tool(
+  "export_image_fill",
+  "[Exact image-fill scoped, read-only] Read the original bytes for one IMAGE fill on one node. Supply both nodeId and paintIndex; the receipt preserves the matching Figma image paint (including crop metadata) plus byte hash and intrinsic dimensions. Pass filePath to write bytes locally and avoid an inline base64 image block.",
+  {
+    nodeId: z.string().describe("The ID of the node carrying the image fill"),
+    paintIndex: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe("Exact zero-based index of the IMAGE entry in node.fills; no implicit first-fill default is used"),
+    filePath: z
+      .string()
+      .optional()
+      .describe(
+        "Absolute path to write the original image bytes to. When set, the reply is the receipt only — no base64 image block.",
+      ),
+  },
+  async ({ nodeId, paintIndex, filePath }: any) => {
+    try {
+      if (filePath !== undefined && filePath !== "" && !path.isAbsolute(filePath)) {
+        throw new Error(
+          `filePath must be an absolute path; received ${filePath}`,
+        );
+      }
+
+      const result = await sendCommandToFigma(
+        "export_image_fill",
+        { nodeId, paintIndex },
+        HEAVY_READ_TIMEOUT_MS,
+      );
+      const typedResult = result as {
+        nodeId?: string;
+        paintIndex?: number;
+        imageHash?: string;
+        imageFill?: Record<string, unknown>;
+        imageData?: string;
+      };
+      if (
+        typeof typedResult.imageData !== "string" ||
+        typeof typedResult.imageHash !== "string" ||
+        typedResult.imageFill === undefined
+      ) {
+        throw new Error("plugin returned an incomplete image-fill export reply");
+      }
+
+      const bytes = Buffer.from(typedResult.imageData, "base64");
+      if (bytes.length === 0) {
+        throw new Error("plugin returned empty image-fill bytes");
+      }
+      const mimeType = inferImageMimeType(bytes);
+      const receipt = buildImageFillReceipt(bytes, mimeType, {
+        nodeId: typedResult.nodeId || nodeId,
+        paintIndex:
+          typeof typedResult.paintIndex === "number"
+            ? typedResult.paintIndex
+            : paintIndex,
+        imageHash: typedResult.imageHash,
+        imageFill: typedResult.imageFill,
+        filePath,
+      });
+
+      if (filePath) {
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, bytes);
+        return {
+          content: [{ type: "text", text: JSON.stringify(receipt, null, 2) }],
+        };
+      }
+
+      if (!mimeType.startsWith("image/")) {
+        throw new Error(
+          "image-fill bytes have an unrecognized image signature; retry with filePath to retain them without mislabeling their MIME type",
+        );
+      }
+      return {
+        content: [
+          {
+            type: "image",
+            data: typedResult.imageData,
+            mimeType,
+          },
+          { type: "text", text: JSON.stringify(receipt, null, 2) },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error exporting image fill: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+      };
+    }
+  },
 );
 
 // Set Text Content Tool
@@ -5184,6 +5286,7 @@ type FigmaCommand =
   | "get_instance_overrides"
   | "set_instance_overrides"
   | "export_node_as_image"
+  | "export_image_fill"
   | "join"
   | "set_corner_radius"
   | "clone_node"
@@ -5497,6 +5600,10 @@ type CommandParams = {
     format?: "PNG" | "JPG" | "SVG" | "PDF";
     scale?: number;
     allowLargeExport?: boolean;
+  };
+  export_image_fill: {
+    nodeId: string;
+    paintIndex: number;
   };
   join: {
     channel: string;

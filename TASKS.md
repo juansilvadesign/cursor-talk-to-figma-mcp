@@ -1985,6 +1985,13 @@ The detailed evidence and acceptance conditions live in
       the effect-style detachment premise; paint-style attachment does not silently prove
       it. Its disposable-file live gate is deliberately still pending, and the R3.1
       historical gates are not re-pinned by this implementation.
+- [ ] **R3.2.1 — original image-fill export addendum.** Adds one generic, read-only
+      `export_image_fill` tool to the `1.21.0` additive-preview surface. A caller must
+      name both an exact node ID and image-paint index; the tool returns the original stored
+      bytes plus the complete placement paint, not a rasterized node export. It has no
+      consumer-specific arguments or source-file assumptions. The offline contract, plugin,
+      wrapper, and byte-preservation tests are green; its first no-mutation live gate remains
+      pending, and it does not advance or consume the planned R3.3 component-authoring phase.
 - [ ] **R3.3 — components, variants, and instances.** Start with generic component
       creation/ownership and instantiation, then variants/properties, then instance-property
       mutation. The phase owns the instance-child write premise rather than relying on a

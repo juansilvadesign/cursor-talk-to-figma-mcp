@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R3.2",
-  "buildId": "r3.2-plugin-98129b15fafd",
-  "apiVersion": "1.20.0",
-  "serverSchemaVersion": "1.20.0",
+  "release": "R3.2.1",
+  "buildId": "r3.2.1-plugin-ad75ba5fe779",
+  "apiVersion": "1.21.0",
+  "serverSchemaVersion": "1.21.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
+  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -59,6 +59,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "check_fonts",
     "create_component_instance",
     "export_node_as_image",
+    "export_image_fill",
     "set_corner_radius",
     "set_text_content",
     "set_text_style",
@@ -121,6 +122,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -424,6 +426,8 @@ async function handleCommand(command, params) {
       return await createComponentInstance(params);
     case "export_node_as_image":
       return await exportNodeAsImage(params);
+    case "export_image_fill":
+      return await exportImageFill(params);
     case "set_corner_radius":
       return await setCornerRadius(params);
     case "set_text_content":
@@ -8725,6 +8729,120 @@ async function exportNodeAsImage(params) {
       { preflight }
     );
     throw new Error(`Error exporting node as image: ${error.message}`);
+  }
+}
+
+async function exportImageFill(params) {
+  const {
+    nodeId,
+    paintIndex,
+    commandId = generateCommandId(),
+  } = params || {};
+
+  if (!nodeId) {
+    throw new Error("Missing nodeId parameter");
+  }
+  if (!Number.isInteger(paintIndex) || paintIndex < 0) {
+    throw new Error(
+      `paintIndex must be a non-negative integer; received ${String(paintIndex)}`,
+    );
+  }
+
+  const node = await figma.getNodeByIdAsync(nodeId);
+  if (!node) {
+    throw new Error(`Node not found with ID: ${nodeId}`);
+  }
+  if (!("fills" in node)) {
+    throw new Error(`Node does not expose fills: ${nodeId}`);
+  }
+  if (node.fills === figma.mixed) {
+    throw new Error(`Node fills are mixed and cannot name an exact image fill: ${nodeId}`);
+  }
+  if (!Array.isArray(node.fills)) {
+    throw new Error(`Node fills are not an array: ${nodeId}`);
+  }
+  if (paintIndex >= node.fills.length) {
+    throw new Error(
+      `paintIndex ${paintIndex} is outside node ${nodeId}'s ${node.fills.length} fill entries`,
+    );
+  }
+
+  const imageFill = node.fills[paintIndex];
+  if (!imageFill || imageFill.type !== "IMAGE") {
+    throw new Error(
+      `Fill ${paintIndex} on node ${nodeId} is ${imageFill?.type || "missing"}, not IMAGE`,
+    );
+  }
+  if (typeof imageFill.imageHash !== "string" || imageFill.imageHash.length === 0) {
+    throw new Error(
+      `Image fill ${paintIndex} on node ${nodeId} has no readable imageHash`,
+    );
+  }
+  if (typeof figma.getImageByHash !== "function") {
+    throw new Error("Figma Image API getImageByHash is unavailable in this plugin runtime");
+  }
+
+  const image = figma.getImageByHash(imageFill.imageHash);
+  if (!image) {
+    throw new Error(
+      `Figma could not resolve imageHash for fill ${paintIndex} on node ${nodeId}`,
+    );
+  }
+
+  try {
+    await sendProgressUpdate(
+      commandId,
+      "export_image_fill",
+      "started",
+      0,
+      1,
+      0,
+      `Reading original bytes for image fill ${paintIndex} on ${nodeId}`,
+    );
+    const bytes = await image.getBytesAsync();
+    if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0) {
+      throw new Error("Figma returned no image bytes");
+    }
+    await sendProgressUpdate(
+      commandId,
+      "export_image_fill",
+      "in_progress",
+      90,
+      1,
+      1,
+      `Figma read ${bytes.byteLength} original image bytes; preparing delivery`,
+    );
+    const imageData = customBase64Encode(bytes);
+    await sendProgressUpdate(
+      commandId,
+      "export_image_fill",
+      "completed",
+      100,
+      1,
+      1,
+      "Prepared original image-fill bytes for delivery",
+    );
+
+    return {
+      nodeId,
+      paintIndex,
+      imageHash: imageFill.imageHash,
+      // Clone the paint itself rather than reconstructing its fields. The returned bytes
+      // are only meaningful with scaleMode/imageTransform and any future Figma paint fields.
+      imageFill: JSON.parse(JSON.stringify(imageFill)),
+      imageData,
+    };
+  } catch (error) {
+    await sendProgressUpdate(
+      commandId,
+      "export_image_fill",
+      "error",
+      0,
+      1,
+      0,
+      `Image-fill export failed: ${error.message || String(error)}`,
+    );
+    throw new Error(`Error exporting image fill: ${error.message || String(error)}`);
   }
 }
 function customBase64Encode(bytes) {

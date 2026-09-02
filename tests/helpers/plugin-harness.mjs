@@ -17,6 +17,11 @@ function clone(value) {
 // an API that expects `{family, style}`. Declared at module scope because fixture nodes
 // are built before the `figma` object exists.
 const MIXED = Symbol("mixed");
+const DEFAULT_IMAGE_BYTES = Uint8Array.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x01, 0x40, 0x00, 0x00, 0x00, 0xb4,
+]);
 
 function fontKey(font) {
   return `${font.family}::${font.style}`;
@@ -38,6 +43,11 @@ function createFixtureRuntime(fixture, options) {
   const messages = [];
   const notifications = [];
   const exportCalls = [];
+  const imageReadCalls = [];
+  const imageBytesByHash = new Map(
+    Object.entries(options.imageBytesByHash || { "fixture-image": DEFAULT_IMAGE_BYTES })
+      .map(([hash, bytes]) => [hash, Uint8Array.from(bytes)]),
+  );
   const fontLoads = [];
   const loadedFonts = new Set();
   const storage = new Map();
@@ -1732,6 +1742,18 @@ function createFixtureRuntime(fixture, options) {
       setAsync: async (key, value) => storage.set(key, clone(value)),
     },
     getNodeByIdAsync: async (id) => nodes.get(id) || null,
+    getImageByHash: (hash) => {
+      const bytes = imageBytesByHash.get(hash);
+      if (!bytes) return null;
+      return {
+        hash,
+        getBytesAsync: async () => {
+          imageReadCalls.push(hash);
+          if (options.imageReadError) throw new Error(options.imageReadError);
+          return Uint8Array.from(bytes);
+        },
+      };
+    },
     setCurrentPageAsync: async (page) => {
       currentPage = page;
     },
@@ -2055,6 +2077,9 @@ function createFixtureRuntime(fixture, options) {
   if (options.fontInventoryApi === false) {
     delete figma.listAvailableFontsAsync;
   }
+  if (options.imageApi === false) {
+    delete figma.getImageByHash;
+  }
 
   return {
     figma,
@@ -2062,6 +2087,7 @@ function createFixtureRuntime(fixture, options) {
     messages,
     notifications,
     exportCalls,
+    imageReadCalls,
     fontLoads,
     loadedFonts,
     styleById,
@@ -2160,6 +2186,7 @@ export async function loadPluginHarness(options = {}) {
     messages: runtime.messages,
     notifications: runtime.notifications,
     exportCalls: runtime.exportCalls,
+    imageReadCalls: runtime.imageReadCalls,
     styleNativeCalls: runtime.styleNativeCalls,
     // Which fonts the plugin actually asked Figma to load, in order — the only way to
     // tell "loaded the right font" from "never looked".

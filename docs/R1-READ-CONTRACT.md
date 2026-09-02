@@ -61,6 +61,7 @@ milliseconds and would otherwise downgrade a 120 s budget to 60 s instantly.
 | `scan_nodes_by_types` | node_subtree | standard | stable | chunked |
 | `get_instance_overrides` | node_or_current_page_selection | standard | stable | none |
 | `export_node_as_image` | node | heavy_read | additive-preview | preflight + encoding |
+| `export_image_fill` | image_fill | heavy_read | additive-preview | fetch + delivery |
 
 ---
 
@@ -103,6 +104,7 @@ Every heavy read is bounded by default. These are the knobs:
 | `get_pages` | `includeChildCount` (opt-in; measured cheap on a 6-page/826-child file) |
 | `get_node_variables` | `maxNodes` (**defaults to 5000**), `timeBudgetMs`, `limit`, `offset` — **added in R2**, see below |
 | `export_node_as_image` | `scale`, `allowLargeExport` (explicit risk override), and **`filePath`** to keep bytes out of the transcript |
+| `export_image_fill` | an explicit `paintIndex` (never an implicit first fill) and **`filePath`** to keep original image bytes out of the transcript |
 
 ### R2 amendment — `get_node_variables` is bounded by default
 
@@ -273,6 +275,20 @@ one would be a fabrication. Always read `dimensionSource` before trusting a size
 `preflight.projectedWidth`/`projectedHeight` are deliberately separate: they are a
 before-encoding cost estimate, while the top-level dimensions are parsed evidence from
 the resulting artifact.
+
+### `export_image_fill` — original bytes from one exact paint
+
+`export_node_as_image` composites a node's backgrounds, children, and overlays. That is
+not sufficient when an image fill belongs to a text-bearing section root. This read takes
+both `nodeId` and an explicit zero-based `paintIndex`, refuses a non-`IMAGE` paint, then
+uses Figma's image handle to retrieve the stored source bytes without changing the node.
+
+Its receipt records the original image hash, byte hash, intrinsic dimensions, and the
+complete matching image-paint metadata (`scaleMode`, crop transform, opacity and any
+future additive fields). The stored bytes are not re-encoded: there is no requested
+format or scale. With `filePath`, the server writes the bytes locally and returns only the
+receipt; otherwise it returns an image content block when its byte signature identifies a
+supported image MIME type. Unknown signatures are not mislabeled.
 
 ---
 

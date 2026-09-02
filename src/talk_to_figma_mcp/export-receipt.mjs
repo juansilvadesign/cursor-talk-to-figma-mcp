@@ -40,3 +40,36 @@ export function buildExportReceipt(bytes, mimeType, request) {
   }
   return receipt;
 }
+
+/**
+ * Build a receipt for original bytes read from one exact IMAGE paint.
+ *
+ * Unlike node export, this never rasterizes a node or chooses a format/scale. The paint
+ * metadata is retained because its crop and blend settings describe how the original image
+ * is used on the named node; the bytes alone do not establish that relationship.
+ *
+ * @param {Buffer} bytes decoded original image bytes
+ * @param {string} mimeType sniffed MIME type
+ * @param {{nodeId: string, paintIndex: number, imageHash: string, imageFill: Record<string, unknown>, filePath?: string}} request
+ * @returns {Record<string, unknown>}
+ */
+export function buildImageFillReceipt(bytes, mimeType, request) {
+  const dimensions = readImageDimensions(bytes, mimeType);
+  const receipt = {
+    nodeId: request.nodeId,
+    paintIndex: request.paintIndex,
+    imageHash: request.imageHash,
+    imageFill: request.imageFill,
+    mimeType,
+    bytes: bytes.length,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    width: dimensions ? dimensions.width : null,
+    height: dimensions ? dimensions.height : null,
+    dimensionSource: dimensions ? dimensions.dimensionSource : null,
+    delivery: request.filePath ? "file" : "inline",
+  };
+  if (request.filePath) {
+    receipt.path = request.filePath;
+  }
+  return receipt;
+}

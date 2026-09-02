@@ -1,10 +1,10 @@
 {
-  "release": "R3.2",
-  "publicContractVersion": "1.20.0",
-  "serverSchemaVersion": "1.20.0",
+  "release": "R3.2.1",
+  "publicContractVersion": "1.21.0",
+  "serverSchemaVersion": "1.21.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
+  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
   "capabilities": [
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
@@ -29,6 +29,7 @@
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
@@ -156,6 +157,7 @@
       "get_instance_overrides",
       "set_instance_overrides",
       "export_node_as_image",
+      "export_image_fill",
       "join",
       "set_corner_radius",
       "clone_node",
@@ -244,6 +246,7 @@
       "get_instance_overrides",
       "set_instance_overrides",
       "export_node_as_image",
+      "export_image_fill",
       "join",
       "set_corner_radius",
       "clone_node",
@@ -330,6 +333,7 @@
       "check_fonts",
       "create_component_instance",
       "export_node_as_image",
+      "export_image_fill",
       "set_corner_radius",
       "set_text_content",
       "set_text_style",
@@ -2127,6 +2131,43 @@
         "pluginUpdates": "none"
       },
       "pluginCommand": "delete_variable_collection",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "export_image_fill",
+      "description": "[Exact image-fill scoped, read-only] Read the original bytes for one IMAGE fill on one node. Supply both nodeId and paintIndex; the receipt preserves the matching Figma image paint (including crop metadata) plus byte hash and intrinsic dimensions. Pass filePath to write bytes locally and avoid an inline base64 image block.",
+      "direction": "read",
+      "scope": "image_fill",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "description": "The ID of the node carrying the image fill"
+          },
+          "paintIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Exact zero-based index of the IMAGE entry in node.fills; no implicit first-fill default is used"
+          },
+          "filePath": {
+            "type": "string",
+            "description": "Absolute path to write the original image bytes to. When set, the reply is the receipt only — no base64 image block."
+          }
+        },
+        "required": [
+          "nodeId",
+          "paintIndex"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "image_fetch_and_delivery"
+      },
+      "pluginCommand": "export_image_fill",
       "resultStability": "additive-preview"
     },
     {

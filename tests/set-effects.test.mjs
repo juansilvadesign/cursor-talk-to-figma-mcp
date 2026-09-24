@@ -456,9 +456,9 @@ test("R3.2.1 image-fill export keeps all three 1.21.0 version fields together", 
   const release = JSON.parse(
     await readFile(path.join(root, "runtime/release.json"), "utf8"),
   );
-  assert.equal(release.publicContractVersion, "1.21.0");
-  assert.equal(release.serverSchemaVersion, "1.21.0");
-  assert.equal(release.pluginApiVersion, "1.21.0");
+  assert.equal(release.publicContractVersion, "1.22.0");
+  assert.equal(release.serverSchemaVersion, "1.22.0");
+  assert.equal(release.pluginApiVersion, "1.22.0");
 });
 
 /**

@@ -200,9 +200,9 @@ test("the public contract keeps two stable node writes while R3.2.1 schema 1.21.
   // `delete_variable_collection`; 1.19.0 adds R3.1's three additive measurement
   // enablers; 1.20.0 adds R3.2 local-style authoring; 1.21.0 adds R3.2.1's read-only
   // image-fill export. These two tools' frozen promises are unchanged by every event.
-  assert.equal(built.contract.publicContractVersion, "1.21.0");
-  assert.equal(built.contract.serverSchemaVersion, "1.21.0");
-  assert.equal(built.release.pluginApiVersion, "1.21.0");
+  assert.equal(built.contract.publicContractVersion, "1.22.0");
+  assert.equal(built.contract.serverSchemaVersion, "1.22.0");
+  assert.equal(built.release.pluginApiVersion, "1.22.0");
 });
 
 test("both R2.7 item 1.3 tools are explicitly absent from v1 apply_batch", () => {

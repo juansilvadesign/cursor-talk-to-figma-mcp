@@ -103,6 +103,8 @@ function createFixtureRuntime(fixture, options) {
   let dynamicId = 1;
   let dynamicVariableId = 1;
   let dynamicStyleId = 1;
+  let r33PropertySerial = 1;
+  const r33DefinitionStore = new WeakMap();
   // Style calls are observable separately from their resulting state. That lets the R3.2
   // tests prove a remote/wrong-kind refusal stopped before setter/remove/import fallbacks,
   // rather than merely observing that the fixture happened to stay unchanged.
@@ -113,6 +115,10 @@ function createFixtureRuntime(fixture, options) {
     setValue: [],
     attach: [],
   };
+  const componentNativeCalls = [];
+  const pendingComponentRemovals = [];
+  const trackComponentCall = (method, details = {}) =>
+    componentNativeCalls.push({ method, ...details });
 
   const containers = new Set([
     "DOCUMENT",
@@ -123,6 +129,7 @@ function createFixtureRuntime(fixture, options) {
     "COMPONENT",
     "COMPONENT_SET",
     "INSTANCE",
+    "SLOT",
   ]);
 
   // ⛔ Type-gated, NOT a blanket default — and that distinction is the whole point.
@@ -335,6 +342,8 @@ function createFixtureRuntime(fixture, options) {
   }
 
   function appendChild(parent, child, index = parent.children.length) {
+    trackComponentCall(index === parent.children.length ? "appendChild" : "insertChild",
+      { parentId: parent.id, childId: child.id });
     detach(child);
     child.parent = parent;
     parent.children.splice(Math.max(0, Math.min(index, parent.children.length)), 0, child);
@@ -378,6 +387,9 @@ function createFixtureRuntime(fixture, options) {
       parent,
     };
     if (!node.type) node.type = "RECTANGLE";
+    if ((node.type === "COMPONENT" || node.type === "COMPONENT_SET") && !node.key) {
+      node.key = `fixture-key-${node.id}`;
+    }
     if (containers.has(node.type)) node.children = [];
     else delete node.children;
 
@@ -812,6 +824,12 @@ function createFixtureRuntime(fixture, options) {
     };
     node.resizeWithoutConstraints = node.resize;
     node.remove = () => {
+      trackComponentCall("remove", { nodeId: node.id });
+      if (options.P14 === "stale" &&
+          (node.type === "COMPONENT" || node.type === "COMPONENT_SET")) {
+        pendingComponentRemovals.push(node);
+        return;
+      }
       detach(node);
       unregister(node);
     };
@@ -1091,13 +1109,22 @@ function createFixtureRuntime(fixture, options) {
     }
     node.setRangeFills = () => undefined;
     node.findAll = (predicate) => descendants(node).filter(predicate);
-    node.findAllWithCriteria = ({ types }) =>
-      descendants(node).filter((candidate) => types.includes(candidate.type));
+    node.findAllWithCriteria = ({ types, pluginData }) => {
+      if (options.P19 === "throws") throw new Error("P19 identity scan unavailable");
+      return descendants(node).filter((candidate) => {
+        if (!types.includes(candidate.type)) return false;
+        if (!pluginData) return true;
+        if (options.P19 === "misses") return false;
+        return (pluginData.keys || []).every((key) =>
+          typeof candidate.getPluginData === "function" && candidate.getPluginData(key) !== "");
+      });
+    };
 
     // Plugin data. Figma deletes a key when it is written the empty string, and
     // reads an absent key back as "" — both reproduced here, because the tools
     // exist precisely to make that ambiguity visible to a caller.
-    const privateData = new Map();
+    const privateData = new Map(Object.entries(raw.pluginData || {}));
+    delete node.pluginData;
     const sharedData = new Map();
     function pluginDataStore(namespace) {
       if (namespace === undefined) return privateData;
@@ -1108,9 +1135,22 @@ function createFixtureRuntime(fixture, options) {
       if (value === "") store.delete(key);
       else store.set(key, value);
     }
-    node.getPluginData = (key) => privateData.get(key) ?? "";
-    node.setPluginData = (key, value) => writePluginData(privateData, key, value);
-    node.getPluginDataKeys = () => [...privateData.keys()];
+    // P20 was measured live: an instance reads its main's private data when
+    // it has no own value, and an instance sublayer reads its main child.
+    const inheritedPluginDataNode = () => node.type === "INSTANCE"
+      ? node.mainComponent : node.sourceMainNode;
+    node.getPluginData = (key) => privateData.has(key)
+      ? privateData.get(key)
+      : inheritedPluginDataNode()?.getPluginData(key) ?? "";
+    node.setPluginData = (key, value) => {
+      trackComponentCall("setPluginData", { nodeId: node.id, key });
+      if (options.P1 === "discard" &&
+          ["COMPONENT", "COMPONENT_SET", "INSTANCE", "SLOT"].includes(node.type)) return;
+      writePluginData(privateData, key, value);
+    };
+    node.getPluginDataKeys = () => [...new Set([
+      ...privateData.keys(), ...(inheritedPluginDataNode()?.getPluginDataKeys() || []),
+    ])];
     node.getSharedPluginData = (namespace, key) =>
       pluginDataStore(namespace).get(key) ?? "";
     node.setSharedPluginData = (namespace, key, value) =>
@@ -1129,14 +1169,7 @@ function createFixtureRuntime(fixture, options) {
       };
       node.selection = [];
     }
-    if (node.type === "COMPONENT") {
-      node.createInstance = () => {
-        const instance = createDynamicNode("INSTANCE", node.name);
-        instance.mainComponent = node;
-        instance.getMainComponentAsync = async () => node;
-        return instance;
-      };
-    }
+    attachR33NodeMethods(node, raw);
 
     nodes.set(node.id, node);
     for (const childRaw of raw.children || []) {
@@ -1183,6 +1216,193 @@ function createFixtureRuntime(fixture, options) {
     const node = makeNode(raw);
     appendChild(currentPage, node);
     return node;
+  }
+
+  function definitionOwner(node) {
+    return node.parent?.type === "COMPONENT_SET" ? node.parent : node;
+  }
+  function r33Definitions(node) {
+    return r33DefinitionStore.get(definitionOwner(node)) || {};
+  }
+  function copySceneNode(source, type = source.type, id = `900:${dynamicId++}`) {
+    const raw = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (["id", "type", "parent", "children", "mainComponent", "pluginData"].includes(key) ||
+          typeof value === "function") continue;
+      raw[key] = clone(value);
+    }
+    const copied = makeNode({ ...raw, id, type, name: source.name });
+    Object.defineProperty(copied, "sourceMainNode", { value: source, configurable: true });
+    if (source.type === "INSTANCE") copied.mainComponent = source.mainComponent;
+    if (source.componentPropertyReferences) {
+      copied.componentPropertyReferences = clone(source.componentPropertyReferences);
+    }
+    if (source.type === "SLOT") {
+      Object.defineProperty(copied, "sourceSlot", { value: source, configurable: true });
+    }
+    for (const child of source.children || []) appendChild(copied, copySceneNode(child));
+    return copied;
+  }
+  function r33InstanceOf(component) {
+    trackComponentCall("createInstance", { componentId: component.id });
+    const instance = createDynamicNode("INSTANCE", component.name);
+    instance.mainComponent = component;
+    instance.componentProperties = Object.fromEntries(Object.entries(r33Definitions(component))
+      .map(([key, def]) => [key, { type: def.type, value: def.defaultValue }]));
+    for (const child of component.children || []) appendChild(instance, copySceneNode(child));
+    return instance;
+  }
+  function attachR33NodeMethods(node, raw) {
+    if (node.type === "COMPONENT" || node.type === "COMPONENT_SET") {
+      r33DefinitionStore.set(node, clone(raw.componentPropertyDefinitions || {}));
+      Object.defineProperty(node, "componentPropertyDefinitions", {
+        configurable: true, get: () => r33Definitions(node),
+      });
+      node.addComponentProperty = (name, type, defaultValue, propertyOptions = {}) => {
+        trackComponentCall("addComponentProperty", { nodeId: node.id, name, type });
+        if (options.P5 === "set_rejects" && node.type === "COMPONENT_SET") {
+          throw new Error("Figma refused a set-level property");
+        }
+        const key = type === "VARIANT" ? name : `${name}#900:${r33PropertySerial++}`;
+        const definitions = r33Definitions(node);
+        definitions[key] = { type, defaultValue: clone(defaultValue), ...clone(propertyOptions) };
+        return key;
+      };
+      node.editComponentProperty = (key, changes) => {
+        trackComponentCall("editComponentProperty", { nodeId: node.id, key });
+        const definitions = r33Definitions(node);
+        const current = definitions[key];
+        if (!current) throw new Error("Unknown component property");
+        const newKey = changes.name === undefined ? key :
+          current.type === "VARIANT" ? changes.name : `${changes.name}#900:${r33PropertySerial++}`;
+        const updated = { ...current, ...clone(changes) };
+        delete updated.name;
+        delete definitions[key];
+        definitions[newKey] = updated;
+        if (options.P6 !== "references_stale") {
+          for (const descendant of descendants(node)) {
+            if (!descendant.componentPropertyReferences) continue;
+            for (const field of Object.keys(descendant.componentPropertyReferences)) {
+              if (descendant.componentPropertyReferences[field] === key) {
+                descendant.componentPropertyReferences[field] = newKey;
+              }
+            }
+          }
+        }
+        return newKey;
+      };
+      node.deleteComponentProperty = (key) => {
+        trackComponentCall("deleteComponentProperty", { nodeId: node.id, key });
+        delete r33Definitions(node)[key];
+        if (options.P7 !== "references_dangle") {
+          for (const descendant of descendants(node)) {
+            if (!descendant.componentPropertyReferences) continue;
+            for (const field of Object.keys(descendant.componentPropertyReferences)) {
+              if (descendant.componentPropertyReferences[field] === key) {
+                delete descendant.componentPropertyReferences[field];
+              }
+            }
+          }
+        }
+      };
+    }
+    if (node.type === "COMPONENT") {
+      node.createInstance = () => r33InstanceOf(node);
+      node.getInstancesAsync = async () => {
+        if (options.P13 === "unavailable") throw new Error("P13 consumer read unavailable");
+        if (options.P13 === "misses") return [];
+        return [...nodes.values()].filter((candidate) =>
+          candidate.type === "INSTANCE" && candidate.mainComponent?.id === node.id);
+      };
+      if (options.P15 !== "unavailable") {
+        node.createSlot = () => {
+          trackComponentCall("createSlot", { componentId: node.id });
+          const slot = createDynamicNode("SLOT", "Slot");
+          appendChild(node, slot);
+          const key = `Slot#900:${r33PropertySerial++}`;
+          r33Definitions(node)[key] = {
+            type: "SLOT", description: null, preferredValues: [],
+          };
+          slot.componentPropertyReferences = { slotContentId: key };
+          return slot;
+        };
+      }
+    }
+    if (node.type === "INSTANCE") {
+      node.getMainComponentAsync = async () => node.mainComponent || null;
+      node.componentProperties = clone(raw.componentProperties || {});
+      node.overrides = clone(raw.overrides || []);
+      node.setProperties = (properties) => {
+        trackComponentCall("setProperties", { instanceId: node.id, properties: clone(properties) });
+        if (options.P8 === "throws") throw new Error("Figma refused variant selection");
+        if (options.P8 === "discards") return;
+        for (const [key, value] of Object.entries(properties)) {
+          const type = r33Definitions(node.mainComponent)[key]?.type || node.componentProperties[key]?.type;
+          node.componentProperties[key] = { type, value };
+        }
+        const main = node.mainComponent;
+        if (main?.parent?.type === "COMPONENT_SET") {
+          const variants = main.parent.children.filter((child) => child.type === "COMPONENT");
+          const desired = Object.fromEntries(Object.entries(node.componentProperties)
+            .filter(([, value]) => value.type === "VARIANT")
+            .map(([key, value]) => [key, value.value]));
+          const match = variants.find((candidate) =>
+            Object.entries(desired).every(([key, value]) => candidate.variantProperties?.[key] === value));
+          if (match) node.mainComponent = match;
+        }
+      };
+      node.swapComponent = (component) => {
+        trackComponentCall("swapComponent", { instanceId: node.id, componentId: component.id });
+        node.mainComponent = component;
+        if (options.P9 === "drops_overrides") node.overrides = [];
+      };
+      node.removeOverrides = () => {
+        trackComponentCall("removeOverrides", { instanceId: node.id });
+        if (options.P10 !== "retains") node.overrides = [];
+      };
+      node.detachInstance = () => {
+        trackComponentCall("detachInstance", { instanceId: node.id });
+        const sourceParent = node.parent;
+        const originalId = node.id;
+        const keyData = Object.fromEntries(node.getPluginDataKeys()
+          .map((key) => [key, node.getPluginData(key)]));
+        const frame = makeNode({
+          id: options.P11 === "preserve_id" ? originalId : `900:${dynamicId++}`,
+          type: "FRAME", name: node.name,
+          pluginData: options.P11 === "carry_key" ? keyData : {},
+        });
+        if (sourceParent) appendChild(sourceParent, frame);
+        for (const child of [...node.children]) appendChild(frame, child);
+        node.remove();
+        if (frame.id === originalId) nodes.set(frame.id, frame);
+        return frame;
+      };
+    }
+    if (node.type === "SLOT") {
+      node.limitViolations = clone(raw.limitViolations || []);
+      if (options.P15 !== "unavailable") {
+        node.resetSlot = () => {
+          trackComponentCall("resetSlot", { slotId: node.id });
+          if (options.P15 === "reset_noop") return;
+          for (const child of [...node.children]) child.remove();
+          for (const child of node.sourceSlot?.children || []) {
+            appendChild(node, copySceneNode(child));
+          }
+        };
+      }
+    }
+    if (node.type !== "DOCUMENT" && node.type !== "PAGE") {
+      let refs = raw.componentPropertyReferences === undefined
+        ? null : clone(raw.componentPropertyReferences);
+      Object.defineProperty(node, "componentPropertyReferences", {
+        configurable: true,
+        get: () => refs,
+        set: (value) => {
+          trackComponentCall("componentPropertyReferences", { nodeId: node.id });
+          refs = clone(value);
+        },
+      });
+    }
   }
 
   const collections = fixture.variables.collections.map((item) => clone(item));
@@ -1848,6 +2068,62 @@ function createFixtureRuntime(fixture, options) {
     createFrame: () => createDynamicNode("FRAME", "Frame"),
     createText: () => createDynamicNode("TEXT", "Text"),
     createSection: () => createDynamicNode("SECTION", "Section"),
+    createComponent: () => {
+      trackComponentCall("createComponent");
+      return createDynamicNode("COMPONENT", "Component");
+    },
+    createComponentFromNode: (source) => {
+      trackComponentCall("createComponentFromNode", { sourceId: source.id });
+      const parent = source.parent;
+      const index = parent?.children.indexOf(source) ?? -1;
+      const id = options.P4 === "preserve_id" ? source.id : `900:${dynamicId++}`;
+      const raw = {
+        id, type: "COMPONENT", name: source.name, x: source.x, y: source.y,
+        width: source.width, height: source.height,
+        pluginData: options.P4 === "carry_data"
+          ? Object.fromEntries(source.getPluginDataKeys()
+              .map((key) => [key, source.getPluginData(key)])) : {},
+      };
+      const component = makeNode(raw);
+      if (parent) appendChild(parent, component, index);
+      for (const child of [...(source.children || [])]) appendChild(component, child);
+      source.remove();
+      if (component.id === source.id) nodes.set(component.id, component);
+      return component;
+    },
+    combineAsVariants: (components, parent) => {
+      trackComponentCall("combineAsVariants", { componentIds: components.map((item) => item.id) });
+      const set = createDynamicNode("COMPONENT_SET", "Component Set");
+      appendChild(parent, set);
+      for (const component of components) {
+        if (options.P2 === "replaces_members") {
+          const replacement = copySceneNode(component, "COMPONENT");
+          replacement.variantProperties = Object.fromEntries(component.name.split(",")
+            .map((part) => part.trim().split("=").map((part) => part.trim())));
+          component.remove();
+          appendChild(set, replacement);
+        } else {
+          component.variantProperties = Object.fromEntries(component.name.split(",")
+            .map((part) => part.trim().split("=").map((part) => part.trim())));
+          appendChild(set, component);
+        }
+      }
+      const variants = set.children.filter((child) => child.type === "COMPONENT");
+      set.componentPropertyDefinitions;
+      for (const name of Object.keys(variants[0]?.variantProperties || {})) {
+        r33DefinitionStore.get(set)[name] = {
+          type: "VARIANT",
+          defaultValue: variants[0].variantProperties[name],
+          variantOptions: [...new Set(variants.map((item) => item.variantProperties[name]))],
+        };
+      }
+      Object.defineProperty(set, "defaultVariant", {
+        configurable: true,
+        get: () => options.P3 === "first_member" ? variants[0] :
+          [...variants].sort((a, b) => a.y - b.y || a.x - b.x)[0],
+      });
+      return set;
+    },
     // R3.1's group fake models the structural contract needed by the handler: members
     // move under one GROUP while their absolute bounds survive. It does not model Figma's
     // auto-layout, boolean-operation, or instance restrictions; those remain native-gate
@@ -1929,10 +2205,18 @@ function createFixtureRuntime(fixture, options) {
       getSizeAsync: async () => ({ width: 2, height: 2 }),
     }),
     base64Decode: (value) => Uint8Array.from(Buffer.from(value, "base64")),
-    importComponentByKeyAsync: async (key) =>
-      [...nodes.values()].find(
+    importComponentByKeyAsync: async (key) => {
+      trackComponentCall("importComponentByKeyAsync", { key });
+      return [...nodes.values()].find(
         (node) => node.type === "COMPONENT" && node.key === key,
-      ) || null,
+      ) || null;
+    },
+    importComponentSetByKeyAsync: async (key) => {
+      trackComponentCall("importComponentSetByKeyAsync", { key });
+      return [...nodes.values()].find(
+        (node) => node.type === "COMPONENT_SET" && node.key === key,
+      ) || null;
+    },
     viewport: {
       scrollAndZoomIntoView: () => undefined,
       center: { x: 0, y: 0 },
@@ -2142,9 +2426,15 @@ function createFixtureRuntime(fixture, options) {
     loadedFonts,
     styleById,
     styleNativeCalls,
+    componentNativeCalls,
     clock,
     plain: clone,
     commitFrame: () => {
+      while (pendingComponentRemovals.length) {
+        const node = pendingComponentRemovals.pop();
+        detach(node);
+        unregister(node);
+      }
       commitVariableRemovals();
       commitCollectionRemovals();
       commitModeRemovals();
@@ -2238,6 +2528,7 @@ export async function loadPluginHarness(options = {}) {
     exportCalls: runtime.exportCalls,
     imageReadCalls: runtime.imageReadCalls,
     styleNativeCalls: runtime.styleNativeCalls,
+    componentNativeCalls: runtime.componentNativeCalls,
     // Which fonts the plugin actually asked Figma to load, in order — the only way to
     // tell "loaded the right font" from "never looked".
     fontLoads: runtime.fontLoads,

@@ -20,7 +20,9 @@ function run(command, args) {
 
 run(process.execPath, ["scripts/generate-contract.mjs"]);
 run(process.execPath, ["--check", "src/cursor_mcp_plugin/code.js"]);
-run(process.execPath, ["--test"]);
+// 2026-09-24: default 11 workers cancelled a 15 s server-runtime test twice
+// (510/511 in 55 s). Four workers passed 511/511 in 22 s on the same WSL host.
+run(process.execPath, ["--test", "--test-concurrency=4"]);
 run("bun", ["run", "build"]);
 
 const [snapshotText, runtimeText, distText] = await Promise.all([

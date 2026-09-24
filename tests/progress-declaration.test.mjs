@@ -50,7 +50,14 @@ function dispatcherMap(pluginSource) {
 function functionBody(pluginSource, name) {
   const declaration = pluginSource.indexOf(`function ${name}(`);
   if (declaration < 0) return null;
-  const start = pluginSource.indexOf("{", declaration);
+  const argsStart = pluginSource.indexOf("(", declaration);
+  let parens = 0;
+  let argsEnd = argsStart;
+  for (; argsEnd < pluginSource.length; argsEnd++) {
+    if (pluginSource[argsEnd] === "(") parens += 1;
+    else if (pluginSource[argsEnd] === ")" && --parens === 0) break;
+  }
+  const start = pluginSource.indexOf("{", argsEnd);
   let depth = 0;
   for (let index = start; index < pluginSource.length; index++) {
     if (pluginSource[index] === "{") depth += 1;
@@ -60,6 +67,18 @@ function functionBody(pluginSource, name) {
     }
   }
   return null;
+}
+
+function emitsProgress(pluginSource, name) {
+  const body = functionBody(pluginSource, name);
+  if (!body) return false;
+  if (PROGRESS_CALL.test(body)) return true;
+  // These two helpers are the only R3.3 indirect progress paths. Generic call
+  // graph traversal would overstate conditional projection reads on writes.
+  return (name === "r33GetComponent" && /\br33Projection\(/.test(body) &&
+      PROGRESS_CALL.test(functionBody(pluginSource, "r33Projection") || "")) ||
+    (/\br33IdentityScan\(/.test(body) &&
+      PROGRESS_CALL.test(functionBody(pluginSource, "r33IdentityScan") || ""));
 }
 
 test("every declared progress behaviour matches what the plugin actually emits", async () => {
@@ -80,11 +99,11 @@ test("every declared progress behaviour matches what the plugin actually emits",
     if (body === null) continue;
 
     const declaresProgress = tool.progress.pluginUpdates !== "none";
-    const emitsProgress = PROGRESS_CALL.test(body);
+    const doesEmitProgress = emitsProgress(pluginSource, handlers.get(command));
     checked.push(command);
 
     const known = KNOWN_UNTRUE_DECLARATIONS.has(command);
-    if (declaresProgress === emitsProgress) {
+    if (declaresProgress === doesEmitProgress) {
       assert.ok(
         !known,
         `${command} is pinned as a known-untrue declaration but now agrees with the runtime — remove it from KNOWN_UNTRUE_DECLARATIONS`,
@@ -93,7 +112,7 @@ test("every declared progress behaviour matches what the plugin actually emits",
     }
     if (known) continue;
     drifted.push(
-      `${command} (${handlers.get(command)}): contract says pluginUpdates "${tool.progress.pluginUpdates}", runtime ${emitsProgress ? "emits" : "emits nothing"}`,
+      `${command} (${handlers.get(command)}): contract says pluginUpdates "${tool.progress.pluginUpdates}", runtime ${doesEmitProgress ? "emits" : "emits nothing"}`,
     );
   }
 

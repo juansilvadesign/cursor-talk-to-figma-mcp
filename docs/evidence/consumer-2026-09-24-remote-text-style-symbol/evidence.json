@@ -1,0 +1,1001 @@
+{
+  "schema": "talk-to-figma-fork/consumer-bug-evidence/v1",
+  "observedAt": "2026-09-24",
+  "consumer": "figma-to-code (R2 capture of a private client fixture; file identity withheld from this public repo)",
+  "runtime": {
+    "server": {
+      "release": "R3.2.1",
+      "buildId": "r3.2.1-server-798028241619",
+      "schemaVersion": "1.21.0",
+      "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d"
+    },
+    "plugin": {
+      "release": "R3.2.1",
+      "buildId": "r3.2.1-plugin-d9b64d2ac562",
+      "apiVersion": "1.21.0",
+      "serverSchemaVersion": "1.21.0",
+      "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d"
+    },
+    "compatibility": "compatible",
+    "forkCommit": "e136177eb3a8007288126381d1cdb145a387137d"
+  },
+  "symptom": "get_node_variables on either landing-page frame root returns the text 'Error getting node variables: in postMessage: Cannot unwrap symbol' instead of JSON.",
+  "bisection": {
+    "method": "read-only get_node_variables on each section, descending into every failing node until all of a failing node's payload children pass",
+    "calls": 288,
+    "culpritCount": 66,
+    "culpritTypes": {
+      "TEXT": 60,
+      "INSTANCE": 4,
+      "FRAME": 2
+    },
+    "failingSections": [
+      {
+        "view": "desktop-1280",
+        "sectionId": "2978:36170",
+        "culprits": 2
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "2999:36499",
+        "culprits": 2
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "3005:42565",
+        "culprits": 4
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "3005:42577",
+        "culprits": 1
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "3005:42689",
+        "culprits": 13
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "3013:42899",
+        "culprits": 10
+      },
+      {
+        "view": "desktop-1280",
+        "sectionId": "3029:38660",
+        "culprits": 2
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3029:36580",
+        "culprits": 1
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3029:36608",
+        "culprits": 2
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3058:36571",
+        "culprits": 2
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3061:36706",
+        "culprits": 4
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3065:36728",
+        "culprits": 13
+      },
+      {
+        "view": "mobile-375",
+        "sectionId": "3065:36891",
+        "culprits": 10
+      }
+    ]
+  },
+  "windowProbes": {
+    "method": "offset/limit window the bindings and styles arrays independently of the whole-scan counts, so a window that serializes proves its records are Symbol-free",
+    "leafCulprits": [
+      {
+        "nodeId": "I3005:42593;12:13374;12:13029",
+        "type": "TEXT",
+        "counts": {
+          "bindingCount": 1,
+          "styleCount": 1,
+          "unresolvedBindings": 0,
+          "unresolvedStyles": 0
+        },
+        "windows": {
+          "offset0_limit1(B+S)": "FAIL",
+          "offset>=1": "ok (empty)"
+        }
+      },
+      {
+        "nodeId": "I3029:36621;9:1484;9:391",
+        "type": "TEXT",
+        "counts": {
+          "bindingCount": 1,
+          "styleCount": 1,
+          "unresolvedBindings": 0,
+          "unresolvedStyles": 0
+        },
+        "windows": {
+          "offset0_limit1(B+S)": "FAIL",
+          "offset>=1": "ok (empty)"
+        }
+      },
+      {
+        "nodeId": "3032:38775",
+        "type": "INSTANCE",
+        "counts": {
+          "bindingCount": 1,
+          "styleCount": 1,
+          "nodesScanned": 3
+        },
+        "windows": {
+          "offset0_limit1(B+S)": "FAIL"
+        }
+      }
+    ],
+    "separatingProbe": {
+      "nodeId": "I3005:42593;12:13374",
+      "counts": {
+        "bindingCount": 7,
+        "styleCount": 5,
+        "nodesScanned": 14
+      },
+      "windows": [
+        {
+          "offset": 0,
+          "contains": "B[0]+S[0]",
+          "result": "FAIL"
+        },
+        {
+          "offset": 1,
+          "contains": "B[1]+S[1]",
+          "result": "ok",
+          "binding": [
+            "FRAME",
+            "strokes[0].color",
+            "resolved"
+          ],
+          "style": [
+            "FRAME",
+            "fillStyleId",
+            "PAINT",
+            "remote=true",
+            "valueStatus=resolved"
+          ]
+        },
+        {
+          "offset": 2,
+          "contains": "B[2]+S[2]",
+          "result": "ok",
+          "binding": [
+            "VECTOR",
+            "strokes[0].color",
+            "resolved"
+          ],
+          "style": [
+            "FRAME",
+            "effectStyleId",
+            "EFFECT",
+            "remote=true",
+            "valueStatus=resolved"
+          ]
+        },
+        {
+          "offset": 3,
+          "contains": "B[3]+S[3]",
+          "result": "FAIL"
+        },
+        {
+          "offset": 4,
+          "contains": "B[4]+S[4]",
+          "result": "FAIL"
+        },
+        {
+          "offset": 5,
+          "contains": "B[5] only",
+          "result": "ok",
+          "binding": [
+            "VECTOR",
+            "strokes[0].color",
+            "resolved"
+          ]
+        },
+        {
+          "offset": 6,
+          "contains": "B[6] only",
+          "result": "ok",
+          "binding": [
+            "TEXT",
+            "fills[0].color",
+            "resolved"
+          ]
+        }
+      ],
+      "reading": "A TEXT node's fill-variable binding serializes (offset 6). Remote PAINT and EFFECT style values serialize (offsets 1-2). The three failing windows each carry the TEXT style reference of one of the subtree's three text layers; those styles are remote (library) TEXT styles."
+    }
+  },
+  "culprits": [
+    {
+      "view": "desktop-1280",
+      "section": "3005:42565",
+      "nodeId": "I3005:42593;12:13374;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42565",
+      "nodeId": "I3005:42593;12:13374;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42565",
+      "nodeId": "I3005:42593;12:13374;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42565",
+      "nodeId": "I3005:42573;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42928;12:13382;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42928;12:13382;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42928;12:13382;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42939;12:13382;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42939;12:13382;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3019:42939;12:13382;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3022:42953;12:14097;12:13134",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3022:42953;12:14097;12:13136",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 9,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3022:42953;12:14097;12:13137",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3013:42899",
+      "nodeId": "I3013:42918;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3029:38660",
+      "nodeId": "I3032:38774;9:1484;9:391",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3029:38660",
+      "nodeId": "3032:38775",
+      "type": "INSTANCE",
+      "layerName": "Button",
+      "depthBelowSection": 4,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3005:42820;9:1486;9:393",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13607;12:13718;12:13107",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13607;12:13718;12:13111",
+      "type": "TEXT",
+      "layerName": "Leading text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13607;12:13718;12:13112",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13607;12:13718;12:13115",
+      "type": "TEXT",
+      "layerName": "Dropdown text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13607;12:13718;12:13117",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13610;12:13744;12:13107",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13610;12:13744;12:13111",
+      "type": "TEXT",
+      "layerName": "Leading text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13610;12:13744;12:13112",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13610;12:13744;12:13114",
+      "type": "FRAME",
+      "layerName": "Dropdown",
+      "depthBelowSection": 9,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13610;12:13744;12:13117",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13634",
+      "type": "INSTANCE",
+      "layerName": "Input field",
+      "depthBelowSection": 4,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42689",
+      "nodeId": "I3048:14073;3048:13636;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "2999:36499",
+      "nodeId": "I3003:13406;9:1486;9:393",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "2999:36499",
+      "nodeId": "I2999:36509;9:2548;9:395",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "3005:42577",
+      "nodeId": "I2978:36163;9:1486;9:393",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "2978:36170",
+      "nodeId": "I3029:36401;3029:36321;9:960;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "desktop-1280",
+      "section": "2978:36170",
+      "nodeId": "I3029:36401;3029:36322;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3029:36580",
+      "nodeId": "I3029:36571;9:1484;9:391",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 5,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3029:36608",
+      "nodeId": "I3029:36621;9:1484;9:391",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3029:36608",
+      "nodeId": "I3029:36622;9:2548;9:395",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3058:36571",
+      "nodeId": "I3058:36585;9:1484;9:391",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3058:36571",
+      "nodeId": "3058:36586",
+      "type": "INSTANCE",
+      "layerName": "Button",
+      "depthBelowSection": 4,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3061:36706",
+      "nodeId": "I3061:36713;12:13374;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3061:36706",
+      "nodeId": "I3061:36713;12:13374;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3061:36706",
+      "nodeId": "I3061:36713;12:13374;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3061:36706",
+      "nodeId": "I3061:36714;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36736;9:1484;9:391",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13607;12:13718;12:13107",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13607;12:13718;12:13111",
+      "type": "TEXT",
+      "layerName": "Leading text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13607;12:13718;12:13112",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13607;12:13718;12:13115",
+      "type": "TEXT",
+      "layerName": "Dropdown text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13607;12:13718;12:13117",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13610;12:13744;12:13107",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13610;12:13744;12:13111",
+      "type": "TEXT",
+      "layerName": "Leading text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13610;12:13744;12:13112",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 11,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13610;12:13744;12:13114",
+      "type": "FRAME",
+      "layerName": "Dropdown",
+      "depthBelowSection": 9,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13610;12:13744;12:13117",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13634",
+      "type": "INSTANCE",
+      "layerName": "Input field",
+      "depthBelowSection": 4,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36728",
+      "nodeId": "I3065:36737;3048:13636;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36900;12:13382;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36900;12:13382;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36900;12:13382;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36901;12:13382;12:13029",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36901;12:13382;12:13033",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 10,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36901;12:13382;12:13035",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36902;12:14097;12:13134",
+      "type": "TEXT",
+      "layerName": "Label",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 8,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36902;12:14097;12:13136",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 9,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36902;12:14097;12:13137",
+      "type": "TEXT",
+      "layerName": "Hint text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 7,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    },
+    {
+      "view": "mobile-375",
+      "section": "3065:36891",
+      "nodeId": "I3065:36904;9:956;9:389",
+      "type": "TEXT",
+      "layerName": "Text",
+      "boundVariableKeys": [
+        "fills"
+      ],
+      "depthBelowSection": 6,
+      "note": "leaf in payload (VECTOR children are filtered)"
+    }
+  ]
+}

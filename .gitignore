@@ -20,3 +20,7 @@ docs/*
 !docs/R2.5-TYPOGRAPHY.md
 !docs/R2.6-LAYOUT.md
 !docs/R2.7-VISUALS.md
+!docs/CONSUMER-BUG-2026-09-24-REMOTE-TEXT-STYLE-SYMBOL.md
+!docs/evidence/
+docs/evidence/*
+!docs/evidence/consumer-2026-09-24-remote-text-style-symbol/

@@ -5,7 +5,7 @@
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
   "release": "R3.2.1",
-  "buildId": "r3.2.1-plugin-ad75ba5fe779",
+  "buildId": "r3.2.1-plugin-d9b64d2ac562",
   "apiVersion": "1.21.0",
   "serverSchemaVersion": "1.21.0",
   "relayProtocolVersion": "1",
@@ -3341,24 +3341,47 @@ function cloneLocalStyleValue(value) {
   }
 }
 
-function canonicalLocalStyleValue(value) {
-  if (Array.isArray(value)) return value.map(canonicalLocalStyleValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value)
-        .filter((key) => value[key] !== undefined)
-        .sort()
-        .map((key) => [key, canonicalLocalStyleValue(value[key])])
-    );
-  }
-  return value;
+// ⛔ "The readback matches the request" cannot be a byte comparison, because Figma
+// NORMALIZES what it stores. Both normalizations were measured live on 2026-09-23: numbers
+// are stored as float32 (0.16 reads back 0.1599999964237213), and Figma ADDS fields the
+// request never set — paint visible/blendMode/boundVariables, effect spread/
+// showShadowBehindNode, a default grid colour, fontName.variationSettings on a variable
+// font. The exact comparison this replaced made `confirmed` unreachable live for every
+// create, most updates and every create-or-match re-run, while the echoing offline harness
+// stayed green. The rule now: every field the REQUEST set must read back equal — numbers at
+// float32, arrays at the same length element by element — and fields only Figma supplied
+// are reported in the receipt's projection, never compared. A discarded, altered or
+// missing requested field still fails.
+function localStyleNumbersMatch(requested, read) {
+  if (typeof read !== "number") return false;
+  if (Object.is(requested, read)) return true;
+  return (
+    Number.isFinite(requested) &&
+    Number.isFinite(read) &&
+    Math.fround(requested) === Math.fround(read)
+  );
 }
 
-function sameLocalStyleValue(left, right) {
-  return (
-    JSON.stringify(canonicalLocalStyleValue(left)) ===
-    JSON.stringify(canonicalLocalStyleValue(right))
-  );
+function localStyleValueCovers(read, requested) {
+  if (requested === undefined) return true;
+  if (typeof requested === "number") return localStyleNumbersMatch(requested, read);
+  if (Array.isArray(requested)) {
+    return (
+      Array.isArray(read) &&
+      read.length === requested.length &&
+      requested.every((entry, index) => localStyleValueCovers(read[index], entry))
+    );
+  }
+  if (requested && typeof requested === "object") {
+    if (!read || typeof read !== "object" || Array.isArray(read)) return false;
+    return Object.keys(requested).every(
+      (key) =>
+        requested[key] === undefined ||
+        (Object.prototype.hasOwnProperty.call(read, key) &&
+          localStyleValueCovers(read[key], requested[key]))
+    );
+  }
+  return read === requested;
 }
 
 async function getLocalStylesForKind(kind) {
@@ -3668,6 +3691,21 @@ const LOCAL_GRID_PATTERNS = Object.freeze(["GRID", "ROWS", "COLUMNS"]);
 const LOCAL_GRID_ALIGNMENTS = Object.freeze(["MIN", "MAX", "STRETCH", "CENTER"]);
 const MAX_LOCAL_STYLE_GRIDS = 16;
 
+// ⛔ Figma's per-alignment grid rules, MEASURED on a live file on 2026-09-23/24 (an owned
+// probe: every created style deleted, the file re-verified from a fresh client). ROWS and
+// COLUMNS behave alike: MIN and MAX need both sectionSize and offset, CENTER needs
+// sectionSize and rejects offset, STRETCH needs offset and rejects sectionSize. Figma's
+// typings say the same ("sectionSize: not set for STRETCH", "offset: not set for CENTER").
+// They are enforced here, before the style exists, because Figma rejects a bad combination
+// only AFTER createGridStyle() has allocated a resource — which is how the first live gate
+// run met them: its own STRETCH + sectionSize payload had passed every offline test.
+const LOCAL_GRID_ALIGNMENT_FIELDS = Object.freeze({
+  MIN: Object.freeze({ sectionSize: "required", offset: "required" }),
+  MAX: Object.freeze({ sectionSize: "required", offset: "required" }),
+  CENTER: Object.freeze({ sectionSize: "required", offset: "refused" }),
+  STRETCH: Object.freeze({ sectionSize: "refused", offset: "required" }),
+});
+
 function prepareGridColor(color, where) {
   if (!color || typeof color !== "object" || Array.isArray(color)) {
     throw new Error(`${where}.color must be an RGBA object and wrote nothing`);
@@ -3734,6 +3772,19 @@ function buildLocalStyleGrid(input, index) {
     if (!Number.isInteger(input.count) || input.count < 1) {
       throw new Error(`${where}.count must be a positive integer and wrote nothing`);
     }
+    const rules = LOCAL_GRID_ALIGNMENT_FIELDS[input.alignment];
+    for (const field of ["sectionSize", "offset"]) {
+      if (rules[field] === "required" && input[field] === undefined) {
+        throw new Error(
+          `${where}.${field} is required for a ${input.alignment} ${input.pattern} grid (Figma rejects the grid without it) and wrote nothing`
+        );
+      }
+      if (rules[field] === "refused" && input[field] !== undefined) {
+        throw new Error(
+          `${where}.${field} is not valid for a ${input.alignment} ${input.pattern} grid (Figma rejects it) and wrote nothing`
+        );
+      }
+    }
     grid.alignment = input.alignment;
     grid.gutterSize = finiteGridNumber(input.gutterSize, "gutterSize", where, 0);
     grid.count = input.count;
@@ -3741,8 +3792,7 @@ function buildLocalStyleGrid(input, index) {
       grid.sectionSize = finiteGridNumber(input.sectionSize, "sectionSize", where, 0);
     }
     if (input.offset !== undefined) {
-      // No sign rule is invented here. The provisional R3.2 grammar records the supplied
-      // finite offset and leaves Figma's contextual acceptance to the disposable live gate.
+      // No sign rule is invented here: only offset's presence per alignment was measured.
       grid.offset = finiteGridNumber(input.offset, "offset", where);
     }
   }
@@ -3807,11 +3857,12 @@ function preparedLocalStyleValueMatches(style, prepared) {
   if (!current.readable) return null;
   if (prepared.kind === "text") {
     for (const [property, expected] of prepared.writes) {
-      if (!sameLocalStyleValue(textStyleReadable(style[property]), expected)) return false;
+      const read = cloneLocalStyleValue(textStyleReadable(style[property]));
+      if (!localStyleValueCovers(read, expected)) return false;
     }
     return true;
   }
-  return sameLocalStyleValue(current.value, prepared.value);
+  return localStyleValueCovers(current.value, prepared.value);
 }
 
 function localStyleOwnershipRefusal(style, kind, styleId, identityKey) {
@@ -3911,7 +3962,7 @@ async function createOrMatchLocalStyle(params) {
     if (matchesRequested !== true) {
       return localStyleRefusal(
         "identity_value_mismatch",
-        `The supplied ownership marker resolves to local ${kind} style ${matched.id}, but its stored value does not exactly match this create-or-match request.`,
+        `The supplied ownership marker resolves to local ${kind} style ${matched.id}, but its stored value does not match every field of this create-or-match request (numbers compared at Figma's float32 precision).`,
         { kind, styleId: matched.id, valueReadable: matchesRequested !== null }
       );
     }
@@ -3967,7 +4018,9 @@ async function createOrMatchLocalStyle(params) {
       ...localStyleRefusal(
         "local_style_creation_failed",
         `Figma rejected local ${kind} style creation after a resource was allocated. Cleanup is reported explicitly.`,
-        { kind }
+        // Figma's own words are the only diagnosis a caller gets for a rejection the
+        // grammar did not foresee; the first live grid refusal arrived without them.
+        { kind, error: (error && error.message) || String(error) }
       ),
       wrote: true,
       cleanup,
@@ -4047,7 +4100,7 @@ async function updateLocalStyle(params) {
       ...localStyleRefusal(
         "local_style_update_rejected",
         `Figma rejected the one requested local ${kind} style property write.`,
-        { kind, styleId }
+        { kind, styleId, error: (error && error.message) || String(error) }
       ),
       wrote: "unknown",
     };

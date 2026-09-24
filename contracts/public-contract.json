@@ -1075,7 +1075,7 @@
     {
       "kind": "tool",
       "name": "create_or_match_local_style",
-      "description": "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind.",
+      "description": "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind. A match or confirmation requires every requested field to read back equal from Figma, numbers at its float32 precision; fields Figma adds on its own are reported in the style projection, not compared.",
       "direction": "write",
       "scope": "document",
       "inputSchema": {
@@ -1511,7 +1511,7 @@
             },
             "minItems": 1,
             "maxItems": 16,
-            "description": "Provisional grid-style value; required only when kind is grid"
+            "description": "Grid-style value; required only when kind is grid. ROWS/COLUMNS need alignment, gutterSize and count, plus per alignment: MIN and MAX need sectionSize and offset; CENTER needs sectionSize and refuses offset; STRETCH needs offset and refuses sectionSize. GRID needs sectionSize."
           }
         },
         "required": [
@@ -5098,7 +5098,7 @@
     {
       "kind": "tool",
       "name": "update_local_style",
-      "description": "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed.",
+      "description": "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed: confirmed requires every requested field to read back equal, numbers at Figma's float32 precision.",
       "direction": "write",
       "scope": "local_style",
       "inputSchema": {
@@ -5532,7 +5532,8 @@
               "additionalProperties": true
             },
             "minItems": 1,
-            "maxItems": 16
+            "maxItems": 16,
+            "description": "Grid-style value, with the same per-alignment rules as create_or_match_local_style: MIN and MAX need sectionSize and offset; CENTER needs sectionSize and refuses offset; STRETCH needs offset and refuses sectionSize."
           }
         },
         "required": [

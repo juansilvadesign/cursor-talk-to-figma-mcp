@@ -4557,7 +4557,7 @@ server.tool(
 
 server.tool(
   "create_or_match_local_style",
-  "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind.",
+  "Create one owned local style, or match the one exact same-kind local style carrying the supplied opaque private identityKey. A matching name without that identity is refused rather than adopted. The key is private to this plugin and is never returned. This tool has no remote, import, publish, key-based, or source-snapshot path. New text styles require fontFamily, fontStyle, and fontSize; all four value fields below are mutually exclusive by kind. A match or confirmation requires every requested field to read back equal from Figma, numbers at its float32 precision; fields Figma adds on its own are reported in the style projection, not compared.",
   {
     kind: z.enum(["paint", "text", "effect", "grid"]),
     name: z.string().min(1).describe("Exact local style name; same-kind collisions without the supplied identity refuse"),
@@ -4606,7 +4606,7 @@ server.tool(
       offset: z.number().finite().optional(),
       visible: z.boolean().optional(),
       color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
-    }).passthrough()).min(1).max(16).optional().describe("Provisional grid-style value; required only when kind is grid"),
+    }).passthrough()).min(1).max(16).optional().describe("Grid-style value; required only when kind is grid. ROWS/COLUMNS need alignment, gutterSize and count, plus per alignment: MIN and MAX need sectionSize and offset; CENTER needs sectionSize and refuses offset; STRETCH needs offset and refuses sectionSize. GRID needs sectionSize."),
   },
   async (args: any) => {
     try {
@@ -4622,7 +4622,7 @@ server.tool(
 
 server.tool(
   "update_local_style",
-  "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed.",
+  "Update one owned exact local style after verifying both its same-kind local ID and opaque private identityKey. Supply exactly one mutation per call: name or the kind-specific value. This makes an update one native style-property write, prevents cross-kind payloads, refuses styles with variable bindings R3.2 cannot preserve, and reports an independent read-back as confirmed or unconfirmed: confirmed requires every requested field to read back equal, numbers at Figma's float32 precision.",
   {
     kind: z.enum(["paint", "text", "effect", "grid"]),
     styleId: z.string().min(1),
@@ -4651,7 +4651,7 @@ server.tool(
     layoutGrids: z.array(z.object({
       pattern: z.enum(["GRID", "ROWS", "COLUMNS"]), alignment: z.enum(["MIN", "MAX", "STRETCH", "CENTER"]).optional(), gutterSize: z.number().finite().min(0).optional(), count: z.number().int().min(1).optional(), sectionSize: z.number().finite().min(0).optional(), offset: z.number().finite().optional(), visible: z.boolean().optional(),
       color: z.object({ r: z.number().finite().min(0).max(1), g: z.number().finite().min(0).max(1), b: z.number().finite().min(0).max(1), a: z.number().finite().min(0).max(1).optional() }).optional(),
-    }).passthrough()).min(1).max(16).optional(),
+    }).passthrough()).min(1).max(16).optional().describe("Grid-style value, with the same per-alignment rules as create_or_match_local_style: MIN and MAX need sectionSize and offset; CENTER needs sectionSize and refuses offset; STRETCH needs offset and refuses sectionSize."),
   },
   async (args: any) => {
     try {

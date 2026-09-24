@@ -12,7 +12,38 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-08-26 — R3.1 live accepted)
+## ▶ Resume (checkpoint 2026-09-24 — R3.2 LIVE-ACCEPTED; release replay open)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`. Tree is **R3.2.1 / `1.21.0` / 87 tools**,
+  pair `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562` (fingerprint unchanged,
+  `sha256:f6f9c2bb…`; no release bump for a plugin fix). Offline `bun run verify` **485/485**.
+- **Doing:** ✅ R3.2's local-style gate **passed live** on 2026-09-24, channel `npezjajm`, burner
+  *"SYD (SaveYourDay) - Spaceapps"* (owner: "burner file, any edits approved"), after fixing
+  what live run 1 (09-23) found: the exact readback comparison (now requested fields only,
+  numbers at float32) and the grid grammar (now the measured per-alignment rules). Evidence:
+  `R3.2-LOCAL-STYLE-AUTHORING.md` → "Live run 1" / "Live run 2".
+- **Next step:** the release replay — re-pin and re-run the 23 historical gates plus the
+  pending R3.2.1 image-fill gate on this pair. Most need the PsiAtiva disposable file (its
+  variable collections, export node `95:1920`), so the owner must open that file and give a
+  channel. Nothing is committed yet.
+- **Key paths / IDs:**
+  - Remote paint control in the SYD burner: `S:89e081ee95cdc9af188f3bbf593c71ca3caff269,2760:4`
+    (fill of frame `594:11677`, page 2-App).
+  - `code.js`: `localStyleValueCovers` (readback), `LOCAL_GRID_ALIGNMENT_FIELDS` (grid rules).
+  - `tests/helpers/plugin-harness.mjs`: opt-in `figmaStyleNormalization` = measured Figma storage.
+- **Open / blockers:** release replay (above); R3.2 tools stay `additive-preview`.
+- **Don't forget:**
+  - ⛔ Reload the DEV plugin after any `code.js` change: the server's own preflight now refuses a
+    stale plugin at `join_channel` (`Plugin build mismatch`), even with an unchanged fingerprint.
+  - ⛔ Keep Figma **foregrounded** for live work: the same gate took 8 s foregrounded vs 67–123 s
+    backgrounded, and `get_node_variables` never returned past 500 nodes while backgrounded.
+  - ⛔ A live run on 09-23 left **one residue style** (created, receipt `unconfirmed`, never
+    owned). It was removed and verified; the gate now owns from the receipt before asserting.
+  - ⛔ A page-level `get_node_info` (REST export) on 2-App wedged the plugin for minutes. Scan
+    per top-level child. `get_node_variables` once returned `Cannot unwrap symbol` on a
+    page-level scan (not reproduced).
+
+## ⤴ Previous checkpoint (2026-08-26 — R3.1 live accepted)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork`. Authorized R3.1 added the three
   consumer-neutral measurement enablers: `create_group`, `set_range_font`, and

@@ -1985,6 +1985,21 @@ The detailed evidence and acceptance conditions live in
       the effect-style detachment premise; paint-style attachment does not silently prove
       it. Its disposable-file live gate is deliberately still pending, and the R3.1
       historical gates are not re-pinned by this implementation.
+      🔴 **Live run 1 (2026-09-23, channel `777zq27s`) — NOT accepted.** Two tool defects
+      blocked it: the readback comparison was exact, so float32 storage and Figma-added fields
+      made `confirmed` unreachable for most creates/updates; and the grid grammar accepted
+      alignment combinations Figma rejects. The gate was re-pinned to R3.2.1 and two gate
+      defects were fixed (stability read from the contract; own-first cleanup, after a run
+      left one residue style that was then removed and verified). Real remote control:
+      `S:89e081ee95cdc9af188f3bbf593c71ca3caff269,2760:4`.
+      ✅ **Live run 2 (2026-09-24, channel `npezjajm`) — LIVE-ACCEPTED** on
+      `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562` after both tool fixes
+      (float32 requested-field readback; measured grid grammar + Figma's error text in
+      refusals). Offline 485/485 with four mutation-proven tests. The effect-detachment premise
+      is now measured: a direct `set_effects` write detaches the attached effect style.
+      ⏳ **Still open: the release replay** — the 23 historical gates (R3.1 pins) and the
+      pending R3.2.1 image-fill gate have not run on this pair; several need the PsiAtiva
+      disposable file. Evidence: the doc's "Live run 1" and "Live run 2".
 - [ ] **R3.2.1 — original image-fill export addendum.** Adds one generic, read-only
       `export_image_fill` tool to the `1.21.0` additive-preview surface. A caller must
       name both an exact node ID and image-paint index; the tool returns the original stored

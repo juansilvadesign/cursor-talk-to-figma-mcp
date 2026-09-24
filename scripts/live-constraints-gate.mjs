@@ -154,12 +154,12 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3.1-server-beff31768985",
-  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
-  schemaVersion: "1.19.0",
+  serverBuildId: "r3.2.1-server-798028241619",
+  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
+  schemaVersion: "1.21.0",
   fingerprint:
-    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
-  toolCount: 80,
+    "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
+  toolCount: 87,
 };
 
 const serverPath = options.server

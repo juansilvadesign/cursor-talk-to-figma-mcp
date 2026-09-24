@@ -171,31 +171,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // rather than silently re-pinned. Replacing their pins without executing them would fabricate
 // live evidence. The new R3.2 gate below is current and *pending*, which makes it runnable
 // without claiming it has passed.
-const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
-  "live-batch-gate.mjs": "R3.1",
-  "live-clips-content-gate.mjs": "R3.1",
-  "live-constraints-gate.mjs": "R3.1",
-  "live-create-page-gate.mjs": "R3.1",
-  "live-effects-gate.mjs": "R3.1",
-  "live-export-gate.mjs": "R3.1",
-  "live-fill-gate.mjs": "R3.1",
-  "live-layout-gate.mjs": "R3.1",
-  "live-opacity-blend-gate.mjs": "R3.1",
-  "live-plugin-data-gate.mjs": "R3.1",
-  "live-r3.1-fill-style-gate.mjs": "R3.1",
-  "live-r3.1-group-gate.mjs": "R3.1",
-  "live-r3.1-range-font-gate.mjs": "R3.1",
-  "live-size-limits-gate.mjs": "R3.1",
-  "live-svg-crop-gate.mjs": "R3.1",
-  "live-text-style-gate.mjs": "R3.1",
-  "live-variable-capabilities-gate.mjs": "R3.1",
-  "live-variable-collection-delete-gate.mjs": "R3.1",
-  "live-variable-collections-bindings-gate.mjs": "R3.1",
-  "live-variable-identity-gate.mjs": "R3.1",
-  "live-variable-mode-gate.mjs": "R3.1",
-  "live-variable-mode-removal-gate.mjs": "R3.1",
-  "live-variable-write-gate.mjs": "R3.1",
-});
+// ✅✅ **THE R3.2.1 RELEASE REPLAY IS PAID — 2026-09-24, channel `m5g7y5fg`, file
+// *"Starter File - PsiAtiva - Disposable"*.** All twenty-three runners above were re-pinned to
+// `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562`, schema `1.21.0`, fingerprint
+// `sha256:f6f9c2bb…979902d`, 87 tools, and RE-RUN once each — **ALL TWENTY-THREE PASSED**,
+// each read by its own verdict protocol (`live-export-gate` by exit 0 with no `failure`).
+// Their entries are DELETED rather than reworded. A bad-plugin-pin copy of
+// `live-clips-content-gate` refused first (exit 1, only the offline schema check recorded).
+// The ceiling gate's precondition was rebuilt and paid back: *"7. Grids"* 4 → 10 with six
+// recorded `__r3.2.1-gf-*` modes, Figma refused `Limited to 10 modes only`, then exactly those
+// six ids were removed. A fresh client then matched the pre-run baseline byte for byte:
+// 25 pages, current page `0:1`, 1,316 variables, all nine collections' mode ids, and styles.
+const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 // ✅✅ **R3.2 LOCAL-STYLE GATE PASSED LIVE — 2026-09-24, channel `npezjajm`**, burner
 // *"SYD (SaveYourDay) - Spaceapps"*, pair `r3.2.1-server-798028241619` ↔
@@ -206,9 +193,9 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
 // cleanup, a valid grid payload), all found by its first live runs on 2026-09-23 — one of
 // which left a residue style the independent verifier caught. The refusal leg fired first
 // on this exact build (bad plugin pin → exit 1, `checks: []`).
-const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({
-  "live-image-fill-export-gate.mjs": "R3.2.1 image-fill export",
-});
+// The R3.2.1 image-fill gate passed on the same replay (node `I23005:96;21002:1242`, paint
+// 0: the original 90,439-byte JPEG, node unchanged), so this list is empty again.
+const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({});
 
 function readPins(source) {
   const block = /const expectedRuntime = \{([\s\S]*?)\n\};/.exec(source);
@@ -329,7 +316,7 @@ test("the R3.2 local-style gate is disposable-only and pins the current build as
   assert.equal(Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, "live-r3.2-local-style-authoring-gate.mjs"), false);
 });
 
-test("the R3.2.1 image-fill gate is read-only and pending live acceptance on its exact build", async () => {
+test("the R3.2.1 image-fill gate is read-only and pins the current build as an accepted gate", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-image-fill-export-gate.mjs"),
     "utf8",
@@ -337,10 +324,8 @@ test("the R3.2.1 image-fill gate is read-only and pending live acceptance on its
   assert.match(source, /export_image_fill/);
   assert.match(source, /read-only/i);
   assert.match(source, /must not change the node/);
-  assert.ok(Object.hasOwn(
-    GATES_PENDING_LIVE_ACCEPTANCE,
-    "live-image-fill-export-gate.mjs",
- ));
+  assert.equal(Object.hasOwn(GATES_PENDING_LIVE_ACCEPTANCE, "live-image-fill-export-gate.mjs"), false);
+  assert.equal(Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, "live-image-fill-export-gate.mjs"), false);
 });
 
 // ⛔ THE LIST IS DERIVED, NOT ENUMERATED — and it used to be enumerated, naming four files.

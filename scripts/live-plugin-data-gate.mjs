@@ -25,12 +25,12 @@ if (!options.channel) {
 }
 
 const expectedRuntime = {
-  release: "R3.1",
-  serverBuildId: "r3.1-server-beff31768985",
-  pluginBuildId: "r3.1-plugin-ed16fbb94fa9",
-  schemaVersion: "1.19.0",
+  release: "R3.2.1",
+  serverBuildId: "r3.2.1-server-798028241619",
+  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
+  schemaVersion: "1.21.0",
   fingerprint:
-    "sha256:69007c224212caf1cc29b96b65dd8ca55eb93ce5e66101ed96fa2d53302d576d",
+    "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

@@ -155,6 +155,14 @@ test("the current contract stays backwards compatible with every frozen release 
 // acceptance act that a frozen baseline must already vouch for. Re-adding a name here is
 // borrowing against the next freeze, and the comment above is what that debt looks like
 // after two releases of interest.
+// ✅ **THE R3.2.1 FREEZE — 2026-09-24.** `r3.2.1-public-contract.json` freezes the exact
+// contract (`1.21.0`, 87 tools) whose pair `r3.2.1-server-798028241619` ↔
+// `r3.2.1-plugin-d9b64d2ac562` passed the full replay on channel `m5g7y5fg`: all 23
+// historical gates, the R3.2.1 image-fill gate, and (on 2026-09-24, channel `npezjajm`) the
+// R3.2 local-style gate. R3.1 and R3.2 were never frozen separately; this baseline carries
+// their tools too, at `additive-preview`, so a later promotion passes CC1 with this list
+// empty. ⚠️ It is byte-identical to `contracts/public-contract.json` today, so its replay is
+// a tautology until the contract next moves.
 const ACCEPTED_SINCE_LAST_BASELINE = [];
 
 async function frozenToolNames() {

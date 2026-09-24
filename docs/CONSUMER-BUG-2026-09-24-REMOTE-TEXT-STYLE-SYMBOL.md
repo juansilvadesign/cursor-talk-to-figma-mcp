@@ -1,7 +1,9 @@
 # Consumer bug — a remote TEXT style value crashes `get_node_variables`
 
 **Found:** 2026-09-24 by the `figma-to-code` consumer, during its R2 capture of a private
-client fixture. **Status:** open, handed to R3.4 planning. **Blocks:** that consumer's R2.
+client fixture. **Status:** open. It is planned as **R3.3.1**, move 1 of
+[`R3.4-CLOSURE.md`](../R3.4-CLOSURE.md), and no code is written yet. **Blocks:** that
+consumer's R2.
 **Evidence:** [`evidence/consumer-2026-09-24-remote-text-style-symbol/evidence.json`](evidence/consumer-2026-09-24-remote-text-style-symbol/evidence.json)
 (sanitized: node ids, node types, UI-kit layer names, counts, window verdicts; no copy, no
 file identity).

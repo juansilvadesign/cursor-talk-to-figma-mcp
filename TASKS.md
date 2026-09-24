@@ -136,24 +136,33 @@ Hard rules:
 
 ## Consumer compatibility snapshot
 
-[`figma-to-code`](../figma-to-code/) currently pins `5e0c869` as its local read
-runtime (advanced `956a6af` → `3546719` → `5e0c869`; both deltas docs-only, every
-executable hash and the capability fingerprint unchanged). That pin is a
-**consumer choice**, not a fork dependency.
+**Refreshed 2026-09-24.** [`figma-to-code`](../figma-to-code/) now pins two runtimes. Its
+historical capture stays bound to `5e0c869`. Its new captures pin **`e136177` (R3.2.1)**
+through an isolated detached worktree of this fork. Both pins are **consumer choices**, not
+fork dependencies.
 
-That consumer completed its full capture sequence on 2026-08-02 and **found no
-defect in this fork.** All seven payload-shape corrections it made were in its own
-validators, which had been written from this repo's prose docs rather than from
-observed replies. Two additive read enhancements came out of the work; both are
-logged under R1 below, and **neither is required for the consumer's MVP — both
-were since shown to be non-blocking.**
+🔴 **Its first fork defect is open.** During its R2 capture of a private client fixture,
+`get_node_variables` failed with `in postMessage: Cannot unwrap symbol` on any node whose
+subtree references a remote TEXT style
+([brief](docs/CONSUMER-BUG-2026-09-24-REMOTE-TEXT-STYLE-SYMBOL.md),
+[sanitized evidence](docs/evidence/consumer-2026-09-24-remote-text-style-symbol/evidence.json)).
+R3.3's `main` has the same code. The consumer's R2 is parked until **R3.3.1** ships the fix
+under a new plugin build id and a pinnable commit ([`R3.4-CLOSURE.md`](R3.4-CLOSURE.md)
+move 1). The consumer then re-runs its capture from a clean worktree of that release, adds
+the release to its `CAPTURE_FORK_PINS`, and moves new captures and its image-fill export
+lane onto it.
 
-Its MVP read sequence exercises:
+History: the consumer's 2026-08-02 capture sequence found no defect in this fork. All seven
+payload-shape corrections it made were in its own validators, which had been written from
+this repo's prose docs rather than from observed replies. The two additive read
+enhancements that work prompted are logged under R1 below, and neither blocked its MVP.
+
+Its read sequence exercises:
 
 `join_channel` → `get_pages` → `set_current_page` →
 bounded `get_document_info` → `get_variables` → `get_styles` →
 scoped `get_local_components` → targeted `get_node_info` /
-`get_node_variables` / `get_reactions` → `export_node_as_image`.
+`get_node_variables` / `get_reactions` → `export_node_as_image` / `export_image_fill`.
 
 The fork must keep these operations generic and independently tested. The consumer
 must preserve its own capture schema, privacy rules, normalization, OpenDesign
@@ -2042,6 +2051,22 @@ The detailed evidence and acceptance conditions live in
 - [ ] **R3.4 — closure.** Freeze stability decisions, run each phase's own gate evidence,
       and ensure the full live roster is current on the final runtime pair. Consumer proof is
       separate integration evidence and never replaces fork fixtures.
+      📐 **Planned by owner interview 2026-09-24 →
+      [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md).** No code is written, and the nine rule sets there
+      await approval. Two build moves:
+      - **R3.3.1 (`1.23.0`)** unblocks `figma-to-code`. It fixes the consumer's
+        `get_node_variables` defect ([brief](docs/CONSUMER-BUG-2026-09-24-REMOTE-TEXT-STYLE-SYMBOL.md)):
+        a remote TEXT style value carries a Symbol that `postMessage` cannot clone, so one record
+        crashes the whole reply. The field becomes `null`, `unreadableFields` names it, and the
+        record reads `valueStatus: "partial"`. A loud response boundary covers every other
+        command. It also fixes the SVG export's `undefined` error and adds two read-only gates
+        (remote TEXT style, reactions). The Symbol field is named by a live diagnostic before
+        any fixture is written.
+      - **R3.4 (`1.24.0`)** is the closure pair. It adds additive disclosure on the recorded
+        stable-tool defects and evidence-gated promotions: up to 35 of the 36 preview tools,
+        with `delete_variable_collection` held.
+      ⛔ Before any live step, re-import the dev plugin from this checkout. It is currently
+      imported from the consumer's pinned R3.2.1 worktree.
 
 **R3 acceptance:** generic MCP clients can measure and author local design-system resources
 and component primitives through documented Figma-native contracts. Every claimed live

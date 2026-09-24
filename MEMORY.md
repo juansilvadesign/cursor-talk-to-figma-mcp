@@ -1,6 +1,6 @@
 ---
 name: talk-to-figma fork — project memory
-description: Live technical state for the talk-to-figma fork, including R3.1 live acceptance and the next R3 phase
+description: Live technical state for the talk-to-figma fork, through R3.3 acceptance and the R3.4 closure plan
 type: project
 ---
 # talk-to-figma fork — Project Memory
@@ -12,7 +12,39 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-09-24f — ✅✅ R3.3 CLOSED: G1–G4 live-accepted, replay 24/24, baseline frozen)
+## ▶ Resume (checkpoint 2026-09-24g — 📐 R3.4 PLANNED by owner interview; no code written)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`. The tree is still **R3.3 / `1.22.0` / 103
+  tools** on pair `r3.3-server-a472b2a4cb3e` ↔ `r3.3-plugin-06a6fcd0c5ec`. Nothing in `src/`
+  changed.
+- **Doing:** nothing is in flight. R3.4 is planned in [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md) from an
+  eight-question owner interview. The `figma-to-code` consumer's `get_node_variables` defect is
+  folded in: its brief and sanitized evidence were committed in `2fa34bf`.
+- **Next step:** the owner approves or amends the nine rule sets in `R3.4-CLOSURE.md` § Approval
+  record. Only after that does the owner re-import the dev plugin from this checkout. Then the
+  verifier runs 1C step 1, the live known-bad sweep on the unfixed R3.3 pair, and Codex gets
+  `docs/R3.3.1-CODEX-BRIEF.md`.
+- **Key facts:**
+  - There are two build moves. **R3.3.1 / `1.23.0`** unblocks the consumer: the Symbol fix, the loud
+    boundary, the SVG error, G5, G6 and a G1 SVG row. **R3.4 / `1.24.0`** is the closure pair:
+    stable-tool additive disclosure and evidence-gated promotions (up to 35 of 36;
+    `delete_variable_collection` holds).
+  - The Symbol field is still **unnamed** (P23). The fixed build is the diagnostic, so no premise
+    fixture is written before it runs.
+  - `get_reactions` has **no live gate** today. Only the bindings gate calls `get_node_variables`,
+    so its remote-style path was never gated live. That is how the defect shipped.
+  - Four of the stable tools that gain receipts reply in **prose**. Keep the historical line
+    byte-identical and append the receipt, as R2.6's `create_text` did.
+  - `serializeVariableValue` also feeds the stable `set_variable_value` readback. Move 1 keeps that
+    path's shape frozen and leaves it to the boundary.
+- **Don't forget:**
+  - ⛔ Figma's dev plugin is imported from the consumer's pinned R3.2.1 worktree, not from this
+    checkout. Re-import `src/cursor_mcp_plugin/manifest.json` from here before ANY live step, and
+    verify by build id, not by the plugin's name.
+  - ⛔ Leave the consumer's worktree in place.
+  - ⛔ `docs/*` is ignored. Every new doc or evidence directory needs its own allowlist line.
+
+## ⤴ Previous checkpoint (2026-09-24f — ✅✅ R3.3 CLOSED: G1–G4 live-accepted, replay 24/24, baseline frozen)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork`. The tree is **R3.3 / `1.22.0` / 103 tools**
   (66 stable, 36 additive-preview, 1 legacy), pair `r3.3-server-a472b2a4cb3e` ↔

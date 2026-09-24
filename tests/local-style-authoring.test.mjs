@@ -34,6 +34,8 @@ function payloadFor(kind) {
       ],
     };
   }
+  // STRETCH takes offset and refuses sectionSize — the first live run found that this
+  // payload used to say `sectionSize: 72` with no offset, which Figma rejects.
   return {
     layoutGrids: [
       {
@@ -41,7 +43,7 @@ function payloadFor(kind) {
         alignment: "STRETCH",
         gutterSize: 24,
         count: 12,
-        sectionSize: 72,
+        offset: 0,
         visible: true,
       },
     ],
@@ -76,7 +78,7 @@ function updatePayloadFor(kind) {
         alignment: "STRETCH",
         gutterSize: 20,
         count: 12,
-        sectionSize: 72,
+        offset: 0,
         visible: true,
       },
     ],
@@ -442,4 +444,180 @@ test("a remove call without a fresh-inventory absence is removal_unconfirmed", a
   assert.equal(result.success, false);
   assert.equal(result.removal, "removal_unconfirmed");
   assert.equal(harness.getStyle(paint.result.style.styleId) !== null, true);
+});
+
+// ⛔ THE LIVE PLATFORM, NOT THE ECHO. Everything above runs against a harness that stores
+// exactly what it is given, which is how an exact-match readback shipped green and then
+// could not confirm a single create on the first live run (2026-09-23). These tests store
+// values the way Figma was measured to: float32 numbers plus fields the request never set.
+test("under Figma's measured normalization, create, match, and update confirm for all four kinds", async () => {
+  for (const kind of ["paint", "text", "effect", "grid"]) {
+    const harness = await loadPluginHarness({ figmaStyleNormalization: true });
+    const { result, identityKey } = await create(harness, kind, `normalized-${kind}`);
+
+    // Vacuity guard: the stored value really was normalized, so the green below is not an echo.
+    const stored = await harness.command("get_local_style", { kind, styleId: result.style.styleId });
+    if (kind === "paint") {
+      assert.notEqual(stored.style.value.paints[0].color.r, 0.12);
+      assert.equal(stored.style.value.paints[0].color.r, Math.fround(0.12));
+      assert.deepEqual(stored.style.value.paints[0].boundVariables, {});
+    }
+    if (kind === "text") assert.deepEqual(stored.style.value.text.fontName.variationSettings, { slnt: 0, wght: 400 });
+    if (kind === "effect") assert.equal(stored.style.value.effects[0].color.a, Math.fround(0.2));
+    if (kind === "grid") assert.deepEqual(stored.style.value.layoutGrids[0].color, { r: 1, g: 0, b: 0, a: Math.fround(0.1) });
+
+    const createsBefore = harness.styleNativeCalls.create.length;
+    const matched = await harness.command("create_or_match_local_style", {
+      kind,
+      name: `R3.2/normalized-${kind}`,
+      identityKey,
+      ...payloadFor(kind),
+    });
+    assert.equal(matched.success, true, `${kind} re-run must match its own normalized style: ${JSON.stringify(matched)}`);
+    assert.equal(matched.action, "matched");
+    assert.equal(harness.styleNativeCalls.create.length, createsBefore);
+
+    const update = await harness.command("update_local_style", {
+      kind,
+      styleId: result.style.styleId,
+      identityKey,
+      ...updatePayloadFor(kind),
+    });
+    assert.equal(update.success, true);
+    assert.equal(update.outcome, "confirmed", `${kind} update must confirm through normalization`);
+    assert.equal(update.readbackMatchesRequested, true);
+  }
+});
+
+test("normalization tolerance stops at float32: a real value change still refuses or stays unconfirmed", async () => {
+  const harness = await loadPluginHarness({
+    figmaStyleNormalization: true,
+    // The third style created below (after "tolerance" and "two-paints") is the discard.
+    ignoreStyleWrites: ["style-paint-900-3::paints"],
+  });
+  const { identityKey } = await create(harness, "paint", "tolerance");
+
+  // Below float32 resolution at 0.12 (one ulp is ~7.5e-9): the same stored value.
+  const same = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/tolerance",
+    identityKey,
+    paints: [{ type: "SOLID", color: { r: 0.12 + 1e-9, g: 0.34, b: 0.56, a: 0.8 } }],
+  });
+  assert.equal(same.success, true);
+  assert.equal(same.action, "matched");
+
+  // A real change of one channel is a different value, not a normalization.
+  const changed = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/tolerance",
+    identityKey,
+    paints: [{ type: "SOLID", color: { r: 0.1201, g: 0.34, b: 0.56, a: 0.8 } }],
+  });
+  assert.equal(changed.success, false);
+  assert.equal(changed.refusal.code, "identity_value_mismatch");
+
+  // Arrays are compared at the same length: a second paint is not "covered" by one.
+  const longer = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/tolerance",
+    identityKey,
+    paints: [
+      { type: "SOLID", color: { r: 0.12, g: 0.34, b: 0.56, a: 0.8 } },
+      { type: "SOLID", color: { r: 1, g: 1, b: 1 } },
+    ],
+  });
+  assert.equal(longer.success, false);
+  assert.equal(longer.refusal.code, "identity_value_mismatch");
+
+  // ⭐ The direction the length check alone guards: a STORED list longer than the request.
+  // Every requested entry is covered element by element, so only the length says the
+  // stored style holds an extra paint the request never asked for. (Mutation-proven: with
+  // the length check deleted, the request-longer case above still fails and this one
+  // would match.)
+  const twoPaints = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/two-paints",
+    identityKey: "r3.2-test-two-paints",
+    paints: [
+      { type: "SOLID", color: { r: 0.12, g: 0.34, b: 0.56, a: 0.8 } },
+      { type: "SOLID", color: { r: 1, g: 1, b: 1 } },
+    ],
+  });
+  assert.equal(twoPaints.outcome, "confirmed");
+  const shorter = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/two-paints",
+    identityKey: "r3.2-test-two-paints",
+    paints: [{ type: "SOLID", color: { r: 0.12, g: 0.34, b: 0.56, a: 0.8 } }],
+  });
+  assert.equal(shorter.success, false);
+  assert.equal(shorter.refusal.code, "identity_value_mismatch");
+
+  // A write Figma discards stays unconfirmed under normalization too.
+  const discarded = await create(harness, "paint", "tolerance-discard").catch((error) => error);
+  assert.ok(discarded instanceof Error, "a create whose value write is discarded must not confirm");
+  assert.match(discarded.message, /'unconfirmed'|unconfirmed/);
+});
+
+test("grid grammar enforces Figma's measured per-alignment fields before any style exists", async () => {
+  const refused = [
+    [{ pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 24, count: 12, visible: true }, /offset is required for a STRETCH COLUMNS grid/],
+    [{ pattern: "COLUMNS", alignment: "STRETCH", gutterSize: 24, count: 12, offset: 0, sectionSize: 72 }, /sectionSize is not valid for a STRETCH COLUMNS grid/],
+    [{ pattern: "COLUMNS", alignment: "CENTER", gutterSize: 24, count: 12, sectionSize: 72, offset: 16 }, /offset is not valid for a CENTER COLUMNS grid/],
+    [{ pattern: "COLUMNS", alignment: "CENTER", gutterSize: 24, count: 12 }, /sectionSize is required for a CENTER COLUMNS grid/],
+    [{ pattern: "COLUMNS", alignment: "MIN", gutterSize: 24, count: 12, sectionSize: 72 }, /offset is required for a MIN COLUMNS grid/],
+    [{ pattern: "COLUMNS", alignment: "MIN", gutterSize: 24, count: 12, offset: 0 }, /sectionSize is required for a MIN COLUMNS grid/],
+    [{ pattern: "ROWS", alignment: "MAX", gutterSize: 16, count: 6, offset: 4 }, /sectionSize is required for a MAX ROWS grid/],
+    [{ pattern: "ROWS", alignment: "CENTER", gutterSize: 16, count: 6, sectionSize: 40, offset: 4 }, /offset is not valid for a CENTER ROWS grid/],
+  ];
+  for (const [grid, message] of refused) {
+    const harness = await loadPluginHarness();
+    await assert.rejects(
+      () => harness.command("create_or_match_local_style", {
+        kind: "grid",
+        name: "R3.2/grid-grammar",
+        identityKey: "r3.2-test-grid-grammar",
+        layoutGrids: [grid],
+      }),
+      message,
+    );
+    assert.deepEqual(harness.styleNativeCalls.create, [], `${JSON.stringify(grid)} must refuse before createGridStyle`);
+  }
+
+  const accepted = [
+    { pattern: "COLUMNS", alignment: "MIN", gutterSize: 24, count: 12, sectionSize: 72, offset: 0 },
+    { pattern: "COLUMNS", alignment: "MAX", gutterSize: 24, count: 12, sectionSize: 72, offset: 8 },
+    { pattern: "COLUMNS", alignment: "CENTER", gutterSize: 24, count: 12, sectionSize: 72 },
+    { pattern: "ROWS", alignment: "STRETCH", gutterSize: 16, count: 6, offset: 4 },
+    { pattern: "GRID", sectionSize: 8 },
+  ];
+  for (const grid of accepted) {
+    const harness = await loadPluginHarness({ figmaStyleNormalization: true });
+    const result = await harness.command("create_or_match_local_style", {
+      kind: "grid",
+      name: "R3.2/grid-accepted",
+      identityKey: "r3.2-test-grid-accepted",
+      layoutGrids: [grid],
+    });
+    assert.equal(result.success, true, JSON.stringify(grid));
+    assert.equal(result.outcome, "confirmed", `${JSON.stringify(grid)} must confirm`);
+  }
+});
+
+test("a creation Figma rejects reports Figma's own error text and its cleanup", async () => {
+  const harness = await loadPluginHarness({
+    styleWriteThrows: ["style-paint-900-1::paints"],
+  });
+  const result = await harness.command("create_or_match_local_style", {
+    kind: "paint",
+    name: "R3.2/rejected",
+    identityKey: "r3.2-test-rejected",
+    ...payloadFor("paint"),
+  });
+  assert.equal(result.success, false);
+  assert.equal(result.refusal.code, "local_style_creation_failed");
+  assert.equal(result.refusal.error, "Figma rejected paints for style-paint-900-1");
+  assert.equal(result.cleanup, "remove_called");
+  assert.equal(harness.getStyle("style-paint-900-1"), null);
 });

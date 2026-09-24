@@ -12,6 +12,54 @@ function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+// ⛔ Figma's MEASURED style-storage normalization (owned live probe, 2026-09-23 — see
+// R3.2-LOCAL-STYLE-AUTHORING.md "Live run 1"): numbers are stored as float32, and every
+// stored paint/effect/grid gains fields the request never set; Inter, a variable font,
+// gains fontName.variationSettings. Opt-in through `figmaStyleNormalization`, because the
+// echoing default is what the older tests assert against — and that echo is exactly what
+// hid R3.2's exact-match readback defect until the first live run. Only measured fields
+// are modelled here; an invented platform rule would make these tests guard fiction.
+function float32Deep(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? Math.fround(value) : value;
+  if (Array.isArray(value)) return value.map(float32Deep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, float32Deep(entry)]),
+    );
+  }
+  return value;
+}
+
+const FIGMA_STYLE_VALUE_DEFAULTS = Object.freeze({
+  paints: { visible: true, opacity: 1, blendMode: "NORMAL", boundVariables: {} },
+  effects: { visible: true, blendMode: "NORMAL", boundVariables: {} },
+  layoutGrids: { visible: true, color: { r: 1, g: 0, b: 0, a: 0.1 }, boundVariables: {} },
+});
+
+function normalizeStyleValueLikeFigma(field, value, options) {
+  let normalized = value;
+  if (FIGMA_STYLE_VALUE_DEFAULTS[field] && Array.isArray(value)) {
+    normalized = value.map((entry) => {
+      const stored = { ...clone(FIGMA_STYLE_VALUE_DEFAULTS[field]), ...entry };
+      if (field === "effects" && /SHADOW$/.test(entry.type) && stored.spread === undefined) {
+        stored.spread = 0;
+      }
+      if (field === "effects" && entry.type === "DROP_SHADOW" && stored.showShadowBehindNode === undefined) {
+        stored.showShadowBehindNode = true;
+      }
+      return stored;
+    });
+  }
+  if (
+    field === "fontName" &&
+    value &&
+    (options.variableFontFamilies || ["Inter"]).includes(value.family)
+  ) {
+    normalized = { ...value, variationSettings: { slnt: 0, wght: 400 } };
+  }
+  return float32Deep(normalized);
+}
+
 // Figma's `figma.mixed` is a unique symbol, and that is the whole point: it cannot
 // survive `JSON.stringify`, cannot be compared structurally, and cannot be unwrapped by
 // an API that expects `{family, style}`. Declared at module scope because fixture nodes
@@ -1616,7 +1664,9 @@ function createFixtureRuntime(fixture, options) {
           if ((options.styleWriteThrows || []).includes(`${style.id}::${field}`)) {
             throw new Error(`Figma rejected ${field} for ${style.id}`);
           }
-          stored = clone(value);
+          stored = options.figmaStyleNormalization
+            ? normalizeStyleValueLikeFigma(field, clone(value), options)
+            : clone(value);
         },
       });
     }

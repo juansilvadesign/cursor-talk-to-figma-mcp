@@ -28,10 +28,11 @@ test("public snapshot remains backwards compatible and generated metadata is cur
   // 76 → 77 for the conservative collection-cleanup tool (`delete_variable_collection`),
   // then 77 → 80 for R3.1's three additive measurement enablers (`create_group`,
   // `set_range_font`, `set_fill_style`), then 80 → 86 for R3.2's six local-only
-  // style-authoring operations, then 86 → 87 for R3.2.1's source-image-fill reader. The
+  // style-authoring operations, then 86 → 87 for R3.2.1's source-image-fill reader,
+  // then 87 → 103 for R3.3's sixteen component/variant/instance/slot tools. The
   // literal is a tripwire, not bookkeeping: it is here so a tool arriving or vanishing
   // cannot pass unremarked.
-  assert.equal(snapshot.tools.length, 87);
+  assert.equal(snapshot.tools.length, 103);
   assert.equal(snapshot.prompts.length, 6);
   assert.ok(snapshot.tools.every((tool) => ["read", "write", "connection"].includes(tool.direction)));
   assert.ok(snapshot.tools.every((tool) => ["stable", "additive-preview", "legacy"].includes(tool.resultStability)));
@@ -163,6 +164,12 @@ test("the current contract stays backwards compatible with every frozen release 
 // their tools too, at `additive-preview`, so a later promotion passes CC1 with this list
 // empty. ⚠️ It is byte-identical to `contracts/public-contract.json` today, so its replay is
 // a tautology until the contract next moves.
+// ✅ **THE R3.3 FREEZE — 2026-09-24.** `r3.3-public-contract.json` freezes the exact contract
+// (`1.22.0`, 103 tools: 66 `stable`, 36 `additive-preview`, 1 `legacy`) whose pair
+// `r3.3-server-a472b2a4cb3e` ↔ `r3.3-plugin-06a6fcd0c5ec` passed on channel `bloqi67c`:
+// R3.3's four gates G1–G4, and then the replay of all 24 historical gates, each re-pinned and
+// re-run once. A fresh client matched the pre-replay document byte for byte. The sixteen R3.3
+// tools are frozen at `additive-preview`, and this list stays empty.
 const ACCEPTED_SINCE_LAST_BASELINE = [];
 
 async function frozenToolNames() {

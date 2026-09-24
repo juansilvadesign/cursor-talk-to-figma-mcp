@@ -1,38 +1,50 @@
 {
-  "release": "R3.2.1",
-  "publicContractVersion": "1.21.0",
-  "serverSchemaVersion": "1.21.0",
+  "release": "R3.3",
+  "publicContractVersion": "1.22.0",
+  "serverSchemaVersion": "1.22.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
+  "capabilityFingerprint": "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
   "capabilities": [
+    "figma.command.add_component_property@1",
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
+    "figma.command.bind_component_property@1",
     "figma.command.bind_variable_to_node@1",
     "figma.command.bind_variable_to_paint@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
+    "figma.command.combine_as_variants@1",
+    "figma.command.create_component_from_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_component@1",
+    "figma.command.create_or_match_instance@1",
     "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
+    "figma.command.create_slot@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_component@1",
+    "figma.command.delete_component_property@1",
     "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.detach_instance@1",
+    "figma.command.edit_component_property@1",
     "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
+    "figma.command.get_component@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -54,6 +66,8 @@
     "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.rename_variable_mode@1",
+    "figma.command.reset_instance_overrides@1",
+    "figma.command.reset_slot@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
     "figma.command.scan_text_nodes@1",
@@ -72,6 +86,7 @@
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
+    "figma.command.set_instance_properties@1",
     "figma.command.set_item_spacing@1",
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
@@ -91,6 +106,7 @@
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.swap_instance_component@1",
     "figma.command.update_local_style@1",
     "relay.channel@1"
   ],
@@ -131,6 +147,22 @@
       "delete_multiple_nodes",
       "get_styles",
       "get_local_style",
+      "get_component",
+      "create_or_match_component",
+      "create_component_from_node",
+      "create_or_match_instance",
+      "delete_component",
+      "combine_as_variants",
+      "add_component_property",
+      "edit_component_property",
+      "delete_component_property",
+      "bind_component_property",
+      "set_instance_properties",
+      "swap_instance_component",
+      "reset_instance_overrides",
+      "detach_instance",
+      "create_slot",
+      "reset_slot",
       "create_or_match_local_style",
       "update_local_style",
       "get_node_style_attachment",
@@ -220,6 +252,22 @@
       "delete_multiple_nodes",
       "get_styles",
       "get_local_style",
+      "get_component",
+      "create_or_match_component",
+      "create_component_from_node",
+      "create_or_match_instance",
+      "delete_component",
+      "combine_as_variants",
+      "add_component_property",
+      "edit_component_property",
+      "delete_component_property",
+      "bind_component_property",
+      "set_instance_properties",
+      "swap_instance_component",
+      "reset_instance_overrides",
+      "detach_instance",
+      "create_slot",
+      "reset_slot",
       "create_or_match_local_style",
       "update_local_style",
       "get_node_style_attachment",
@@ -315,6 +363,22 @@
       "set_local_style_attachment",
       "delete_local_style",
       "get_local_components",
+      "get_component",
+      "create_or_match_component",
+      "create_component_from_node",
+      "create_or_match_instance",
+      "delete_component",
+      "combine_as_variants",
+      "add_component_property",
+      "edit_component_property",
+      "delete_component_property",
+      "bind_component_property",
+      "set_instance_properties",
+      "swap_instance_component",
+      "reset_instance_overrides",
+      "detach_instance",
+      "create_slot",
+      "reset_slot",
       "get_variables",
       "get_variable_capabilities",
       "add_variable_mode",
@@ -374,6 +438,63 @@
     ]
   },
   "tools": [
+    {
+      "kind": "tool",
+      "name": "add_component_property",
+      "description": "Add a supported property to an exact local standalone component or set. INSTANCE_SWAP values and preferred values are exact local node IDs, resolved before deriving Figma keys.",
+      "direction": "write",
+      "scope": "component_or_set",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "BOOLEAN",
+              "TEXT",
+              "INSTANCE_SWAP",
+              "VARIANT"
+            ]
+          },
+          "defaultValue": {
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "preferredValueIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "nodeId",
+          "name",
+          "type",
+          "defaultValue"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "add_component_property",
+      "resultStability": "additive-preview"
+    },
     {
       "kind": "tool",
       "name": "add_variable_mode",
@@ -512,6 +633,58 @@
       },
       "pluginCommand": "apply_batch",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "bind_component_property",
+      "description": "Bind or clear a TEXT, BOOLEAN, or INSTANCE_SWAP property reference on a child of an exact local component or set. A null propertyKey clears the selected field.",
+      "direction": "write",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "componentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "field": {
+            "type": "string",
+            "enum": [
+              "characters",
+              "visible",
+              "mainComponent"
+            ]
+          },
+          "propertyKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "nodeId",
+          "field",
+          "propertyKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "bind_component_property",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -688,6 +861,82 @@
       },
       "pluginCommand": "clone_node",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "combine_as_variants",
+      "description": "Combine exact local components whose existing names form a complete, unique Property=Value matrix. The parent is explicit; the tool never renames members.",
+      "direction": "write",
+      "scope": "requested_components_and_parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "componentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "maxItems": 100
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "componentIds",
+          "parentId",
+          "identityKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_page_identity_scan_with_heartbeat"
+      },
+      "pluginCommand": "combine_as_variants",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "create_component_from_node",
+      "description": "Convert one eligible exact local scene node into an owned component. The identity scan precedes conversion, and the receipt reports whether Figma preserved the source ID.",
+      "direction": "write",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "nodeId",
+          "identityKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_page_identity_scan_with_heartbeat"
+      },
+      "pluginCommand": "create_component_from_node",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -1071,6 +1320,90 @@
       },
       "pluginCommand": "create_node_from_svg",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "create_or_match_component",
+      "description": "Create an owned local component under an exact parent, or match its document-wide private identity. A sibling name collision and an incomplete identity scan refuse before any write.",
+      "direction": "write",
+      "scope": "document",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "parentId",
+          "name",
+          "identityKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_page_identity_scan_with_heartbeat"
+      },
+      "pluginCommand": "create_or_match_component",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "create_or_match_instance",
+      "description": "Create an instance from one exact local component or one exact variant in a local set. Optional private identity matches only direct children of the explicit parent; omitting it creates another instance on rerun.",
+      "direction": "write",
+      "scope": "parent",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "componentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "componentSetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "variantProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          }
+        },
+        "required": [
+          "parentId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_or_match_instance",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -1666,6 +1999,33 @@
     },
     {
       "kind": "tool",
+      "name": "create_slot",
+      "description": "Create one native slot on an exact local standalone component only when the running Figma exposes createSlot. Read back the SLOT node and linked property key.",
+      "direction": "write",
+      "scope": "component",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "componentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "componentId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "create_slot",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "create_text",
       "description": "Create a new text element in Figma, with the same typography parameters set_text_style writes onto an existing node. ⛔ Validate-all-then-create: every parameter is checked, the parent resolved and the font loaded BEFORE the node is created, so a refusal leaves no orphan node on the page. ⛔ An unloadable font is REFUSED, never substituted — this tool will not create a node in a face nobody asked for, so preflight with check_fonts and expect an error rather than a fallback. fontWeight reaches Inter's styles only and cannot be combined with fontFamily/fontStyle; supply the pair to name any installed face exactly.",
       "direction": "write",
@@ -1961,6 +2321,81 @@
     },
     {
       "kind": "tool",
+      "name": "delete_component",
+      "description": "Remove one exact owned local standalone component or whole component set only after a complete consumer read proves that no instances use it. Never cascades.",
+      "direction": "write",
+      "scope": "component_or_set",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "identityKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "nodeId",
+          "identityKey",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_consumer_and_page_with_heartbeat"
+      },
+      "pluginCommand": "delete_component",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "delete_component_property",
+      "description": "Delete a non-VARIANT property by its exact key with literal confirmation. The receipt includes definitions and descendant references before and after.",
+      "direction": "write",
+      "scope": "component_or_set",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "propertyKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "nodeId",
+          "propertyKey",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "delete_component_property",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "delete_local_style",
       "description": "Delete one owned exact local style only after confirm: true, exact same-kind local-ID resolution, private identity verification, and a readable zero-consumer observation. The tool never deletes by name, never detaches consumers implicitly, and reports removal_unconfirmed unless a fresh local inventory independently proves absence.",
       "direction": "write",
@@ -2135,6 +2570,128 @@
     },
     {
       "kind": "tool",
+      "name": "detach_instance",
+      "description": "Detach one top-level instance with literal confirmation. Nested instances and instances inside components are refused because Figma may cascade those detaches.",
+      "direction": "write",
+      "scope": "instance",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "confirm": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "instanceId",
+          "confirm"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "detach_instance",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "edit_component_property",
+      "description": "Edit a property by its exact Figma property key. The support matrix is checked before the native call, and a rename reports the new key and descendant references.",
+      "direction": "write",
+      "scope": "component_or_set",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "propertyKey": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "defaultValue": {
+            "type": [
+              "string",
+              "boolean"
+            ]
+          },
+          "preferredValueIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "maxItems": 50
+          },
+          "description": {
+            "type": "string"
+          },
+          "slotSettings": {
+            "type": "object",
+            "properties": {
+              "stretchChildOnInsert": {
+                "type": "boolean"
+              },
+              "displayEmptyByDefault": {
+                "type": "boolean"
+              },
+              "minChildren": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "maxChildren": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "allowPreferredValuesOnly": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "nodeId",
+          "propertyKey"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "edit_component_property",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
       "name": "export_image_fill",
       "description": "[Exact image-fill scoped, read-only] Read the original bytes for one IMAGE fill on one node. Supply both nodeId and paintIndex; the receipt preserves the matching Figma image paint (including crop metadata) plus byte hash and intrinsic dimensions. Pass filePath to write bytes locally and avoid an inline base64 image block.",
       "direction": "read",
@@ -2289,6 +2846,38 @@
       },
       "pluginCommand": "get_available_fonts",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "get_component",
+      "description": "Read one exact local component, component set, instance, or slot. Component and set reads refuse remote nodes. An instance with a remote main is reported without traversing that main. Include a bounded consumer list only when requested.",
+      "direction": "read",
+      "scope": "node",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact current-file node ID"
+          },
+          "includeInstances": {
+            "type": "boolean",
+            "description": "Read bounded instance consumers for a local component or set"
+          }
+        },
+        "required": [
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "heavy_read",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "per_consumer_with_heartbeat_when_requested"
+      },
+      "pluginCommand": "get_component",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -3022,6 +3611,60 @@
       },
       "pluginCommand": "rename_variable_mode",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "reset_instance_overrides",
+      "description": "Remove direct overrides from one exact local instance. The receipt reports only direct overrides and discloses a remote main when present.",
+      "direction": "write",
+      "scope": "instance",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "instanceId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "reset_instance_overrides",
+      "resultStability": "additive-preview"
+    },
+    {
+      "kind": "tool",
+      "name": "reset_slot",
+      "description": "Reset a native SLOT inside a local instance to its main component's content when the running Figma exposes resetSlot. Child count and limit violations are read before and after.",
+      "direction": "write",
+      "scope": "slot",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "slotId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "slotId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "reset_slot",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -4040,6 +4683,43 @@
       },
       "pluginCommand": "set_instance_overrides",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "set_instance_properties",
+      "description": "Set one or more existing component properties on an exact instance after validating every key and value. SLOT properties are refused; variant combinations must resolve to one local member.",
+      "direction": "write",
+      "scope": "instance",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "required": [
+          "instanceId",
+          "properties"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "set_instance_properties",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",
@@ -5094,6 +5774,38 @@
       },
       "pluginCommand": "set_variable_value",
       "resultStability": "stable"
+    },
+    {
+      "kind": "tool",
+      "name": "swap_instance_component",
+      "description": "Swap one exact local instance to one exact local component. The receipt reports the main and direct overrides before and after because Figma may change its preservation heuristic.",
+      "direction": "write",
+      "scope": "instance",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "componentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "instanceId",
+          "componentId"
+        ],
+        "additionalProperties": false
+      },
+      "timeoutClass": "standard",
+      "progress": {
+        "relayHeartbeatSeconds": 15,
+        "pluginUpdates": "none"
+      },
+      "pluginCommand": "swap_instance_component",
+      "resultStability": "additive-preview"
     },
     {
       "kind": "tool",

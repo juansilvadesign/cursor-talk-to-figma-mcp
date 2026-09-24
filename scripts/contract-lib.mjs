@@ -41,6 +41,11 @@ const HEAVY_READ_TOOLS = new Set([
   "get_pages",
   "get_styles",
   "get_local_components",
+  "get_component",
+  "create_or_match_component",
+  "create_component_from_node",
+  "delete_component",
+  "combine_as_variants",
   // Added in R2. Both scale their cost with the file rather than the arguments:
   // an export with the pixel area of the node, a token scan with the subtree size.
   "export_node_as_image",
@@ -84,6 +89,23 @@ const TIMEOUT_RANK = {
 const HEAVY_BATCH_TOOLS = new Set(["apply_batch"]);
 
 const ADDITIVE_PREVIEW_RESULTS = new Set([
+  // R3.3 component authoring stays preview until the disposable-file gates measure it.
+  "get_component",
+  "create_or_match_component",
+  "create_component_from_node",
+  "create_or_match_instance",
+  "delete_component",
+  "combine_as_variants",
+  "add_component_property",
+  "edit_component_property",
+  "delete_component_property",
+  "bind_component_property",
+  "set_instance_properties",
+  "swap_instance_component",
+  "reset_instance_overrides",
+  "detach_instance",
+  "create_slot",
+  "reset_slot",
   // R3.2 local-style authoring is intentionally held at additive-preview until its
   // disposable-file gate measures identity storage, remote refusal, attachment readback,
   // all four style value classes, consumer-aware deletion, and independent cleanup.
@@ -248,6 +270,7 @@ const STABILITY_RANK = {
 };
 
 const READ_TOOLS = new Set([
+  "get_component",
   "get_document_info",
   "get_pages",
   "set_current_page",
@@ -304,6 +327,22 @@ const TOOL_SCOPES = {
   get_node_style_attachment: "node",
   set_local_style_attachment: "node",
   get_local_components: "document_or_selected_pages",
+  get_component: "node",
+  create_or_match_component: "document",
+  create_component_from_node: "document",
+  create_or_match_instance: "parent",
+  delete_component: "component_or_set",
+  combine_as_variants: "requested_components_and_parent",
+  add_component_property: "component_or_set",
+  edit_component_property: "component_or_set",
+  delete_component_property: "component_or_set",
+  bind_component_property: "node",
+  set_instance_properties: "instance",
+  swap_instance_component: "instance",
+  reset_instance_overrides: "instance",
+  detach_instance: "instance",
+  create_slot: "component",
+  reset_slot: "slot",
   get_variables: "document",
   get_variable_capabilities: "document",
   // A mode belongs to one collection; the handler resolves that exact ID and never scans
@@ -418,6 +457,11 @@ const SPECIAL_PROGRESS = {
   get_pages: "conditional_per_page",
   get_styles: "per_resource_with_heartbeat",
   get_local_components: "per_page_with_heartbeat",
+  get_component: "per_consumer_with_heartbeat_when_requested",
+  create_or_match_component: "per_page_identity_scan_with_heartbeat",
+  create_component_from_node: "per_page_identity_scan_with_heartbeat",
+  combine_as_variants: "per_page_identity_scan_with_heartbeat",
+  delete_component: "per_consumer_and_page_with_heartbeat",
   get_variables: "per_type_with_heartbeat",
   get_node_variables: "per_100_nodes_with_heartbeat",
   get_reactions: "per_requested_root",

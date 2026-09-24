@@ -4533,6 +4533,228 @@ server.tool(
 // key, matching is never by name alone, and the plugin (not this wrapper) verifies every
 // target against Figma's exact local inventory before it calls a native mutation API.
 server.tool(
+  "get_component",
+  "Read one exact local component, component set, instance, or slot. Component and set reads refuse remote nodes. An instance with a remote main is reported without traversing that main. Include a bounded consumer list only when requested.",
+  {
+    nodeId: z.string().min(1).describe("Exact current-file node ID"),
+    includeInstances: z.boolean().optional().describe("Read bounded instance consumers for a local component or set"),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("get_component", args, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "create_or_match_component",
+  "Create an owned local component under an exact parent, or match its document-wide private identity. A sibling name collision and an incomplete identity scan refuse before any write.",
+  {
+    parentId: z.string().min(1),
+    name: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("create_or_match_component", args, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "create_component_from_node",
+  "Convert one eligible exact local scene node into an owned component. The identity scan precedes conversion, and the receipt reports whether Figma preserved the source ID.",
+  {
+    nodeId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("create_component_from_node", args, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "create_or_match_instance",
+  "Create an instance from one exact local component or one exact variant in a local set. Optional private identity matches only direct children of the explicit parent; omitting it creates another instance on rerun.",
+  {
+    parentId: z.string().min(1),
+    componentId: z.string().min(1).optional(),
+    componentSetId: z.string().min(1).optional(),
+    variantProperties: z.record(z.string()).optional(),
+    identityKey: z.string().min(1).max(2048).optional(),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("create_or_match_instance", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "delete_component",
+  "Remove one exact owned local standalone component or whole component set only after a complete consumer read proves that no instances use it. Never cascades.",
+  {
+    nodeId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+    confirm: z.literal(true),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("delete_component", args, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "combine_as_variants",
+  "Combine exact local components whose existing names form a complete, unique Property=Value matrix. The parent is explicit; the tool never renames members.",
+  {
+    componentIds: z.array(z.string().min(1)).min(2).max(100),
+    parentId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("combine_as_variants", args, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "add_component_property",
+  "Add a supported property to an exact local standalone component or set. INSTANCE_SWAP values and preferred values are exact local node IDs, resolved before deriving Figma keys.",
+  {
+    nodeId: z.string().min(1),
+    name: z.string().min(1),
+    type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]),
+    defaultValue: z.union([z.string(), z.boolean()]),
+    preferredValueIds: z.array(z.string().min(1)).max(50).optional(),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("add_component_property", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "edit_component_property",
+  "Edit a property by its exact Figma property key. The support matrix is checked before the native call, and a rename reports the new key and descendant references.",
+  {
+    nodeId: z.string().min(1),
+    propertyKey: z.string().min(1),
+    name: z.string().min(1).optional(),
+    defaultValue: z.union([z.string(), z.boolean()]).optional(),
+    preferredValueIds: z.array(z.string().min(1)).max(50).optional(),
+    description: z.string().optional(),
+    slotSettings: z.object({
+      stretchChildOnInsert: z.boolean().optional(),
+      displayEmptyByDefault: z.boolean().optional(),
+      minChildren: z.number().int().min(0).nullable().optional(),
+      maxChildren: z.number().int().min(0).nullable().optional(),
+      allowPreferredValuesOnly: z.boolean().optional(),
+    }).strict().optional(),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("edit_component_property", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "delete_component_property",
+  "Delete a non-VARIANT property by its exact key with literal confirmation. The receipt includes definitions and descendant references before and after.",
+  {
+    nodeId: z.string().min(1),
+    propertyKey: z.string().min(1),
+    confirm: z.literal(true),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("delete_component_property", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "bind_component_property",
+  "Bind or clear a TEXT, BOOLEAN, or INSTANCE_SWAP property reference on a child of an exact local component or set. A null propertyKey clears the selected field.",
+  {
+    nodeId: z.string().min(1),
+    componentId: z.string().min(1).optional(),
+    field: z.enum(["characters", "visible", "mainComponent"]),
+    propertyKey: z.string().min(1).nullable(),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("bind_component_property", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "set_instance_properties",
+  "Set one or more existing component properties on an exact instance after validating every key and value. SLOT properties are refused; variant combinations must resolve to one local member.",
+  {
+    instanceId: z.string().min(1),
+    properties: z.record(z.union([z.string(), z.boolean()])),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("set_instance_properties", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "swap_instance_component",
+  "Swap one exact local instance to one exact local component. The receipt reports the main and direct overrides before and after because Figma may change its preservation heuristic.",
+  {
+    instanceId: z.string().min(1),
+    componentId: z.string().min(1),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("swap_instance_component", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "reset_instance_overrides",
+  "Remove direct overrides from one exact local instance. The receipt reports only direct overrides and discloses a remote main when present.",
+  { instanceId: z.string().min(1) },
+  async (args: any) => {
+    const result = await sendCommandToFigma("reset_instance_overrides", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "detach_instance",
+  "Detach one top-level instance with literal confirmation. Nested instances and instances inside components are refused because Figma may cascade those detaches.",
+  {
+    instanceId: z.string().min(1),
+    confirm: z.literal(true),
+  },
+  async (args: any) => {
+    const result = await sendCommandToFigma("detach_instance", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "create_slot",
+  "Create one native slot on an exact local standalone component only when the running Figma exposes createSlot. Read back the SLOT node and linked property key.",
+  { componentId: z.string().min(1) },
+  async (args: any) => {
+    const result = await sendCommandToFigma("create_slot", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
+  "reset_slot",
+  "Reset a native SLOT inside a local instance to its main component's content when the running Figma exposes resetSlot. Child count and limit violations are read before and after.",
+  { slotId: z.string().min(1) },
+  async (args: any) => {
+    const result = await sendCommandToFigma("reset_slot", args);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  },
+);
+
+server.tool(
   "get_local_style",
   "Read one exact local paint, text, effect, or grid style by its local plugin ID. The result is a bounded canonical local-style projection: kind, name, stored value, local/remote state, private-identity status without the identity value, and optionally a consumer count. It never resolves a Figma library key, imports a remote style, or uses a name as a selector.",
   {
@@ -5260,6 +5482,22 @@ type FigmaCommand =
   | "delete_multiple_nodes"
   | "get_styles"
   | "get_local_style"
+  | "get_component"
+  | "create_or_match_component"
+  | "create_component_from_node"
+  | "create_or_match_instance"
+  | "delete_component"
+  | "combine_as_variants"
+  | "add_component_property"
+  | "edit_component_property"
+  | "delete_component_property"
+  | "bind_component_property"
+  | "set_instance_properties"
+  | "swap_instance_component"
+  | "reset_instance_overrides"
+  | "detach_instance"
+  | "create_slot"
+  | "reset_slot"
   | "create_or_match_local_style"
   | "update_local_style"
   | "get_node_style_attachment"
@@ -5459,6 +5697,42 @@ type CommandParams = {
     styleId: string;
     includeConsumers?: boolean;
   };
+  get_component: { nodeId: string; includeInstances?: boolean };
+  create_or_match_component: { parentId: string; name: string; identityKey: string };
+  create_component_from_node: { nodeId: string; identityKey: string };
+  create_or_match_instance: {
+    parentId: string;
+    componentId?: string;
+    componentSetId?: string;
+    variantProperties?: Record<string, string>;
+    identityKey?: string;
+  };
+  delete_component: { nodeId: string; identityKey: string; confirm: true };
+  combine_as_variants: { componentIds: string[]; parentId: string; identityKey: string };
+  add_component_property: {
+    nodeId: string; name: string;
+    type: "BOOLEAN" | "TEXT" | "INSTANCE_SWAP" | "VARIANT";
+    defaultValue: string | boolean; preferredValueIds?: string[];
+  };
+  edit_component_property: {
+    nodeId: string; propertyKey: string; name?: string;
+    defaultValue?: string | boolean; preferredValueIds?: string[];
+    description?: string; slotSettings?: Record<string, unknown>;
+  };
+  delete_component_property: { nodeId: string; propertyKey: string; confirm: true };
+  bind_component_property: {
+    nodeId: string; componentId?: string;
+    field: "characters" | "visible" | "mainComponent";
+    propertyKey: string | null;
+  };
+  set_instance_properties: {
+    instanceId: string; properties: Record<string, string | boolean>;
+  };
+  swap_instance_component: { instanceId: string; componentId: string };
+  reset_instance_overrides: { instanceId: string };
+  detach_instance: { instanceId: string; confirm: true };
+  create_slot: { componentId: string };
+  reset_slot: { slotId: string };
   create_or_match_local_style: {
     kind: "paint" | "text" | "effect" | "grid";
     name: string;

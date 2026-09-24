@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R3.2.1",
-  "buildId": "r3.2.1-plugin-d9b64d2ac562",
-  "apiVersion": "1.21.0",
-  "serverSchemaVersion": "1.21.0",
+  "release": "R3.3",
+  "buildId": "r3.3-plugin-06a6fcd0c5ec",
+  "apiVersion": "1.22.0",
+  "serverSchemaVersion": "1.22.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
+  "capabilityFingerprint": "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -41,6 +41,22 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_local_style_attachment",
     "delete_local_style",
     "get_local_components",
+    "get_component",
+    "create_or_match_component",
+    "create_component_from_node",
+    "create_or_match_instance",
+    "delete_component",
+    "combine_as_variants",
+    "add_component_property",
+    "edit_component_property",
+    "delete_component_property",
+    "bind_component_property",
+    "set_instance_properties",
+    "swap_instance_component",
+    "reset_instance_overrides",
+    "detach_instance",
+    "create_slot",
+    "reset_slot",
     "get_variables",
     "get_variable_capabilities",
     "add_variable_mode",
@@ -99,33 +115,45 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.add_component_property@1",
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
+    "figma.command.bind_component_property@1",
     "figma.command.bind_variable_to_node@1",
     "figma.command.bind_variable_to_paint@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
+    "figma.command.combine_as_variants@1",
+    "figma.command.create_component_from_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_component@1",
+    "figma.command.create_or_match_instance@1",
     "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
+    "figma.command.create_slot@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_component@1",
+    "figma.command.delete_component_property@1",
     "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.detach_instance@1",
+    "figma.command.edit_component_property@1",
     "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
+    "figma.command.get_component@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -147,6 +175,8 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.rename_variable_mode@1",
+    "figma.command.reset_instance_overrides@1",
+    "figma.command.reset_slot@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
     "figma.command.scan_text_nodes@1",
@@ -165,6 +195,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
+    "figma.command.set_instance_properties@1",
     "figma.command.set_item_spacing@1",
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
@@ -184,6 +215,7 @@ const PLUGIN_RUNTIME_METADATA = Object.freeze({
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.swap_instance_component@1",
     "figma.command.update_local_style@1",
     "relay.channel@1"
   ]
@@ -388,6 +420,38 @@ async function handleCommand(command, params) {
       return await deleteLocalStyle(params);
     case "get_local_components":
       return await getLocalComponents(params);
+    case "get_component":
+      return await r33GetComponent(params);
+    case "create_or_match_component":
+      return await r33CreateComponent(params);
+    case "create_component_from_node":
+      return await r33CreateComponentFromNode(params);
+    case "create_or_match_instance":
+      return await r33CreateInstance(params);
+    case "delete_component":
+      return await r33DeleteComponent(params);
+    case "combine_as_variants":
+      return await r33CombineVariants(params);
+    case "add_component_property":
+      return await r33AddProperty(params);
+    case "edit_component_property":
+      return await r33EditProperty(params);
+    case "delete_component_property":
+      return await r33DeleteProperty(params);
+    case "bind_component_property":
+      return await r33BindProperty(params);
+    case "set_instance_properties":
+      return await r33SetInstanceProperties(params);
+    case "swap_instance_component":
+      return await r33SwapInstanceComponent(params);
+    case "reset_instance_overrides":
+      return await r33ResetInstanceOverrides(params);
+    case "detach_instance":
+      return await r33DetachInstance(params);
+    case "create_slot":
+      return await r33CreateSlot(params);
+    case "reset_slot":
+      return await r33ResetSlot(params);
     case "get_variables":
       return await getVariables(params);
     case "get_variable_capabilities":
@@ -14744,4 +14808,1407 @@ async function applyBatch(params) {
       complete: !budgetExhausted && !stopped,
     },
   );
+}
+
+// R3.3 components are identified by private node data in this file only. Figma's
+// published key is diagnostic and is never accepted as a selector by these tools.
+const R33_NODE_IDENTITY_DATA_KEY = "talk-to-figma.component-authoring.identity.v1";
+const R33_SET_MATRIX_DATA_KEY = "talk-to-figma.component-authoring.variant-matrix.v1";
+const R33_SOURCE_NODE_DATA_KEY = "talk-to-figma.component-authoring.source-node.v1";
+const R33_COMPONENT_TYPES = ["COMPONENT", "COMPONENT_SET"];
+const R33_COMPONENT_REF_LIMIT = 100;
+const R33_INSTANCE_LIST_LIMIT = 50;
+
+function r33Refusal(code, message, details = {}) {
+  return {
+    success: false,
+    outcome: "refused",
+    wrote: false,
+    refusal: { code, message, ...details },
+  };
+}
+
+function r33NativeFailure(error, before = null, partialResourceId = null) {
+  return {
+    success: false,
+    outcome: "refused",
+    wrote: partialResourceId ? true : false,
+    partialApplicationPossible: Boolean(partialResourceId),
+    partialResourceId,
+    before,
+    refusal: {
+      code: "native_call_failed",
+      message: "Figma rejected the native operation",
+      error: error instanceof Error ? error.message : String(error),
+    },
+  };
+}
+
+function r33KeyValid(key, optional = false) {
+  return (optional && key === undefined) ||
+    (typeof key === "string" && key.length >= 1 && key.length <= 2048);
+}
+
+function r33Page(node) {
+  let cursor = node;
+  while (cursor) {
+    if (cursor.type === "PAGE") return cursor;
+    cursor = cursor.parent;
+  }
+  return null;
+}
+
+function r33Ancestors(node) {
+  const result = [];
+  for (let cursor = node && node.parent; cursor; cursor = cursor.parent) {
+    result.push({ id: cursor.id, type: cursor.type });
+  }
+  return result;
+}
+
+function r33IdentityStatus(node) {
+  try {
+    return typeof node.getPluginData === "function" &&
+      node.getPluginData(R33_NODE_IDENTITY_DATA_KEY) !== ""
+      ? "present" : "absent";
+  } catch (_) {
+    return "unreadable";
+  }
+}
+
+function r33IdentityEquals(node, identityKey) {
+  try {
+    return typeof node.getPluginData === "function" &&
+      node.getPluginData(R33_NODE_IDENTITY_DATA_KEY) === identityKey;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function r33InstanceIdentity(node, main = undefined) {
+  let value;
+  try {
+    value = node.getPluginData(R33_NODE_IDENTITY_DATA_KEY);
+  } catch (_) {
+    return { source: "unreadable", value: null };
+  }
+  if (value === "") return { source: "absent", value: null };
+  try {
+    const resolvedMain = main === undefined ? await node.getMainComponentAsync() : main;
+    if (!resolvedMain || typeof resolvedMain.getPluginData !== "function") {
+      return { source: "unreadable", value: null };
+    }
+    const mainValue = resolvedMain.getPluginData(R33_NODE_IDENTITY_DATA_KEY);
+    return { source: value === mainValue ? "inherited" : "own", value };
+  } catch (_) {
+    return { source: "unreadable", value: null };
+  }
+}
+
+function r33Plain(value) {
+  if (value === undefined) return null;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (_) {
+    return null;
+  }
+}
+
+function r33ObservedField(node, field) {
+  try {
+    const value = node[field];
+    if (value === undefined) return { status: "absent", value: null };
+    if (value === figma.mixed) return { status: "mixed", value: null };
+    const plain = r33Plain(value);
+    if (plain === null && value !== null) return { status: "unreadable", value: null };
+    return { status: "observed", value: plain };
+  } catch (_) {
+    return { status: "unreadable", value: null };
+  }
+}
+
+function r33Definitions(node) {
+  try {
+    const owner = node.type === "COMPONENT" &&
+      node.parent && node.parent.type === "COMPONENT_SET" ? node.parent : node;
+    const value = owner.componentPropertyDefinitions;
+    return value && typeof value === "object" ? r33Plain(value) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function r33References(node) {
+  const rows = [];
+  let total = 0;
+  let absentCount = 0;
+  let mixedCount = 0;
+  let unreadableCount = 0;
+  const walk = (parent) => {
+    for (const child of parent.children || []) {
+      try {
+        const references = child.componentPropertyReferences;
+        if (references === undefined || references === null) absentCount++;
+        else if (references === figma.mixed) mixedCount++;
+        else if (Object.keys(references).length > 0) {
+          total++;
+          if (rows.length < R33_COMPONENT_REF_LIMIT) {
+            rows.push({ nodeId: child.id, type: child.type, references: r33Plain(references) });
+          }
+        }
+      } catch (_) {
+        unreadableCount++;
+      }
+      walk(child);
+    }
+  };
+  walk(node);
+  return { items: rows, count: total, truncated: total > rows.length,
+    absentCount, mixedCount, unreadableCount };
+}
+
+async function r33Projection(node, includeInstances = false) {
+  if (!node) return null;
+  const page = r33Page(node);
+  const result = {
+    id: node.id,
+    type: node.type,
+    name: node.name,
+    remote: node.remote === true,
+    page: page ? { id: page.id, name: page.name } : null,
+    parent: node.parent ? { id: node.parent.id, type: node.parent.type } : null,
+    identityKeyStatus: r33IdentityStatus(node),
+    x: typeof node.x === "number" ? node.x : null,
+    y: typeof node.y === "number" ? node.y : null,
+    width: typeof node.width === "number" ? node.width : null,
+    height: typeof node.height === "number" ? node.height : null,
+  };
+  const references = r33ObservedField(node, "componentPropertyReferences");
+  result.componentPropertyReferences = references.value;
+  result.componentPropertyReferencesStatus = references.status;
+  if (node.type === "COMPONENT") {
+    result.isVariant = node.parent?.type === "COMPONENT_SET";
+    result.componentSetId = result.isVariant ? node.parent.id : null;
+    result.variantProperties = r33Plain(node.variantProperties);
+    const definitions = r33ObservedField(
+      result.isVariant ? node.parent : node, "componentPropertyDefinitions");
+    result.componentPropertyDefinitions = definitions.value;
+    result.componentPropertyDefinitionsStatus = definitions.status;
+    result.descendantPropertyReferences = r33References(node);
+  } else if (node.type === "COMPONENT_SET") {
+    result.variants = (node.children || []).filter((child) => child.type === "COMPONENT")
+      .slice(0, R33_COMPONENT_REF_LIMIT).map((child) => ({
+        id: child.id, name: child.name,
+        variantProperties: r33Plain(child.variantProperties),
+        x: child.x, y: child.y,
+      }));
+    result.variantCount = (node.children || []).filter((child) => child.type === "COMPONENT").length;
+    result.defaultVariantId = node.defaultVariant?.id || null;
+    const definitions = r33ObservedField(node, "componentPropertyDefinitions");
+    result.componentPropertyDefinitions = definitions.value;
+    result.componentPropertyDefinitionsStatus = definitions.status;
+    result.descendantPropertyReferences = r33References(node);
+  } else if (node.type === "INSTANCE") {
+    let main = null;
+    try {
+      main = await node.getMainComponentAsync();
+    } catch (_) {
+      // An unreadable main is distinct from a missing one.
+      result.mainComponentStatus = "unreadable";
+    }
+    result.mainComponent = main ? {
+      id: main.id, name: main.name, remote: main.remote === true,
+      componentSetId: main.parent?.type === "COMPONENT_SET" ? main.parent.id : null,
+    } : null;
+    if (!result.mainComponentStatus) result.mainComponentStatus = main ? "observed" : "absent";
+    const identity = await r33InstanceIdentity(node, main);
+    result.identityKeySource = identity.source;
+    result.identityKeyStatus = identity.source === "own" ? "present" :
+      identity.source === "unreadable" ? "unreadable" : "absent";
+    const properties = r33ObservedField(node, "componentProperties");
+    result.componentProperties = properties.value;
+    result.componentPropertiesStatus = properties.status;
+    const overrides = r33ObservedField(node, "overrides");
+    result.overrides = overrides.value;
+    result.overridesStatus = overrides.status;
+    const ancestors = r33Ancestors(node);
+    result.hasInstanceAncestor = ancestors.some((item) => item.type === "INSTANCE");
+    result.hasComponentAncestor = ancestors.some((item) => R33_COMPONENT_TYPES.includes(item.type));
+    result.ancestorChain = ancestors;
+    result.descendantPropertyReferences = r33References(node);
+  } else if (node.type === "SLOT") {
+    result.propertyKey = result.componentPropertyReferences?.slotContentId || null;
+    result.childCount = Array.isArray(node.children) ? node.children.length : null;
+    const violations = r33ObservedField(node, "limitViolations");
+    result.limitViolations = violations.value;
+    result.limitViolationsStatus = violations.status;
+  }
+  if (includeInstances && R33_COMPONENT_TYPES.includes(node.type)) {
+    const components = node.type === "COMPONENT_SET"
+      ? (node.children || []).filter((child) => child.type === "COMPONENT") : [node];
+    const instances = [];
+    const commandId = generateCommandId();
+    await sendProgressUpdate(commandId, "get_component", "started", 0,
+      components.length, 0, "Reading component consumers", null);
+    try {
+      for (let index = 0; index < components.length; index++) {
+        const component = components[index];
+        const stop = startProgressHeartbeat(commandId, "get_component", 0,
+          components.length, index, "Still reading component consumers");
+        let found;
+        try { found = await component.getInstancesAsync(); }
+        finally { stop(); }
+        if (!Array.isArray(found)) throw new Error("getInstancesAsync did not return a list");
+        instances.push(...found);
+        await sendProgressUpdate(commandId, "get_component", "in_progress",
+          Math.round(100 * (index + 1) / components.length),
+          components.length, index + 1, "Read component consumers", null);
+      }
+      result.instances = {
+        status: "observed",
+        count: instances.length,
+        ids: instances.slice(0, R33_INSTANCE_LIST_LIMIT).map((item) => item.id),
+        truncated: instances.length > R33_INSTANCE_LIST_LIMIT,
+      };
+    } catch (error) {
+      result.instances = { status: "unreadable", count: null, ids: [], error: String(error) };
+    }
+    await sendProgressUpdate(commandId, "get_component", "completed", 100,
+      components.length, components.length, "Component consumer read completed", null);
+  }
+  return result;
+}
+
+async function r33FreshProjection(id, includeInstances = false) {
+  const node = await figma.getNodeByIdAsync(id);
+  return r33Projection(node, includeInstances);
+}
+
+async function r33Resolve(id, types, options = {}) {
+  const kindCode = options.kindCode || "not_exact_local_component";
+  if (typeof id !== "string" || id.length === 0) {
+    return { refusal: r33Refusal(kindCode, "An exact non-empty node ID is required") };
+  }
+  let node;
+  try {
+    node = await figma.getNodeByIdAsync(id);
+  } catch (error) {
+    return { refusal: r33NativeFailure(error) };
+  }
+  if (!node || !types.includes(node.type)) {
+    return { refusal: r33Refusal(kindCode, "The ID does not resolve to the required node type", { nodeId: id }) };
+  }
+  if (options.local !== false && node.remote === true) {
+    return { refusal: r33Refusal("remote_component_refused", "A remote component or set cannot be selected", { nodeId: id }) };
+  }
+  if (!r33Page(node)) {
+    return { refusal: r33Refusal(kindCode, "The node has no page ancestor", { nodeId: id }) };
+  }
+  return { node };
+}
+
+async function r33Parent(parentId) {
+  const found = await r33Resolve(parentId,
+    ["PAGE", "FRAME", "SECTION", "GROUP", "COMPONENT", "COMPONENT_SET"],
+    { kindCode: "parent_not_container" });
+  if (found.refusal) return found;
+  const node = found.node;
+  if (!Array.isArray(node.children) || typeof node.appendChild !== "function" ||
+      r33Ancestors(node).some((entry) => entry.type === "INSTANCE") ||
+      node.type === "COMPONENT_SET") {
+    return { refusal: r33Refusal("parent_not_container", "The parent cannot safely receive a new component or instance", { parentId }) };
+  }
+  return found;
+}
+
+async function r33IdentityScan(identityKey, command) {
+  const pages = figma.root.children || [];
+  const matches = [];
+  const scan = { pagesScanned: 0, pagesTotal: pages.length, complete: false };
+  const commandId = generateCommandId();
+  await sendProgressUpdate(commandId, command, "started", 0, pages.length, 0,
+    "Scanning component identities", null);
+  for (const page of pages) {
+    try {
+      const stop = startProgressHeartbeat(commandId, command,
+        pages.length ? Math.round(100 * scan.pagesScanned / pages.length) : 0,
+        pages.length, scan.pagesScanned, "Still loading page " + page.name);
+      try { await page.loadAsync(); } finally { stop(); }
+      const found = page.findAllWithCriteria({
+        types: R33_COMPONENT_TYPES,
+        pluginData: { keys: [R33_NODE_IDENTITY_DATA_KEY] },
+      });
+      if (!Array.isArray(found)) throw new Error("component identity scan returned no list");
+      // P19 is unmeasured. A second type-only scan catches an indexed query that
+      // silently omits a keyed node; uncertainty must refuse before creation.
+      const all = page.findAllWithCriteria({ types: R33_COMPONENT_TYPES });
+      if (!Array.isArray(all)) throw new Error("component type scan returned no list");
+      const indexedIds = new Set(found.map((node) => node.id));
+      if (all.some((node) => r33IdentityEquals(node, identityKey) &&
+          !indexedIds.has(node.id))) {
+        throw new Error("pluginData criteria missed a keyed component");
+      }
+      for (const node of found) {
+        if (r33IdentityEquals(node, identityKey)) matches.push(node);
+      }
+      scan.pagesScanned++;
+      await sendProgressUpdate(commandId, command, "in_progress",
+        pages.length ? Math.round(100 * scan.pagesScanned / pages.length) : 100,
+        pages.length, scan.pagesScanned, "Scanned " + scan.pagesScanned + " pages", null);
+    } catch (error) {
+      return { matches, scan, refusal: r33Refusal("identity_scan_incomplete",
+        "The document-wide identity scan could not finish", {
+          identityScan: scan, error: error instanceof Error ? error.message : String(error),
+        }) };
+    }
+  }
+  scan.complete = true;
+  return { matches, scan };
+}
+
+function r33Finish(before, after, matches, extra = {}) {
+  return {
+    success: Boolean(matches),
+    outcome: matches ? "confirmed" : "unconfirmed",
+    wrote: true,
+    before,
+    after,
+    readbackMatchesRequested: Boolean(matches),
+    ...extra,
+  };
+}
+
+async function r33GetComponent(params = {}) {
+  const resolved = await r33Resolve(params.nodeId,
+    ["COMPONENT", "COMPONENT_SET", "INSTANCE", "SLOT"]);
+  if (resolved.refusal) return resolved.refusal;
+  const node = resolved.node;
+  if (R33_COMPONENT_TYPES.includes(node.type) && node.remote === true) {
+    return r33Refusal("remote_component_refused", "Remote components are outside the local read");
+  }
+  const component = await r33Projection(node, params.includeInstances === true);
+  return { success: true, outcome: "confirmed", component };
+}
+
+function r33CreateReceipt(before, after, action, identityScan, matches, extra = {}) {
+  return {
+    success: Boolean(matches),
+    outcome: matches ? "confirmed" : "unconfirmed",
+    wrote: action === "created",
+    action,
+    created: action === "created",
+    matchedBy: action === "matched" ? "identityKey" : null,
+    id: after?.id || null,
+    type: after?.type || null,
+    identityKeyStatus: action === "matched" ? "matched" : "written",
+    identityScan,
+    before,
+    after,
+    readbackMatchesRequested: Boolean(matches),
+    ...extra,
+  };
+}
+
+function r33NameCollision(parent, type, name, key) {
+  return (parent.children || []).some((child) =>
+    child.type === type && child.name === name &&
+    !r33IdentityEquals(child, key));
+}
+
+async function r33CreateComponent(params = {}) {
+  if (!r33KeyValid(params.identityKey)) {
+    return r33Refusal("identity_key_required", "identityKey must contain 1–2048 characters");
+  }
+  if (typeof params.name !== "string" || params.name.trim() === "") {
+    return r33Refusal("invalid_name", "A non-blank component name is required");
+  }
+  const parent = await r33Parent(params.parentId);
+  if (parent.refusal) return parent.refusal;
+  const identity = await r33IdentityScan(params.identityKey, "create_or_match_component");
+  if (identity.refusal) return identity.refusal;
+  if (identity.matches.length > 1) {
+    return r33Refusal("identity_key_conflict", "Several nodes carry the identity", {
+      identityScan: identity.scan,
+    });
+  }
+  if (identity.matches.length === 1) {
+    const node = identity.matches[0];
+    if (node.type !== "COMPONENT" || node.parent?.type === "COMPONENT_SET" ||
+        node.remote === true || node.parent?.id !== parent.node.id ||
+        node.name !== params.name || !r33Page(node)) {
+      return r33Refusal("identity_key_conflict", "The identity belongs to a different component", {
+        identityScan: identity.scan,
+      });
+    }
+    const before = await r33Projection(node);
+    const after = await r33FreshProjection(node.id);
+    return r33CreateReceipt(before, after, "matched", identity.scan,
+      after?.identityKeyStatus === "present" && after.name === params.name);
+  }
+  if ((parent.node.children || []).some((child) =>
+    R33_COMPONENT_TYPES.includes(child.type) &&
+    r33IdentityEquals(child, params.identityKey))) {
+    return r33Refusal("identity_scan_incomplete",
+      "A directly observed keyed component was missed by the document scan", {
+        identityScan: identity.scan,
+      });
+  }
+  if (r33NameCollision(parent.node, "COMPONENT", params.name, params.identityKey)) {
+    return r33Refusal("name_collision", "A sibling component already has this name", {
+      identityScan: identity.scan,
+    });
+  }
+  let created = null;
+  try {
+    created = figma.createComponent();
+    parent.node.appendChild(created);
+    created.name = params.name;
+    created.setPluginData(R33_NODE_IDENTITY_DATA_KEY, params.identityKey);
+  } catch (error) {
+    if (created) {
+      try { created.remove(); } catch (_) {}
+    }
+    return r33NativeFailure(error);
+  }
+  const after = await r33FreshProjection(created.id);
+  return r33CreateReceipt(null, after, "created", identity.scan,
+    after?.name === params.name && r33IdentityEquals(created, params.identityKey) &&
+    after?.parent?.id === parent.node.id);
+}
+
+async function r33CreateComponentFromNode(params = {}) {
+  if (!r33KeyValid(params.identityKey)) {
+    return r33Refusal("identity_key_required", "identityKey must contain 1–2048 characters");
+  }
+  const identity = await r33IdentityScan(params.identityKey, "create_component_from_node");
+  if (identity.refusal) return identity.refusal;
+  if (identity.matches.length > 1) {
+    return r33Refusal("identity_key_conflict", "Several nodes carry the identity", {
+      identityScan: identity.scan,
+    });
+  }
+  if (identity.matches.length === 1) {
+    const node = identity.matches[0];
+    if (node.type !== "COMPONENT" || node.parent?.type === "COMPONENT_SET" ||
+        node.remote === true || !r33Page(node) ||
+        node.getPluginData(R33_SOURCE_NODE_DATA_KEY) !== params.nodeId) {
+      return r33Refusal("identity_key_conflict", "The identity belongs to another kind of node");
+    }
+    const before = await r33Projection(node);
+    const after = await r33FreshProjection(node.id);
+    return r33CreateReceipt(before, after, "matched", identity.scan,
+      after?.identityKeyStatus === "present",
+      { sourceNodeId: params.nodeId, sourceIdPreserved: node.id === params.nodeId });
+  }
+  const source = await figma.getNodeByIdAsync(params.nodeId);
+  const disallowed = ["DOCUMENT", "PAGE", "COMPONENT", "COMPONENT_SET", "INSTANCE", "SLOT"];
+  if (!source || disallowed.includes(source.type) || !r33Page(source) ||
+      r33Ancestors(source).some((item) =>
+        ["COMPONENT", "COMPONENT_SET", "INSTANCE"].includes(item.type))) {
+    return r33Refusal("ineligible_for_component",
+      "The source must be an eligible scene node outside every component and instance");
+  }
+  if (typeof figma.createComponentFromNode !== "function") {
+    return r33Refusal("ineligible_for_component", "This Figma runtime cannot convert the source");
+  }
+  const before = await r33Projection(source);
+  let created = null;
+  try {
+    created = figma.createComponentFromNode(source);
+    created.setPluginData(R33_NODE_IDENTITY_DATA_KEY, params.identityKey);
+    created.setPluginData(R33_SOURCE_NODE_DATA_KEY, params.nodeId);
+  } catch (error) {
+    return r33NativeFailure(error, before, created?.id || null);
+  }
+  const after = await r33FreshProjection(created.id);
+  return r33CreateReceipt(before, after, "created", identity.scan,
+    after?.type === "COMPONENT" && r33IdentityEquals(created, params.identityKey),
+    { sourceNodeId: params.nodeId, sourceIdPreserved: created.id === params.nodeId });
+}
+
+async function r33ResolveVariant(params) {
+  const hasComponent = typeof params.componentId === "string";
+  const hasSet = typeof params.componentSetId === "string";
+  if (hasComponent === hasSet) {
+    return { refusal: r33Refusal("invalid_variant_selection",
+      "Supply exactly one componentId or componentSetId") };
+  }
+  if (hasComponent) return r33Resolve(params.componentId, ["COMPONENT"]);
+  const set = await r33Resolve(params.componentSetId, ["COMPONENT_SET"]);
+  if (set.refusal) return set;
+  const selections = params.variantProperties;
+  if (!selections || typeof selections !== "object" || Array.isArray(selections) ||
+      Object.keys(selections).length === 0 ||
+      Object.values(selections).some((value) => typeof value !== "string")) {
+    return { refusal: r33Refusal("invalid_variant_selection",
+      "A component set requires exact variantProperties") };
+  }
+  const matches = (set.node.children || []).filter((node) =>
+    node.type === "COMPONENT" &&
+    Object.keys(node.variantProperties || {}).length === Object.keys(selections).length &&
+    Object.entries(selections).every(([key, value]) => node.variantProperties?.[key] === value));
+  if (matches.length !== 1) {
+    return { refusal: r33Refusal("invalid_variant_selection",
+      "The property combination must resolve to exactly one local variant") };
+  }
+  if (matches[0].remote === true || !r33Page(matches[0])) {
+    return { refusal: r33Refusal("remote_component_refused",
+      "The selected variant is not an exact local component") };
+  }
+  return { node: matches[0], set: set.node };
+}
+
+async function r33CreateInstance(params = {}) {
+  if (!r33KeyValid(params.identityKey, true)) {
+    return r33Refusal("identity_key_required", "identityKey must contain 1–2048 characters");
+  }
+  const parent = await r33Parent(params.parentId);
+  if (parent.refusal) return parent.refusal;
+  const target = await r33ResolveVariant(params);
+  if (target.refusal) return target.refusal;
+  if (params.identityKey !== undefined) {
+    let mainKey;
+    try {
+      mainKey = target.node.getPluginData(R33_NODE_IDENTITY_DATA_KEY);
+    } catch (_) {
+      return r33Refusal("identity_key_conflict",
+        "The target main component's identity is unreadable; inheritance cannot be excluded");
+    }
+    if (mainKey === params.identityKey) {
+      return r33Refusal("identity_key_conflict",
+        "The instance identity equals its main component's identity and would read as inherited");
+    }
+    const matches = [];
+    for (const sibling of parent.node.children || []) {
+      if (sibling.type !== "INSTANCE") continue;
+      const identity = await r33InstanceIdentity(sibling);
+      if (identity.source === "unreadable") {
+        return r33Refusal("identity_key_conflict",
+          "A sibling instance identity is unreadable; matching cannot be completed");
+      }
+      if (identity.source === "own" && identity.value === params.identityKey) {
+        matches.push(sibling);
+      }
+    }
+    if (matches.length > 1) {
+      return r33Refusal("identity_key_conflict", "Several sibling instances carry the identity");
+    }
+    if (matches.length === 1) {
+      const main = await matches[0].getMainComponentAsync();
+      if (!main || main.id !== target.node.id) {
+        return r33Refusal("identity_key_conflict", "The instance identity points to another component");
+      }
+      const before = await r33Projection(matches[0]);
+      const after = await r33FreshProjection(matches[0].id);
+      return {
+        ...r33CreateReceipt(before, after, "matched", null,
+          after?.mainComponent?.id === target.node.id),
+        identityKeyStatus: "matched",
+      };
+    }
+  }
+  let instance = null;
+  try {
+    instance = target.node.createInstance();
+    parent.node.insertChild(parent.node.children.length, instance);
+    if (params.identityKey !== undefined) {
+      instance.setPluginData(R33_NODE_IDENTITY_DATA_KEY, params.identityKey);
+    }
+  } catch (error) {
+    if (instance) {
+      try { instance.remove(); } catch (_) {}
+    }
+    return r33NativeFailure(error);
+  }
+  const after = await r33FreshProjection(instance.id);
+  const keyMatches = params.identityKey === undefined ||
+    (after?.identityKeySource === "own" && r33IdentityEquals(instance, params.identityKey));
+  return {
+    ...r33CreateReceipt(null, after, "created", null,
+      after?.mainComponent?.id === target.node.id &&
+      after?.parent?.id === parent.node.id && keyMatches),
+    identityKeyStatus: params.identityKey === undefined ? "none" : "written",
+    rerunWillCreateAnother: params.identityKey === undefined,
+  };
+}
+
+async function r33DeleteComponent(params = {}) {
+  if (params.confirm !== true) {
+    return r33Refusal("confirmation_required", "Literal confirm: true is required");
+  }
+  if (!r33KeyValid(params.identityKey)) {
+    return r33Refusal("not_owned", "An exact ownership identityKey is required");
+  }
+  const target = await r33Resolve(params.nodeId, R33_COMPONENT_TYPES);
+  if (target.refusal) return target.refusal;
+  const node = target.node;
+  if (node.type === "COMPONENT" && node.parent?.type === "COMPONENT_SET") {
+    return r33Refusal("variant_member_delete_refused", "Delete the owned set as a whole");
+  }
+  if (!r33IdentityEquals(node, params.identityKey)) {
+    return r33Refusal("not_owned", "The node is not owned by this identity");
+  }
+  const page = r33Page(node);
+  const members = node.type === "COMPONENT_SET"
+    ? (node.children || []).filter((child) => child.type === "COMPONENT") : [node];
+  const observed = [];
+  const commandId = generateCommandId();
+  const pages = figma.root.children || [];
+  await sendProgressUpdate(commandId, "delete_component", "started", 0,
+    members.length + pages.length, 0, "Checking every component consumer", null);
+  try {
+    for (let index = 0; index < members.length; index++) {
+      const member = members[index];
+      const stop = startProgressHeartbeat(commandId, "delete_component", 0,
+        members.length + pages.length, index, "Still reading component consumers");
+      let list;
+      try { list = await member.getInstancesAsync(); } finally { stop(); }
+      if (!Array.isArray(list)) throw new Error("getInstancesAsync did not return a list");
+      observed.push(...list);
+      await sendProgressUpdate(commandId, "delete_component", "in_progress",
+        Math.round(100 * (index + 1) / (members.length + pages.length)),
+        members.length + pages.length, index + 1, "Read direct consumers", null);
+    }
+    // A second document read catches a consumer API that silently missed a page.
+    const discovered = [];
+    for (let index = 0; index < pages.length; index++) {
+      const documentPage = pages[index];
+      const stop = startProgressHeartbeat(commandId, "delete_component", 0,
+        members.length + pages.length, members.length + index,
+        "Still loading page " + documentPage.name);
+      try { await documentPage.loadAsync(); } finally { stop(); }
+      for (const candidate of documentPage.findAllWithCriteria({ types: ["INSTANCE"] })) {
+        const main = await candidate.getMainComponentAsync();
+        if (main && members.some((member) => member.id === main.id)) discovered.push(candidate);
+      }
+      await sendProgressUpdate(commandId, "delete_component", "in_progress",
+        Math.round(100 * (members.length + index + 1) / (members.length + pages.length)),
+        members.length + pages.length, members.length + index + 1,
+        "Scanned page for consumers", null);
+    }
+    if (new Set(observed.map((item) => item.id)).size !==
+        new Set(discovered.map((item) => item.id)).size) {
+      throw new Error("getInstancesAsync disagrees with the page-scoped instance scan");
+    }
+  } catch (error) {
+    return r33Refusal("consumer_observation_unavailable",
+      "The complete instance-consumer count could not be established", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+  }
+  await sendProgressUpdate(commandId, "delete_component", "completed", 100,
+    members.length + pages.length, members.length + pages.length,
+    "Consumer observation completed", null);
+  if (observed.length > 0) {
+    return r33Refusal("component_has_instances",
+      "Instances still use this component or set", {
+        count: observed.length,
+        instanceIds: observed.slice(0, R33_INSTANCE_LIST_LIMIT).map((item) => item.id),
+        truncated: observed.length > R33_INSTANCE_LIST_LIMIT,
+      });
+  }
+  const before = await r33Projection(node);
+  try {
+    node.remove();
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  let lookup = null;
+  let membership = null;
+  try {
+    lookup = await figma.getNodeByIdAsync(params.nodeId);
+    await page.loadAsync();
+    membership = page.findAllWithCriteria({ types: R33_COMPONENT_TYPES })
+      .some((candidate) => candidate.id === params.nodeId);
+  } catch (_) {}
+  const lookupGone = !lookup || !r33Page(lookup);
+  const removed = lookupGone && membership === false;
+  return {
+    success: removed,
+    outcome: removed ? "removed" : "removal_unconfirmed",
+    wrote: true,
+    nodeId: params.nodeId,
+    before,
+    after: lookup ? await r33Projection(lookup) : null,
+    readbackMatchesRequested: removed,
+    removalSignal: removed ? (!lookup ? "lookup_absent_and_page_inventory" :
+      "no_page_ancestor_and_page_inventory") : null,
+    reReadInstruction: removed ? null : "Call get_component and get_local_components in a new request",
+  };
+}
+
+function r33ParseVariantName(name) {
+  if (typeof name !== "string") return null;
+  const result = {};
+  for (const rawPart of name.split(",")) {
+    const part = rawPart.trim();
+    const equalAt = part.indexOf("=");
+    if (equalAt < 1 || equalAt === part.length - 1 ||
+        part.indexOf("=", equalAt + 1) !== -1) return null;
+    const key = part.slice(0, equalAt).trim();
+    const value = part.slice(equalAt + 1).trim();
+    if (!key || !value || Object.prototype.hasOwnProperty.call(result, key)) return null;
+    result[key] = value;
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+function r33VariantMatrix(nodes) {
+  if (nodes.length < 2) return null;
+  const rows = nodes.map((node) => r33ParseVariantName(node.name));
+  if (rows.some((row) => !row)) return null;
+  const keys = Object.keys(rows[0]).sort();
+  if (rows.some((row) => JSON.stringify(Object.keys(row).sort()) !== JSON.stringify(keys))) {
+    return null;
+  }
+  const combinations = rows.map((row) => JSON.stringify(keys.map((key) => row[key])));
+  if (new Set(combinations).size !== combinations.length) return null;
+  return rows;
+}
+
+async function r33CombineVariants(params = {}) {
+  if (!r33KeyValid(params.identityKey)) {
+    return r33Refusal("identity_key_required", "identityKey must contain 1–2048 characters");
+  }
+  if (!Array.isArray(params.componentIds) || params.componentIds.length < 2 ||
+      new Set(params.componentIds).size !== params.componentIds.length) {
+    return r33Refusal("invalid_variant_matrix", "Supply at least two distinct component IDs");
+  }
+  const parent = await r33Parent(params.parentId);
+  if (parent.refusal) return parent.refusal;
+  const identity = await r33IdentityScan(params.identityKey, "combine_as_variants");
+  if (identity.refusal) return identity.refusal;
+  if (identity.matches.length > 1) {
+    return r33Refusal("identity_key_conflict", "Several nodes carry the set identity");
+  }
+  if (identity.matches.length === 1) {
+    const set = identity.matches[0];
+    let stored = null;
+    try { stored = JSON.parse(set.getPluginData(R33_SET_MATRIX_DATA_KEY)); } catch (_) {}
+    const current = (set.children || []).filter((child) => child.type === "COMPONENT");
+    const matrix = r33VariantMatrix(current);
+    if (set.type !== "COMPONENT_SET" || set.remote === true ||
+        set.parent?.id !== parent.node.id || !matrix ||
+        JSON.stringify(stored?.sourceIds) !== JSON.stringify(params.componentIds) ||
+        JSON.stringify(stored?.matrix) !== JSON.stringify(matrix)) {
+      return r33Refusal("identity_key_conflict", "The set identity does not match its requested members");
+    }
+    const before = await r33Projection(set);
+    const after = await r33FreshProjection(set.id);
+    return r33CreateReceipt(before, after, "matched", identity.scan,
+      after?.identityKeyStatus === "present" && after?.variantCount === params.componentIds.length,
+      { memberIdsPreserved: params.componentIds.every((id) =>
+        after?.variants?.some((variant) => variant.id === id)),
+        defaultVariantId: after?.defaultVariantId || null });
+  }
+  const members = [];
+  for (const id of params.componentIds) {
+    const resolved = await r33Resolve(id, ["COMPONENT"]);
+    if (resolved.refusal) return resolved.refusal;
+    if (resolved.node.parent?.type === "COMPONENT_SET") {
+      return r33Refusal("not_exact_local_component", "A variant member cannot be combined again");
+    }
+    if (r33Page(resolved.node)?.id !== r33Page(parent.node)?.id) {
+      return r33Refusal("cross_page_members", "All members must live on the parent's page");
+    }
+    members.push(resolved.node);
+  }
+  const matrix = r33VariantMatrix(members);
+  if (!matrix) {
+    return r33Refusal("invalid_variant_matrix",
+      "Member names must have the same non-empty Property=Value keys and unique combinations");
+  }
+  const before = await Promise.all(members.map((node) => r33Projection(node)));
+  let set = null;
+  try {
+    set = figma.combineAsVariants(members, parent.node);
+    set.setPluginData(R33_NODE_IDENTITY_DATA_KEY, params.identityKey);
+    set.setPluginData(R33_SET_MATRIX_DATA_KEY,
+      JSON.stringify({ sourceIds: params.componentIds, matrix }));
+  } catch (error) {
+    return r33NativeFailure(error, before, set?.id || null);
+  }
+  const after = await r33FreshProjection(set.id);
+  const memberIdsPreserved = params.componentIds.every((id) =>
+    after?.variants?.some((variant) => variant.id === id));
+  const matches = after?.type === "COMPONENT_SET" &&
+    after?.variantCount === members.length &&
+    r33IdentityEquals(set, params.identityKey) &&
+    JSON.stringify(r33VariantMatrix((set.children || []).filter((child) =>
+      child.type === "COMPONENT"))) === JSON.stringify(matrix);
+  return r33CreateReceipt(before, after, "created", identity.scan, matches, {
+    memberIdsPreserved,
+    defaultVariantId: after?.defaultVariantId || null,
+    memberPositions: after?.variants?.map(({ id, x, y }) => ({ id, x, y })) || [],
+  });
+}
+
+async function r33PropertyTarget(nodeId) {
+  const resolved = await r33Resolve(nodeId, R33_COMPONENT_TYPES);
+  if (resolved.refusal) return resolved;
+  if (resolved.node.type === "COMPONENT" &&
+      resolved.node.parent?.type === "COMPONENT_SET") {
+    return { refusal: r33Refusal("variant_member_property_refused",
+      "Variant members use their set's property definitions") };
+  }
+  return resolved;
+}
+
+function r33PropertyNameExists(definitions, name, except = null) {
+  return Object.keys(definitions || {}).some((key) =>
+    key !== except && (key === name || key.split("#")[0] === name));
+}
+
+async function r33PreferredValues(ids) {
+  if (ids === undefined) return { values: undefined };
+  if (!Array.isArray(ids) || ids.length > 50 ||
+      ids.some((id) => typeof id !== "string")) {
+    return { refusal: r33Refusal("unsupported_property_operation",
+      "preferredValueIds must be a bounded list of exact local IDs") };
+  }
+  const values = [];
+  for (const id of ids) {
+    const resolved = await r33Resolve(id, R33_COMPONENT_TYPES);
+    if (resolved.refusal) {
+      return { refusal: r33Refusal("remote_reference_refused",
+        "A preferred value must resolve to an exact local component or set") };
+    }
+    if (typeof resolved.node.key !== "string" || !resolved.node.key) {
+      return { refusal: r33Refusal("unsupported_property_operation",
+        "Figma did not expose a key for a verified local preferred value") };
+    }
+    values.push({ type: resolved.node.type, key: resolved.node.key });
+  }
+  return { values };
+}
+
+async function r33ValidatePropertyValue(type, value, operation) {
+  if (type === "BOOLEAN" && typeof value === "boolean") return { value };
+  if ((type === "TEXT" || type === "VARIANT") && typeof value === "string" &&
+      value.length > 0) return { value };
+  if (type === "INSTANCE_SWAP" && typeof value === "string") {
+    const resolved = await r33Resolve(value, ["COMPONENT"]);
+    if (resolved.refusal) {
+      return { refusal: r33Refusal("remote_reference_refused",
+        "An instance-swap value must be an exact local component ID") };
+    }
+    return { value: resolved.node.id };
+  }
+  return { refusal: r33Refusal("unsupported_property_operation",
+    operation + " has an unsupported default value for " + type) };
+}
+
+async function r33AddProperty(params = {}) {
+  const target = await r33PropertyTarget(params.nodeId);
+  if (target.refusal) return target.refusal;
+  const node = target.node;
+  const type = params.type;
+  if (!["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"].includes(type) ||
+      (type === "VARIANT" && node.type !== "COMPONENT_SET") ||
+      typeof params.name !== "string" || !params.name.trim()) {
+    return r33Refusal("unsupported_property_operation", "This property type or name is unsupported");
+  }
+  const definitions = r33Definitions(node) || {};
+  if (r33PropertyNameExists(definitions, params.name)) {
+    return r33Refusal("property_name_collision", "A property already has this name");
+  }
+  const checked = await r33ValidatePropertyValue(type, params.defaultValue, "add");
+  if (checked.refusal) return checked.refusal;
+  if (params.preferredValueIds !== undefined && type !== "INSTANCE_SWAP") {
+    return r33Refusal("unsupported_property_operation",
+      "Only INSTANCE_SWAP accepts preferred values on add");
+  }
+  const preferred = await r33PreferredValues(params.preferredValueIds);
+  if (preferred.refusal) return preferred.refusal;
+  const before = await r33Projection(node);
+  let propertyKey;
+  try {
+    propertyKey = node.addComponentProperty(params.name, type, checked.value,
+      preferred.values === undefined ? undefined : { preferredValues: preferred.values });
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(node.id);
+  const actual = after?.componentPropertyDefinitions?.[propertyKey];
+  const matches = actual?.type === type &&
+    localStyleValueCovers(actual?.defaultValue, checked.value) &&
+    (preferred.values === undefined ||
+      localStyleValueCovers(actual?.preferredValues, preferred.values));
+  return r33Finish(before, after, matches, {
+    nodeId: node.id, propertyKey, definitionsBefore: before?.componentPropertyDefinitions,
+    definitionsAfter: after?.componentPropertyDefinitions,
+  });
+}
+
+async function r33EditProperty(params = {}) {
+  const target = await r33PropertyTarget(params.nodeId);
+  if (target.refusal) return target.refusal;
+  const node = target.node;
+  const definitions = r33Definitions(node) || {};
+  const old = definitions[params.propertyKey];
+  if (!old) return r33Refusal("property_not_found", "The exact property key was not found");
+  const fields = ["name", "defaultValue", "preferredValueIds", "description", "slotSettings"]
+    .filter((field) => params[field] !== undefined);
+  if (fields.length === 0 ||
+      (params.name !== undefined &&
+        (typeof params.name !== "string" || !params.name.trim())) ||
+      (params.name !== undefined &&
+        r33PropertyNameExists(definitions, params.name, params.propertyKey)) ||
+      (params.defaultValue !== undefined &&
+        !["BOOLEAN", "TEXT", "INSTANCE_SWAP"].includes(old.type)) ||
+      (params.preferredValueIds !== undefined &&
+        !["INSTANCE_SWAP", "SLOT"].includes(old.type)) ||
+      (params.description !== undefined && old.type !== "SLOT") ||
+      (params.slotSettings !== undefined && old.type !== "SLOT")) {
+    return r33Refusal(params.name !== undefined &&
+      r33PropertyNameExists(definitions, params.name, params.propertyKey)
+      ? "property_name_collision" : "unsupported_property_operation",
+      "The requested edit is unsupported for this property");
+  }
+  const changes = {};
+  if (params.name !== undefined) changes.name = params.name;
+  if (params.defaultValue !== undefined) {
+    const checked = await r33ValidatePropertyValue(old.type, params.defaultValue, "edit");
+    if (checked.refusal) return checked.refusal;
+    changes.defaultValue = checked.value;
+  }
+  if (params.preferredValueIds !== undefined) {
+    const preferred = await r33PreferredValues(params.preferredValueIds);
+    if (preferred.refusal) return preferred.refusal;
+    changes.preferredValues = preferred.values;
+  }
+  if (params.description !== undefined) {
+    if (typeof params.description !== "string") {
+      return r33Refusal("unsupported_property_operation", "description must be a string");
+    }
+    changes.description = params.description;
+  }
+  if (params.slotSettings !== undefined) {
+    const settings = params.slotSettings;
+    if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
+        Object.keys(settings).some((key) => ![
+          "stretchChildOnInsert", "displayEmptyByDefault", "minChildren",
+          "maxChildren", "allowPreferredValuesOnly",
+        ].includes(key)) ||
+        ["minChildren", "maxChildren"].some((key) =>
+          settings[key] !== undefined && settings[key] !== null &&
+          (!Number.isInteger(settings[key]) || settings[key] < 0)) ||
+        ["stretchChildOnInsert", "displayEmptyByDefault", "allowPreferredValuesOnly"]
+          .some((key) => settings[key] !== undefined && typeof settings[key] !== "boolean") ||
+        (settings.minChildren != null && settings.maxChildren != null &&
+          settings.minChildren > settings.maxChildren)) {
+      return r33Refusal("unsupported_property_operation", "Invalid slotSettings");
+    }
+    changes.slotSettings = settings;
+  }
+  const before = await r33Projection(node);
+  let propertyKey;
+  try {
+    propertyKey = node.editComponentProperty(params.propertyKey, changes);
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(node.id);
+  const actual = after?.componentPropertyDefinitions?.[propertyKey];
+  const matches = Boolean(actual) &&
+    (!params.name || propertyKey === params.name ||
+      propertyKey.split("#")[0] === params.name) &&
+    localStyleValueCovers(actual, Object.fromEntries(
+      Object.entries(changes).filter(([key]) => key !== "name")));
+  return r33Finish(before, after, matches, {
+    nodeId: node.id, previousPropertyKey: params.propertyKey, propertyKey,
+    referencesBefore: before?.descendantPropertyReferences,
+    referencesAfter: after?.descendantPropertyReferences,
+    definitionsBefore: before?.componentPropertyDefinitions,
+    definitionsAfter: after?.componentPropertyDefinitions,
+  });
+}
+
+async function r33DeleteProperty(params = {}) {
+  if (params.confirm !== true) {
+    return r33Refusal("confirmation_required", "Literal confirm: true is required");
+  }
+  const target = await r33PropertyTarget(params.nodeId);
+  if (target.refusal) return target.refusal;
+  const node = target.node;
+  const definition = r33Definitions(node)?.[params.propertyKey];
+  if (!definition) return r33Refusal("property_not_found", "The exact property key was not found");
+  if (definition.type === "VARIANT") {
+    return r33Refusal("unsupported_property_operation", "VARIANT properties cannot be deleted");
+  }
+  const before = await r33Projection(node);
+  try {
+    node.deleteComponentProperty(params.propertyKey);
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(node.id);
+  return r33Finish(before, after,
+    !Object.prototype.hasOwnProperty.call(after?.componentPropertyDefinitions || {},
+      params.propertyKey), {
+      nodeId: node.id, propertyKey: params.propertyKey,
+      referencesBefore: before?.descendantPropertyReferences,
+      referencesAfter: after?.descendantPropertyReferences,
+      definitionsBefore: before?.componentPropertyDefinitions,
+      definitionsAfter: after?.componentPropertyDefinitions,
+    });
+}
+
+async function r33BindProperty(params = {}) {
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node || !r33Page(node)) {
+    return r33Refusal("not_a_component_descendant", "The node ID has no component context");
+  }
+  const chain = [];
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (R33_COMPONENT_TYPES.includes(parent.type)) chain.push(parent);
+  }
+  const owner = params.componentId
+    ? chain.find((item) => item.id === params.componentId) : chain[0];
+  if (!owner || owner.remote === true) {
+    return r33Refusal("not_a_component_descendant",
+      "The node must descend from the exact local component or set");
+  }
+  const definitions = r33Definitions(owner) || {};
+  const fieldType = params.field === "characters" && node.type === "TEXT" ? "TEXT" :
+    params.field === "visible" ? "BOOLEAN" :
+    params.field === "mainComponent" && node.type === "INSTANCE" ? "INSTANCE_SWAP" : null;
+  if (!fieldType) {
+    return r33Refusal("property_type_mismatch", "The field is unsupported on this node type");
+  }
+  if (params.propertyKey !== null && !definitions[params.propertyKey]) {
+    return r33Refusal("property_not_found", "The exact property key was not found");
+  }
+  if (params.propertyKey !== null &&
+      definitions[params.propertyKey].type !== fieldType) {
+    return r33Refusal("property_type_mismatch", "The property type does not match the node field");
+  }
+  const before = await r33Projection(node);
+  const refs = { ...(node.componentPropertyReferences || {}) };
+  if (params.propertyKey === null) delete refs[params.field];
+  else refs[params.field] = params.propertyKey;
+  try {
+    node.componentPropertyReferences = refs;
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(node.id);
+  return r33Finish(before, after,
+    params.propertyKey === null
+      ? !after?.componentPropertyReferences?.[params.field]
+      : after?.componentPropertyReferences?.[params.field] === params.propertyKey, {
+      nodeId: node.id, componentId: owner.id, field: params.field,
+      propertyKey: params.propertyKey,
+    });
+}
+
+async function r33InstanceTarget(instanceId) {
+  return r33Resolve(instanceId, ["INSTANCE"], {
+    kindCode: "not_exact_local_component",
+  });
+}
+
+async function r33InstanceMain(instance) {
+  try {
+    const main = await instance.getMainComponentAsync();
+    if (!main || main.type !== "COMPONENT") {
+      return { refusal: r33Refusal("not_exact_local_component",
+        "The instance has no readable main component") };
+    }
+    return { main };
+  } catch (error) {
+    return { refusal: r33NativeFailure(error) };
+  }
+}
+
+async function r33SetInstanceProperties(params = {}) {
+  const target = await r33InstanceTarget(params.instanceId);
+  if (target.refusal) return target.refusal;
+  const instance = target.node;
+  const mainResult = await r33InstanceMain(instance);
+  if (mainResult.refusal) return mainResult.refusal;
+  const main = mainResult.main;
+  const properties = params.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties) ||
+      Object.keys(properties).length === 0) {
+    return r33Refusal("invalid_property_value", "A non-empty properties map is required");
+  }
+  const definitions = r33Definitions(main);
+  if (!definitions || typeof definitions !== "object") {
+    return r33Refusal("property_not_found", "Main component definitions are unreadable");
+  }
+  for (const [key, value] of Object.entries(properties)) {
+    const definition = definitions[key];
+    if (!definition) {
+      return r33Refusal("property_not_found", "The exact property key was not found", {
+        propertyKey: key,
+      });
+    }
+    if (definition.type === "SLOT") {
+      return r33Refusal("slot_property_not_settable", "SLOT content cannot be set with setProperties", {
+        propertyKey: key,
+      });
+    }
+    if (definition.type === "BOOLEAN" && typeof value !== "boolean" ||
+        definition.type === "TEXT" && typeof value !== "string") {
+      return r33Refusal("invalid_property_value", "The value type does not match the definition", {
+        propertyKey: key,
+      });
+    }
+    if (definition.type === "INSTANCE_SWAP") {
+      if (typeof value !== "string" || value.length === 0) {
+        return r33Refusal("invalid_property_value",
+          "INSTANCE_SWAP requires an exact local component ID", { propertyKey: key });
+      }
+      const selected = await r33Resolve(value, ["COMPONENT"]);
+      if (selected.refusal) {
+        return r33Refusal("remote_reference_refused",
+          "INSTANCE_SWAP must select an exact local component ID", { propertyKey: key });
+      }
+    }
+    if (definition.type === "VARIANT") {
+      if (main.remote === true) {
+        return r33Refusal("remote_reference_refused",
+          "A VARIANT change would introduce another remote main component");
+      }
+      if (typeof value !== "string" ||
+          !Array.isArray(definition.variantOptions) ||
+          !definition.variantOptions.includes(value)) {
+        return r33Refusal("invalid_variant_selection",
+          "The requested variant value is not an option", { propertyKey: key });
+      }
+    }
+  }
+  let targetVariant = null;
+  if (Object.entries(properties).some(([key]) => definitions[key].type === "VARIANT")) {
+    const set = main.parent?.type === "COMPONENT_SET" ? main.parent : null;
+    if (!set) {
+      return r33Refusal("invalid_variant_selection", "The main component has no variant set");
+    }
+    const desired = {};
+    for (const [key, definition] of Object.entries(definitions)) {
+      if (definition.type !== "VARIANT") continue;
+      desired[key] = properties[key] ?? instance.componentProperties?.[key]?.value ??
+        main.variantProperties?.[key] ?? definition.defaultValue;
+    }
+    const matches = (set.children || []).filter((child) =>
+      child.type === "COMPONENT" &&
+      Object.entries(desired).every(([key, value]) => child.variantProperties?.[key] === value));
+    if (matches.length !== 1) {
+      return r33Refusal("invalid_variant_selection",
+        "The requested variant combination does not resolve to exactly one member");
+    }
+    if (matches[0].remote === true || !r33Page(matches[0])) {
+      return r33Refusal("remote_reference_refused",
+        "The requested variant would introduce a remote component");
+    }
+    targetVariant = matches[0];
+  }
+  const before = await r33Projection(instance);
+  try {
+    instance.setProperties(properties);
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(instance.id);
+  const readbackMatchesRequested = Object.entries(properties).every(([key, value]) =>
+    localStyleValueCovers(after?.componentProperties?.[key]?.value, value)) &&
+    (!targetVariant || after?.mainComponent?.id === targetVariant.id);
+  return r33Finish(before, after, readbackMatchesRequested, {
+    instanceId: instance.id,
+    requestedPropertyKeys: Object.keys(properties),
+    mainComponentBefore: before?.mainComponent,
+    mainComponentAfter: after?.mainComponent,
+    priorMainRemote: before?.mainComponent?.remote === true,
+  });
+}
+
+async function r33SwapInstanceComponent(params = {}) {
+  const target = await r33InstanceTarget(params.instanceId);
+  if (target.refusal) return target.refusal;
+  const component = await r33Resolve(params.componentId, ["COMPONENT"]);
+  if (component.refusal) {
+    return component.refusal.refusal?.code === "remote_component_refused"
+      ? r33Refusal("remote_reference_refused", "A swap target must be an exact local component")
+      : component.refusal;
+  }
+  const before = await r33Projection(target.node);
+  try {
+    target.node.swapComponent(component.node);
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(target.node.id);
+  return r33Finish(before, after, after?.mainComponent?.id === component.node.id, {
+    instanceId: target.node.id,
+    mainComponentBefore: before?.mainComponent,
+    mainComponentAfter: after?.mainComponent,
+    overridesBefore: before?.overrides,
+    overridesAfter: after?.overrides,
+    priorMainRemote: before?.mainComponent?.remote === true,
+  });
+}
+
+async function r33ResetInstanceOverrides(params = {}) {
+  const target = await r33InstanceTarget(params.instanceId);
+  if (target.refusal) return target.refusal;
+  const before = await r33Projection(target.node);
+  try {
+    target.node.removeOverrides();
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(target.node.id);
+  const overridesBefore = before?.overrides;
+  const overridesAfter = after?.overrides;
+  const beforeCount = Array.isArray(overridesBefore) ? overridesBefore.length : 0;
+  const afterCount = Array.isArray(overridesAfter) ? overridesAfter.length : 0;
+  const changed = beforeCount > 0 && Array.isArray(overridesAfter) && afterCount === 0;
+  return r33Finish(before, after, Array.isArray(after?.overrides) &&
+    after.overrides.length === 0, {
+      wrote: beforeCount > afterCount,
+      changed,
+      instanceId: target.node.id,
+      mainComponentBefore: before?.mainComponent,
+      mainComponentAfter: after?.mainComponent,
+      overridesBefore,
+      overridesAfter,
+    });
+}
+
+async function r33DetachInstance(params = {}) {
+  if (params.confirm !== true) {
+    return r33Refusal("confirmation_required", "Literal confirm: true is required");
+  }
+  const target = await r33InstanceTarget(params.instanceId);
+  if (target.refusal) return target.refusal;
+  const instance = target.node;
+  const ancestors = r33Ancestors(instance);
+  if (ancestors.some((item) => item.type === "INSTANCE")) {
+    return r33Refusal("nested_instance_detach_refused",
+      "Detaching a nested instance can detach ancestor instances", { ancestorChain: ancestors });
+  }
+  if (ancestors.some((item) => R33_COMPONENT_TYPES.includes(item.type))) {
+    return r33Refusal("component_member_detach_refused",
+      "Detaching inside a main component would change every consumer", {
+        ancestorChain: ancestors,
+      });
+  }
+  const before = await r33Projection(instance);
+  const identityKeySourceBefore = before?.identityKeySource || "unreadable";
+  const priorKey = identityKeySourceBefore === "own"
+    ? instance.getPluginData(R33_NODE_IDENTITY_DATA_KEY) : null;
+  let frame;
+  try {
+    frame = instance.detachInstance();
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(frame.id);
+  const originalNode = await figma.getNodeByIdAsync(params.instanceId);
+  const originalIdResolves = Boolean(originalNode);
+  const originalIdType = originalNode?.type ?? null;
+  const identityKeyCarried = priorKey !== null && priorKey !== "" &&
+    frame.getPluginData(R33_NODE_IDENTITY_DATA_KEY) === priorKey;
+  return r33Finish(before, after,
+    after?.type === "FRAME" && originalIdType !== "INSTANCE", {
+      originalInstanceId: params.instanceId,
+      frameId: frame.id,
+      mainComponentBefore: before?.mainComponent,
+      originalIdResolves,
+      originalIdType,
+      identityKeySourceBefore,
+      identityKeyCarried,
+    });
+}
+
+async function r33CreateSlot(params = {}) {
+  const target = await r33Resolve(params.componentId, ["COMPONENT"]);
+  if (target.refusal) return target.refusal;
+  const component = target.node;
+  if (component.parent?.type === "COMPONENT_SET") {
+    return r33Refusal("variant_member_slot_refused",
+      "Slots on variant members remain unmeasured");
+  }
+  if (typeof component.createSlot !== "function") {
+    return r33Refusal("slots_unavailable", "This Figma runtime does not expose createSlot");
+  }
+  const before = await r33Projection(component);
+  let slot;
+  try {
+    slot = component.createSlot();
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(component.id);
+  const slotAfter = await r33FreshProjection(slot.id);
+  const propertyKey = slotAfter?.propertyKey || null;
+  const newSlotKeys = Object.entries(after?.componentPropertyDefinitions || {})
+    .filter(([key, definition]) =>
+      !Object.prototype.hasOwnProperty.call(before?.componentPropertyDefinitions || {}, key) &&
+      definition?.type === "SLOT")
+    .map(([key]) => key);
+  const linked = slotAfter?.type === "SLOT" &&
+    typeof propertyKey === "string" &&
+    newSlotKeys.length === 1 && propertyKey === newSlotKeys[0];
+  return r33Finish(before, after, linked, {
+    componentId: component.id,
+    slotId: slot.id,
+    propertyKey,
+    slotBefore: null,
+    slotAfter,
+    definitionsBefore: before?.componentPropertyDefinitions,
+    definitionsAfter: after?.componentPropertyDefinitions,
+  });
+}
+
+function r33FindSlot(node, propertyKey) {
+  for (const child of node.children || []) {
+    if (child.type === "SLOT" &&
+        child.componentPropertyReferences?.slotContentId === propertyKey) return child;
+    const nested = r33FindSlot(child, propertyKey);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+async function r33ResetSlot(params = {}) {
+  const resolved = await r33Resolve(params.slotId, ["SLOT"], {
+    kindCode: "not_instance_slot",
+  });
+  if (resolved.refusal) return resolved.refusal;
+  const slot = resolved.node;
+  if (typeof slot.resetSlot !== "function") {
+    return r33Refusal("slots_unavailable", "This Figma runtime does not expose resetSlot");
+  }
+  let instance = slot.parent;
+  while (instance && instance.type !== "INSTANCE") instance = instance.parent;
+  if (!instance) {
+    return r33Refusal("not_instance_slot", "The slot is not inside an instance");
+  }
+  const mainResult = await r33InstanceMain(instance);
+  if (mainResult.refusal) return mainResult.refusal;
+  const propertyKey = slot.componentPropertyReferences?.slotContentId || null;
+  const original = propertyKey ? r33FindSlot(mainResult.main, propertyKey) : null;
+  const expectedChildCount = original && Array.isArray(original.children)
+    ? original.children.length : null;
+  const before = await r33Projection(slot);
+  try {
+    slot.resetSlot();
+  } catch (error) {
+    return r33NativeFailure(error, before);
+  }
+  const after = await r33FreshProjection(slot.id);
+  const readbackMatchesRequested = expectedChildCount !== null &&
+    after?.childCount === expectedChildCount;
+  return r33Finish(before, after, readbackMatchesRequested, {
+    slotId: slot.id,
+    instanceId: instance.id,
+    propertyKey,
+    expectedChildCount,
+    childCountBefore: before?.childCount,
+    childCountAfter: after?.childCount,
+    limitViolationsBefore: before?.limitViolations,
+    limitViolationsAfter: after?.limitViolations,
+  });
 }

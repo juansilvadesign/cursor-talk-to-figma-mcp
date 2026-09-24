@@ -12,13 +12,13 @@ import path from "path";
 // src/talk_to_figma_mcp/runtime-metadata.ts
 var RUNTIME_METADATA = {
   "packageVersion": "0.3.5",
-  "release": "R3.2.1",
-  "serverBuildId": "r3.2.1-server-798028241619",
-  "pluginBuildId": "r3.2.1-plugin-d9b64d2ac562",
-  "serverSchemaVersion": "1.21.0",
-  "pluginApiVersion": "1.21.0",
+  "release": "R3.3",
+  "serverBuildId": "r3.3-server-a472b2a4cb3e",
+  "pluginBuildId": "r3.3-plugin-06a6fcd0c5ec",
+  "serverSchemaVersion": "1.22.0",
+  "pluginApiVersion": "1.22.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
+  "capabilityFingerprint": "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -50,6 +50,22 @@ var RUNTIME_METADATA = {
     "set_local_style_attachment",
     "delete_local_style",
     "get_local_components",
+    "get_component",
+    "create_or_match_component",
+    "create_component_from_node",
+    "create_or_match_instance",
+    "delete_component",
+    "combine_as_variants",
+    "add_component_property",
+    "edit_component_property",
+    "delete_component_property",
+    "bind_component_property",
+    "set_instance_properties",
+    "swap_instance_component",
+    "reset_instance_overrides",
+    "detach_instance",
+    "create_slot",
+    "reset_slot",
     "get_variables",
     "get_variable_capabilities",
     "add_variable_mode",
@@ -108,33 +124,45 @@ var RUNTIME_METADATA = {
     "set_parent"
   ],
   "capabilityIds": [
+    "figma.command.add_component_property@1",
     "figma.command.add_variable_mode@1",
     "figma.command.apply_batch@1",
+    "figma.command.bind_component_property@1",
     "figma.command.bind_variable_to_node@1",
     "figma.command.bind_variable_to_paint@1",
     "figma.command.check_fonts@1",
     "figma.command.clone_node@1",
+    "figma.command.combine_as_variants@1",
+    "figma.command.create_component_from_node@1",
     "figma.command.create_component_instance@1",
     "figma.command.create_connections@1",
     "figma.command.create_frame@1",
     "figma.command.create_group@1",
     "figma.command.create_node_from_svg@1",
+    "figma.command.create_or_match_component@1",
+    "figma.command.create_or_match_instance@1",
     "figma.command.create_or_match_local_style@1",
     "figma.command.create_page@1",
     "figma.command.create_rectangle@1",
     "figma.command.create_section@1",
+    "figma.command.create_slot@1",
     "figma.command.create_text@1",
     "figma.command.create_variable@1",
     "figma.command.create_variable_collection@1",
+    "figma.command.delete_component@1",
+    "figma.command.delete_component_property@1",
     "figma.command.delete_local_style@1",
     "figma.command.delete_multiple_nodes@1",
     "figma.command.delete_node@1",
     "figma.command.delete_variable@1",
     "figma.command.delete_variable_collection@1",
+    "figma.command.detach_instance@1",
+    "figma.command.edit_component_property@1",
     "figma.command.export_image_fill@1",
     "figma.command.export_node_as_image@1",
     "figma.command.get_annotations@1",
     "figma.command.get_available_fonts@1",
+    "figma.command.get_component@1",
     "figma.command.get_document_info@1",
     "figma.command.get_instance_overrides@1",
     "figma.command.get_local_components@1",
@@ -156,6 +184,8 @@ var RUNTIME_METADATA = {
     "figma.command.remove_variable_mode@1",
     "figma.command.rename_node@1",
     "figma.command.rename_variable_mode@1",
+    "figma.command.reset_instance_overrides@1",
+    "figma.command.reset_slot@1",
     "figma.command.resize_node@1",
     "figma.command.scan_nodes_by_types@1",
     "figma.command.scan_text_nodes@1",
@@ -174,6 +204,7 @@ var RUNTIME_METADATA = {
     "figma.command.set_focus@1",
     "figma.command.set_image_fill@1",
     "figma.command.set_instance_overrides@1",
+    "figma.command.set_instance_properties@1",
     "figma.command.set_item_spacing@1",
     "figma.command.set_layout_child@1",
     "figma.command.set_layout_mode@1",
@@ -193,37 +224,50 @@ var RUNTIME_METADATA = {
     "figma.command.set_text_style@1",
     "figma.command.set_variable_metadata@1",
     "figma.command.set_variable_value@1",
+    "figma.command.swap_instance_component@1",
     "figma.command.update_local_style@1",
     "relay.channel@1"
   ],
   "supportedTools": [
+    "add_component_property",
     "add_variable_mode",
     "apply_batch",
+    "bind_component_property",
     "bind_variable_to_node",
     "bind_variable_to_paint",
     "check_fonts",
     "clone_node",
+    "combine_as_variants",
+    "create_component_from_node",
     "create_component_instance",
     "create_connections",
     "create_frame",
     "create_group",
     "create_node_from_svg",
+    "create_or_match_component",
+    "create_or_match_instance",
     "create_or_match_local_style",
     "create_page",
     "create_rectangle",
     "create_section",
+    "create_slot",
     "create_text",
     "create_variable",
     "create_variable_collection",
+    "delete_component",
+    "delete_component_property",
     "delete_local_style",
     "delete_multiple_nodes",
     "delete_node",
     "delete_variable",
     "delete_variable_collection",
+    "detach_instance",
+    "edit_component_property",
     "export_image_fill",
     "export_node_as_image",
     "get_annotations",
     "get_available_fonts",
+    "get_component",
     "get_document_info",
     "get_instance_overrides",
     "get_local_components",
@@ -246,6 +290,8 @@ var RUNTIME_METADATA = {
     "remove_variable_mode",
     "rename_node",
     "rename_variable_mode",
+    "reset_instance_overrides",
+    "reset_slot",
     "resize_node",
     "scan_nodes_by_types",
     "scan_text_nodes",
@@ -264,6 +310,7 @@ var RUNTIME_METADATA = {
     "set_focus",
     "set_image_fill",
     "set_instance_overrides",
+    "set_instance_properties",
     "set_item_spacing",
     "set_layout_child",
     "set_layout_mode",
@@ -283,6 +330,7 @@ var RUNTIME_METADATA = {
     "set_text_style",
     "set_variable_metadata",
     "set_variable_value",
+    "swap_instance_component",
     "update_local_style"
   ],
   "supportedPrompts": [
@@ -3986,6 +4034,212 @@ server.tool(
         ]
       };
     }
+  }
+);
+server.tool(
+  "get_component",
+  "Read one exact local component, component set, instance, or slot. Component and set reads refuse remote nodes. An instance with a remote main is reported without traversing that main. Include a bounded consumer list only when requested.",
+  {
+    nodeId: z.string().min(1).describe("Exact current-file node ID"),
+    includeInstances: z.boolean().optional().describe("Read bounded instance consumers for a local component or set")
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("get_component", args2, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "create_or_match_component",
+  "Create an owned local component under an exact parent, or match its document-wide private identity. A sibling name collision and an incomplete identity scan refuse before any write.",
+  {
+    parentId: z.string().min(1),
+    name: z.string().min(1),
+    identityKey: z.string().min(1).max(2048)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("create_or_match_component", args2, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "create_component_from_node",
+  "Convert one eligible exact local scene node into an owned component. The identity scan precedes conversion, and the receipt reports whether Figma preserved the source ID.",
+  {
+    nodeId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("create_component_from_node", args2, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "create_or_match_instance",
+  "Create an instance from one exact local component or one exact variant in a local set. Optional private identity matches only direct children of the explicit parent; omitting it creates another instance on rerun.",
+  {
+    parentId: z.string().min(1),
+    componentId: z.string().min(1).optional(),
+    componentSetId: z.string().min(1).optional(),
+    variantProperties: z.record(z.string()).optional(),
+    identityKey: z.string().min(1).max(2048).optional()
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("create_or_match_instance", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "delete_component",
+  "Remove one exact owned local standalone component or whole component set only after a complete consumer read proves that no instances use it. Never cascades.",
+  {
+    nodeId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048),
+    confirm: z.literal(true)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("delete_component", args2, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "combine_as_variants",
+  "Combine exact local components whose existing names form a complete, unique Property=Value matrix. The parent is explicit; the tool never renames members.",
+  {
+    componentIds: z.array(z.string().min(1)).min(2).max(100),
+    parentId: z.string().min(1),
+    identityKey: z.string().min(1).max(2048)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("combine_as_variants", args2, HEAVY_READ_TIMEOUT_MS);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "add_component_property",
+  "Add a supported property to an exact local standalone component or set. INSTANCE_SWAP values and preferred values are exact local node IDs, resolved before deriving Figma keys.",
+  {
+    nodeId: z.string().min(1),
+    name: z.string().min(1),
+    type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]),
+    defaultValue: z.union([z.string(), z.boolean()]),
+    preferredValueIds: z.array(z.string().min(1)).max(50).optional()
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("add_component_property", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "edit_component_property",
+  "Edit a property by its exact Figma property key. The support matrix is checked before the native call, and a rename reports the new key and descendant references.",
+  {
+    nodeId: z.string().min(1),
+    propertyKey: z.string().min(1),
+    name: z.string().min(1).optional(),
+    defaultValue: z.union([z.string(), z.boolean()]).optional(),
+    preferredValueIds: z.array(z.string().min(1)).max(50).optional(),
+    description: z.string().optional(),
+    slotSettings: z.object({
+      stretchChildOnInsert: z.boolean().optional(),
+      displayEmptyByDefault: z.boolean().optional(),
+      minChildren: z.number().int().min(0).nullable().optional(),
+      maxChildren: z.number().int().min(0).nullable().optional(),
+      allowPreferredValuesOnly: z.boolean().optional()
+    }).strict().optional()
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("edit_component_property", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "delete_component_property",
+  "Delete a non-VARIANT property by its exact key with literal confirmation. The receipt includes definitions and descendant references before and after.",
+  {
+    nodeId: z.string().min(1),
+    propertyKey: z.string().min(1),
+    confirm: z.literal(true)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("delete_component_property", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "bind_component_property",
+  "Bind or clear a TEXT, BOOLEAN, or INSTANCE_SWAP property reference on a child of an exact local component or set. A null propertyKey clears the selected field.",
+  {
+    nodeId: z.string().min(1),
+    componentId: z.string().min(1).optional(),
+    field: z.enum(["characters", "visible", "mainComponent"]),
+    propertyKey: z.string().min(1).nullable()
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("bind_component_property", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "set_instance_properties",
+  "Set one or more existing component properties on an exact instance after validating every key and value. SLOT properties are refused; variant combinations must resolve to one local member.",
+  {
+    instanceId: z.string().min(1),
+    properties: z.record(z.union([z.string(), z.boolean()]))
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("set_instance_properties", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "swap_instance_component",
+  "Swap one exact local instance to one exact local component. The receipt reports the main and direct overrides before and after because Figma may change its preservation heuristic.",
+  {
+    instanceId: z.string().min(1),
+    componentId: z.string().min(1)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("swap_instance_component", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "reset_instance_overrides",
+  "Remove direct overrides from one exact local instance. The receipt reports only direct overrides and discloses a remote main when present.",
+  { instanceId: z.string().min(1) },
+  async (args2) => {
+    const result = await sendCommandToFigma("reset_instance_overrides", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "detach_instance",
+  "Detach one top-level instance with literal confirmation. Nested instances and instances inside components are refused because Figma may cascade those detaches.",
+  {
+    instanceId: z.string().min(1),
+    confirm: z.literal(true)
+  },
+  async (args2) => {
+    const result = await sendCommandToFigma("detach_instance", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "create_slot",
+  "Create one native slot on an exact local standalone component only when the running Figma exposes createSlot. Read back the SLOT node and linked property key.",
+  { componentId: z.string().min(1) },
+  async (args2) => {
+    const result = await sendCommandToFigma("create_slot", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
+  }
+);
+server.tool(
+  "reset_slot",
+  "Reset a native SLOT inside a local instance to its main component's content when the running Figma exposes resetSlot. Child count and limit violations are read before and after.",
+  { slotId: z.string().min(1) },
+  async (args2) => {
+    const result = await sendCommandToFigma("reset_slot", args2);
+    return { content: [{ type: "text", text: JSON.stringify(result) }] };
   }
 );
 server.tool(

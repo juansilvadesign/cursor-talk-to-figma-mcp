@@ -12,7 +12,7 @@
  */
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,14 +49,18 @@ if (!remoteStyleId) {
 
 // Derived from runtime-metadata.ts after generation. A current pin makes this gate
 // runnable; it does not claim this file was exercised against a live Figma document.
+// Re-pinned R3.2 -> R3.2.1 on 2026-09-23: `export_image_fill` (R3.2.1) moved both build
+// ids, the fingerprint and the tool count after this gate was written, and it had never
+// run on the R3.2 pair either, so there was no earlier run to preserve. Re-pinned again on
+// 2026-09-24 for the readback/grid fix (plugin + descriptions; fingerprint unchanged).
 const expectedRuntime = {
-  serverBuildId: "r3.2-server-c08e691bdcdc",
-  pluginBuildId: "r3.2-plugin-98129b15fafd",
-  schemaVersion: "1.20.0",
+  serverBuildId: "r3.2.1-server-798028241619",
+  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
+  schemaVersion: "1.21.0",
   fingerprint:
-    "sha256:296fa709483c626473de84688cbeec970ad90cce22b6ce9c80f9f845bff5ca51",
-  release: "R3.2",
-  toolCount: 86,
+    "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
+  release: "R3.2.1",
+  toolCount: 87,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
@@ -127,6 +131,8 @@ function styleCreatePayload(kind) {
       ],
     };
   }
+  // STRETCH takes offset and refuses sectionSize (measured live 2026-09-23/24). This
+  // payload used to send `sectionSize: 72` with no offset, which Figma rejects.
   return {
     layoutGrids: [
       {
@@ -134,7 +140,7 @@ function styleCreatePayload(kind) {
         alignment: "STRETCH",
         gutterSize: 24,
         count: 12,
-        sectionSize: 72,
+        offset: 0,
         visible: true,
       },
     ],
@@ -169,7 +175,7 @@ function styleUpdatePayload(kind) {
         alignment: "STRETCH",
         gutterSize: 20,
         count: 12,
-        sectionSize: 72,
+        offset: 0,
         visible: true,
       },
     ],
@@ -219,6 +225,7 @@ let originalPageId = null;
 let primaryGateClosed = false;
 let failure = null;
 const createdStyles = [];
+const createAttempts = [];
 const attachments = [];
 
 async function readFullBaseline(activeGate) {
@@ -244,28 +251,41 @@ async function readFullBaseline(activeGate) {
 
 async function createOwnedStyle(kind) {
   const identityKey = `r3.2-live/${stamp}/${kind}`;
+  const name = `__R3.2 ${kind} ${stamp}`;
+  // ⛔ OWN FIRST, ASSERT SECOND. The first live run (2026-09-23) created a paint style whose
+  // receipt said `unconfirmed`; ownership used to be recorded only after the outcome
+  // assertions, so cleanup never knew the style existed and it survived the run as residue
+  // (the independent verifier caught it). A receipt that names a created style is owned
+  // before anything else is checked, and an attempt is recorded before the call so a create
+  // that throws after Figma wrote can still be recovered by name + private key in cleanup.
+  createAttempts.push({ kind, name, identityKey });
   const result = (await gate.callJson("create_or_match_local_style", {
     kind,
-    name: `__R3.2 ${kind} ${stamp}`,
+    name,
     identityKey,
     ...styleCreatePayload(kind),
   })).value;
+  if (result.success === true && result.action === "created" && result.style?.styleId) {
+    createdStyles.push({ kind, styleId: result.style.styleId, identityKey });
+  }
   assert.equal(result.success, true, `${kind} style create refused: ${JSON.stringify(result)}`);
   assert.equal(result.action, "created", `${kind} style unexpectedly matched pre-existing data`);
-  assert.equal(result.outcome, "confirmed");
+  assert.equal(result.outcome, "confirmed", `${kind} style create readback: ${JSON.stringify(result)}`);
   assert.equal(result.style?.identityStatus, "present");
   assert.equal(JSON.stringify(result).includes(identityKey), false, "private identity leaked into receipt");
-  const owned = { kind, styleId: result.style.styleId, identityKey };
-  createdStyles.push(owned);
-  return owned;
+  return { kind, styleId: result.style.styleId, identityKey };
 }
 
 async function attachAndRead(input) {
+  // Recorded before the call for the same reason as createOwnedStyle: an attachment that
+  // was written but reported `unconfirmed` (or whose call threw) is still a consumer, and an
+  // undetached consumer makes the owned style undeletable. Clearing a scratch node that
+  // never received the style is a harmless no-op.
+  attachments.push(input);
   const result = (await gate.callJson("set_local_style_attachment", input)).value;
   assert.equal(result.success, true, `attachment refused: ${JSON.stringify(result)}`);
-  assert.equal(result.outcome, "confirmed");
+  assert.equal(result.outcome, "confirmed", `attachment readback: ${JSON.stringify(result)}`);
   assert.equal(result.after?.styleId, input.styleId);
-  attachments.push(input);
   const direct = (await gate.callJson("get_node_style_attachment", input)).value;
   assert.equal(direct.success, true);
   assert.equal(direct.attachment?.styleId, input.styleId);
@@ -274,67 +294,110 @@ async function attachAndRead(input) {
 }
 
 async function cleanupOwnedResources() {
-  if (!scratchPageId) return;
+  // Every step runs even when an earlier one fails: a first failure used to abort the rest,
+  // which leaves every later resource behind. The failures are thrown together at the end.
+  const failures = [];
+  async function step(entry, action) {
+    try {
+      Object.assign(entry, await action());
+    } catch (error) {
+      entry.error = error instanceof Error ? error.message : String(error);
+      failures.push(entry);
+    }
+    record.cleanup.push(entry);
+    return entry;
+  }
 
   for (const attachment of [...attachments].reverse()) {
-    try {
-      const cleared = (await gate.callJson("set_local_style_attachment", {
-        nodeId: attachment.nodeId,
-        kind: attachment.kind,
-        paintTarget: attachment.paintTarget,
-        styleId: null,
-      })).value;
-      record.cleanup.push({
+    await step(
+      {
         step: "detach",
         nodeId: attachment.nodeId,
         kind: attachment.kind,
         paintTarget: attachment.paintTarget ?? null,
-        outcome: cleared.outcome ?? null,
-        styleIdAfter: cleared.after?.styleId ?? null,
-      });
-      assert.equal(cleared.success, true, `cleanup detach refused: ${JSON.stringify(cleared)}`);
-      assert.equal(cleared.after?.styleId, null);
-    } catch (error) {
-      record.cleanup.push({
-        step: "detach",
-        nodeId: attachment.nodeId,
-        kind: attachment.kind,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
+      },
+      async () => {
+        const cleared = (await gate.callJson("set_local_style_attachment", {
+          nodeId: attachment.nodeId,
+          kind: attachment.kind,
+          paintTarget: attachment.paintTarget,
+          styleId: null,
+        })).value;
+        assert.equal(cleared.success, true, `cleanup detach refused: ${JSON.stringify(cleared)}`);
+        assert.equal(cleared.after?.styleId, null);
+        return { outcome: cleared.outcome ?? null, styleIdAfter: cleared.after?.styleId ?? null };
+      },
+    );
   }
 
-  for (const style of [...createdStyles].reverse()) {
-    try {
+  // A create that threw may still have written. It is looked up by its exact run-stamped
+  // name and deleted only through its private identity key, which delete_local_style
+  // verifies before removal, so this lookup can never reach a user's style.
+  const unresolved = createAttempts.filter(
+    (attempt) => !createdStyles.some((style) => style.identityKey === attempt.identityKey),
+  );
+  if (unresolved.length > 0) {
+    await step({ step: "recover-unreceipted-creates", attempts: unresolved.length }, async () => {
+      const styles = (await gate.callJson("get_styles")).value;
+      const recovered = [];
+      for (const attempt of unresolved) {
+        for (const candidate of styles[styleBucketForKind[attempt.kind]] ?? []) {
+          if (candidate.name === attempt.name) {
+            createdStyles.push({ kind: attempt.kind, styleId: candidate.id, identityKey: attempt.identityKey });
+            recovered.push(candidate.id);
+          }
+        }
+      }
+      return { recovered };
+    });
+  }
+
+  async function deleteOwned(style, label) {
+    return step({ step: label, kind: style.kind, styleId: style.styleId }, async () => {
       const removed = (await gate.callJson("delete_local_style", {
         kind: style.kind,
         styleId: style.styleId,
         identityKey: style.identityKey,
         confirm: true,
       })).value;
-      record.cleanup.push({
-        step: "delete-style",
-        kind: style.kind,
-        styleId: style.styleId,
-        removal: removed.removal ?? null,
-      });
       assert.equal(removed.success, true, `cleanup style delete refused: ${JSON.stringify(removed)}`);
       assert.equal(removed.removal, "removed");
-    } catch (error) {
-      record.cleanup.push({
-        step: "delete-style",
-        kind: style.kind,
-        styleId: style.styleId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
+      return { removal: removed.removal ?? null };
+    });
+  }
+
+  const blockedByConsumers = [];
+  for (const style of [...createdStyles].reverse()) {
+    const entry = await deleteOwned(style, "delete-style");
+    if (entry.error && /style_has_consumers/.test(entry.error)) blockedByConsumers.push(style);
+  }
+
+  if (scratchPageId) {
+    await step({ step: "delete-scratch-page", scratchPageId }, async () => {
+      if (originalPageId) await gate.call("set_current_page", { pageId: originalPageId });
+      await gate.call("delete_node", { nodeId: scratchPageId });
+      return {};
+    });
+  }
+
+  // Deleting the scratch page removes every scratch consumer, so a style that was refused
+  // only for its consumers gets exactly one more attempt. It still goes through the owned,
+  // key-verified, consumer-checked delete; nothing is detached implicitly.
+  for (const style of blockedByConsumers) {
+    const entry = await deleteOwned(style, "delete-style-after-scratch-page");
+    if (!entry.error) {
+      const index = failures.findIndex(
+        (failed) => failed.step === "delete-style" && failed.styleId === style.styleId,
+      );
+      if (index >= 0) failures.splice(index, 1);
     }
   }
 
-  if (originalPageId) await gate.call("set_current_page", { pageId: originalPageId });
-  await gate.call("delete_node", { nodeId: scratchPageId });
-  record.cleanup.push({ step: "delete-scratch-page", scratchPageId });
+  if (failures.length > 0) {
+    throw new Error(
+      `cleanup incomplete: ${failures.map((failed) => `${failed.step} ${failed.styleId ?? failed.nodeId ?? ""}: ${failed.error}`).join("; ")}`,
+    );
+  }
 }
 
 try {
@@ -347,10 +410,30 @@ try {
     "set_local_style_attachment",
     "delete_local_style",
   ];
+  // ⛔ MCP `listTools` publishes only name/description/inputSchema. `resultStability` lives
+  // in the published contract, so it is read from there (the constraints gate's pattern).
+  // This loop used to assert it on the inventory entry, i.e. against `undefined`, which made
+  // the gate unpassable; its first live run (2026-09-23) failed there before any read or
+  // write. The fingerprint check ties the contract file to the server actually running.
+  const publishedContract = JSON.parse(
+    await readFile(path.join(root, "contracts/public-contract.json"), "utf8"),
+  );
+  assert.equal(
+    publishedContract.capabilityFingerprint,
+    runtime.server.capabilityFingerprint,
+    "contracts/public-contract.json does not describe the running server",
+  );
+  const publishedStability = {};
   for (const name of expectedTools) {
     const tool = inventory.tools.find((entry) => entry.name === name);
     assert.ok(tool, `${name} is missing from the published MCP surface`);
-    assert.equal(tool.resultStability, "additive-preview");
+    const contractTool = publishedContract.tools.find((entry) => entry.name === name);
+    assert.equal(
+      contractTool?.resultStability,
+      "additive-preview",
+      `${name} is not published as additive-preview`,
+    );
+    publishedStability[name] = contractTool.resultStability;
   }
   const deleteTool = inventory.tools.find((entry) => entry.name === "delete_local_style");
   assert.deepEqual(deleteTool.inputSchema?.required ?? [], ["kind", "styleId", "identityKey", "confirm"]);
@@ -358,6 +441,7 @@ try {
   record.checks.publishedSurface = {
     toolCount: inventory.tools.length,
     tools: expectedTools,
+    resultStability: publishedStability,
     deleteRequired: deleteTool.inputSchema?.required ?? [],
   };
   record.checks.runtime = {

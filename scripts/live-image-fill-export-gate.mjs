@@ -24,8 +24,8 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const expectedRuntime = {
-  serverBuildId: "r3.2.1-server-cbd2531f8a0e",
-  pluginBuildId: "r3.2.1-plugin-ad75ba5fe779",
+  serverBuildId: "r3.2.1-server-798028241619",
+  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
   schemaVersion: "1.21.0",
   fingerprint: "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
   release: "R3.2.1",

@@ -195,9 +195,17 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({
   "live-variable-mode-gate.mjs": "R3.1",
   "live-variable-mode-removal-gate.mjs": "R3.1",
   "live-variable-write-gate.mjs": "R3.1",
-  "live-r3.2-local-style-authoring-gate.mjs": "R3.2 local-style authoring",
 });
 
+// ✅✅ **R3.2 LOCAL-STYLE GATE PASSED LIVE — 2026-09-24, channel `npezjajm`**, burner
+// *"SYD (SaveYourDay) - Spaceapps"*, pair `r3.2.1-server-798028241619` ↔
+// `r3.2.1-plugin-d9b64d2ac562`, with a real remote paint control. Its pending entry is
+// DELETED here in the same change as the green run, which is the rule. It took two tool
+// fixes (readback comparison at float32 over requested fields only; the measured grid
+// alignment grammar) and three gate fixes (stability read from the contract, own-first
+// cleanup, a valid grid payload), all found by its first live runs on 2026-09-23 — one of
+// which left a residue style the independent verifier caught. The refusal leg fired first
+// on this exact build (bad plugin pin → exit 1, `checks: []`).
 const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({
   "live-image-fill-export-gate.mjs": "R3.2.1 image-fill export",
 });
@@ -305,7 +313,7 @@ test("every live gate either pins THIS build or declares the release it belongs 
   );
 });
 
-test("the R3.2 local-style gate remains explicitly disposable-only after its build becomes historical", async () => {
+test("the R3.2 local-style gate is disposable-only and pins the current build as an accepted gate", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-r3.2-local-style-authoring-gate.mjs"),
     "utf8",
@@ -315,10 +323,10 @@ test("the R3.2 local-style gate remains explicitly disposable-only after its bui
   assert.match(source, /owner-confirmed disposable Figma file/);
   assert.match(source, /no allow-permanent mode/);
   assert.match(source, /independent client/i);
-  assert.ok(Object.hasOwn(
-    GATES_PINNED_TO_AN_EARLIER_RELEASE,
-    "live-r3.2-local-style-authoring-gate.mjs",
-  ));
+  // Accepted gates are neither historical nor pending; the ledger test above then holds its
+  // pins to the current build.
+  assert.equal(Object.hasOwn(GATES_PENDING_LIVE_ACCEPTANCE, "live-r3.2-local-style-authoring-gate.mjs"), false);
+  assert.equal(Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, "live-r3.2-local-style-authoring-gate.mjs"), false);
 });
 
 test("the R3.2.1 image-fill gate is read-only and pending live acceptance on its exact build", async () => {

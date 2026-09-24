@@ -53,13 +53,13 @@ if (options["disposable-target"] !== "true") {
 // re-pin this script without a fresh run on a disposable target — a source edit is not live
 // evidence. `release` is asserted too: an unparsed pin can drift while still looking present.
 const expectedRuntime = {
-  serverBuildId: "r3.2.1-server-798028241619",
-  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
-  schemaVersion: "1.21.0",
+  serverBuildId: "r3.3-server-a472b2a4cb3e",
+  pluginBuildId: "r3.3-plugin-06a6fcd0c5ec",
+  schemaVersion: "1.22.0",
   fingerprint:
-    "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
-  release: "R3.2.1",
-  toolCount: 87,
+    "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
+  release: "R3.3",
+  toolCount: 103,
 };
 
 const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);

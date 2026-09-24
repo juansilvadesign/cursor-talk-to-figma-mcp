@@ -182,6 +182,25 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // recorded `__r3.2.1-gf-*` modes, Figma refused `Limited to 10 modes only`, then exactly those
 // six ids were removed. A fresh client then matched the pre-run baseline byte for byte:
 // 25 pages, current page `0:1`, 1,316 variables, all nine collections' mode ids, and styles.
+// ✅✅ **THE R3.3 RELEASE REPLAY IS PAID — 2026-09-24, channel `bloqi67c`, file
+// *"Starter File - PsiAtiva - Disposable"*.** R3.3 moved the public pair. All 24 runners that
+// were accepted on R3.2.1 were re-pinned to `r3.3-server-a472b2a4cb3e` ↔
+// `r3.3-plugin-06a6fcd0c5ec`, schema `1.22.0`, fingerprint `sha256:daf288cb…4a029`, 103 tools,
+// and RE-RUN once each. **ALL TWENTY-FOUR PASSED**, each read by its exit code
+// (`live-export-gate` writes no `success` field). A bad-plugin-pin copy of `live-fill-gate`
+// refused first (exit 1, at the pin).
+// - The R3.2 local-style gate ran against a remote paint style found in THIS file,
+//   `S:479d29c9…,1450:0` on node `25094:204`. It was proven remote by the tool's own refusal
+//   (`get_local_style` → `remote_style_refused`), not by its name.
+// - The image-fill gate re-read node `I23005:96;21002:1242`, paint 0.
+// - The ceiling gate's precondition was rebuilt and paid back: *"7. Grids"* went 4 → 10 through
+//   six recorded `__r3.3-gf-*` modes (`31033:5`–`31033:10`, each ID found by diffing
+//   independent reads), Figma refused `Limited to 10 modes only`, and exactly those six IDs
+//   were removed, restoring the original four mode IDs and names.
+// - A fresh client then matched the pre-replay baseline byte for byte: 25 pages, current page
+//   `0:1`, 64 components, the style counts, 9 collections, 1,316 variables, and every
+//   collection's mode IDs.
+// Their 24 entries are DELETED rather than reworded, so this ledger is empty again.
 const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 // ✅✅ **R3.2 LOCAL-STYLE GATE PASSED LIVE — 2026-09-24, channel `npezjajm`**, burner
@@ -195,6 +214,18 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 // on this exact build (bad plugin pin → exit 1, `checks: []`).
 // The R3.2.1 image-fill gate passed on the same replay (node `I23005:96;21002:1242`, paint
 // 0: the original 90,439-byte JPEG, node unchanged), so this list is empty again.
+// ✅✅ **R3.3 G1–G4 PASSED LIVE — 2026-09-24, channel `bloqi67c`**, owner-confirmed file
+// *"Starter File - PsiAtiva - Disposable"*, pair `r3.3-server-a472b2a4cb3e` ↔
+// `r3.3-plugin-06a6fcd0c5ec`, schema `1.22.0`, 103 tools, fingerprint `sha256:daf288cb…4a029`.
+// All four ran on the final tree after fix round 4, each after a bad-plugin-pin copy refused
+// before any baseline read or mutation, and a separate fresh client matched each gate's
+// pre-run baseline. It took four offline fix rounds. Rounds 1–2 fixed handler defects, next
+// to gate hardening: `detach_instance`'s false negative, `reset_instance_overrides`' no-op
+// honesty, the INSTANCE projection's references, inherited private plugin data, and an
+// invented `slotContent` key. Rounds 3–4 fixed instrument premises that live runs disproved:
+// a masked BOOLEAN witness, instance-scoped SLOT IDs, a VARIANT switch that never renames the
+// instance (it carries the SET's name), and reply IDs that resolve as aliases.
+// Their four entries are DELETED here in the same change as the green runs.
 const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({});
 
 function readPins(source) {
@@ -300,7 +331,7 @@ test("every live gate either pins THIS build or declares the release it belongs 
   );
 });
 
-test("the R3.2 local-style gate is disposable-only and pins the current build as an accepted gate", async () => {
+test("the accepted R3.2 local-style gate remains disposable-only and is current after the R3.3 replay", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-r3.2-local-style-authoring-gate.mjs"),
     "utf8",
@@ -310,13 +341,13 @@ test("the R3.2 local-style gate is disposable-only and pins the current build as
   assert.match(source, /owner-confirmed disposable Figma file/);
   assert.match(source, /no allow-permanent mode/);
   assert.match(source, /independent client/i);
-  // Accepted gates are neither historical nor pending; the ledger test above then holds its
-  // pins to the current build.
+  // Replayed on the R3.3 pair against a real remote paint style in the disposable file; it is
+  // neither pending nor historical.
   assert.equal(Object.hasOwn(GATES_PENDING_LIVE_ACCEPTANCE, "live-r3.2-local-style-authoring-gate.mjs"), false);
   assert.equal(Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, "live-r3.2-local-style-authoring-gate.mjs"), false);
 });
 
-test("the R3.2.1 image-fill gate is read-only and pins the current build as an accepted gate", async () => {
+test("the accepted R3.2.1 image-fill gate remains read-only and is current after the R3.3 replay", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-image-fill-export-gate.mjs"),
     "utf8",
@@ -385,7 +416,7 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // read-only image-fill export gate.
   assert.equal(
     parsed.length,
-    25,
-    `expected 25 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    28,
+    `expected 28 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

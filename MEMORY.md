@@ -12,36 +12,37 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-09-24 — R3.2 LIVE-ACCEPTED; release replay open)
+## ▶ Resume (checkpoint 2026-09-24b — R3.2 + R3.2.1 CLOSED: replay 25/25, baseline frozen)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork`. Tree is **R3.2.1 / `1.21.0` / 87 tools**,
-  pair `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562` (fingerprint unchanged,
-  `sha256:f6f9c2bb…`; no release bump for a plugin fix). Offline `bun run verify` **485/485**.
-- **Doing:** ✅ R3.2's local-style gate **passed live** on 2026-09-24, channel `npezjajm`, burner
-  *"SYD (SaveYourDay) - Spaceapps"* (owner: "burner file, any edits approved"), after fixing
-  what live run 1 (09-23) found: the exact readback comparison (now requested fields only,
-  numbers at float32) and the grid grammar (now the measured per-alignment rules). Evidence:
-  `R3.2-LOCAL-STYLE-AUTHORING.md` → "Live run 1" / "Live run 2".
-- **Next step:** the release replay — re-pin and re-run the 23 historical gates plus the
-  pending R3.2.1 image-fill gate on this pair. Most need the PsiAtiva disposable file (its
-  variable collections, export node `95:1920`), so the owner must open that file and give a
-  channel. Nothing is committed yet.
+  pair `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562` (fingerprint
+  `sha256:f6f9c2bb…`). Offline `bun run verify` **485/485**.
+- **Doing:** ✅ R3.2 live-accepted (channel `npezjajm`, SYD burner) after the float32 readback and
+  grid-grammar fixes; ✅ release replay on channel `m5g7y5fg` (*"Starter File - PsiAtiva -
+  Disposable"*): all 23 historical gates + the R3.2.1 image-fill gate green, baseline restored,
+  `contracts/baselines/r3.2.1-public-contract.json` frozen. **Both gate ledgers are empty**:
+  every `scripts/live-*.mjs` pins this build and has passed on it.
+- **Next step:** R3.3 (components, variants, instances) per `ROADMAP.md`/`TASKS.md`; all R3.x
+  tools stay `additive-preview` until a promotion decision.
 - **Key paths / IDs:**
-  - Remote paint control in the SYD burner: `S:89e081ee95cdc9af188f3bbf593c71ca3caff269,2760:4`
-    (fill of frame `594:11677`, page 2-App).
-  - `code.js`: `localStyleValueCovers` (readback), `LOCAL_GRID_ALIGNMENT_FIELDS` (grid rules).
-  - `tests/helpers/plugin-harness.mjs`: opt-in `figmaStyleNormalization` = measured Figma storage.
-- **Open / blockers:** release replay (above); R3.2 tools stay `additive-preview`.
+  - `R3.2-LOCAL-STYLE-AUTHORING.md` → "Live run 1", "Live run 2", step 6 (replay record).
+  - PsiAtiva disposable: `17050:782` *"7. Grids"* (4 modes, the most of any collection),
+    `17050:370` *"8. Dimensions"* (3), export node `95:1920`, image-fill node
+    `I23005:96;21002:1242` (paint 0). SYD burner remote paint control:
+    `S:89e081ee95cdc9af188f3bbf593c71ca3caff269,2760:4`.
+  - `code.js`: `localStyleValueCovers`, `LOCAL_GRID_ALIGNMENT_FIELDS`; harness option
+    `figmaStyleNormalization` = Figma's measured storage.
+- **Open / blockers:** none for R3.2.x.
 - **Don't forget:**
-  - ⛔ Reload the DEV plugin after any `code.js` change: the server's own preflight now refuses a
-    stale plugin at `join_channel` (`Plugin build mismatch`), even with an unchanged fingerprint.
-  - ⛔ Keep Figma **foregrounded** for live work: the same gate took 8 s foregrounded vs 67–123 s
-    backgrounded, and `get_node_variables` never returned past 500 nodes while backgrounded.
-  - ⛔ A live run on 09-23 left **one residue style** (created, receipt `unconfirmed`, never
-    owned). It was removed and verified; the gate now owns from the receipt before asserting.
-  - ⛔ A page-level `get_node_info` (REST export) on 2-App wedged the plugin for minutes. Scan
-    per top-level child. `get_node_variables` once returned `Cannot unwrap symbol` on a
-    page-level scan (not reproduced).
+  - ⛔ Reload the DEV plugin after any `code.js` change: the server's preflight refuses a stale
+    plugin at `join_channel` (`Plugin build mismatch`) even with an unchanged fingerprint.
+  - ⛔ Keep Figma **foregrounded** for live work (8 s vs 67–123 s for the same gate, and
+    `get_node_variables` never returned past 500 nodes while backgrounded).
+  - ⛔ The ceiling gate needs *"7. Grids"* inflated to 10 first and deflated after, by recorded ids.
+  - ⛔ `get_variables` reports `variableCount` per collection, not `variableIds`: a baseline built on
+    the wrong field reads zero and compares equal forever.
+  - ⛔ A live run on 09-23 left one residue style (receipt `unconfirmed`, never owned); the gate now
+    owns from the receipt before asserting.
 
 ## ⤴ Previous checkpoint (2026-08-26 — R3.1 live accepted)
 

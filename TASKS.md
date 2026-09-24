@@ -1977,7 +1977,7 @@ The detailed evidence and acceptance conditions live in
       all nine collection mode counts restored. The three new result contracts remain
       `additive-preview`; promotion is a separate public-contract decision. See
       [`R3.1-MEASUREMENT-ENABLERS.md`](R3.1-MEASUREMENT-ENABLERS.md).
-- [ ] **R3.2 — local style authoring.** Approved and implemented offline on 2026-08-26:
+- [x] **R3.2 — local style authoring.** Approved and implemented offline on 2026-08-26:
       local paint, text, effect, and grid lifecycle/attachment work now ships as the
       R3.2 / `1.20.0` 86-tool additive-preview contract. The local-identity,
       remote-refusal, cleanup, and result-observation rules remain authoritative in
@@ -1997,16 +1997,19 @@ The detailed evidence and acceptance conditions live in
       (float32 requested-field readback; measured grid grammar + Figma's error text in
       refusals). Offline 485/485 with four mutation-proven tests. The effect-detachment premise
       is now measured: a direct `set_effects` write detaches the attached effect style.
-      ⏳ **Still open: the release replay** — the 23 historical gates (R3.1 pins) and the
-      pending R3.2.1 image-fill gate have not run on this pair; several need the PsiAtiva
-      disposable file. Evidence: the doc's "Live run 1" and "Live run 2".
-- [ ] **R3.2.1 — original image-fill export addendum.** Adds one generic, read-only
+      ✅ **Release replay PAID (2026-09-24, channel `m5g7y5fg`, PsiAtiva disposable file):**
+      all 23 historical gates re-pinned and re-run green, the R3.2.1 image-fill gate green,
+      baseline restored byte for byte from a fresh client, and the contract frozen as
+      `contracts/baselines/r3.2.1-public-contract.json`. Both gate ledgers are empty.
+      Evidence: the doc's "Live run 1", "Live run 2" and step 6.
+- [x] **R3.2.1 — original image-fill export addendum.** Adds one generic, read-only
       `export_image_fill` tool to the `1.21.0` additive-preview surface. A caller must
       name both an exact node ID and image-paint index; the tool returns the original stored
       bytes plus the complete placement paint, not a rasterized node export. It has no
       consumer-specific arguments or source-file assumptions. The offline contract, plugin,
-      wrapper, and byte-preservation tests are green; its first no-mutation live gate remains
-      pending, and it does not advance or consume the planned R3.3 component-authoring phase.
+      wrapper, and byte-preservation tests are green, and its no-mutation live gate PASSED on
+      2026-09-24 (channel `m5g7y5fg`, node `I23005:96;21002:1242`, original 90,439-byte JPEG,
+      node unchanged). It does not advance or consume the planned R3.3 component-authoring phase.
 - [ ] **R3.3 — components, variants, and instances.** Start with generic component
       creation/ownership and instantiation, then variants/properties, then instance-property
       mutation. The phase owns the instance-child write premise rather than relying on a

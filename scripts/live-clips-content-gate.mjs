@@ -92,6 +92,8 @@ import { fileURLToPath } from "node:url";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { openR31Gate } from "./r3.1-live-gate-lib.mjs";
+import { r33Baseline } from "./r3.3-live-gate-lib.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = Object.fromEntries(
@@ -105,6 +107,10 @@ if (!options.channel) {
   process.stderr.write(
     "Usage: node scripts/live-clips-content-gate.mjs --channel=<DEV-plugin-channel> [--output-dir=<dir>] [--server=<dist-server-path>]\n",
   );
+  process.exit(2);
+}
+if (options["disposable-target"] !== "true") {
+  process.stderr.write("Refusing to run: pass --disposable-target=true only for an owner-confirmed disposable Figma file.\n");
   process.exit(2);
 }
 
@@ -145,12 +151,13 @@ if (!options.channel) {
 // `compatibility: "compatible"` for this; it only says the two RUNNING halves agree with
 // each other, never that either agrees with this tree.
 const expectedRuntime = {
-  serverBuildId: "r3.2.1-server-798028241619",
-  pluginBuildId: "r3.2.1-plugin-d9b64d2ac562",
-  schemaVersion: "1.21.0",
+  serverBuildId: "r3.3-server-a472b2a4cb3e",
+  pluginBuildId: "r3.3-plugin-06a6fcd0c5ec",
+  schemaVersion: "1.22.0",
   fingerprint:
-    "sha256:f6f9c2bb7f12264f754f81afb2715fa3ba613208bec65b5713da639bc979902d",
-  toolCount: 87,
+    "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
+  release: "R3.3",
+  toolCount: 103,
 };
 
 const serverPath = options.server
@@ -219,6 +226,16 @@ async function callNodeId(name, args = {}) {
   const match = called.text.match(/with (?:new )?ID:\s*([^.\s]+)/);
   assert.ok(match, `${name} returned neither JSON nor a prose node id: ${called.text}`);
   return match[1];
+}
+
+function findNamed(node, name) {
+  if (!node || typeof node !== "object") return null;
+  if (node.name === name) return node;
+  for (const child of node.children || []) {
+    const found = findNamed(child, name);
+    if (found) return found;
+  }
+  return null;
 }
 
 /** A refusal is an expected outcome; `layer` records which half answered. */
@@ -351,6 +368,9 @@ const record = {
 let scratchPageId = null;
 let originalPageId = null;
 let failure = null;
+let ownedR33ComponentId = null;
+let ownedR33InstanceId = null;
+let ownedR33IdentityKey = null;
 
 try {
   await client.connect(transport);
@@ -424,6 +444,7 @@ try {
     currentPageId: originalPageId,
     pageIds: (pagesBefore.pages ?? []).map((page) => page.id),
   };
+  record.r33Baseline = await r33Baseline({ callJson });
 
   scratchPageId = await callNodeId("create_page", { name: scratchPageName });
   await call("set_current_page", { pageId: scratchPageId });
@@ -651,6 +672,52 @@ try {
     parentId: subjectId,
   });
 
+  // R3.3 G4: build the context this historical gate previously owed. Ownership is
+  // recorded from each receipt before its assertions, so finally can remove it.
+  ownedR33IdentityKey = `r3.3/clips/${Date.now()}/component`;
+  const componentReceipt = (await callJson("create_or_match_component", {
+    parentId: scratchPageId,
+    name: `__R3.3 clips instance control ${Date.now()}`,
+    identityKey: ownedR33IdentityKey,
+  })).value;
+  if (componentReceipt.action === "created" && componentReceipt.id) {
+    ownedR33ComponentId = componentReceipt.id;
+  }
+  assert.equal(componentReceipt.outcome, "confirmed");
+  const mainInstanceFrameName = "G4 frame inside instance";
+  const mainInstanceFrameId = await callNodeId("create_frame", {
+    parentId: ownedR33ComponentId,
+    x: 0, y: 0, width: 100, height: 100,
+    name: mainInstanceFrameName,
+  });
+  await callNodeId("create_rectangle", {
+    parentId: mainInstanceFrameId,
+    x: 120, y: 0, width: 30, height: 30,
+    name: "G4 overflow inside instance",
+  });
+  const instanceReceipt = (await callJson("create_or_match_instance", {
+    parentId: scratchPageId,
+    componentId: ownedR33ComponentId,
+    identityKey: `r3.3/clips/${Date.now()}/instance`,
+  })).value;
+  if (instanceReceipt.action === "created" && instanceReceipt.id) {
+    ownedR33InstanceId = instanceReceipt.id;
+  }
+  assert.equal(instanceReceipt.outcome, "confirmed");
+  const instanceTree = (await callJson("get_node_info", {
+    nodeId: ownedR33InstanceId,
+  })).value;
+  const instanceFrameId = findNamed(instanceTree, mainInstanceFrameName)?.id ?? null;
+  if (!instanceFrameId) {
+    record.stillOwed.push(
+      "G4 instance-child clips row could not find the cloned frame in get_node_info.",
+    );
+  }
+  const instanceRenderBefore = instanceFrameId
+    ? await renderBoundsOf(instanceFrameId, "instance-frame-before")
+    : null;
+  const mainRenderBefore = await renderBoundsOf(mainInstanceFrameId, "main-frame-before");
+
   const contexts = [
     { context: "FRAME on a page", nodeId: subjectId, expected: "accepted" },
     { context: "FRAME nested inside a FRAME", nodeId: nestedFrameId, expected: "accepted" },
@@ -659,6 +726,9 @@ try {
     { context: "TEXT", nodeId: looseTextId, expected: "refused" },
     { context: "PAGE", nodeId: scratchPageId, expected: "refused" },
     { context: "RECTANGLE that will be grouped", nodeId: groupSourceId, expected: "refused" },
+    ...(instanceFrameId ? [{
+      context: "FRAME inside an INSTANCE", nodeId: instanceFrameId, expected: "unmeasured",
+    }] : []),
   ];
 
   const eligibility = [];
@@ -682,6 +752,42 @@ try {
   }
 
   record.checks.eligibility = eligibility;
+
+  if (instanceFrameId) {
+    const instanceRow = eligibility.find((row) => row.nodeId === instanceFrameId);
+    const instanceRenderAfter = await renderBoundsOf(
+      instanceFrameId, "instance-frame-after",
+    );
+    const mainRenderAfter = await renderBoundsOf(
+      mainInstanceFrameId, "main-frame-after",
+    );
+    const mainHeld = JSON.stringify(mainRenderBefore) === JSON.stringify(mainRenderAfter);
+    const instanceMoved = instanceRenderBefore?.width !== instanceRenderAfter.width ||
+      instanceRenderBefore?.height !== instanceRenderAfter.height;
+    const verdict = !mainHeld ? "leaked_to_main" :
+      instanceRow.accepted && instanceMoved ? "applied_as_override" :
+      instanceRow.accepted ? "false_success" :
+      instanceMoved ? "unmeasured" :
+      instanceRow.refusedByHandlerRule ? "refused_by_handler" :
+      "refused_by_platform";
+    record.checks.instanceChild = {
+      verdict,
+      instanceFrameId,
+      mainFrameId: mainInstanceFrameId,
+      instanceRenderBefore,
+      instanceRenderAfter,
+      mainRenderBefore,
+      mainRenderAfter,
+      mainHeld,
+    };
+    assert.notEqual(verdict, "false_success",
+      "G4 instance-child receipt claimed success without moving render bounds");
+    assert.notEqual(verdict, "leaked_to_main",
+      "G4 instance-child write changed the main component");
+    if (verdict === "unmeasured") {
+      record.stillOwed.push("G4 instance-child clips row changed after a refusal; no eligibility verdict is safe.");
+    }
+  }
 
   const accepted = eligibility.filter((row) => row.accepted);
   const refused = eligibility.filter((row) => !row.accepted);
@@ -866,9 +972,12 @@ try {
   record.stillOwed.push(
     "The ECHO discrimination stays FIXTURE-ONLY. Offline, `ignoreClipsContentWrites` models a node that accepts the write and keeps its old value, which is the only construction that separates a receipt echoing its argument from one reading the node back. Live, every accepted context stored what it was handed, so both implementations would have printed the same receipt here. ⭐ What §3 proves instead is stronger in a different direction — that the WRITE resolves — but it is not the same claim.",
   );
-  record.stillOwed.push(
-    "Whether a node inside an INSTANCE accepts the write is UNMEASURED — the matrix nests a frame inside a plain frame, not inside an instance, because this gate creates no component to instantiate. Figma restricts some writes on instance children, and that is the context most likely to make a readable property unwritable.",
-  );
+  if (!record.checks.instanceChild ||
+      record.checks.instanceChild.verdict === "unmeasured") {
+    record.stillOwed.push(
+      "Whether set_clips_content works inside an INSTANCE remains unmeasured because G4 could not establish the instance-child row.",
+    );
+  }
 
   record.success = true;
 } catch (error) {
@@ -876,30 +985,71 @@ try {
   record.success = false;
   record.error = { message: error?.message ?? String(error), stack: error?.stack };
 } finally {
-  // ⛔ Cleanup lives here, not on the success path. An aborted gate that leaves a page
-  // behind has happened once already. ⭐ Everything this gate creates is parented into the
-  // scratch page — including the SECTION, which `create_section` places on the current page
-  // and the current page is the scratch one — so there is no second cleanup path.
-  if (scratchPageId) {
+  const cleanup = [];
+  const attemptCleanup = async (label, action) => {
     try {
-      if (originalPageId) await call("set_current_page", { pageId: originalPageId });
-      const deleted = await call("delete_node", { nodeId: scratchPageId });
-      record.cleanup = { pageId: scratchPageId, reply: deleted.text };
-      const pagesAfter = (await callJson("get_pages")).value;
-      record.cleanup.baselineRestored =
-        (pagesAfter.pageCount ?? pagesAfter.pages?.length) === record.baseline?.pageCount &&
-        pagesAfter.currentPageId === originalPageId &&
-        JSON.stringify((pagesAfter.pages ?? []).map((page) => page.id)) ===
-          JSON.stringify(record.baseline?.pageIds);
-    } catch (cleanupError) {
-      record.cleanup = {
-        pageId: scratchPageId,
-        error: String(cleanupError.message ?? cleanupError),
+      cleanup.push({ label, result: await action() });
+    } catch (error) {
+      cleanup.push({ label, error: String(error.message ?? error) });
+    }
+  };
+  if (ownedR33InstanceId) {
+    await attemptCleanup("delete-owned-instance", async () =>
+      (await call("delete_node", { nodeId: ownedR33InstanceId })).text);
+  }
+  if (ownedR33ComponentId && ownedR33IdentityKey) {
+    await attemptCleanup("delete-owned-component", async () =>
+      (await callJson("delete_component", {
+        nodeId: ownedR33ComponentId,
+        identityKey: ownedR33IdentityKey,
+        confirm: true,
+      })).value);
+  }
+  if (originalPageId) {
+    await attemptCleanup("restore-current-page", async () =>
+      (await call("set_current_page", { pageId: originalPageId })).text);
+  }
+  if (scratchPageId) {
+    await attemptCleanup("delete-scratch-page", async () =>
+      (await call("delete_node", { nodeId: scratchPageId })).text);
+  }
+  record.cleanup = cleanup;
+  await client.close().catch(() => {});
+  if (record.r33Baseline) {
+    let verifier = null;
+    try {
+      verifier = await openR31Gate({
+        root, options, expectedRuntime,
+        name: "r3.3-clips-fresh-client",
+        requiredCommands: [
+          "set_clips_content", "get_component", "create_or_match_component",
+          "create_or_match_instance", "delete_component",
+        ],
+      });
+      await verifier.connectAndAssert();
+      const after = await r33Baseline(verifier);
+      record.cleanupFreshBaseline = {
+        restored: JSON.stringify(after) === JSON.stringify(record.r33Baseline),
+        after,
       };
+      assert.deepEqual(after, record.r33Baseline);
+    } catch (error) {
+      record.cleanupFreshBaseline = {
+        restored: false, error: String(error.message ?? error),
+      };
+      failure ??= error;
+    } finally {
+      if (verifier) await verifier.close();
     }
   }
+  if (cleanup.some((step) => step.error) && !failure) {
+    failure = new Error("G4 cleanup had a failed step");
+  }
+  if (!record.checks.instanceChild && !failure) {
+    failure = new Error("G4 instance-child row was unmeasured");
+  }
+  record.success = !failure && record.cleanupFreshBaseline?.restored === true;
   await writeFile(reportPath, `${JSON.stringify(record, null, 2)}\n`);
-  await client.close().catch(() => {});
   process.stderr.write(`report: ${reportPath}\n`);
 }
 

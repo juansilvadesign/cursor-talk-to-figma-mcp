@@ -12,7 +12,177 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-09-24b — R3.2 + R3.2.1 CLOSED: replay 25/25, baseline frozen)
+## ▶ Resume (checkpoint 2026-09-24f — ✅✅ R3.3 CLOSED: G1–G4 live-accepted, replay 24/24, baseline frozen)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`. The tree is **R3.3 / `1.22.0` / 103 tools**
+  (66 stable, 36 additive-preview, 1 legacy), pair `r3.3-server-a472b2a4cb3e` ↔
+  `r3.3-plugin-06a6fcd0c5ec`, fingerprint `sha256:daf288cb…4a029`. Offline `bun run verify`
+  **514/514**.
+- **Doing:** nothing is in flight. R3.3 is accepted, committed, and pushed.
+  - Live run 4 (fix round 4) passed G1 and G2. G3 and G4 re-ran green on the final tree.
+  - The release replay re-pinned all 24 historical gates, and all 24 passed on `bloqi67c`.
+  - The fresh-client baseline matched byte for byte.
+  - `contracts/baselines/r3.3-public-contract.json` is frozen.
+  - **Both gate ledgers are empty.**
+- **Next step:** R3.4 closure (`ROADMAP.md` / `TASKS.md`): stability decisions for R3.1–R3.3
+  preview tools and the stable-tool findings below. Plan it by interview first.
+- **Key paths / IDs:**
+  - The spec's "Live acceptance record" holds P1–P22 measured, the run table, and the replay.
+  - Replay instruments are in `docs/r3.3-verifier/`: `replay.mjs`, `grids-ceiling.mjs`
+    (inflate/deflate by recorded IDs), `replay-baseline.mjs`, and
+    `sweep-remote-paint-style.mjs`. Reports are in `reports/replay/`.
+  - PsiAtiva disposable remote paint style: `S:479d29c9…,1450:0` on node `25094:204` ("Lens 1",
+    page 📣 Mídia Social), proven by `remote_style_refused`. The R3.2 gate no longer needs the
+    SYD burner.
+- **Open / blockers (R3.4 inputs):**
+  - `resize_node` is a false success inside instances;
+  - `create_frame`/`set_parent` into an instance slot return or keep a pre-insertion **alias**,
+    never the canonical `I<inst>;<slot>;<guid>` ID;
+  - SVG `export_node_as_image` throws `undefined` on a BOOLEAN-bound instance;
+  - the 3 frozen component tools' defects.
+- **Don't forget:**
+  - ⛔ The ceiling gate needs *"7. Grids"* inflated 4 → 10 and deflated by RECORDED IDs
+    (`grids-ceiling.mjs`), and it runs LAST.
+  - ⛔ `live-clips-content-gate` needs `--disposable-target=true`, although its usage text
+    omits it.
+  - ⛔ `live-image-fill-export-gate` takes SPACE-separated `--key value` arguments.
+
+## ⤴ Previous checkpoint (2026-09-24e — R3.3 live run 3: G3 + G4 PASSED; G1 + G2 down to ONE instrument premise each; Codex on fix round 4)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`, R3.3 (components, variants, instances, and
+  slots).
+  - Plan: `R3.3-COMPONENTS-VARIANTS-INSTANCES.md`. The owner approved all 8 rule sets on 2026-09-24.
+  - The tree is the **UNCOMMITTED** R3.3 build: `1.22.0` / 103 tools, pair `r3.3-server-a472b2a4cb3e`
+    ↔ `r3.3-plugin-06a6fcd0c5ec`, fingerprint `sha256:daf288cb…4a029`.
+- **Doing:** I am the verifier (Maestri terminal `Terminal #4`). The Maestri agent `Codex` implements
+  offline and never commits. FIX3 is verified and proven live (see "live run 3" below). Codex is
+  running **fix round 4** (`docs/R3.3-CODEX-FIX4.md`, sent 2026-09-24 ~16:40). It touches the two
+  gate scripts, `r3.3-live-gate-lib.mjs`, and `tests/r3.3-gates.test.mjs` only, so the pair must
+  NOT move and no plugin reload is needed:
+  - G1: the VARIANT-switch NAME assertion becomes the width witness 80 → 160;
+  - G2: a pure alias-aware ID-verdict classifier plus offline branch tests. The new exact list is
+    `{set_parent: new_id_unreported_original_is_alias, create_frame: reply_id_is_alias}`;
+  - the G3 list comment cites both plugin builds.
+- **Next step:** when `docs/R3.3-CODEX-FIX4.done` exists (Codex pings `maestri ask "Terminal #4"
+  "R3.3 fix round 4 complete…"`):
+  1. Run `bun run verify` twice, confirm the pair is unchanged, and review the G1/G2 diffs.
+  2. Go live on channel `bloqi67c` (owner-confirmed *"Starter File - PsiAtiva - Disposable"*; ask
+     the owner for a new channel if the plugin was reloaded).
+     - Prove the G1/G2 bad-pin legs: temporary `scripts/_badpin-*.mjs` copies with the plugin pin
+       `r3.3-plugin-000000000000`, deleted afterwards.
+     - Then run `node scripts/live-r3.3-component-authoring-gate.mjs --channel=<ch>
+       --disposable-target=true --remote-instance-id=31030:666 --output-dir=<dir>`, and
+       `live-r3.3-slots-gate.mjs` without the remote flag.
+  3. Release replay:
+     - `node docs/r3.3-verifier/repin.mjs --apply` re-pins the 24 stale gates, block-scoped (the
+       dry run was clean).
+     - Update the `tests/live-gate-pins.test.mjs` ledgers.
+     - Run all 24 once. The ceiling gate needs *"7. Grids"* `VariableCollectionId:17050:782`
+       inflated 4 → 10 modes and deflated by the recorded IDs. Verdicts come from exit codes;
+       `live-export-gate` writes no `success` field.
+     - Take a fresh-client baseline.
+     - Freeze `contracts/baselines/r3.3-public-contract.json` and register it in
+       `tests/contract.test.mjs`, as in `b0f8826`.
+  4. Record the live runs in the plan and `TASKS.md`. Commit by explicit paths, then push (the
+     submodule first, then the parent pointer).
+- **Key paths / IDs:**
+  - Remote control `31030:666`: a library-variant instance; main `31030:226`, set `31030:105`,
+    VARIANT `Size`.
+  - Codex documents: `docs/R3.3-CODEX-{BRIEF,HANDOFF,FIX1,FIX2,FIX3,FIX4}.md`, plus their `.done`
+    markers.
+  - Verifier tools and all live reports: `docs/r3.3-verifier/` (probe, diag1–8 built on
+    `runR33Gate`, `repin.mjs`, `reports/`). All of `docs/*` is gitignored.
+    - `make-tail-diags.mjs` builds `r33-diag9-g1-tail.mjs` and `r33-diag10-g2-tail.mjs`: verbatim
+      gate copies with ONE assertion demoted to a record. Each substitution must match exactly
+      once. Rebuild them after any gate edit.
+- **Open / blockers:** G1 + G2 must pass live; then the replay and the freeze.
+  - **R3.4 list of stable-tool findings:**
+    - `resize_node` is a false success inside instances;
+    - `create_frame` into an instance slot replies with a pre-insertion **alias**. The alias
+      resolves today, but it is not the canonical `I<inst>;<slot>;<guid>` ID. (The FIX3 claim of
+      a "wrong ID" was never measured, and it is false.)
+    - `set_parent` into a slot does not report the new ID. The original ID still resolves to the
+      moved node as an alias;
+    - SVG `export_node_as_image` throws `undefined` on an instance with a BOOLEAN-hidden child;
+    - the 3 frozen component tools' recorded defects.
+  - Not yet updated: the TASKS.md R3.3 entry and the plan's live-run sections. Update them at
+    acceptance; Codex may still be editing them.
+- **Don't forget:**
+  - ⛔ `maestri ask` returns BEFORE Codex finishes. Wait for the `.done` marker.
+  - ⛔ There are ~3.7k lines of UNCOMMITTED R3.3 work in this PUBLIC repo, and peer sessions write
+    here. Never `git add -A`, `checkout`, or `stash`.
+  - ⛔ An in-session TalkToFigma MCP server can be older than the plugin. Use the gate scripts or
+    the `runR33Gate` diagnostics, which spawn a fresh `dist/` server.
+  - Keep Figma in the foreground. A plugin reload means a new channel from the owner.
+
+### R3.3 live run 3 (2026-09-24 ~16:20–16:35, channel `bloqi67c`, baseline restored after every run)
+
+- **Offline, by me:** `bun run verify` passed **511/511 twice** at `--test-concurrency=4`. The pair
+  and fingerprint did not move. Codex's FIX3 stayed in scope; the `mtime`s show `code.js`,
+  `server.ts`, and the contract untouched since 15:41.
+- **Bad-pin legs:** the FIX3 versions of G1 and G2 refused at the pin, with no baseline read, page,
+  or attempt (`reports/live3-badpin-g{1,2}.json`).
+- **G1** (`live3-g1.json`):
+  - The BOOLEAN witness is PROVEN: PNG width 295 → 180, `widthWithoutOverflow` 180. The unclip
+    step measured 295 → 295.
+  - It then failed at *"VARIANT switch did not change the instance name"*. That assertion was
+    fiction: a variant instance takes its **SET's** name (Figma's default `"Component 1"`, since
+    `combine_as_variants` gets no name), and a VARIANT switch never renames it.
+  - The width did go 80 → 160, and the fill changed.
+- **G2** (`live3-g2.json`):
+  - The by-name lookup works.
+  - The exact-match list failed on `create_frame: reply_id_names_created_node`. The reply ID and
+    the moved node's original ID both RESOLVE to the new instance-scoped nodes, as aliases.
+  - Measured twice (live3-g2 and diag10). The trailing GUID is not derivable: `1181→…;1184`,
+    `1185→…;1186`, `1221→…;1224`; diag8 had `1149→…;1149`.
+- **Tail diagnostics** (`live3-diag9.json`, `live3-diag10.json`): with only that one assertion
+  demoted, BOTH gates ran to the end GREEN.
+  - G1's never-run tail measured P8, P21, P6, P7, and P14.
+  - G2's tail: `limitViolations` `ABOVE_MAX` → `[]`, and `reset_slot` → 1 child.
+- **My instrument error:** the FIX3 brief pre-committed `reply_id_not_created_node` from a string
+  mismatch. diag8 never resolved the reply ID. ⛔ Resolve an ID before calling it wrong.
+
+### R3.3 live evidence (2026-09-24, runs 1–2 + diag1–8, file baseline restored after every run)
+
+- **Bad-pin legs:** G1–G4 refuse at `assertRuntime` before any baseline or mutation, on both pairs.
+- **G4 passed twice.** The instance-child clips row is `applied_as_override`.
+- **G3 passed.**
+  - 10 value writes apply as overrides.
+  - `set_parent`, `delete_node`, `create_frame`, and `create_group` are refused by the platform.
+  - `resize_node` is a false success, recorded as a known finding.
+- **Measured premises:**
+  - P1: the key reads back.
+  - P2: `combineAsVariants` KEEPS member IDs.
+  - P3: new components sit at (0,0), and the default variant is the first member.
+  - P4: `createComponentFromNode` gives the component a NEW ID.
+  - P5: a set-level property add works.
+  - P13: the consumer refusal fires.
+  - P14: deletion names a removal signal.
+  - P15: `createSlot` exists at runtime and creates a SLOT definition
+    `{type, description:null, preferredValues:[]}`. The slot's reference key is **`slotContentId`**,
+    which is absent from the typings. Instance-slot content works through `set_parent` and
+    `create_frame`.
+  - P16: the G3 matrix above.
+  - P17: the remote main and its set ID are readable.
+  - P18: the create tools accept a COMPONENT as parent.
+  - P19: the identity scan is complete.
+  - **P20: instances INHERIT private plugin data** (the root from its main, a sublayer from the
+    main's child).
+  - **P21: a nested INSTANCE_SWAP keeps its ID and size.**
+  - **P22: content placed in an instance slot gets an ID of the form `I<inst>;<slot>;<id>`.**
+  - `createComponent()` does not clip by default.
+  - `component_member_detach_refused` fired live.
+- **Tool defects fixed in FIX2:**
+  - T1: the INSTANCE projection returned the descendants' references, so a real bind read
+    `unconfirmed`.
+  - T2: instance identity ignored inheritance.
+  - T3: the invented `slotContent` key.
+- **My own instrument errors:**
+  - FIX1 item 3 assumed an INSTANCE_SWAP adopts the new size. It does not, and the nested B that
+    item added later masked the BOOLEAN witness.
+  - I first blamed the wrong stack line. Read the exact line before diagnosing.
+
+## ⤴ Previous checkpoint (2026-09-24b — R3.2 + R3.2.1 CLOSED: replay 25/25, baseline frozen)
 
 - **Project:** `knowledge/projects/talk-to-figma-fork`. Tree is **R3.2.1 / `1.21.0` / 87 tools**,
   pair `r3.2.1-server-798028241619` ↔ `r3.2.1-plugin-d9b64d2ac562` (fingerprint

@@ -292,6 +292,22 @@ The MCP server provides the following tools for interacting with Figma:
 - `set_local_style_attachment` - Attach an exact local style ID to a node's fill, stroke, text, effect, or grid surface, or pass `styleId: null` to clear it. Remote/library IDs are refused before any native setter; a pre-existing remote binding can be replaced or cleared and is reported as an observation
 - `delete_local_style` - Permanently delete one owned exact local style only with `confirm: true`, matching private identity, and a readable zero-consumer check. It never deletes by name or implicitly detaches consumers, and returns `removal_unconfirmed` unless a fresh local inventory proves absence
 - `get_local_components` - Get document-wide component counts/name families by default, or a paginated component list; scope with `pages` and bound with `timeBudgetMs` on large documents. Summary mode also clusters components into `authoringSessions` by node-id prefix, so a bulk-pasted vendor kit is distinguishable from hand-authored work
+- `get_component` - Read an exact local component, set, instance, or slot with bounded property and consumer observations
+- `create_or_match_component` - Create or find an owned local component by opaque private identity within the document
+- `create_component_from_node` - Convert one eligible local node to an owned component, reporting whether its ID survived
+- `create_or_match_instance` - Create a local component instance or match one by parent-scoped private identity
+- `delete_component` - Remove an owned component or set only after confirming zero consumers
+- `combine_as_variants` - Combine exact local components whose names form a valid variant matrix
+- `add_component_property` - Add a supported component or set property and read back its exact Figma key
+- `edit_component_property` - Edit a supported property field and observe Figma's resulting key and references
+- `delete_component_property` - Confirm and delete a non-variant property with reference readback
+- `bind_component_property` - Bind or clear a descendant's property reference to an exact definition key
+- `set_instance_properties` - Validate and set local instance properties, then report the observed values and main component
+- `swap_instance_component` - Swap an instance to an exact local component and report observed overrides
+- `reset_instance_overrides` - Clear direct instance overrides and read them back
+- `detach_instance` - Confirm and detach a top-level instance, reporting the resulting frame and prior instance ID
+- `create_slot` - Create a native slot on a local non-variant component when the runtime supports it
+- `reset_slot` - Reset a native slot in a local instance and report its children and limit violations
 - `get_variables` - Get document-wide variable collections, modes, and resolved values
 - `get_variable_capabilities` - Read-only variable-write preflight: reports whether the required write APIs exist, each collection's `isRemote` and `modeCount`, plus the observed editor context. Figma exposes neither a read-only file-permission check nor a numeric mode-limit API, so it reports those facts as unknown rather than creating and deleting a mode to guess
 - `add_variable_mode` - Add one named mode to an existing local variable collection. This performs the caller's requested `addMode()` write exactly once; a Figma pricing-tier refusal is returned verbatim, and a numeric limit is reported only when Figma's own message states it — never guessed from a plan table or a temporary create/delete probe

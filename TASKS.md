@@ -2010,11 +2010,35 @@ The detailed evidence and acceptance conditions live in
       wrapper, and byte-preservation tests are green, and its no-mutation live gate PASSED on
       2026-09-24 (channel `m5g7y5fg`, node `I23005:96;21002:1242`, original 90,439-byte JPEG,
       node unchanged). It does not advance or consume the planned R3.3 component-authoring phase.
-- [ ] **R3.3 — components, variants, and instances.** Start with generic component
+- [x] **R3.3 — components, variants, and instances.** Start with generic component
       creation/ownership and instantiation, then variants/properties, then instance-property
       mutation. The phase owns the instance-child write premise rather than relying on a
       hand-prepared component. Code Connect, library publishing, and consumer mappings stay
       out of scope.
+      📐 **Planned and APPROVED 2026-09-24 → [`R3.3-COMPONENTS-VARIANTS-INSTANCES.md`](R3.3-COMPONENTS-VARIANTS-INSTANCES.md).**
+      16 `additive-preview` tools at `1.22.0`, one build move; the owner approved all eight rule
+      sets. Owner interview: all four extras (convert node → component,
+      swap + reset overrides, detach, slots); `identityKey` required on components and sets,
+      opt-in on instances; an owned `delete_component` that refuses while instances exist; one
+      instance-child eligibility gate plus the clips gate's recorded row. The three stable
+      component tools stay frozen; their recorded defects are R3.4 contract decisions.
+      ✅ **Offline implementation complete 2026-09-24:** Codex implemented 3A–3G, regenerated
+      the R3.3 / `1.22.0` 103-tool contract, rebuilt `dist/`, and passed `bun run verify`
+      506/506. All eight rule sets have a recorded mutation-kill test. G1–G4 are written,
+      pinned, and offline-checked; no live gate or Figma connection ran. See the spec's
+      implementation record and `docs/R3.3-CODEX-HANDOFF.md`.
+      ✅✅ **LIVE-ACCEPTED 2026-09-24** on channel `bloqi67c` (*"Starter File - PsiAtiva -
+      Disposable"*), pair `r3.3-server-a472b2a4cb3e` ↔ `r3.3-plugin-06a6fcd0c5ec`, after four
+      fix rounds and four live runs. G1–G4 all passed on the final tree; `verify` 514/514.
+      - Fix round 2 fixed three tool defects: the INSTANCE projection, inherited plugin data,
+        and the invented slot key.
+      - Rounds 3–4 fixed instruments that live runs disproved.
+      - The release replay re-pinned and re-ran all 24 historical gates green, and a fresh
+        client matched the document byte for byte.
+      - The contract is frozen as `contracts/baselines/r3.3-public-contract.json`.
+      - The measured premises P1–P22 and the R3.4 stable-tool findings are in the spec's live
+        acceptance record: `resize_node` false success in instances, slot replies that return
+        aliases, and SVG export on BOOLEAN-bound instances.
 - [ ] **R3.4 — closure.** Freeze stability decisions, run each phase's own gate evidence,
       and ensure the full live roster is current on the final runtime pair. Consumer proof is
       separate integration evidence and never replaces fork fixtures.

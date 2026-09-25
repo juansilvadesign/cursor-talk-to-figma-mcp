@@ -2097,8 +2097,8 @@ The detailed evidence and acceptance conditions live in
       - The release replay passed 30/30, and the fresh-client baseline matched byte for byte.
       - `r3.3.1-public-contract.json` is frozen.
       - The details are in [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md) move 1.
-      **Next:** move 2 (R3.4 / `1.24.0`). ⚠️ G6 gates only a `NODE`/`NAVIGATE` action. URL and
-      scroll-to shapes are not gated, so `get_reactions`' promotion row must name that gap.
+      **Next:** move 2 (R3.4 / `1.24.0`). ✅ Since its fixture was extended on 2026-09-25, G6
+      gates three action shapes: `NODE`/`NAVIGATE`, `URL`, and `NODE`/`SCROLL_TO`.
 
 **R3 acceptance:** generic MCP clients can measure and author local design-system resources
 and component primitives through documented Figma-native contracts. Every claimed live

@@ -46,9 +46,21 @@ type: project
      at 9:04 PM).
      - ⛔ The parent's index held another session's STAGED submodules (`.gitmodules`,
        EpicInfographics, growthOS), so the pointer bump uses `git commit --only -- <paths>`.
+  1b. ✅ **CLOSED later on 2026-09-25: three G6 rows pass live** (`g6-scroll-to`). The owner set
+     the Scroll-to destination, which had been "none"; the row uses the owner's link
+     `31059:1490`. The history follows.
+     **G6 gap closure, no R3.4 needed: only the fixture grows** (`docs/r3.3.1-verifier/`,
+     2026-09-25). Nothing is committed yet; one docs commit follows once Scroll-to resolves.
+     - ✅ The **URL** row passed live: `31059:1492`, ON_CLICK → URL `claude.ai` (the owner's
+       record; Figma stores the URL as typed). G6 is green on 2 rows (`reports/live-28efqyhx/g6-url`).
+     - ⏳ **Scroll-to** (`31059:1488`) is parked in `reaction-fixture.pending-scroll-to.json`.
+       - `reaction-field-diff.mjs` (booleans only) showed ON_CLICK, `NODE` and `SCROLL_TO` all
+         match, but the stored `destinationId` is **neither** the owner's link `31059:1490` nor
+         its text `31059:1491` ("Top-level frame").
+       - The owner reads the noodle's real target in the Prototype panel. ⛔ Never fill it from
+         `get_reactions`.
   2. **Move 2 (R3.4 / `1.24.0`)**: `R3.4-CLOSURE.md` § 2A/2B. Brief Codex #2 from it.
-     - ⚠️ G6 gates only `NODE`/`NAVIGATE`; the `get_reactions` promotion row must name the URL and
-       scroll-to gap.
+     - ✅ G6 gates `NODE`/`NAVIGATE`, `URL` and `NODE`/`SCROLL_TO`.
 - **Don't forget:**
   - ⛔ Leave the consumer's worktree `.claude/worktrees/talk-to-figma-fork-r3.2.1` in place.
   - The consumer handoff (release, contract, fingerprint, ids, SHA) is in `TASKS.md`

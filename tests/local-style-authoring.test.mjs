@@ -127,8 +127,8 @@ test("the public contract preserves the complete R3.2 surface through the R3.2.1
     "confirm",
   ]);
   assert.equal(tools.delete_local_style.inputSchema.properties.confirm.const, true);
-  assert.equal(contract.publicContractVersion, "1.22.0");
-  assert.equal(contract.serverSchemaVersion, "1.22.0");
+  assert.equal(contract.publicContractVersion, "1.23.0");
+  assert.equal(contract.serverSchemaVersion, "1.23.0");
 });
 
 test("creates and canonical-reads all four local style classes without exposing identity values", async () => {

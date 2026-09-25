@@ -138,7 +138,7 @@ test("R3.3 adds exactly 16 preview tools while every frozen stable tool stays by
   for (const tool of previous.tools.filter((entry) => entry.resultStability === "stable")) {
     assert.equal(JSON.stringify(now.get(tool.name)), JSON.stringify(tool), tool.name);
   }
-  assert.equal(current.publicContractVersion, "1.22.0");
+  assert.equal(current.publicContractVersion, "1.23.0");
   const batchBody = plugin.slice(plugin.indexOf("const BATCH_ALLOWED_COMMANDS"),
     plugin.indexOf("const BATCH_ALLOWED_COMMANDS") + 4000);
   for (const tool of additions) assert.doesNotMatch(batchBody, new RegExp(`"${tool.name}"`));

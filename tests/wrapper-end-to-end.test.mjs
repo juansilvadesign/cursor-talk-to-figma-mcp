@@ -31,6 +31,34 @@ const TEXT = "10:2";
 const FOOTER = "10:5";
 const MISSING = "9:9";
 
+test("SVG export preserves each rejection type and text through the MCP wrapper with one prefix", {
+  timeout: 30000,
+}, async () => {
+  await withLiveStack(async ({ client, plugin }) => {
+    const cases = [
+      [new Error("native refused"), "Error", "native refused"],
+      ["string refused", "string", "string refused"],
+      [undefined, "undefined", "undefined"],
+      [{ code: 7 }, "object", "[object Object]"],
+    ];
+    const formats = [];
+    for (const [rejection, type, detail] of cases) {
+      plugin.harness.getNode("10:4").exportAsync = async (settings) => {
+        formats.push(settings.format);
+        throw rejection;
+      };
+      const result = await client.callTool({ name: "export_node_as_image",
+        arguments: { nodeId: "10:4", format: "SVG" } });
+      const reply = result.content.find((entry) => entry.type === "text")?.text || "";
+      assert.equal(result.content.length, 1);
+      assert.equal((reply.match(/Error exporting node as image:/g) || []).length, 1, reply);
+      assert.match(reply, new RegExp(`\\[${type}\\]`));
+      assert.ok(reply.includes(detail), reply);
+    }
+    assert.deepEqual(formats, ["SVG", "SVG", "SVG", "SVG"]);
+  });
+});
+
 /**
  * Stand up relay + plugin + a connected MCP client, joined to a channel and past the
  * compatibility preflight, then hand them to `body` and tear all three down.

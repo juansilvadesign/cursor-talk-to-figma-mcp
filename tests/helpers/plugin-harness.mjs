@@ -12,6 +12,13 @@ function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+function holdsSymbolValue(value, seen = new WeakSet()) {
+  if (typeof value === "symbol") return true;
+  if (!value || typeof value !== "object" || seen.has(value)) return false;
+  seen.add(value);
+  return Object.values(value).some((entry) => holdsSymbolValue(entry, seen));
+}
+
 // ⛔ Figma's MEASURED style-storage normalization (owned live probe, 2026-09-23 — see
 // R3.2-LOCAL-STYLE-AUTHORING.md "Live run 1"): numbers are stored as float32, and every
 // stored paint/effect/grid gains fields the request never set; Inter, a variable font,
@@ -64,7 +71,8 @@ function normalizeStyleValueLikeFigma(field, value, options) {
 // survive `JSON.stringify`, cannot be compared structurally, and cannot be unwrapped by
 // an API that expects `{family, style}`. Declared at module scope because fixture nodes
 // are built before the `figma` object exists.
-const MIXED = Symbol("mixed");
+// G5 live observation (2026-09-25): figma.mixed.description is "figma.mixed".
+const MIXED = Symbol("figma.mixed");
 const DEFAULT_IMAGE_BYTES = Uint8Array.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
   0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
@@ -2006,7 +2014,12 @@ function createFixtureRuntime(fixture, options) {
     closePlugin: () => undefined,
     notify: (message) => notifications.push(message),
     on: () => undefined,
-    ui: { postMessage: (message) => messages.push(clone(message)) },
+    ui: { postMessage: (message) => {
+      if (holdsSymbolValue(message)) {
+        throw new Error("in postMessage: Cannot unwrap symbol");
+      }
+      messages.push(clone(message));
+    } },
     clientStorage: {
       getAsync: async (key) => storage.get(key),
       setAsync: async (key, value) => storage.set(key, clone(value)),
@@ -2425,6 +2438,7 @@ function createFixtureRuntime(fixture, options) {
     fontLoads,
     loadedFonts,
     styleById,
+    variables,
     styleNativeCalls,
     componentNativeCalls,
     clock,
@@ -2497,6 +2511,8 @@ export async function loadPluginHarness(options = {}) {
   });
 
   return {
+    figma: runtime.figma,
+    mixed: MIXED,
     async command(name, params = {}) {
       const reply = runtime.plain(await context.handleCommand(name, params));
       // Commit AFTER the reply is built: that ordering is the whole difference between
@@ -2504,11 +2520,23 @@ export async function loadPluginHarness(options = {}) {
       runtime.commitFrame();
       return reply;
     },
+    async executeCommand(name, params = {}) {
+      const start = runtime.messages.length;
+      await runtime.figma.ui.onmessage({
+        type: "execute-command", id: `harness-${start}`, command: name, params,
+      });
+      runtime.commitFrame();
+      return runtime.messages.slice(start).filter((message) =>
+        message.type === "command-result" || message.type === "command-error");
+    },
     getNode(id) {
       return runtime.nodes.get(id) || null;
     },
     getStyle(id) {
       return runtime.styleById.get(id) || null;
+    },
+    getVariable(id) {
+      return runtime.variables.find((entry) => entry.id === id) || null;
     },
     // Reach a top-level declaration inside the plugin script. A `vm` context exposes
     // function declarations on the global object but NOT `const` bindings, so anything

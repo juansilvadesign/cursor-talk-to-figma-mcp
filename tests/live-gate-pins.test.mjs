@@ -201,6 +201,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 //   `0:1`, 64 components, the style counts, 9 collections, 1,316 variables, and every
 //   collection's mode IDs.
 // Their 24 entries are DELETED rather than reworded, so this ledger is empty again.
+// All 27 gates that carried the R3.3 pair now pin R3.3.1. The verifier still owes
+// the full replay; this empty ledger records pin currency, not live replay evidence.
+// live-smoke has no pins.
 const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 
 // ✅✅ **R3.2 LOCAL-STYLE GATE PASSED LIVE — 2026-09-24, channel `npezjajm`**, burner
@@ -226,6 +229,7 @@ const GATES_PINNED_TO_AN_EARLIER_RELEASE = Object.freeze({});
 // a masked BOOLEAN witness, instance-scoped SLOT IDs, a VARIANT switch that never renames the
 // instance (it carries the SET's name), and reply IDs that resolve as aliases.
 // Their four entries are DELETED here in the same change as the green runs.
+// R3.3.1 G1's SVG row, G5 and G6 passed live on 2026-09-25; none is pending acceptance.
 const GATES_PENDING_LIVE_ACCEPTANCE = Object.freeze({});
 
 function readPins(source) {
@@ -331,7 +335,7 @@ test("every live gate either pins THIS build or declares the release it belongs 
   );
 });
 
-test("the accepted R3.2 local-style gate remains disposable-only and is current after the R3.3 replay", async () => {
+test("the accepted R3.2 local-style gate remains disposable-only and pins R3.3.1", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-r3.2-local-style-authoring-gate.mjs"),
     "utf8",
@@ -341,13 +345,13 @@ test("the accepted R3.2 local-style gate remains disposable-only and is current 
   assert.match(source, /owner-confirmed disposable Figma file/);
   assert.match(source, /no allow-permanent mode/);
   assert.match(source, /independent client/i);
-  // Replayed on the R3.3 pair against a real remote paint style in the disposable file; it is
-  // neither pending nor historical.
+  // Its R3.3 replay used a real remote paint style in the disposable file. Its pin is
+  // current for the R3.3.1 replay, and it is neither pending nor historical.
   assert.equal(Object.hasOwn(GATES_PENDING_LIVE_ACCEPTANCE, "live-r3.2-local-style-authoring-gate.mjs"), false);
   assert.equal(Object.hasOwn(GATES_PINNED_TO_AN_EARLIER_RELEASE, "live-r3.2-local-style-authoring-gate.mjs"), false);
 });
 
-test("the accepted R3.2.1 image-fill gate remains read-only and is current after the R3.3 replay", async () => {
+test("the accepted R3.2.1 image-fill gate remains read-only and pins R3.3.1", async () => {
   const source = await readFile(
     path.join(root, "scripts", "live-image-fill-export-gate.mjs"),
     "utf8",
@@ -416,7 +420,7 @@ test("every live gate except live-smoke publishes pins this test can parse", asy
   // read-only image-fill export gate.
   assert.equal(
     parsed.length,
-    28,
-    `expected 28 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
+    30,
+    `expected 30 pinned live gates, found ${parsed.length}: ${parsed.join(", ")}`,
   );
 });

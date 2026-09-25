@@ -1554,7 +1554,7 @@ server.tool(
 // Export Node as Image Tool
 server.tool(
   "export_node_as_image",
-  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
+  "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely. Export failures retain Figma's rejection text and thrown value type, with the error prefix once.",
   {
     nodeId: z.string().describe("The ID of the node to export"),
     format: z
@@ -1634,12 +1634,17 @@ server.tool(
         ],
       };
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      // A relay may stringify a plugin Error as "Error: <message>". Preserve the
+      // plugin's typed export message while keeping exactly one public prefix.
+      const exportDetail = detail.startsWith("Error: Error exporting node as image: ")
+        ? detail.slice("Error: ".length) : detail;
       return {
         content: [
           {
             type: "text",
-            text: `Error exporting node as image: ${error instanceof Error ? error.message : String(error)
-              }`,
+            text: exportDetail.startsWith("Error exporting node as image: ")
+              ? exportDetail : `Error exporting node as image: ${exportDetail}`,
           },
         ],
       };
@@ -2054,7 +2059,7 @@ server.tool(
 // Get Variables Tool
 server.tool(
   "get_variables",
-  "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
+  "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. A serialized record has valueStatus resolved or partial and unreadableFields; Symbol values become named nulls. Paths in unreadableFields start at the record's value or resolvedValue. A partial color stays structured so its named null remains addressable; clean colors keep their hex serialization. Placeholder-only records retain their prior shape. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
   {
     types: z
       .array(z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]))
@@ -2683,7 +2688,7 @@ server.tool(
 // Get Node Variables Tool
 server.tool(
   "get_node_variables",
-  "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
+  "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. A read value has valueStatus resolved or partial and unreadableFields; each Symbol becomes a named null, with paths relative to value. A partial color binding stays structured so its named null remains addressable; clean colors keep their hex serialization. A partial style is counted in limitations while complete keeps its coverage meaning. Anything the client cannot answer is declared in limitations rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
   {
     nodeId: z.string().describe("Root node ID whose subtree should be scanned"),
     maxNodes: z

@@ -1,10 +1,10 @@
 {
-  "release": "R3.3",
-  "publicContractVersion": "1.22.0",
-  "serverSchemaVersion": "1.22.0",
+  "release": "R3.3.1",
+  "publicContractVersion": "1.23.0",
+  "serverSchemaVersion": "1.23.0",
   "packageVersion": "0.3.5",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
+  "capabilityFingerprint": "sha256:541d14db086baaf326b751b2d2ebbbdd3dcacd81a68e5674584fcc19d204b2a1",
   "capabilities": [
     "figma.command.add_component_property@1",
     "figma.command.add_variable_mode@1",
@@ -2730,7 +2730,7 @@
     {
       "kind": "tool",
       "name": "export_node_as_image",
-      "description": "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely.",
+      "description": "[Node scoped] Export a node as an image from Figma. Always returns a JSON receipt identifying the export plus a preflight cost estimate. PNG/JPG exports above the fork's 16 MP safety ceiling are refused unless allowLargeExport is explicitly true. Pass filePath to write the bytes to disk and keep base64 out of the transcript entirely. Export failures retain Figma's rejection text and thrown value type, with the error prefix once.",
       "direction": "read",
       "scope": "node",
       "inputSchema": {
@@ -3130,7 +3130,7 @@
     {
       "kind": "tool",
       "name": "get_node_variables",
-      "description": "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. Anything the client cannot answer is declared in `limitations` rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
+      "description": "[Node-subtree scoped] Resolve every design token in a node and its descendants: variable bindings (property, variable name, active value) AND style references (fill/stroke/text/effect/grid styles), which are a separate Figma concept a node can use instead of variables. A read value has valueStatus resolved or partial and unreadableFields; each Symbol becomes a named null, with paths relative to value. A partial color binding stays structured so its named null remains addressable; clean colors keep their hex serialization. A partial style is counted in limitations while complete keeps its coverage meaning. Anything the client cannot answer is declared in limitations rather than omitted. Document-root ID 0:0 is unsupported; use get_pages first.",
       "direction": "read",
       "scope": "node_subtree",
       "inputSchema": {
@@ -3388,7 +3388,7 @@
     {
       "kind": "tool",
       "name": "get_variables",
-      "description": "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
+      "description": "[Document-wide] Get local variable collections, modes, and variables with raw and alias-resolved values per mode. A serialized record has valueStatus resolved or partial and unreadableFields; Symbol values become named nulls. Paths in unreadableFields start at the record's value or resolvedValue. A partial color stays structured so its named null remains addressable; clean colors keep their hex serialization. Placeholder-only records retain their prior shape. Returns an explicit unsupported/incomplete payload when the Variables API cannot answer.",
       "direction": "read",
       "scope": "document",
       "inputSchema": {

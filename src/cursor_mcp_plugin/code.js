@@ -4,12 +4,12 @@
 // talk-to-figma-runtime-metadata:start
 const PLUGIN_RUNTIME_METADATA = Object.freeze({
   "name": "Talk to Figma (fork) plugin",
-  "release": "R3.3",
-  "buildId": "r3.3-plugin-06a6fcd0c5ec",
-  "apiVersion": "1.22.0",
-  "serverSchemaVersion": "1.22.0",
+  "release": "R3.3.1",
+  "buildId": "r3.3.1-plugin-41fd0e925b27",
+  "apiVersion": "1.23.0",
+  "serverSchemaVersion": "1.23.0",
   "relayProtocolVersion": "1",
-  "capabilityFingerprint": "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
+  "capabilityFingerprint": "sha256:541d14db086baaf326b751b2d2ebbbdd3dcacd81a68e5674584fcc19d204b2a1",
   "supportedCommands": [
     "get_runtime_info",
     "get_document_info",
@@ -317,18 +317,32 @@ figma.ui.onmessage = async (msg) => {
       break;
     case "execute-command":
       // Execute commands received from UI (which gets them from WebSocket)
+      let result;
       try {
-        const result = await handleCommand(msg.command, msg.params);
+        result = await handleCommand(msg.command, msg.params);
+      } catch (error) {
+        figma.ui.postMessage({
+          type: "command-error",
+          id: msg.id,
+          error: error.message || "Error executing command",
+        });
+        break;
+      }
+      try {
         figma.ui.postMessage({
           type: "command-result",
           id: msg.id,
           result,
         });
       } catch (error) {
+        const symbolPaths = findSymbolPaths(result, 10);
+        const detail = symbolPaths.length > 0
+          ? `unserializable_result: ${msg.command} returned a Symbol at ${symbolPaths.map((path) => path === "" ? '""' : path).join(", ")}${symbolPaths.length === 10 ? " (scan stopped at ten)" : ""}`
+          : (error?.message ?? String(error));
         figma.ui.postMessage({
           type: "command-error",
           id: msg.id,
-          error: error.message || "Error executing command",
+          error: detail,
         });
       }
       break;
@@ -1236,7 +1250,7 @@ function collectStyleRefsForNode(node) {
 function readStyleValue(style) {
   switch (style.type) {
     case "PAINT":
-      return { paints: style.paints ? Array.from(style.paints) : [] };
+      return { paints: typeof style.paints === "symbol" ? style.paints : style.paints ? Array.from(style.paints) : [] };
     case "TEXT":
       return {
         fontName: style.fontName,
@@ -1249,12 +1263,57 @@ function readStyleValue(style) {
         textDecoration: style.textDecoration,
       };
     case "EFFECT":
-      return { effects: style.effects ? Array.from(style.effects) : [] };
+      return { effects: typeof style.effects === "symbol" ? style.effects : style.effects ? Array.from(style.effects) : [] };
     case "GRID":
-      return { layoutGrids: style.layoutGrids ? Array.from(style.layoutGrids) : [] };
+      return { layoutGrids: typeof style.layoutGrids === "symbol" ? style.layoutGrids : style.layoutGrids ? Array.from(style.layoutGrids) : [] };
     default:
       return null;
   }
+}
+
+function appendValuePath(path, key, index = false) {
+  return index ? `${path}[${key}]` : path ? `${path}.${key}` : key;
+}
+
+// Copy before replacing Symbols: Figma may freeze its style and variable values.
+function copyWithNamedSymbols(value, unreadableFields, path = "", seen = new WeakMap()) {
+  if (typeof value === "symbol") {
+    unreadableFields.push({
+      path,
+      reason: value === figma.mixed ? "figma_mixed" : "symbol",
+      description: value.description ?? null,
+    });
+    return null;
+  }
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return seen.get(value);
+  const copy = Array.isArray(value) ? [] : {};
+  seen.set(value, copy);
+  for (const [key, nested] of Object.entries(value)) {
+    copy[key] = copyWithNamedSymbols(nested, unreadableFields,
+      appendValuePath(path, key, Array.isArray(value)), seen);
+  }
+  return copy;
+}
+
+function findSymbolPaths(value, limit = 10) {
+  const paths = [];
+  const seen = new WeakSet();
+  function visit(current, path) {
+    if (paths.length >= limit) return;
+    if (typeof current === "symbol") {
+      paths.push(path);
+      return;
+    }
+    if (!current || typeof current !== "object" || seen.has(current)) return;
+    seen.add(current);
+    for (const [key, nested] of Object.entries(current)) {
+      visit(nested, appendValuePath(path, key, Array.isArray(current)));
+      if (paths.length >= limit) return;
+    }
+  }
+  visit(value, "");
+  return paths;
 }
 
 async function resolveNodeStyle(node, record) {
@@ -1292,12 +1351,17 @@ async function resolveNodeStyle(node, record) {
 
   let value = null;
   let valueStatus = "resolved";
+  let unreadableFields;
   try {
     value = readStyleValue(style);
     if (value === null) {
       // A style type this build does not know how to read. Say so rather than
       // implying the style has no value.
       valueStatus = "unsupported_style_type";
+    } else {
+      unreadableFields = [];
+      value = copyWithNamedSymbols(value, unreadableFields);
+      if (unreadableFields.length > 0) valueStatus = "partial";
     }
   } catch (error) {
     value = null;
@@ -1311,7 +1375,7 @@ async function resolveNodeStyle(node, record) {
     value,
     valueStatus,
     resolutionStatus: "resolved",
-  });
+  }, unreadableFields === undefined ? {} : { unreadableFields });
 }
 
 function hasVariablesApi() {
@@ -1484,6 +1548,18 @@ function serializeVariableValue(value) {
   }
 
   return value;
+}
+
+function serializePreviewVariableValue(value, path = "") {
+  const unreadableFields = [];
+  const copy = copyWithNamedSymbols(value, unreadableFields, path);
+  // A partial color stays structured: reducing it to a hex string would erase
+  // the named null. Clean values still use the shared serializer unchanged.
+  return {
+    value: unreadableFields.length > 0 ? copy : serializeVariableValue(copy),
+    unreadableFields,
+    valueStatus: unreadableFields.length > 0 ? "partial" : "resolved",
+  };
 }
 
 async function resolveVariableAliasMetadata(alias) {
@@ -4784,7 +4860,7 @@ async function resolveVariableValueForMode(
     if (!targetVariable) {
       return {
         status: "unresolved_alias",
-        value: serializeVariableValue(rawValue),
+        ...serializePreviewVariableValue(rawValue),
       };
     }
 
@@ -4805,7 +4881,7 @@ async function resolveVariableValueForMode(
 
   return {
     status: "resolved",
-    value: serializeVariableValue(rawValue),
+    ...serializePreviewVariableValue(rawValue),
   };
 }
 
@@ -4946,6 +5022,18 @@ async function getVariables(params) {
                 mode.name
               );
 
+              const raw = rawValue === undefined
+                ? null : serializePreviewVariableValue(rawValue, "value");
+              const unreadableFields = [
+                ...(raw?.unreadableFields || []),
+                ...(resolved.unreadableFields || []).map((entry) => ({
+                  ...entry,
+                  path: entry.path === "" ? "resolvedValue"
+                    : appendValuePath("resolvedValue", entry.path),
+                })),
+              ];
+              const hasSerializedValue = raw !== null || resolved.unreadableFields !== undefined;
+
               return {
                 id: variable.id,
                 name: variable.name,
@@ -4956,9 +5044,13 @@ async function getVariables(params) {
                 value:
                   rawValue === undefined
                     ? null
-                    : serializeVariableValue(rawValue),
+                    : raw.value,
                 resolvedValue: resolved.value,
                 resolutionStatus: resolved.status,
+                ...(hasSerializedValue ? {
+                  unreadableFields,
+                  valueStatus: unreadableFields.length > 0 ? "partial" : "resolved",
+                } : {}),
               };
             })
           );
@@ -7941,6 +8033,7 @@ async function resolveNodeBinding(node, record) {
 
   try {
     const resolved = variable.resolveForConsumer(node);
+    const preview = serializePreviewVariableValue(resolved.value);
     return {
       nodeId: node.id,
       nodeName: node.name,
@@ -7949,7 +8042,9 @@ async function resolveNodeBinding(node, record) {
       property: record.property,
       variableId: variable.id,
       variableName: variable.name,
-      value: serializeVariableValue(resolved.value),
+      value: preview.value,
+      unreadableFields: preview.unreadableFields,
+      valueStatus: preview.valueStatus,
       resolvedType: resolved.resolvedType,
       resolutionStatus: "resolved",
     };
@@ -8170,7 +8265,7 @@ async function getNodeVariables(params) {
 
   if (canResolveStyles && unreadableStyleValues > 0) {
     limitations.push(
-      `${unreadableStyleValues} resolved style references carry no value; inspect each entry's valueStatus ("unsupported_style_type" means this build cannot read that style type, "read_failed" means the style resolved but its value could not be read).`
+      `${unreadableStyleValues} resolved style references carry an incomplete value; inspect each entry's valueStatus ("partial" means unreadableFields names every replaced Symbol, "unsupported_style_type" means this build cannot read that style type, "read_failed" means the style resolved but its value could not be read).`
     );
   }
 
@@ -8842,10 +8937,12 @@ async function exportNodeAsImage(params) {
       0,
       1,
       0,
-      `Export failed: ${error.message || String(error)}`,
+      `Export failed: ${error?.message || String(error)}`,
       { preflight }
     );
-    throw new Error(`Error exporting node as image: ${error.message}`);
+    const type = Object.prototype.toString.call(error) === "[object Error]"
+      ? error.name || "Error" : error === null ? "null" : typeof error;
+    throw new Error(`Error exporting node as image: [${type}] ${error?.message || String(error)}`);
   }
 }
 

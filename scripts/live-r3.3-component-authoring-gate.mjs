@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 
 import { parseGateOptions, requireDisposableTarget } from "./r3.1-live-gate-lib.mjs";
 import { runR33Gate } from "./r3.3-live-gate-lib.mjs";
+import { classifyR331SvgExportVerdict } from "./r3.3.1-live-gate-lib.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const options = parseGateOptions();
@@ -25,11 +26,11 @@ if (!options["remote-instance-id"]) {
 }
 
 const expectedRuntime = {
-  serverBuildId: "r3.3-server-a472b2a4cb3e",
-  pluginBuildId: "r3.3-plugin-06a6fcd0c5ec",
-  schemaVersion: "1.22.0",
-  fingerprint: "sha256:daf288cb29bef1f5879e96107003a63c2715a1b5d4a3a5055ee62ca63e14a029",
-  release: "R3.3",
+  serverBuildId: "r3.3.1-server-9c8cb843a656",
+  pluginBuildId: "r3.3.1-plugin-41fd0e925b27",
+  schemaVersion: "1.23.0",
+  fingerprint: "sha256:541d14db086baaf326b751b2d2ebbbdd3dcacd81a68e5674584fcc19d204b2a1",
+  release: "R3.3.1",
   toolCount: 103,
 };
 
@@ -342,10 +343,31 @@ await runR33Gate({
       format: "PNG", beforeWidth: renderBeforeWidth, afterWidth: renderAfterWidth,
       widthWithoutOverflow,
     };
-    // 2026-09-24, this pair: SVG export on an instance with a BOOLEAN-bound
-    // child returned "Error exporting node as image: undefined" both before
-    // and after the hide. PNG worked and supplies this render-bounds witness.
-    record.findings.push("export_node_as_image SVG: Error exporting node as image: undefined on BOOLEAN-bound instance; PNG worked (diag5/diag7)");
+    let svgReceipt;
+    let svgError;
+    let pngBytes = false;
+    try {
+      const exported = await gate.call("export_node_as_image", {
+        nodeId: instance.id, format: "SVG",
+      });
+      svgReceipt = JSON.parse(exported.text);
+      const image = exported.result.content.find((entry) => entry.type === "image");
+      pngBytes = Boolean(image && Buffer.from(image.data, "base64")
+        .subarray(0, 8).equals(Buffer.from("89504e470d0a1a0a", "hex")));
+    } catch (error) {
+      svgError = (error?.message || String(error))
+        .replace(/^export_node_as_image failed: /, "");
+    }
+    const svgVerdict = classifyR331SvgExportVerdict({
+      pngSucceeded: true, svgReceipt, svgError, pngBytes,
+    });
+    record.premises.P24 = { status: "measured", outcome: svgVerdict.outcome,
+      text: svgVerdict.text || null, mimeType: svgReceipt?.mimeType || null };
+    record.checks.svgExport = svgVerdict;
+    if (!svgVerdict.success) {
+      record.findings.push(`SVG export failed its verdict: ${svgVerdict.reason}`);
+    }
+    assert.equal(svgVerdict.success, true, svgVerdict.reason);
     const beforeSwap = await call("get_node_info", { nodeId: instance.id });
     const swapped = await call("swap_instance_component", {
       instanceId: instance.id, componentId: second.id,

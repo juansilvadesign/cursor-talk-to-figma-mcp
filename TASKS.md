@@ -136,21 +136,35 @@ Hard rules:
 
 ## Consumer compatibility snapshot
 
-**Refreshed 2026-09-24.** [`figma-to-code`](../figma-to-code/) now pins two runtimes. Its
+**Refreshed 2026-09-25** (R3.3.1 handoff below). [`figma-to-code`](../figma-to-code/) now pins two runtimes. Its
 historical capture stays bound to `5e0c869`. Its new captures pin **`e136177` (R3.2.1)**
 through an isolated detached worktree of this fork. Both pins are **consumer choices**, not
 fork dependencies.
 
-🔴 **Its first fork defect is open.** During its R2 capture of a private client fixture,
-`get_node_variables` failed with `in postMessage: Cannot unwrap symbol` on any node whose
-subtree references a remote TEXT style
+✅ **Its first fork defect is fixed in R3.3.1 (2026-09-25).** During its R2 capture of a private
+client fixture, `get_node_variables` failed with `in postMessage: Cannot unwrap symbol` on any
+node whose subtree references a remote TEXT style
 ([brief](docs/CONSUMER-BUG-2026-09-24-REMOTE-TEXT-STYLE-SYMBOL.md),
 [sanitized evidence](docs/evidence/consumer-2026-09-24-remote-text-style-symbol/evidence.json)).
-R3.3's `main` has the same code. The consumer's R2 is parked until **R3.3.1** ships the fix
-under a new plugin build id and a pinnable commit ([`R3.4-CLOSURE.md`](R3.4-CLOSURE.md)
-move 1). The consumer then re-runs its capture from a clean worktree of that release, adds
-the release to its `CAPTURE_FORK_PINS`, and moves new captures and its image-fill export
-lane onto it.
+The cause is that the style's `fontName` is `figma.mixed` (P23).
+
+**R3.3.1 handoff:**
+
+| Field | Value |
+| --- | --- |
+| Release | `R3.3.1` |
+| `publicContractVersion` (and server schema, plugin API) | `1.23.0` |
+| Capability fingerprint | `sha256:541d14db086baaf326b751b2d2ebbbdd3dcacd81a68e5674584fcc19d204b2a1` |
+| Server build id | `r3.3.1-server-9c8cb843a656` |
+| Plugin build id | `r3.3.1-plugin-41fd0e925b27` |
+| First commit carrying this runtime | `951a148` |
+
+- **What changed for the consumer.** That record now reads `valueStatus: "partial"`, with
+  `value.fontName: null` named in `unreadableFields`. The other seven fields are unchanged.
+- **Next for the consumer.** Pin the release's closing commit, the `docs: 🏁` commit that adds this
+  table. Re-run the capture from a clean worktree of it, add the release to `CAPTURE_FORK_PINS`,
+  and move new captures and the image-fill export lane onto it.
+- ⛔ The consumer's re-capture is its own integration acceptance, and it never replaces G5.
 
 History: the consumer's 2026-08-02 capture sequence found no defect in this fork. All seven
 payload-shape corrections it made were in its own validators, which had been written from
@@ -2052,8 +2066,8 @@ The detailed evidence and acceptance conditions live in
       and ensure the full live roster is current on the final runtime pair. Consumer proof is
       separate integration evidence and never replaces fork fixtures.
       📐 **Planned by owner interview 2026-09-24 →
-      [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md).** No code is written, and the nine rule sets there
-      await approval. Two build moves:
+      [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md).** No code is written. The owner approved all nine
+      rule sets on 2026-09-24. Two build moves:
       - **R3.3.1 (`1.23.0`)** unblocks `figma-to-code`. It fixes the consumer's
         `get_node_variables` defect ([brief](docs/CONSUMER-BUG-2026-09-24-REMOTE-TEXT-STYLE-SYMBOL.md)):
         a remote TEXT style value carries a Symbol that `postMessage` cannot clone, so one record
@@ -2065,8 +2079,26 @@ The detailed evidence and acceptance conditions live in
       - **R3.4 (`1.24.0`)** is the closure pair. It adds additive disclosure on the recorded
         stable-tool defects and evidence-gated promotions: up to 35 of the 36 preview tools,
         with `delete_variable_collection` held.
-      ⛔ Before any live step, re-import the dev plugin from this checkout. It is currently
-      imported from the consumer's pinned R3.2.1 worktree.
+      The owner re-imported the dev plugin from this checkout on 2026-09-24, and live
+      `get_runtime_info` reported `r3.3-plugin-06a6fcd0c5ec`. ✅ **§ 1C step 1 reproduced the
+      crash** that evening. On the unfixed R3.3 pair, the remote TEXT style
+      `S:e110db44…,16497:2209` on `I31030:666;3287:432929` crashes `get_node_variables` 3 of 3
+      times, and another remote TEXT style serializes on the same file. The window isolation
+      puts the Symbol in the style record. Codex built R3.3.1 offline on pair
+      `r3.3.1-server-9c8cb843a656` ↔ `r3.3.1-plugin-41fd0e925b27` (`1.23.0`). The verifier's
+      offline check passed: 545/545 twice, `dist/` reproducible, and an independent silent-null
+      mutation killed.
+      ✅ **Move 1 (R3.3.1) closed 2026-09-25 on channel `28efqyhx`:**
+      - G5, G6 and G1 passed live, and so did every bad-pin leg.
+      - **P23:** `TextStyle.fontName` is `figma.mixed`.
+      - **P24:** SVG exports while a visible layer remains. With none left, Figma rejects with a
+        string, and R3.3.1 now keeps that text.
+      - The P23 premise fixture is mutation-proven. The unfixed handler is `resolveNodeStyle`.
+      - The release replay passed 30/30, and the fresh-client baseline matched byte for byte.
+      - `r3.3.1-public-contract.json` is frozen.
+      - The details are in [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md) move 1.
+      **Next:** move 2 (R3.4 / `1.24.0`). ⚠️ G6 gates only a `NODE`/`NAVIGATE` action. URL and
+      scroll-to shapes are not gated, so `get_reactions`' promotion row must name that gap.
 
 **R3 acceptance:** generic MCP clients can measure and author local design-system resources
 and component primitives through documented Figma-native contracts. Every claimed live

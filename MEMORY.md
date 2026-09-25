@@ -12,18 +12,89 @@ type: project
 > ⛔ **Never `git add -A` here** — peer sessions write this repo concurrently. Stage explicit paths.
 
 
-## ▶ Resume (checkpoint 2026-09-24g — 📐 R3.4 PLANNED by owner interview; no code written)
+## ▶ Resume (checkpoint 2026-09-25 — ✅✅ MOVE 1 / R3.3.1 CLOSED: G5, G6, G1 live-accepted, replay 30/30, baseline frozen)
 
-- **Project:** `knowledge/projects/talk-to-figma-fork`. The tree is still **R3.3 / `1.22.0` / 103
-  tools** on pair `r3.3-server-a472b2a4cb3e` ↔ `r3.3-plugin-06a6fcd0c5ec`. Nothing in `src/`
-  changed.
-- **Doing:** nothing is in flight. R3.4 is planned in [`R3.4-CLOSURE.md`](R3.4-CLOSURE.md) from an
-  eight-question owner interview. The `figma-to-code` consumer's `get_node_variables` defect is
-  folded in: its brief and sanitized evidence were committed in `2fa34bf`.
-- **Next step:** the owner approves or amends the nine rule sets in `R3.4-CLOSURE.md` § Approval
-  record. Only after that does the owner re-import the dev plugin from this checkout. Then the
-  verifier runs 1C step 1, the live known-bad sweep on the unfixed R3.3 pair, and Codex gets
-  `docs/R3.3.1-CODEX-BRIEF.md`.
+- **Project:** `knowledge/projects/talk-to-figma-fork`, R3.4 closure.
+  - Move 1 (**R3.3.1** / `1.23.0` / 103 tools) is live-accepted on channel `28efqyhx`
+    (*"Starter File - PsiAtiva - Disposable"*).
+  - Pair `r3.3.1-server-9c8cb843a656` ↔ `r3.3.1-plugin-41fd0e925b27`, fingerprint
+    `sha256:541d14db…04b2a1`.
+  - The full record is in `R3.4-CLOSURE.md` move 1: "Verifier's live run", "§ 1C step 4 record"
+    and "Move-1 release replay". The reports are in `docs/r3.3.1-verifier/reports/`.
+- **Results:**
+  - The bad-pin legs of G5, G6 and G1 all refused.
+  - **G5 passed 11/11. P23: `TextStyle.fontName` is `figma.mixed`**, and it is the only Symbol.
+  - **G6 passed.** The owner hand-placed On click → Navigate to on `31059:1499` → `31059:1515` in
+    SECTION `claude-test` `31059:1518`, which stays as the fixture. The row came from the owner's
+    labels, read through `get_node_info` only. The control `7011:827` read empty.
+  - **G1 passed. P24:** SVG exports while a visible layer remains. With none left, Figma rejects
+    with the *string* `Failed to export node. This node may not have any visible layers.`, and 1E
+    now keeps that text (`docs/r3.3.1-verifier/svg-after-hide.mjs`).
+  - **P23 premise fixture:** `tests/r3.3.1-p23-premise.test.mjs`, mutation-proven. ⛔ The unfixed
+    handler is `resolveNodeStyle`, not `readStyleValue`. ⛔ Live `figma.mixed.description` is
+    `"figma.mixed"`; the harness had invented `"mixed"`, which is now fixed.
+  - **Replay 30/30** (bad pin refused, Grids restored), and the fresh-client baseline matched byte
+    for byte. `verify` passes 546/546.
+- **Delegation (the owner's rule, 2026-09-25):** coding, commits, pushes and git sync go to Maestri
+  **`Codex #2`** (gpt-6-sol max). The verifier keeps the live runs and the grading.
+  - Pattern that worked 3/3: a brief file in `docs/`, the pair pinned by six sha256s, off-limits
+    files named, the `.done` marker last, and a reply of at most 5 lines.
+  - Then verify it yourself: the marker plus an idle terminal plus the hashes.
+- **Next:**
+  1. ✅ Done 2026-09-25: the baseline is frozen, the release is in 6 typed commits, and the fork is
+     pushed. The verifier did the commits after **Codex #2 hit its usage limit** mid-task (it resets
+     at 9:04 PM).
+     - ⛔ The parent's index held another session's STAGED submodules (`.gitmodules`,
+       EpicInfographics, growthOS), so the pointer bump uses `git commit --only -- <paths>`.
+  2. **Move 2 (R3.4 / `1.24.0`)**: `R3.4-CLOSURE.md` § 2A/2B. Brief Codex #2 from it.
+     - ⚠️ G6 gates only `NODE`/`NAVIGATE`; the `get_reactions` promotion row must name the URL and
+       scroll-to gap.
+- **Don't forget:**
+  - ⛔ Leave the consumer's worktree `.claude/worktrees/talk-to-figma-fork-r3.2.1` in place.
+  - The consumer handoff (release, contract, fingerprint, ids, SHA) is in `TASKS.md`
+    § Consumer compatibility snapshot.
+
+## ⤴ Previous checkpoint (2026-09-24j — ✅ R3.3.1 built by Codex + verified OFFLINE; live step waits on a plugin reload)
+
+- **Project:** `knowledge/projects/talk-to-figma-fork`, R3.4 move 1. The working tree is the
+  **uncommitted R3.3.1 build**: `1.23.0` / 103 tools, pair `r3.3.1-server-9c8cb843a656` ↔
+  `r3.3.1-plugin-41fd0e925b27`, fingerprint `sha256:541d14db…04b2a1`. HEAD is still R3.3.
+- **Doing:** I am the verifier (Maestri `Terminal #4`). Codex is idle.
+  - The handoff is `docs/R3.3.1-CODEX-HANDOFF.md`, with 0 deviations. My offline check is recorded
+    in `R3.4-CLOSURE.md` § "Verifier's offline check": 545/545 twice, `dist/` reproducible, and my
+    silent-null mutation turned 14 of 22 tests red.
+  - ⛔ Codex's first "complete" ping (21:25, pair `…b90d64f9a3ae`) came before it finished. It
+    edited and regenerated afterwards, so trust only the settled pair above.
+- **Next step (needs the owner):**
+  1. The owner reloads the dev plugin, which yields a new channel.
+  2. Run `node docs/r3.3.1-verifier/runtime-probe.mjs --channel=<ch> --pair=r3.3.1`.
+  3. Prove the bad-pin legs: temporary copies of G5, G6 and G1 with plugin pin
+     `r3.3.1-plugin-000000000000`, deleted afterwards.
+  4. Run the three gates with the exact command lines in the handoff. G5's target is
+     `I31030:666;3287:432929`, its container `31030:666`, its TEXT control `7011:827` and its PAINT
+     control `25094:204`. Its report records **P23**. Write P23 into the plan, and only then brief
+     the § 1C step 4 premise fixture. The G1 SVG row records **P24**.
+  5. G6 needs `docs/r3.3.1-verifier/reaction-fixture.json`, recorded by the owner from Figma's UI.
+     Today's reactions are URL-only, so ask the owner to add a click → navigate reaction.
+  6. Then the move-1 replay: re-pin the 27 stale gates, run the full roster once, take a
+     fresh-client baseline, freeze `r3.3.1-public-contract.json`, commit, and push.
+- **Step 1 result (2026-09-24, channel `2yeh3kp2`, unfixed pair, *"Starter File - PsiAtiva -
+  Disposable"*):**
+  - Live `get_runtime_info` reported plugin `r3.3-plugin-06a6fcd0c5ec`, so the re-import is
+    observed.
+  - The sweep covered 25 pages and 332 visible TEXT nodes. Five have a remote `textStyleId`, in
+    two styles.
+  - **Crash:** `S:e110db44…,16497:2209` on `I31030:666;3287:432929` ("Text" inside the library
+    instance `31030:666` "Buttons/Button"). It fails 3 of 3, and so does the instance.
+  - **Clean contrast:** `S:1e29c8ba…,1077:1` on `7011:827`–`839` serializes with all eight fields
+    typed.
+  - **Window isolation:** the Symbol sits in the TEXT style record. The instance's remote PAINT and
+    EFFECT records serialize.
+  - **P23 (the field) is still unnamed,** by design.
+  - **Reactions:** the file has 10, all `ON_CLICK` → `URL` on `_Link` nodes. None has a node
+    destination.
+  - Recorded in `R3.4-CLOSURE.md` § 1C "Step 1 result" and § 1D. The reports are in
+    `docs/r3.3.1-verifier/reports/`.
 - **Key facts:**
   - There are two build moves. **R3.3.1 / `1.23.0`** unblocks the consumer: the Symbol fix, the loud
     boundary, the SVG error, G5, G6 and a G1 SVG row. **R3.4 / `1.24.0`** is the closure pair:
@@ -38,9 +109,13 @@ type: project
   - `serializeVariableValue` also feeds the stable `set_variable_value` readback. Move 1 keeps that
     path's shape frozen and leaves it to the boundary.
 - **Don't forget:**
-  - ⛔ Figma's dev plugin is imported from the consumer's pinned R3.2.1 worktree, not from this
-    checkout. Re-import `src/cursor_mcp_plugin/manifest.json` from here before ANY live step, and
-    verify by build id, not by the plugin's name.
+  - ✅ The owner re-imported the dev plugin from this checkout on 2026-09-24. Step 1 observed it
+    through the build id. ⛔ Codex's `code.js` change needs a dev-plugin **reload**, and a reload
+    means a new channel from the owner.
+  - ⛔ The offline harness's `ui.postMessage` was a JSON round-trip. It silently DROPPED a Symbol
+    where Figma throws, which is why the defect never showed offline. 1B makes the fake refuse it.
+  - ⛔ `maestri ask` returns BEFORE Codex finishes. Wait for the `.done` marker.
+  - The owner supplies the socket channel, and the relay (`bun socket`, port 3055) must be up.
   - ⛔ Leave the consumer's worktree in place.
   - ⛔ `docs/*` is ignored. Every new doc or evidence directory needs its own allowlist line.
 
